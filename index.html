@@ -1,0 +1,1604 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+  <meta name="theme-color" content="#1E3A2A">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="SWR Tracker">
+  <meta name="format-detection" content="telephone=no">
+  <title>Southern Wildlife Tracker</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='96' fill='%231E3A2A'/%3E%3Cg fill='%23C4772A'%3E%3Cellipse cx='256' cy='342' rx='108' ry='90'/%3E%3Cellipse cx='138' cy='228' rx='46' ry='58'/%3E%3Cellipse cx='220' cy='150' rx='42' ry='56'/%3E%3Cellipse cx='292' cy='150' rx='42' ry='56'/%3E%3Cellipse cx='374' cy='228' rx='46' ry='58'/%3E%3C/g%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Source+Sans+3:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --green: #1E3A2A;
+      --green-deep: #15291E;
+      --green-soft: #2E5240;
+      --amber: #C4772A;
+      --amber-soft: #E0A464;
+      --cream: #F8F4EE;
+      --cream-deep: #EEE6D6;
+      --ink: #1F2419;
+      --ink-soft: #5A5A50;
+      --line: #D9D1BF;
+      --danger: #A33A26;
+      --released: #3F7A4E;
+      --euthanized: #7A4A35;
+      --shadow: 0 6px 18px rgba(30, 58, 42, 0.12);
+      --radius: 14px;
+      --safe-top: env(safe-area-inset-top);
+      --safe-bot: env(safe-area-inset-bottom);
+      --nav-h: 68px;
+    }
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; }
+    body {
+      font-family: 'Source Sans 3', system-ui, -apple-system, sans-serif;
+      color: var(--ink);
+      background: var(--cream);
+      font-size: 16px;
+      line-height: 1.4;
+      overscroll-behavior: none;
+    }
+    h1, h2, h3 { font-family: 'Playfair Display', Georgia, serif; font-weight: 700; margin: 0; color: var(--green-deep); }
+    button { font-family: inherit; font-size: inherit; cursor: pointer; }
+    input, select, textarea, button { font-family: inherit; }
+    .hidden { display: none !important; }
+
+    /* PIN screen */
+    #pinScreen {
+      position: fixed; inset: 0; background: var(--green); color: var(--cream);
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      padding: calc(var(--safe-top) + 24px) 24px calc(var(--safe-bot) + 24px);
+      z-index: 100;
+    }
+    #pinScreen .logo {
+      width: 96px; height: 96px; border-radius: 24px; background: var(--green-deep);
+      display: flex; align-items: center; justify-content: center; margin-bottom: 20px;
+    }
+    #pinScreen .logo svg { width: 64px; height: 64px; }
+    #pinScreen h1 { color: var(--cream); font-size: 28px; text-align: center; margin-bottom: 4px; }
+    #pinScreen .sub { color: var(--amber-soft); font-size: 14px; letter-spacing: 0.06em; text-transform: uppercase; margin-bottom: 36px; }
+    .pin-dots { display: flex; gap: 16px; margin-bottom: 32px; }
+    .pin-dots span { width: 16px; height: 16px; border-radius: 50%; border: 2px solid var(--amber-soft); background: transparent; transition: background 0.15s; }
+    .pin-dots span.on { background: var(--amber); border-color: var(--amber); }
+    .pin-pad { display: grid; grid-template-columns: repeat(3, 72px); gap: 14px; }
+    .pin-key {
+      height: 72px; border-radius: 50%; border: none;
+      background: rgba(255,255,255,0.08); color: var(--cream);
+      font-size: 28px; font-weight: 600; font-family: 'Source Sans 3', sans-serif;
+    }
+    .pin-key:active { background: rgba(196,119,42,0.35); }
+    .pin-key.blank { background: transparent; pointer-events: none; }
+    .pin-key.action { font-size: 14px; letter-spacing: 0.05em; text-transform: uppercase; color: var(--amber-soft); }
+    .pin-error { color: var(--amber-soft); min-height: 20px; margin-bottom: 12px; font-size: 14px; }
+
+    /* App shell */
+    #app { height: 100%; display: flex; flex-direction: column; }
+    #appHeader {
+      padding: calc(var(--safe-top) + 12px) 18px 12px;
+      background: var(--green); color: var(--cream);
+      display: flex; align-items: center; justify-content: space-between;
+      box-shadow: var(--shadow);
+      flex-shrink: 0;
+    }
+    #appHeader h1 { color: var(--cream); font-size: 22px; }
+    #appHeader .period {
+      font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase;
+      color: var(--amber-soft); margin-top: 2px;
+    }
+    .header-btn {
+      background: transparent; border: none; color: var(--amber-soft);
+      font-size: 13px; padding: 8px 10px; border-radius: 8px;
+    }
+    .header-btn:active { background: rgba(255,255,255,0.08); }
+
+    #appMain {
+      flex: 1; overflow-y: auto; overflow-x: hidden;
+      padding: 16px 16px calc(var(--nav-h) + var(--safe-bot) + 16px);
+      -webkit-overflow-scrolling: touch;
+    }
+    .view { animation: fadeIn 0.18s ease-out; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+
+    /* Bottom nav */
+    #bottomNav {
+      position: fixed; left: 0; right: 0; bottom: 0;
+      height: calc(var(--nav-h) + var(--safe-bot));
+      padding-bottom: var(--safe-bot);
+      background: #fff; border-top: 1px solid var(--line);
+      display: grid; grid-template-columns: repeat(5, 1fr);
+      align-items: stretch;
+      z-index: 50;
+    }
+    .nav-btn {
+      background: transparent; border: none; padding: 6px 0;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      gap: 2px; color: var(--ink-soft); font-size: 11px; font-weight: 500;
+    }
+    .nav-btn svg { width: 22px; height: 22px; }
+    .nav-btn.active { color: var(--green); }
+    .nav-btn.active svg { stroke: var(--green); }
+    .nav-fab {
+      background: var(--amber); border: none; color: #fff;
+      width: 58px; height: 58px; border-radius: 50%;
+      align-self: center; justify-self: center;
+      margin-top: -24px; box-shadow: 0 6px 14px rgba(196,119,42,0.4);
+      display: flex; align-items: center; justify-content: center;
+    }
+    .nav-fab svg { width: 28px; height: 28px; stroke: #fff; }
+    .nav-fab:active { background: #B06B26; }
+
+    /* Cards & layout */
+    .card {
+      background: #fff; border-radius: var(--radius); padding: 16px;
+      box-shadow: var(--shadow); margin-bottom: 14px;
+    }
+    .card-flat { background: var(--cream-deep); border-radius: var(--radius); padding: 14px; margin-bottom: 12px; }
+    .row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px; }
+    .stat {
+      background: #fff; border-radius: var(--radius); padding: 14px;
+      box-shadow: var(--shadow);
+    }
+    .stat .label { font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-soft); }
+    .stat .value { font-family: 'Playfair Display', serif; font-size: 28px; color: var(--green-deep); font-weight: 700; margin-top: 4px; }
+    .stat .sub { font-size: 12px; color: var(--ink-soft); margin-top: 2px; }
+    .stat.released .value { color: var(--released); }
+    .stat.euthanized .value { color: var(--euthanized); }
+
+    .section-title {
+      font-family: 'Playfair Display', serif; font-size: 18px; color: var(--green-deep);
+      margin: 18px 0 10px; font-weight: 700;
+    }
+    .empty {
+      text-align: center; padding: 30px 16px; color: var(--ink-soft);
+    }
+    .empty .em-title { font-family: 'Playfair Display', serif; font-size: 18px; color: var(--green-deep); margin-bottom: 4px; }
+
+    /* Record list */
+    .rec {
+      display: flex; align-items: flex-start; gap: 12px; padding: 12px 0;
+      border-bottom: 1px solid var(--line); cursor: pointer;
+    }
+    .rec:last-child { border-bottom: none; }
+    .rec-thumb {
+      width: 38px; height: 38px; border-radius: 10px; flex-shrink: 0;
+      background: var(--cream-deep); color: var(--green); font-weight: 700;
+      display: flex; align-items: center; justify-content: center; font-size: 13px;
+    }
+    .rec-body { flex: 1; min-width: 0; }
+    .rec-title { font-weight: 600; color: var(--green-deep); }
+    .rec-meta { font-size: 13px; color: var(--ink-soft); margin-top: 2px; }
+    .rec-tag {
+      display: inline-block; padding: 2px 8px; border-radius: 999px;
+      font-size: 11px; font-weight: 600; letter-spacing: 0.02em;
+      margin-left: 6px;
+    }
+    .tag-R { background: #DDEAD8; color: var(--released); }
+    .tag-D { background: #EFDFD2; color: var(--euthanized); }
+    .tag-X { background: var(--cream-deep); color: var(--ink-soft); }
+
+    /* Forms */
+    .form-group { margin-bottom: 14px; }
+    label { display: block; font-size: 13px; font-weight: 600; color: var(--green-deep); margin-bottom: 6px; }
+    label .req { color: var(--amber); margin-left: 3px; }
+    input[type=text], input[type=date], input[type=number], input[type=tel], input[type=password], select, textarea {
+      width: 100%; padding: 12px 14px; font-size: 16px;
+      border: 1px solid var(--line); border-radius: 10px;
+      background: #fff; color: var(--ink); appearance: none; -webkit-appearance: none;
+    }
+    select {
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%231E3A2A' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+      background-repeat: no-repeat; background-position: right 14px center;
+      padding-right: 38px;
+    }
+    textarea { min-height: 80px; resize: vertical; }
+    input:focus, select:focus, textarea:focus { outline: 2px solid var(--amber); outline-offset: 1px; border-color: var(--amber); }
+    .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .hint { font-size: 12px; color: var(--ink-soft); margin-top: 4px; }
+
+    .search-bar { position: relative; margin-bottom: 10px; }
+    .search-bar input { padding-left: 40px; }
+    .search-bar svg { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); stroke: var(--ink-soft); width: 18px; height: 18px; }
+    .filter-row {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px;
+    }
+    .filter-row select { padding: 10px 32px 10px 12px; font-size: 14px; }
+
+    /* Buttons */
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+      padding: 13px 18px; font-size: 16px; font-weight: 600;
+      border-radius: 12px; border: none; width: 100%;
+      transition: transform 0.05s;
+    }
+    .btn:active { transform: scale(0.98); }
+    .btn-primary { background: var(--green); color: var(--cream); }
+    .btn-amber { background: var(--amber); color: #fff; }
+    .btn-ghost { background: var(--cream-deep); color: var(--green-deep); }
+    .btn-danger { background: #fff; color: var(--danger); border: 1px solid var(--danger); }
+    .btn-row { display: flex; gap: 10px; }
+    .btn-row .btn { flex: 1; }
+
+    /* Detail sheet */
+    .sheet-backdrop {
+      position: fixed; inset: 0; background: rgba(21,41,30,0.5);
+      z-index: 80; opacity: 0; pointer-events: none;
+      transition: opacity 0.18s;
+    }
+    .sheet-backdrop.open { opacity: 1; pointer-events: auto; }
+    .sheet {
+      position: fixed; left: 0; right: 0; bottom: 0;
+      background: var(--cream); border-radius: 22px 22px 0 0;
+      padding: 16px 18px calc(var(--safe-bot) + 24px);
+      max-height: 86vh; overflow-y: auto;
+      transform: translateY(100%); transition: transform 0.22s ease-out;
+      z-index: 90;
+    }
+    .sheet.open { transform: translateY(0); }
+    .sheet-handle { width: 42px; height: 4px; background: var(--line); border-radius: 4px; margin: 4px auto 14px; }
+    .sheet h2 { font-size: 22px; margin-bottom: 4px; }
+    .detail-rows { margin: 12px 0 18px; }
+    .detail-rows .dr { display: flex; justify-content: space-between; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+    .detail-rows .dr:last-child { border-bottom: none; }
+    .detail-rows .dk { font-size: 12px; letter-spacing: 0.05em; text-transform: uppercase; color: var(--ink-soft); flex-shrink: 0; }
+    .detail-rows .dv { text-align: right; font-weight: 500; color: var(--ink); }
+
+    /* Toast */
+    #toast {
+      position: fixed; left: 50%; transform: translateX(-50%) translateY(20px);
+      bottom: calc(var(--nav-h) + var(--safe-bot) + 16px);
+      background: var(--green-deep); color: var(--cream);
+      padding: 12px 18px; border-radius: 999px; font-size: 14px; font-weight: 500;
+      opacity: 0; transition: opacity 0.2s, transform 0.2s; z-index: 200;
+      pointer-events: none; max-width: 80vw; text-align: center;
+    }
+    #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+    #toast.error { background: var(--danger); }
+
+    /* Confirm modal */
+    .confirm {
+      position: fixed; inset: 0; z-index: 110; display: none;
+      background: rgba(21,41,30,0.55); align-items: center; justify-content: center; padding: 24px;
+    }
+    .confirm.open { display: flex; }
+    .confirm .box { background: #fff; border-radius: 16px; padding: 20px; max-width: 360px; width: 100%; }
+    .confirm h3 { font-size: 18px; margin-bottom: 6px; }
+    .confirm p { color: var(--ink-soft); margin: 4px 0 16px; font-size: 14px; }
+
+    /* Period badge */
+    .period-badge {
+      display: inline-flex; align-items: center; gap: 6px;
+      background: var(--green); color: var(--cream);
+      padding: 6px 12px; border-radius: 999px; font-size: 12px;
+      letter-spacing: 0.04em;
+    }
+    .period-badge .dot { width: 6px; height: 6px; background: var(--amber); border-radius: 50%; }
+    .greeting { margin: 6px 0 14px; }
+    .greeting h2 { font-size: 24px; }
+    .greeting p { color: var(--ink-soft); font-size: 14px; margin-top: 2px; }
+
+    .conditional { display: none; }
+    .conditional.on { display: block; }
+
+    /* Helpers */
+    .muted { color: var(--ink-soft); }
+    .center { text-align: center; }
+    hr.div { border: none; border-top: 1px solid var(--line); margin: 14px 0; }
+
+    @media (min-width: 480px) {
+      .stat-grid { grid-template-columns: repeat(4, 1fr); }
+    }
+  </style>
+</head>
+<body>
+
+<!-- PIN screen -->
+<div id="pinScreen">
+  <div class="logo">
+    <svg viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+      <g fill="#C4772A">
+        <ellipse cx="256" cy="342" rx="108" ry="90"/>
+        <ellipse cx="138" cy="228" rx="46" ry="58"/>
+        <ellipse cx="220" cy="150" rx="42" ry="56"/>
+        <ellipse cx="292" cy="150" rx="42" ry="56"/>
+        <ellipse cx="374" cy="228" rx="46" ry="58"/>
+      </g>
+    </svg>
+  </div>
+  <h1>Southern Wildlife Tracker</h1>
+  <div class="sub" id="pinPrompt">Enter PIN</div>
+  <div style="height:24px"></div>
+  <div class="pin-dots" id="pinDots"><span></span><span></span><span></span><span></span></div>
+  <div class="pin-error" id="pinError"></div>
+  <div class="pin-pad" id="pinPad">
+    <button class="pin-key" data-k="1">1</button>
+    <button class="pin-key" data-k="2">2</button>
+    <button class="pin-key" data-k="3">3</button>
+    <button class="pin-key" data-k="4">4</button>
+    <button class="pin-key" data-k="5">5</button>
+    <button class="pin-key" data-k="6">6</button>
+    <button class="pin-key" data-k="7">7</button>
+    <button class="pin-key" data-k="8">8</button>
+    <button class="pin-key" data-k="9">9</button>
+    <button class="pin-key blank"></button>
+    <button class="pin-key" data-k="0">0</button>
+    <button class="pin-key action" data-k="del">Del</button>
+  </div>
+</div>
+
+<!-- App -->
+<div id="app" class="hidden">
+  <header id="appHeader">
+    <div>
+      <h1 id="viewTitle">Dashboard</h1>
+      <div class="period" id="headerPeriod"></div>
+    </div>
+    <button class="header-btn" id="lockBtn" aria-label="Lock app">Lock</button>
+  </header>
+
+  <main id="appMain">
+    <!-- DASHBOARD -->
+    <section id="view-dashboard" class="view">
+      <div class="period-badge"><span class="dot"></span><span id="periodBadge"></span></div>
+      <div class="greeting">
+        <h2 id="greetingTitle">Welcome back</h2>
+        <p id="greetingSub">Here's how your reporting period is shaping up.</p>
+      </div>
+      <div class="stat-grid">
+        <div class="stat"><div class="label">Total Records</div><div class="value" id="statTotal">0</div><div class="sub" id="statTotalSub">this period</div></div>
+        <div class="stat"><div class="label">Top Species</div><div class="value" id="statSpeciesCount">0</div><div class="sub" id="statSpeciesName">—</div></div>
+        <div class="stat released"><div class="label">Released</div><div class="value" id="statReleased">0</div><div class="sub">released or relocated</div></div>
+        <div class="stat euthanized"><div class="label">Euthanized</div><div class="value" id="statEuthanized">0</div><div class="sub">on or off site</div></div>
+      </div>
+      <div class="card">
+        <div class="row">
+          <div>
+            <div class="label" style="font-size:11px;letter-spacing:0.06em;text-transform:uppercase;color:var(--ink-soft);">Most Active County</div>
+            <div style="font-family:'Playfair Display',serif;font-size:22px;color:var(--green-deep);margin-top:4px;" id="statCountyName">—</div>
+          </div>
+          <div class="muted" id="statCountyCount" style="font-weight:600;font-size:18px;">0</div>
+        </div>
+      </div>
+      <div class="section-title">Recent Records</div>
+      <div class="card" id="dashRecent"></div>
+    </section>
+
+    <!-- RECORDS -->
+    <section id="view-records" class="view hidden">
+      <div class="search-bar">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+        <input type="text" id="recSearch" placeholder="Search address, species, notes…" autocomplete="off">
+      </div>
+      <div class="filter-row">
+        <select id="filterTrapper"><option value="">All trappers</option></select>
+        <select id="filterSpecies"><option value="">All species</option></select>
+      </div>
+      <div class="filter-row">
+        <select id="filterCounty"><option value="">All counties</option></select>
+        <select id="filterDisposal">
+          <option value="">All dispositions</option>
+          <option value="R">Released / Relocated</option>
+          <option value="D">Euthanized</option>
+          <option value="X">Excluded / Dispersed / Other</option>
+        </select>
+      </div>
+      <div class="card" id="recordList"></div>
+    </section>
+
+    <!-- ADD / EDIT -->
+    <section id="view-add" class="view hidden">
+      <form id="recordForm" novalidate>
+        <input type="hidden" id="f-id">
+
+        <div class="form-group">
+          <label for="f-date">Date Collected<span class="req">*</span></label>
+          <input type="date" id="f-date" required>
+        </div>
+
+        <div class="form-group">
+          <label for="f-trapper">Trapper<span class="req">*</span></label>
+          <select id="f-trapper" required>
+            <option value="">— select trapper —</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label for="f-species">Species<span class="req">*</span></label>
+          <select id="f-species" required>
+            <option value="">— select species —</option>
+          </select>
+        </div>
+
+        <div class="form-group conditional" id="cg-speciesOther">
+          <label for="f-species-other">Specify species<span class="req">*</span></label>
+          <input type="text" id="f-species-other" placeholder="e.g. Eastern Box Turtle">
+        </div>
+
+        <div class="form-group conditional" id="cg-otherAnimalCount">
+          <label for="f-other-animal-count">Number of animals</label>
+          <input type="number" id="f-other-animal-count" min="1" step="1" value="1">
+        </div>
+
+        <div class="form-group">
+          <label for="f-county">County of Collection<span class="req">*</span></label>
+          <select id="f-county" required>
+            <option value="">— select county —</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label for="f-address">Address of Collection<span class="req">*</span></label>
+          <input type="text" id="f-address" placeholder="123 Main St, Lexington" autocomplete="off" required>
+        </div>
+
+        <div class="form-group">
+          <label for="f-capture">Capture Method<span class="req">*</span></label>
+          <select id="f-capture" required>
+            <option value="">— select method —</option>
+          </select>
+        </div>
+
+        <div class="form-group conditional" id="cg-captureOther">
+          <label for="f-capture-other">Specify method<span class="req">*</span></label>
+          <input type="text" id="f-capture-other">
+        </div>
+
+        <div class="form-group">
+          <label for="f-disposal">Disposal Method<span class="req">*</span></label>
+          <select id="f-disposal" required>
+            <option value="">— select disposal —</option>
+          </select>
+        </div>
+
+        <div class="form-group conditional" id="cg-disposalOther">
+          <label for="f-disposal-other">Specify disposal<span class="req">*</span></label>
+          <input type="text" id="f-disposal-other">
+        </div>
+
+        <div class="form-group conditional" id="cg-dispatch">
+          <label for="f-dispatch">Method of Dispatch<span class="req">*</span></label>
+          <select id="f-dispatch">
+            <option value="">— select dispatch method —</option>
+          </select>
+          <div class="hint">Required by KDFWR for euthanized animals.</div>
+        </div>
+
+        <div class="conditional" id="cg-release">
+          <div class="form-group">
+            <label for="f-release-county">County of Release<span class="req">*</span></label>
+            <select id="f-release-county">
+              <option value="">— select county —</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="f-release-date">Date of Release<span class="req">*</span></label>
+            <input type="date" id="f-release-date">
+          </div>
+        </div>
+
+        <div class="form-group conditional" id="cg-excludedRange">
+          <label for="f-excluded-range">Number Excluded</label>
+          <select id="f-excluded-range">
+            <option value="">— select range —</option>
+            <option>None</option>
+            <option>1–25</option>
+            <option>26–50</option>
+            <option>51–75</option>
+            <option>76–100</option>
+            <option>&gt;100</option>
+          </select>
+          <div class="hint">KDFWR tracks bats and birds excluded in ranges.</div>
+        </div>
+
+        <div class="form-group conditional" id="cg-excludedNumber">
+          <label for="f-excluded-number">Number Excluded / Dispersed</label>
+          <input type="number" id="f-excluded-number" min="0" step="1" placeholder="0">
+        </div>
+
+        <div class="form-group">
+          <label for="f-notes">Notes</label>
+          <textarea id="f-notes" placeholder="Optional — client name, conditions, animal condition…"></textarea>
+        </div>
+
+        <div class="btn-row" style="margin-top:18px;">
+          <button type="button" class="btn btn-ghost" id="cancelBtn">Cancel</button>
+          <button type="submit" class="btn btn-primary" id="saveBtn">Save Record</button>
+        </div>
+        <button type="button" class="btn btn-danger" id="deleteBtn" style="margin-top:10px; display:none;">Delete Record</button>
+      </form>
+    </section>
+
+    <!-- EXPORT -->
+    <section id="view-export" class="view hidden">
+      <div class="card">
+        <h3 style="margin-bottom:6px;">KDFWR Annual Activity Report</h3>
+        <p class="muted" style="font-size:14px;">Exports all records in the current reporting period (Feb 1 – Jan 31) in the column order KDFWR expects.</p>
+        <hr class="div">
+        <div class="form-group">
+          <label for="exportPeriod">Reporting Period</label>
+          <select id="exportPeriod"></select>
+        </div>
+        <button class="btn btn-primary" id="exportKdfwr">Download KDFWR CSV</button>
+      </div>
+
+      <div class="card">
+        <h3 style="margin-bottom:6px;">Full Data Export</h3>
+        <p class="muted" style="font-size:14px;">All fields including trapper, notes, and timestamps.</p>
+        <div class="btn-row" style="margin-top:12px;">
+          <button class="btn btn-ghost" id="exportFullCsv">Full CSV</button>
+          <button class="btn btn-ghost" id="exportJson">JSON Backup</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3 style="margin-bottom:6px;">Custom Date Range</h3>
+        <div class="field-row" style="margin-top:8px;">
+          <div class="form-group">
+            <label for="rangeStart">From</label>
+            <input type="date" id="rangeStart">
+          </div>
+          <div class="form-group">
+            <label for="rangeEnd">To</label>
+            <input type="date" id="rangeEnd">
+          </div>
+        </div>
+        <button class="btn btn-amber" id="exportRange">Download Range CSV</button>
+      </div>
+    </section>
+
+    <!-- SETTINGS -->
+    <section id="view-settings" class="view hidden">
+      <div class="card">
+        <h3 style="margin-bottom:10px;">Business</h3>
+        <div class="form-group">
+          <label for="set-businessName">Business Name</label>
+          <input type="text" id="set-businessName">
+        </div>
+        <div class="form-group">
+          <label for="set-permitHolder">Permit Holder</label>
+          <input type="text" id="set-permitHolder">
+        </div>
+        <div class="form-group">
+          <label for="set-permitNumber">Permit Number</label>
+          <input type="text" id="set-permitNumber" placeholder="KDFWR NWCO permit #">
+        </div>
+        <button class="btn btn-primary" id="saveBusiness">Save Business Info</button>
+      </div>
+
+      <div class="card">
+        <h3 style="margin-bottom:10px;">Security</h3>
+        <button class="btn btn-ghost" id="changePinBtn">Change PIN</button>
+        <div style="height:10px"></div>
+        <button class="btn btn-ghost" id="lockNow">Lock App Now</button>
+      </div>
+
+      <div class="card">
+        <h3 style="margin-bottom:10px;">Data</h3>
+        <button class="btn btn-ghost" id="restoreBtn">Restore From JSON Backup</button>
+        <input type="file" id="restoreFile" accept="application/json" style="display:none">
+        <div style="height:10px"></div>
+        <button class="btn btn-danger" id="wipeBtn">Clear All Records</button>
+      </div>
+
+      <div class="card center muted" style="font-size:12px;">
+        Southern Wildlife Tracker · v1.0<br>
+        Designed for KDFWR Commercial NWCO compliance.
+      </div>
+    </section>
+  </main>
+
+  <nav id="bottomNav">
+    <button class="nav-btn" data-view="dashboard">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg>
+      <span>Home</span>
+    </button>
+    <button class="nav-btn" data-view="records">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5h18M3 12h18M3 19h18"/></svg>
+      <span>Records</span>
+    </button>
+    <button class="nav-fab" data-view="add" aria-label="Add record">
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+    </button>
+    <button class="nav-btn" data-view="export">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>
+      <span>Export</span>
+    </button>
+    <button class="nav-btn" data-view="settings">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3h.1a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8v.1a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z"/></svg>
+      <span>Settings</span>
+    </button>
+  </nav>
+</div>
+
+<!-- Detail sheet -->
+<div class="sheet-backdrop" id="sheetBackdrop"></div>
+<div class="sheet" id="detailSheet">
+  <div class="sheet-handle"></div>
+  <h2 id="detailTitle">Record</h2>
+  <div class="muted" id="detailSub" style="font-size:13px;"></div>
+  <div class="detail-rows" id="detailRows"></div>
+  <div class="btn-row">
+    <button class="btn btn-ghost" id="detailClose">Close</button>
+    <button class="btn btn-primary" id="detailEdit">Edit</button>
+  </div>
+</div>
+
+<!-- Confirm modal -->
+<div class="confirm" id="confirm">
+  <div class="box">
+    <h3 id="confirmTitle">Are you sure?</h3>
+    <p id="confirmBody"></p>
+    <div class="btn-row">
+      <button class="btn btn-ghost" id="confirmCancel">Cancel</button>
+      <button class="btn btn-danger" id="confirmOk">Confirm</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+/* =====================================================================
+ * Southern Wildlife Tracker — vanilla JS app, single file.
+ * KDFWR Commercial NWCO Annual Activity Report (Feb 1 – Jan 31).
+ * ===================================================================== */
+
+const TRAPPERS = ['Jon Gassett', 'Robin Gassett', 'Chris Griffith'];
+
+const SPECIES = [
+  'Bat (any species)','Beaver','Bobcat','Chipmunk','Coyote','Red Fox','Gray Fox',
+  'Groundhog','Mink','Muskrat','Opossum','River Otter','Rabbit','Raccoon','Mole',
+  'Striped Skunk','Snake','Tree Squirrel','Flying Squirrel','Weasel',
+  'Duck','Goose','European Starling','American Robin','Black Vulture','Turkey Vulture',
+  'Other Bird (Indicate Species)','Other Animal (Indicate Species and Number)'
+];
+
+const CAPTURE_METHODS = [
+  'Cage Trap','Tube Trap','Foothold – Live','Foothold – Drowning Set',
+  'Cable Restraint – Live','Cable Restraint – Drowning Set','Body Gripping Trap',
+  'Mole Trap','Gunshot','Hand Capture','Exclusion without Capture','Dispersal without Capture',
+  'Live Trap – Other','Kill Trap – Other','Other (please specify)'
+];
+
+const DISPOSAL_METHODS = [
+  'Relocated to Suitable Habitat','Released Onsite','Euthanized Onsite','Euthanized Offsite',
+  'Excluded but not Captured','Dispersed from Site','Other (please specify)'
+];
+
+const DISPATCH_METHODS = [
+  'Captive bolt','Gunshot','Submersion (water set only)',
+  'Cervical dislocation / thoracic compression','Mechanical stunning + euthanasia',
+  'CO or CO2 inhalant','Halothane or isoflurane inhalant',
+  'Commercial agent (striped skunk only)','Commercial rodenticide (rodents only)'
+];
+
+const COUNTIES = [
+  'Anderson','Boone','Bourbon','Boyle','Campbell','Fayette','Franklin','Grant',
+  'Harrison','Henry','Jefferson','Kenton','Mercer','Owen','Scott','Shelby','Woodford'
+];
+
+const BIRD_SPECIES = new Set([
+  'Duck','Goose','European Starling','American Robin','Black Vulture','Turkey Vulture','Other Bird (Indicate Species)'
+]);
+const BAT_SPECIES = new Set(['Bat (any species)']);
+
+const SPECIFY_CAPTURES = new Set(['Live Trap – Other','Kill Trap – Other','Other (please specify)']);
+const SPECIFY_DISPOSALS = new Set(['Other (please specify)']);
+const SPECIFY_SPECIES = new Set(['Other Bird (Indicate Species)','Other Animal (Indicate Species and Number)']);
+
+const RELEASE_DISPOSALS = new Set(['Released Onsite','Relocated to Suitable Habitat']);
+const EUTHANIZE_DISPOSALS = new Set(['Euthanized Onsite','Euthanized Offsite']);
+const EXCLUDE_DISPOSALS = new Set(['Excluded but not Captured','Dispersed from Site']);
+
+const DEFAULT_PIN = '0000';
+const SETTINGS_DEFAULTS = {
+  pin: DEFAULT_PIN,
+  businessName: 'Southern Wildlife Resources',
+  permitHolder: 'Jon Gassett',
+  permitNumber: ''
+};
+
+/* ---------- IndexedDB ---------- */
+const DB_NAME = 'swrTrackerDB';
+const DB_VER = 1;
+let db;
+
+function openDB() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(DB_NAME, DB_VER);
+    req.onupgradeneeded = (e) => {
+      const idb = e.target.result;
+      if (!idb.objectStoreNames.contains('records')) {
+        const s = idb.createObjectStore('records', { keyPath: 'id', autoIncrement: true });
+        s.createIndex('dateCollected', 'dateCollected', { unique: false });
+        s.createIndex('trapper', 'trapper', { unique: false });
+        s.createIndex('species', 'species', { unique: false });
+        s.createIndex('county', 'county', { unique: false });
+      }
+      if (!idb.objectStoreNames.contains('settings')) {
+        idb.createObjectStore('settings', { keyPath: 'key' });
+      }
+    };
+    req.onsuccess = () => { db = req.result; resolve(db); };
+    req.onerror = () => reject(req.error);
+  });
+}
+
+function tx(store, mode = 'readonly') {
+  return db.transaction(store, mode).objectStore(store);
+}
+
+function dbAll() {
+  return new Promise((resolve, reject) => {
+    const r = tx('records').getAll();
+    r.onsuccess = () => resolve(r.result || []);
+    r.onerror = () => reject(r.error);
+  });
+}
+function dbGet(id) {
+  return new Promise((resolve, reject) => {
+    const r = tx('records').get(id);
+    r.onsuccess = () => resolve(r.result);
+    r.onerror = () => reject(r.error);
+  });
+}
+function dbPut(record) {
+  return new Promise((resolve, reject) => {
+    const r = tx('records', 'readwrite').put(record);
+    r.onsuccess = () => resolve(r.result);
+    r.onerror = () => reject(r.error);
+  });
+}
+function dbDelete(id) {
+  return new Promise((resolve, reject) => {
+    const r = tx('records', 'readwrite').delete(id);
+    r.onsuccess = () => resolve();
+    r.onerror = () => reject(r.error);
+  });
+}
+function dbClear() {
+  return new Promise((resolve, reject) => {
+    const r = tx('records', 'readwrite').clear();
+    r.onsuccess = () => resolve();
+    r.onerror = () => reject(r.error);
+  });
+}
+function settingsGet(key) {
+  return new Promise((resolve, reject) => {
+    const r = tx('settings').get(key);
+    r.onsuccess = () => resolve(r.result ? r.result.value : undefined);
+    r.onerror = () => reject(r.error);
+  });
+}
+function settingsSet(key, value) {
+  return new Promise((resolve, reject) => {
+    const r = tx('settings', 'readwrite').put({ key, value });
+    r.onsuccess = () => resolve();
+    r.onerror = () => reject(r.error);
+  });
+}
+async function settingsAll() {
+  const out = { ...SETTINGS_DEFAULTS };
+  for (const k of Object.keys(SETTINGS_DEFAULTS)) {
+    const v = await settingsGet(k);
+    if (v !== undefined) out[k] = v;
+  }
+  return out;
+}
+
+/* ---------- Helpers ---------- */
+const $ = (sel) => document.querySelector(sel);
+const $$ = (sel) => Array.from(document.querySelectorAll(sel));
+
+function todayISO() {
+  const d = new Date();
+  return d.toISOString().slice(0, 10);
+}
+function fmtDate(iso) {
+  if (!iso) return '';
+  const [y, m, d] = iso.split('-').map(Number);
+  if (!y) return iso;
+  const date = new Date(y, m - 1, d);
+  return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+}
+function fmtShortDate(iso) {
+  if (!iso) return '';
+  const [y, m, d] = iso.split('-').map(Number);
+  if (!y) return iso;
+  const date = new Date(y, m - 1, d);
+  return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+}
+function reportPeriod(refDate = new Date()) {
+  /* KDFWR period: Feb 1 — Jan 31. If month >= Feb, period starts Feb 1 this year. */
+  const y = refDate.getFullYear();
+  const startYear = refDate.getMonth() >= 1 ? y : y - 1;
+  const start = `${startYear}-02-01`;
+  const end = `${startYear + 1}-01-31`;
+  return { start, end, startYear };
+}
+function inPeriod(iso, period) {
+  return iso >= period.start && iso <= period.end;
+}
+function periodLabel(p) {
+  return `${fmtDate(p.start)} – ${fmtDate(p.end)}`;
+}
+
+function disposalCode(disposal) {
+  if (RELEASE_DISPOSALS.has(disposal)) return 'R';
+  if (EUTHANIZE_DISPOSALS.has(disposal)) return 'D';
+  return 'X';
+}
+function speciesDisplay(rec) {
+  if (SPECIFY_SPECIES.has(rec.species)) {
+    return rec.speciesOther ? `${rec.species.split(' (')[0]}: ${rec.speciesOther}` : rec.species;
+  }
+  return rec.species;
+}
+function captureDisplay(rec) {
+  return SPECIFY_CAPTURES.has(rec.captureMethod) && rec.captureOther
+    ? `${rec.captureMethod}: ${rec.captureOther}` : rec.captureMethod;
+}
+function disposalDisplay(rec) {
+  return SPECIFY_DISPOSALS.has(rec.disposalMethod) && rec.disposalOther
+    ? `${rec.disposalMethod}: ${rec.disposalOther}` : rec.disposalMethod;
+}
+
+function toast(msg, type = '') {
+  const el = $('#toast');
+  el.textContent = msg;
+  el.className = type ? `show ${type}` : 'show';
+  clearTimeout(toast._t);
+  toast._t = setTimeout(() => { el.className = type; }, 2400);
+}
+
+function confirmDialog(title, body) {
+  return new Promise((resolve) => {
+    $('#confirmTitle').textContent = title;
+    $('#confirmBody').textContent = body;
+    $('#confirm').classList.add('open');
+    const cleanup = (v) => {
+      $('#confirm').classList.remove('open');
+      $('#confirmOk').onclick = null;
+      $('#confirmCancel').onclick = null;
+      resolve(v);
+    };
+    $('#confirmOk').onclick = () => cleanup(true);
+    $('#confirmCancel').onclick = () => cleanup(false);
+  });
+}
+
+/* ---------- PIN screen ---------- */
+let pinEntry = '';
+let pinMode = 'unlock';   /* unlock | set-new | confirm-new */
+let pinNewBuffer = '';
+
+function renderPinDots() {
+  $$('#pinDots span').forEach((d, i) => d.classList.toggle('on', i < pinEntry.length));
+}
+
+async function handlePinKey(k) {
+  $('#pinError').textContent = '';
+  if (k === 'del') {
+    pinEntry = pinEntry.slice(0, -1);
+    renderPinDots();
+    return;
+  }
+  if (pinEntry.length >= 4) return;
+  pinEntry += k;
+  renderPinDots();
+  if (pinEntry.length !== 4) return;
+
+  const entered = pinEntry;
+  setTimeout(async () => {
+    if (pinMode === 'unlock') {
+      const pin = (await settingsGet('pin')) || DEFAULT_PIN;
+      if (entered === pin) {
+        pinEntry = '';
+        renderPinDots();
+        showApp();
+      } else {
+        pinEntry = '';
+        renderPinDots();
+        $('#pinError').textContent = 'Incorrect PIN';
+      }
+    } else if (pinMode === 'set-new') {
+      pinNewBuffer = entered;
+      pinEntry = '';
+      pinMode = 'confirm-new';
+      $('#pinPrompt').textContent = 'Confirm New PIN';
+      renderPinDots();
+    } else if (pinMode === 'confirm-new') {
+      if (entered === pinNewBuffer) {
+        await settingsSet('pin', entered);
+        pinEntry = '';
+        pinNewBuffer = '';
+        pinMode = 'unlock';
+        $('#pinPrompt').textContent = 'Enter PIN';
+        renderPinDots();
+        showApp();
+        toast('PIN updated');
+      } else {
+        pinEntry = '';
+        pinNewBuffer = '';
+        pinMode = 'set-new';
+        $('#pinPrompt').textContent = 'Set New PIN';
+        renderPinDots();
+        $('#pinError').textContent = 'PINs did not match — try again';
+      }
+    }
+  }, 80);
+}
+
+function showPinScreen() {
+  pinEntry = '';
+  renderPinDots();
+  $('#pinError').textContent = '';
+  $('#pinPrompt').textContent = pinMode === 'unlock' ? 'Enter PIN' : 'Set New PIN';
+  $('#pinScreen').classList.remove('hidden');
+  $('#app').classList.add('hidden');
+}
+function showApp() {
+  $('#pinScreen').classList.add('hidden');
+  $('#app').classList.remove('hidden');
+  setView(currentView);
+  refreshAll();
+}
+
+/* ---------- Navigation ---------- */
+let currentView = 'dashboard';
+const VIEW_TITLES = {
+  dashboard: 'Dashboard',
+  records: 'Records',
+  add: 'Add Record',
+  export: 'Export',
+  settings: 'Settings'
+};
+
+function setView(name) {
+  currentView = name;
+  ['dashboard','records','add','export','settings'].forEach((v) => {
+    $(`#view-${v}`).classList.toggle('hidden', v !== name);
+  });
+  $$('#bottomNav .nav-btn').forEach((b) => b.classList.toggle('active', b.dataset.view === name));
+  $('#viewTitle').textContent = VIEW_TITLES[name];
+  $('#appMain').scrollTop = 0;
+  if (name === 'add') {
+    if (!editingId) resetForm();
+  }
+}
+
+/* ---------- Populate selects ---------- */
+function fillSelect(id, items, includeBlank = true, blankLabel = '— select —') {
+  const sel = document.getElementById(id);
+  if (!sel) return;
+  const current = sel.value;
+  sel.innerHTML = '';
+  if (includeBlank) {
+    const o = document.createElement('option');
+    o.value = '';
+    o.textContent = blankLabel;
+    sel.appendChild(o);
+  }
+  for (const item of items) {
+    const o = document.createElement('option');
+    o.value = item;
+    o.textContent = item;
+    sel.appendChild(o);
+  }
+  if (current && items.includes(current)) sel.value = current;
+}
+function fillFilters() {
+  fillSelect('filterTrapper', TRAPPERS, true, 'All trappers');
+  fillSelect('filterSpecies', SPECIES, true, 'All species');
+  fillSelect('filterCounty', COUNTIES, true, 'All counties');
+}
+function fillForm() {
+  fillSelect('f-trapper', TRAPPERS, true, '— select trapper —');
+  fillSelect('f-species', SPECIES, true, '— select species —');
+  fillSelect('f-county', COUNTIES, true, '— select county —');
+  fillSelect('f-capture', CAPTURE_METHODS, true, '— select method —');
+  fillSelect('f-disposal', DISPOSAL_METHODS, true, '— select disposal —');
+  fillSelect('f-dispatch', DISPATCH_METHODS, true, '— select dispatch method —');
+  fillSelect('f-release-county', COUNTIES, true, '— select county —');
+}
+
+/* ---------- Form conditional logic ---------- */
+function updateConditionals() {
+  const species = $('#f-species').value;
+  const capture = $('#f-capture').value;
+  const disposal = $('#f-disposal').value;
+  const isBird = BIRD_SPECIES.has(species);
+  const isBat = BAT_SPECIES.has(species);
+
+  toggleGroup('cg-speciesOther', SPECIFY_SPECIES.has(species));
+  toggleGroup('cg-otherAnimalCount', species === 'Other Animal (Indicate Species and Number)');
+  toggleGroup('cg-captureOther', SPECIFY_CAPTURES.has(capture));
+  toggleGroup('cg-disposalOther', SPECIFY_DISPOSALS.has(disposal));
+  toggleGroup('cg-dispatch', EUTHANIZE_DISPOSALS.has(disposal));
+  toggleGroup('cg-release', RELEASE_DISPOSALS.has(disposal));
+
+  const isExclude = EXCLUDE_DISPOSALS.has(disposal);
+  toggleGroup('cg-excludedRange', isExclude && (isBird || isBat));
+  toggleGroup('cg-excludedNumber', isExclude && !(isBird || isBat));
+}
+function toggleGroup(id, on) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.classList.toggle('on', !!on);
+}
+
+/* ---------- Form lifecycle ---------- */
+let editingId = null;
+
+function resetForm() {
+  editingId = null;
+  $('#recordForm').reset();
+  $('#f-id').value = '';
+  $('#f-date').value = todayISO();
+  $('#deleteBtn').style.display = 'none';
+  $('#saveBtn').textContent = 'Save Record';
+  updateConditionals();
+}
+
+function loadIntoForm(rec) {
+  editingId = rec.id;
+  $('#f-id').value = rec.id;
+  $('#f-date').value = rec.dateCollected || '';
+  $('#f-trapper').value = rec.trapper || '';
+  $('#f-species').value = rec.species || '';
+  $('#f-species-other').value = rec.speciesOther || '';
+  $('#f-other-animal-count').value = rec.otherAnimalCount || 1;
+  $('#f-county').value = rec.county || '';
+  $('#f-address').value = rec.address || '';
+  $('#f-capture').value = rec.captureMethod || '';
+  $('#f-capture-other').value = rec.captureOther || '';
+  $('#f-disposal').value = rec.disposalMethod || '';
+  $('#f-disposal-other').value = rec.disposalOther || '';
+  $('#f-dispatch').value = rec.dispatchMethod || '';
+  $('#f-release-county').value = rec.releaseCounty || '';
+  $('#f-release-date').value = rec.releaseDate || '';
+  $('#f-excluded-range').value = rec.excludedRange || '';
+  $('#f-excluded-number').value = rec.excludedNumber ?? '';
+  $('#f-notes').value = rec.notes || '';
+  $('#deleteBtn').style.display = 'block';
+  $('#saveBtn').textContent = 'Save Changes';
+  updateConditionals();
+}
+
+function readForm() {
+  const r = {
+    dateCollected: $('#f-date').value,
+    trapper: $('#f-trapper').value,
+    species: $('#f-species').value,
+    speciesOther: $('#f-species-other').value.trim(),
+    otherAnimalCount: parseInt($('#f-other-animal-count').value, 10) || 1,
+    county: $('#f-county').value,
+    address: $('#f-address').value.trim(),
+    captureMethod: $('#f-capture').value,
+    captureOther: $('#f-capture-other').value.trim(),
+    disposalMethod: $('#f-disposal').value,
+    disposalOther: $('#f-disposal-other').value.trim(),
+    dispatchMethod: $('#f-dispatch').value,
+    releaseCounty: $('#f-release-county').value,
+    releaseDate: $('#f-release-date').value,
+    excludedRange: $('#f-excluded-range').value,
+    excludedNumber: $('#f-excluded-number').value === '' ? null : Number($('#f-excluded-number').value),
+    notes: $('#f-notes').value.trim()
+  };
+  if (editingId) r.id = editingId;
+  return r;
+}
+
+function validateRecord(r) {
+  const errs = [];
+  if (!r.dateCollected) errs.push('Date');
+  if (!r.trapper) errs.push('Trapper');
+  if (!r.species) errs.push('Species');
+  if (SPECIFY_SPECIES.has(r.species) && !r.speciesOther) errs.push('Specify species');
+  if (!r.county) errs.push('County');
+  if (!r.address) errs.push('Address');
+  if (!r.captureMethod) errs.push('Capture method');
+  if (SPECIFY_CAPTURES.has(r.captureMethod) && !r.captureOther) errs.push('Specify capture');
+  if (!r.disposalMethod) errs.push('Disposal');
+  if (SPECIFY_DISPOSALS.has(r.disposalMethod) && !r.disposalOther) errs.push('Specify disposal');
+  if (EUTHANIZE_DISPOSALS.has(r.disposalMethod) && !r.dispatchMethod) errs.push('Dispatch method');
+  if (RELEASE_DISPOSALS.has(r.disposalMethod)) {
+    if (!r.releaseCounty) errs.push('Release county');
+    if (!r.releaseDate) errs.push('Release date');
+  }
+  return errs;
+}
+
+async function saveForm(e) {
+  e.preventDefault();
+  const rec = readForm();
+  const errs = validateRecord(rec);
+  if (errs.length) { toast('Required: ' + errs.join(', '), 'error'); return; }
+
+  if (!rec.id) {
+    rec.createdAt = new Date().toISOString();
+  } else {
+    const existing = await dbGet(rec.id);
+    if (existing) rec.createdAt = existing.createdAt;
+  }
+  rec.updatedAt = new Date().toISOString();
+  await dbPut(rec);
+  toast(editingId ? 'Record updated' : 'Record saved');
+  resetForm();
+  setView('records');
+  refreshAll();
+}
+
+/* ---------- Records view ---------- */
+let cachedRecords = [];
+async function loadRecords() {
+  cachedRecords = (await dbAll()).sort((a, b) => (b.dateCollected || '').localeCompare(a.dateCollected || '') || b.id - a.id);
+}
+
+function filteredRecords() {
+  const q = $('#recSearch').value.trim().toLowerCase();
+  const ft = $('#filterTrapper').value;
+  const fs = $('#filterSpecies').value;
+  const fc = $('#filterCounty').value;
+  const fd = $('#filterDisposal').value;
+  return cachedRecords.filter((r) => {
+    if (ft && r.trapper !== ft) return false;
+    if (fs && r.species !== fs) return false;
+    if (fc && r.county !== fc) return false;
+    if (fd && disposalCode(r.disposalMethod) !== fd) return false;
+    if (q) {
+      const hay = [r.address, r.species, r.speciesOther, r.notes, r.captureMethod, r.captureOther, r.disposalMethod, r.disposalOther, r.county]
+        .filter(Boolean).join(' ').toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    return true;
+  });
+}
+
+function speciesInitial(name) {
+  return (name || '?').replace(/[^A-Za-z]/g, '').slice(0, 2).toUpperCase() || '?';
+}
+
+function renderRecordList() {
+  const list = filteredRecords();
+  const root = $('#recordList');
+  if (!list.length) {
+    root.innerHTML = `<div class="empty">
+      <div class="em-title">No records yet</div>
+      <div>Tap the <strong style="color:var(--amber);">+</strong> button to add one.</div>
+    </div>`;
+    return;
+  }
+  root.innerHTML = '';
+  for (const r of list) {
+    const code = disposalCode(r.disposalMethod);
+    const tag = code === 'R' ? 'R' : code === 'D' ? 'D' : 'X';
+    const tagLabel = code === 'R' ? 'Released' : code === 'D' ? 'Euthanized' : 'Other';
+    const div = document.createElement('div');
+    div.className = 'rec';
+    div.innerHTML = `
+      <div class="rec-thumb">${speciesInitial(r.species)}</div>
+      <div class="rec-body">
+        <div class="rec-title">${escapeHtml(speciesDisplay(r))}<span class="rec-tag tag-${tag}">${tagLabel}</span></div>
+        <div class="rec-meta">${fmtShortDate(r.dateCollected)} · ${escapeHtml(r.county)} · ${escapeHtml(r.trapper)}</div>
+      </div>`;
+    div.onclick = () => openDetail(r.id);
+    root.appendChild(div);
+  }
+}
+
+function escapeHtml(s) {
+  if (s == null) return '';
+  return String(s).replace(/[&<>"']/g, (c) => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+}
+
+/* ---------- Dashboard ---------- */
+function renderDashboard() {
+  const period = reportPeriod();
+  $('#periodBadge').textContent = `Reporting Period · ${periodLabel(period)}`;
+  $('#headerPeriod').textContent = periodLabel(period);
+  const hr = new Date().getHours();
+  const greet = hr < 12 ? 'Good morning' : hr < 18 ? 'Good afternoon' : 'Good evening';
+  $('#greetingTitle').textContent = `${greet}, ${(currentSettings.permitHolder || '').split(' ')[0] || 'there'}.`;
+
+  const inP = cachedRecords.filter((r) => inPeriod(r.dateCollected, period));
+  $('#statTotal').textContent = inP.length;
+  $('#statTotalSub').textContent = `${cachedRecords.length} total all time`;
+
+  /* Top species */
+  const counts = {};
+  for (const r of inP) {
+    const k = speciesDisplay(r);
+    counts[k] = (counts[k] || 0) + 1;
+  }
+  let topName = '—', topCount = 0;
+  for (const [k, v] of Object.entries(counts)) if (v > topCount) { topCount = v; topName = k; }
+  $('#statSpeciesCount').textContent = topCount;
+  $('#statSpeciesName').textContent = topName;
+
+  $('#statReleased').textContent = inP.filter((r) => disposalCode(r.disposalMethod) === 'R').length;
+  $('#statEuthanized').textContent = inP.filter((r) => disposalCode(r.disposalMethod) === 'D').length;
+
+  const cc = {};
+  for (const r of inP) cc[r.county] = (cc[r.county] || 0) + 1;
+  let topCounty = '—', topCC = 0;
+  for (const [k, v] of Object.entries(cc)) if (v > topCC) { topCC = v; topCounty = k; }
+  $('#statCountyName').textContent = topCounty;
+  $('#statCountyCount').textContent = topCC ? `${topCC} ${topCC === 1 ? 'record' : 'records'}` : '';
+
+  const recent = cachedRecords.slice(0, 5);
+  const root = $('#dashRecent');
+  if (!recent.length) {
+    root.innerHTML = `<div class="empty">
+      <div class="em-title">No records yet</div>
+      <div>Use the <strong style="color:var(--amber);">+</strong> button to add your first.</div>
+    </div>`;
+    return;
+  }
+  root.innerHTML = '';
+  for (const r of recent) {
+    const code = disposalCode(r.disposalMethod);
+    const tag = code === 'R' ? 'R' : code === 'D' ? 'D' : 'X';
+    const tagLabel = code === 'R' ? 'Released' : code === 'D' ? 'Euthanized' : 'Other';
+    const div = document.createElement('div');
+    div.className = 'rec';
+    div.innerHTML = `
+      <div class="rec-thumb">${speciesInitial(r.species)}</div>
+      <div class="rec-body">
+        <div class="rec-title">${escapeHtml(speciesDisplay(r))}<span class="rec-tag tag-${tag}">${tagLabel}</span></div>
+        <div class="rec-meta">${fmtShortDate(r.dateCollected)} · ${escapeHtml(r.county)} · ${escapeHtml(r.trapper)}</div>
+      </div>`;
+    div.onclick = () => openDetail(r.id);
+    root.appendChild(div);
+  }
+}
+
+/* ---------- Detail sheet ---------- */
+let detailRecordId = null;
+async function openDetail(id) {
+  const r = await dbGet(id);
+  if (!r) return;
+  detailRecordId = id;
+  $('#detailTitle').textContent = speciesDisplay(r);
+  $('#detailSub').textContent = `${fmtDate(r.dateCollected)} · ${r.county} County`;
+  const rows = [
+    ['Trapper', r.trapper],
+    ['County', r.county],
+    ['Address', r.address],
+    ['Capture', captureDisplay(r)],
+    ['Disposal', disposalDisplay(r)]
+  ];
+  if (EUTHANIZE_DISPOSALS.has(r.disposalMethod)) rows.push(['Dispatch', r.dispatchMethod]);
+  if (RELEASE_DISPOSALS.has(r.disposalMethod)) {
+    rows.push(['Release County', r.releaseCounty]);
+    rows.push(['Release Date', fmtDate(r.releaseDate)]);
+  }
+  if (EXCLUDE_DISPOSALS.has(r.disposalMethod)) {
+    if (r.excludedRange) rows.push(['Number Excluded', r.excludedRange]);
+    else if (r.excludedNumber != null) rows.push(['Number Excluded', r.excludedNumber]);
+  }
+  if (r.species === 'Other Animal (Indicate Species and Number)' && r.otherAnimalCount > 1) {
+    rows.push(['Number of animals', r.otherAnimalCount]);
+  }
+  if (r.notes) rows.push(['Notes', r.notes]);
+  $('#detailRows').innerHTML = rows.map(([k, v]) =>
+    `<div class="dr"><div class="dk">${escapeHtml(k)}</div><div class="dv">${escapeHtml(v == null ? '' : String(v))}</div></div>`
+  ).join('');
+  $('#sheetBackdrop').classList.add('open');
+  $('#detailSheet').classList.add('open');
+}
+function closeDetail() {
+  $('#sheetBackdrop').classList.remove('open');
+  $('#detailSheet').classList.remove('open');
+  detailRecordId = null;
+}
+
+/* ---------- Export ---------- */
+function csvCell(v) {
+  if (v == null) return '';
+  const s = String(v);
+  if (/[",\n\r]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
+  return s;
+}
+function csvLine(arr) { return arr.map(csvCell).join(','); }
+function downloadFile(name, content, mime = 'text/csv;charset=utf-8') {
+  const blob = new Blob([content], { type: mime });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = name;
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 400);
+}
+
+function kdfwrCSV(records) {
+  const header = [
+    'Date Collected',
+    'Species Collected (Common Name)',
+    'County of Collection',
+    'Address of Collection',
+    'Method of Collection',
+    'Dispatched (D) or Released (R)',
+    'If Dispatched: Method of Dispatch',
+    'If Released: County of Release',
+    'If Released: Date of Release'
+  ];
+  const lines = [csvLine(header)];
+  for (const r of records) {
+    const code = disposalCode(r.disposalMethod);
+    const drCell = code === 'X' ? '' : code;
+    lines.push(csvLine([
+      r.dateCollected,
+      speciesDisplay(r),
+      r.county,
+      r.address,
+      captureDisplay(r),
+      drCell,
+      code === 'D' ? (r.dispatchMethod || '') : '',
+      code === 'R' ? (r.releaseCounty || '') : '',
+      code === 'R' ? (r.releaseDate || '') : ''
+    ]));
+  }
+  return lines.join('\r\n') + '\r\n';
+}
+
+function fullCSV(records) {
+  const header = [
+    'ID','Date Collected','Trapper','Species','Species (specify)','Other Animal Count',
+    'County','Address','Capture Method','Capture (specify)',
+    'Disposal Method','Disposal (specify)','Dispatch Method',
+    'Release County','Release Date','Excluded Range','Excluded Number',
+    'Notes','Created At','Updated At'
+  ];
+  const lines = [csvLine(header)];
+  for (const r of records) {
+    lines.push(csvLine([
+      r.id, r.dateCollected, r.trapper, r.species, r.speciesOther,
+      r.otherAnimalCount || '', r.county, r.address,
+      r.captureMethod, r.captureOther, r.disposalMethod, r.disposalOther,
+      r.dispatchMethod, r.releaseCounty, r.releaseDate,
+      r.excludedRange, r.excludedNumber == null ? '' : r.excludedNumber,
+      r.notes, r.createdAt, r.updatedAt
+    ]));
+  }
+  return lines.join('\r\n') + '\r\n';
+}
+
+function fillExportPeriods() {
+  /* Offer current period plus three previous. */
+  const sel = $('#exportPeriod');
+  sel.innerHTML = '';
+  const cur = reportPeriod();
+  for (let off = 0; off < 4; off++) {
+    const start = `${cur.startYear - off}-02-01`;
+    const end = `${cur.startYear - off + 1}-01-31`;
+    const o = document.createElement('option');
+    o.value = `${start}|${end}`;
+    o.textContent = `${fmtDate(start)} – ${fmtDate(end)}`;
+    sel.appendChild(o);
+  }
+}
+
+function exportKdfwr() {
+  const [start, end] = $('#exportPeriod').value.split('|');
+  const recs = cachedRecords
+    .filter((r) => r.dateCollected >= start && r.dateCollected <= end)
+    .sort((a, b) => a.dateCollected.localeCompare(b.dateCollected));
+  if (!recs.length) { toast('No records in that period', 'error'); return; }
+  const startYear = start.slice(0, 4);
+  const endYear = end.slice(0, 4);
+  const name = `KDFWR_NWCO_Annual_${startYear}-${endYear}.csv`;
+  downloadFile(name, kdfwrCSV(recs));
+  toast(`Exported ${recs.length} records`);
+}
+function exportFullCsv() {
+  if (!cachedRecords.length) { toast('No records to export', 'error'); return; }
+  const sorted = [...cachedRecords].sort((a, b) => a.dateCollected.localeCompare(b.dateCollected));
+  downloadFile(`SWR_Tracker_full_${todayISO()}.csv`, fullCSV(sorted));
+  toast(`Exported ${sorted.length} records`);
+}
+function exportJsonBackup() {
+  const payload = {
+    app: 'Southern Wildlife Tracker',
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    settings: currentSettings,
+    records: cachedRecords
+  };
+  downloadFile(`SWR_Tracker_backup_${todayISO()}.json`, JSON.stringify(payload, null, 2), 'application/json');
+  toast('Backup downloaded');
+}
+function exportRange() {
+  const start = $('#rangeStart').value;
+  const end = $('#rangeEnd').value;
+  if (!start || !end) { toast('Pick start and end dates', 'error'); return; }
+  if (start > end) { toast('Start is after end', 'error'); return; }
+  const recs = cachedRecords
+    .filter((r) => r.dateCollected >= start && r.dateCollected <= end)
+    .sort((a, b) => a.dateCollected.localeCompare(b.dateCollected));
+  if (!recs.length) { toast('No records in that range', 'error'); return; }
+  downloadFile(`SWR_Tracker_${start}_to_${end}.csv`, fullCSV(recs));
+  toast(`Exported ${recs.length} records`);
+}
+
+/* ---------- Settings actions ---------- */
+let currentSettings = { ...SETTINGS_DEFAULTS };
+
+async function loadSettings() {
+  currentSettings = await settingsAll();
+  $('#set-businessName').value = currentSettings.businessName;
+  $('#set-permitHolder').value = currentSettings.permitHolder;
+  $('#set-permitNumber').value = currentSettings.permitNumber;
+}
+async function saveBusiness() {
+  currentSettings.businessName = $('#set-businessName').value.trim() || 'Southern Wildlife Resources';
+  currentSettings.permitHolder = $('#set-permitHolder').value.trim() || 'Jon Gassett';
+  currentSettings.permitNumber = $('#set-permitNumber').value.trim();
+  await settingsSet('businessName', currentSettings.businessName);
+  await settingsSet('permitHolder', currentSettings.permitHolder);
+  await settingsSet('permitNumber', currentSettings.permitNumber);
+  toast('Business info saved');
+  renderDashboard();
+}
+function startChangePin() {
+  pinMode = 'set-new';
+  pinNewBuffer = '';
+  showPinScreen();
+}
+async function restoreFromFile(file) {
+  try {
+    const txt = await file.text();
+    const data = JSON.parse(txt);
+    if (!data || !Array.isArray(data.records)) throw new Error('Invalid backup file');
+    const ok = await confirmDialog('Restore backup?',
+      `This will add ${data.records.length} records from the backup file. Existing records will be kept.`);
+    if (!ok) return;
+    for (const r of data.records) {
+      const copy = { ...r };
+      delete copy.id;
+      await dbPut(copy);
+    }
+    if (data.settings) {
+      for (const [k, v] of Object.entries(data.settings)) {
+        if (k in SETTINGS_DEFAULTS) await settingsSet(k, v);
+      }
+      await loadSettings();
+    }
+    toast(`Restored ${data.records.length} records`);
+    await refreshAll();
+  } catch (err) {
+    toast('Could not read backup file', 'error');
+  }
+}
+async function wipeAll() {
+  const ok = await confirmDialog('Clear all records?',
+    'This permanently deletes every record from this device. Settings are kept. Consider downloading a JSON backup first.');
+  if (!ok) return;
+  await dbClear();
+  toast('All records cleared');
+  await refreshAll();
+}
+
+/* ---------- Lock ---------- */
+function lockApp() {
+  pinMode = 'unlock';
+  showPinScreen();
+}
+
+/* ---------- Refresh ---------- */
+async function refreshAll() {
+  await loadRecords();
+  renderDashboard();
+  renderRecordList();
+}
+
+/* ---------- Wiring ---------- */
+async function init() {
+  await openDB();
+  await loadSettings();
+  fillFilters();
+  fillForm();
+  fillExportPeriods();
+
+  /* PIN pad */
+  $('#pinPad').addEventListener('click', (e) => {
+    const btn = e.target.closest('.pin-key');
+    if (!btn || btn.classList.contains('blank')) return;
+    handlePinKey(btn.dataset.k);
+  });
+
+  /* Nav */
+  $('#bottomNav').addEventListener('click', (e) => {
+    const btn = e.target.closest('button[data-view]');
+    if (!btn) return;
+    const v = btn.dataset.view;
+    if (v === 'add' && currentView !== 'add') resetForm();
+    setView(v);
+  });
+
+  $('#lockBtn').addEventListener('click', lockApp);
+
+  /* Form */
+  ['f-species','f-capture','f-disposal'].forEach((id) => {
+    $('#' + id).addEventListener('change', updateConditionals);
+  });
+  $('#recordForm').addEventListener('submit', saveForm);
+  $('#cancelBtn').addEventListener('click', () => {
+    const wasEdit = !!editingId;
+    resetForm();
+    setView(wasEdit ? 'records' : 'dashboard');
+  });
+  $('#deleteBtn').addEventListener('click', async () => {
+    if (!editingId) return;
+    const ok = await confirmDialog('Delete this record?', 'This cannot be undone.');
+    if (!ok) return;
+    await dbDelete(editingId);
+    toast('Record deleted');
+    resetForm();
+    setView('records');
+    refreshAll();
+  });
+
+  /* Records filters */
+  ['recSearch','filterTrapper','filterSpecies','filterCounty','filterDisposal'].forEach((id) => {
+    $('#' + id).addEventListener('input', renderRecordList);
+    $('#' + id).addEventListener('change', renderRecordList);
+  });
+
+  /* Detail sheet */
+  $('#sheetBackdrop').addEventListener('click', closeDetail);
+  $('#detailClose').addEventListener('click', closeDetail);
+  $('#detailEdit').addEventListener('click', async () => {
+    if (!detailRecordId) return;
+    const r = await dbGet(detailRecordId);
+    closeDetail();
+    if (!r) return;
+    setView('add');
+    loadIntoForm(r);
+  });
+
+  /* Export */
+  $('#exportKdfwr').addEventListener('click', exportKdfwr);
+  $('#exportFullCsv').addEventListener('click', exportFullCsv);
+  $('#exportJson').addEventListener('click', exportJsonBackup);
+  $('#exportRange').addEventListener('click', exportRange);
+
+  /* Settings */
+  $('#saveBusiness').addEventListener('click', saveBusiness);
+  $('#changePinBtn').addEventListener('click', startChangePin);
+  $('#lockNow').addEventListener('click', lockApp);
+  $('#restoreBtn').addEventListener('click', () => $('#restoreFile').click());
+  $('#restoreFile').addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (file) restoreFromFile(file);
+    e.target.value = '';
+  });
+  $('#wipeBtn').addEventListener('click', wipeAll);
+
+  /* Initial date defaults */
+  $('#f-date').value = todayISO();
+  const p = reportPeriod();
+  $('#rangeStart').value = p.start;
+  $('#rangeEnd').value = todayISO();
+
+  /* Register service worker */
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('sw.js').catch(() => {});
+  }
+
+  showPinScreen();
+}
+
+init();
+</script>
+</body>
+</html>
