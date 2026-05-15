@@ -55,29 +55,40 @@
     #pinScreen {
       position: fixed; inset: 0; background: var(--green); color: var(--cream);
       display: flex; flex-direction: column; align-items: center; justify-content: center;
-      padding: calc(var(--safe-top) + 24px) 24px calc(var(--safe-bot) + 24px);
+      padding: calc(var(--safe-top) + 16px) 20px calc(var(--safe-bot) + 16px);
       z-index: 100;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
     }
     #pinScreen .logo {
-      width: 96px; height: 96px; border-radius: 24px; background: var(--green-deep);
-      display: flex; align-items: center; justify-content: center; margin-bottom: 20px;
+      width: 64px; height: 64px; border-radius: 18px; background: var(--green-deep);
+      display: flex; align-items: center; justify-content: center; margin-bottom: 12px;
+      flex-shrink: 0;
     }
-    #pinScreen .logo svg { width: 64px; height: 64px; }
-    #pinScreen h1 { color: var(--cream); font-size: 28px; text-align: center; margin-bottom: 4px; }
-    #pinScreen .sub { color: var(--amber-soft); font-size: 14px; letter-spacing: 0.06em; text-transform: uppercase; margin-bottom: 36px; }
-    .pin-dots { display: flex; gap: 16px; margin-bottom: 32px; }
-    .pin-dots span { width: 16px; height: 16px; border-radius: 50%; border: 2px solid var(--amber-soft); background: transparent; transition: background 0.15s; }
+    #pinScreen .logo svg { width: 44px; height: 44px; }
+    #pinScreen h1 { color: var(--cream); font-size: 22px; text-align: center; margin-bottom: 2px; flex-shrink: 0; }
+    #pinScreen .sub { color: var(--amber-soft); font-size: 13px; letter-spacing: 0.06em; text-transform: uppercase; margin-bottom: 18px; flex-shrink: 0; }
+    .pin-dots { display: flex; gap: 14px; margin-bottom: 14px; flex-shrink: 0; }
+    .pin-dots span { width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--amber-soft); background: transparent; transition: background 0.15s; }
     .pin-dots span.on { background: var(--amber); border-color: var(--amber); }
-    .pin-pad { display: grid; grid-template-columns: repeat(3, 72px); gap: 14px; }
+    .pin-pad { display: grid; grid-template-columns: repeat(3, 60px); gap: 10px; flex-shrink: 0; }
     .pin-key {
-      height: 72px; border-radius: 50%; border: none;
+      height: 60px; border-radius: 50%; border: none;
       background: rgba(255,255,255,0.08); color: var(--cream);
-      font-size: 28px; font-weight: 600; font-family: 'Source Sans 3', sans-serif;
+      font-size: 24px; font-weight: 600; font-family: 'Source Sans 3', sans-serif;
     }
     .pin-key:active { background: rgba(196,119,42,0.35); }
     .pin-key.blank { background: transparent; pointer-events: none; }
-    .pin-key.action { font-size: 14px; letter-spacing: 0.05em; text-transform: uppercase; color: var(--amber-soft); }
-    .pin-error { color: var(--amber-soft); min-height: 20px; margin-bottom: 12px; font-size: 14px; }
+    .pin-key.action { font-size: 13px; letter-spacing: 0.05em; text-transform: uppercase; color: var(--amber-soft); }
+    .pin-error { color: var(--amber-soft); min-height: 18px; margin-bottom: 8px; font-size: 13px; flex-shrink: 0; }
+    @media (min-height: 720px) {
+      #pinScreen .logo { width: 84px; height: 84px; margin-bottom: 16px; }
+      #pinScreen .logo svg { width: 56px; height: 56px; }
+      #pinScreen h1 { font-size: 26px; }
+      #pinScreen .sub { margin-bottom: 28px; }
+      .pin-pad { grid-template-columns: repeat(3, 68px); gap: 12px; }
+      .pin-key { height: 68px; font-size: 26px; }
+    }
 
     /* App shell */
     #app { height: 100%; display: flex; flex-direction: column; }
