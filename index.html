@@ -51,6 +51,12 @@
     input, select, textarea, button { font-family: inherit; }
     .hidden { display: none !important; }
 
+    /* Brand logo (img). Falls back to paw mark if image fails. */
+    .brand-logo { display: none; object-fit: contain; }
+    .brand-logo.loaded { display: block; }
+    .paw-mark { display: flex; align-items: center; justify-content: center; }
+    .has-logo .paw-mark { display: none; }
+
     /* PIN screen */
     #pinScreen {
       position: fixed; inset: 0; background: var(--green); color: var(--cream);
@@ -60,12 +66,12 @@
       overflow-y: auto;
       -webkit-overflow-scrolling: touch;
     }
-    #pinScreen .logo {
+    #pinScreen .paw-mark {
       width: 64px; height: 64px; border-radius: 18px; background: var(--green-deep);
-      display: flex; align-items: center; justify-content: center; margin-bottom: 12px;
-      flex-shrink: 0;
+      margin-bottom: 12px; flex-shrink: 0;
     }
-    #pinScreen .logo svg { width: 44px; height: 44px; }
+    #pinScreen .paw-mark svg { width: 44px; height: 44px; }
+    #pinScreen .brand-logo { height: 88px; max-width: 280px; margin-bottom: 14px; flex-shrink: 0; }
     #pinScreen h1 { color: var(--cream); font-size: 22px; text-align: center; margin-bottom: 2px; flex-shrink: 0; }
     #pinScreen .sub { color: var(--amber-soft); font-size: 13px; letter-spacing: 0.06em; text-transform: uppercase; margin-bottom: 18px; flex-shrink: 0; }
     .pin-dots { display: flex; gap: 14px; margin-bottom: 14px; flex-shrink: 0; }
@@ -82,8 +88,9 @@
     .pin-key.action { font-size: 13px; letter-spacing: 0.05em; text-transform: uppercase; color: var(--amber-soft); }
     .pin-error { color: var(--amber-soft); min-height: 18px; margin-bottom: 8px; font-size: 13px; flex-shrink: 0; }
     @media (min-height: 720px) {
-      #pinScreen .logo { width: 84px; height: 84px; margin-bottom: 16px; }
-      #pinScreen .logo svg { width: 56px; height: 56px; }
+      #pinScreen .paw-mark { width: 84px; height: 84px; margin-bottom: 16px; }
+      #pinScreen .paw-mark svg { width: 56px; height: 56px; }
+      #pinScreen .brand-logo { height: 110px; margin-bottom: 18px; }
       #pinScreen h1 { font-size: 26px; }
       #pinScreen .sub { margin-bottom: 28px; }
       .pin-pad { grid-template-columns: repeat(3, 68px); gap: 12px; }
@@ -95,18 +102,25 @@
     #appHeader {
       padding: calc(var(--safe-top) + 12px) 18px 12px;
       background: var(--green); color: var(--cream);
-      display: flex; align-items: center; justify-content: space-between;
+      display: flex; align-items: center; justify-content: space-between; gap: 12px;
       box-shadow: var(--shadow);
       flex-shrink: 0;
     }
-    #appHeader h1 { color: var(--cream); font-size: 22px; }
+    .header-left { display: flex; align-items: center; gap: 12px; min-width: 0; flex: 1; }
+    #appHeader .brand-logo { height: 30px; max-width: 130px; }
+    #appHeader .paw-mark { width: 32px; height: 32px; border-radius: 8px; background: var(--green-deep); flex-shrink: 0; }
+    #appHeader .paw-mark svg { width: 22px; height: 22px; }
+    #appHeader .titlebox { min-width: 0; flex: 1; }
+    #appHeader h1 { color: var(--cream); font-size: 20px; }
     #appHeader .period {
       font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase;
       color: var(--amber-soft); margin-top: 2px;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     }
     .header-btn {
       background: transparent; border: none; color: var(--amber-soft);
       font-size: 13px; padding: 8px 10px; border-radius: 8px;
+      flex-shrink: 0;
     }
     .header-btn:active { background: rgba(255,255,255,0.08); }
 
@@ -197,10 +211,20 @@
     .tag-X { background: var(--cream-deep); color: var(--ink-soft); }
 
     /* Forms */
+    .form-section {
+      font-family: 'Playfair Display', serif;
+      color: var(--green-deep);
+      font-size: 17px;
+      margin: 22px 0 12px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid var(--line);
+    }
+    .form-section:first-of-type { margin-top: 4px; }
     .form-group { margin-bottom: 14px; }
     label { display: block; font-size: 13px; font-weight: 600; color: var(--green-deep); margin-bottom: 6px; }
     label .req { color: var(--amber); margin-left: 3px; }
-    input[type=text], input[type=date], input[type=number], input[type=tel], input[type=password], select, textarea {
+    label .opt { font-size: 12px; font-weight: 400; color: var(--ink-soft); margin-left: 6px; }
+    input[type=text], input[type=date], input[type=number], input[type=tel], input[type=email], input[type=password], select, textarea {
       width: 100%; padding: 12px 14px; font-size: 16px;
       border: 1px solid var(--line); border-radius: 10px;
       background: #fff; color: var(--ink); appearance: none; -webkit-appearance: none;
@@ -212,7 +236,8 @@
     }
     textarea { min-height: 80px; resize: vertical; }
     input:focus, select:focus, textarea:focus { outline: 2px solid var(--amber); outline-offset: 1px; border-color: var(--amber); }
-    .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .field-row { display: grid; grid-template-columns: 1fr; gap: 10px; }
+    .field-row > .form-group { margin-bottom: 14px; }
     .hint { font-size: 12px; color: var(--ink-soft); margin-top: 4px; }
 
     .search-bar { position: relative; margin-bottom: 10px; }
@@ -256,11 +281,31 @@
     .sheet.open { transform: translateY(0); }
     .sheet-handle { width: 42px; height: 4px; background: var(--line); border-radius: 4px; margin: 4px auto 14px; }
     .sheet h2 { font-size: 22px; margin-bottom: 4px; }
+    .review-banner {
+      background: rgba(196,119,42,0.12);
+      color: #8a4f17;
+      border: 1px solid var(--amber-soft);
+      padding: 10px 14px;
+      border-radius: 10px;
+      font-size: 13px;
+      margin-bottom: 14px;
+      font-weight: 500;
+      display: none;
+    }
+    .review-banner.on { display: block; }
     .detail-rows { margin: 12px 0 18px; }
     .detail-rows .dr { display: flex; justify-content: space-between; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--line); }
     .detail-rows .dr:last-child { border-bottom: none; }
     .detail-rows .dk { font-size: 12px; letter-spacing: 0.05em; text-transform: uppercase; color: var(--ink-soft); flex-shrink: 0; }
-    .detail-rows .dv { text-align: right; font-weight: 500; color: var(--ink); }
+    .detail-rows .dv { text-align: right; font-weight: 500; color: var(--ink); word-break: break-word; }
+    .detail-rows .dr.group-head {
+      padding: 14px 0 4px; border-bottom: none;
+    }
+    .detail-rows .dr.group-head .dk {
+      font-family: 'Playfair Display', serif;
+      font-size: 14px; text-transform: none; letter-spacing: 0;
+      color: var(--green-deep); font-weight: 700;
+    }
 
     /* Toast */
     #toast {
@@ -304,8 +349,16 @@
     .center { text-align: center; }
     hr.div { border: none; border-top: 1px solid var(--line); margin: 14px 0; }
 
-    @media (min-width: 480px) {
+    /* Wider screens — center the form, two-up rows */
+    @media (min-width: 600px) {
+      #view-add, #view-dashboard, #view-records, #view-export, #view-settings {
+        max-width: 760px; margin: 0 auto;
+      }
+      .field-row.two { grid-template-columns: 1fr 1fr; gap: 14px; }
+      .field-row.two > .form-group { margin-bottom: 0; }
       .stat-grid { grid-template-columns: repeat(4, 1fr); }
+      .sheet { max-width: 560px; left: 50%; right: auto; transform: translate(-50%, 100%); border-radius: 22px; bottom: 24px; }
+      .sheet.open { transform: translate(-50%, 0); }
     }
   </style>
 </head>
@@ -313,7 +366,10 @@
 
 <!-- PIN screen -->
 <div id="pinScreen">
-  <div class="logo">
+  <img class="brand-logo" src="logo.png" alt="Southern Wildlife Resources"
+       onload="this.classList.add('loaded'); this.parentElement.classList.add('has-logo');"
+       onerror="this.remove();">
+  <div class="paw-mark">
     <svg viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
       <g fill="#C4772A">
         <ellipse cx="256" cy="342" rx="108" ry="90"/>
@@ -326,7 +382,7 @@
   </div>
   <h1>Southern Wildlife Tracker</h1>
   <div class="sub" id="pinPrompt">Enter PIN</div>
-  <div style="height:24px"></div>
+  <div style="height:8px"></div>
   <div class="pin-dots" id="pinDots"><span></span><span></span><span></span><span></span></div>
   <div class="pin-error" id="pinError"></div>
   <div class="pin-pad" id="pinPad">
@@ -348,9 +404,25 @@
 <!-- App -->
 <div id="app" class="hidden">
   <header id="appHeader">
-    <div>
-      <h1 id="viewTitle">Dashboard</h1>
-      <div class="period" id="headerPeriod"></div>
+    <div class="header-left">
+      <img class="brand-logo" src="logo.png" alt="SWR"
+           onload="this.classList.add('loaded'); this.parentElement.classList.add('has-logo');"
+           onerror="this.remove();">
+      <div class="paw-mark">
+        <svg viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+          <g fill="#C4772A">
+            <ellipse cx="256" cy="342" rx="108" ry="90"/>
+            <ellipse cx="138" cy="228" rx="46" ry="58"/>
+            <ellipse cx="220" cy="150" rx="42" ry="56"/>
+            <ellipse cx="292" cy="150" rx="42" ry="56"/>
+            <ellipse cx="374" cy="228" rx="46" ry="58"/>
+          </g>
+        </svg>
+      </div>
+      <div class="titlebox">
+        <h1 id="viewTitle">Dashboard</h1>
+        <div class="period" id="headerPeriod"></div>
+      </div>
     </div>
     <button class="header-btn" id="lockBtn" aria-label="Lock app">Lock</button>
   </header>
@@ -386,7 +458,7 @@
     <section id="view-records" class="view hidden">
       <div class="search-bar">
         <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
-        <input type="text" id="recSearch" placeholder="Search address, species, notes…" autocomplete="off">
+        <input type="text" id="recSearch" placeholder="Search client, address, species, notes…" autocomplete="off">
       </div>
       <div class="filter-row">
         <select id="filterTrapper"><option value="">All trappers</option></select>
@@ -409,71 +481,94 @@
       <form id="recordForm" novalidate>
         <input type="hidden" id="f-id">
 
-        <div class="form-group">
-          <label for="f-date">Date Collected<span class="req">*</span></label>
-          <input type="date" id="f-date" required>
+        <h3 class="form-section">Job Details</h3>
+        <div class="field-row two">
+          <div class="form-group">
+            <label for="f-date">Date Collected<span class="req">*</span></label>
+            <input type="date" id="f-date" required>
+          </div>
+          <div class="form-group">
+            <label for="f-trapper">Trapper<span class="req">*</span></label>
+            <select id="f-trapper" required>
+              <option value="">— select trapper —</option>
+            </select>
+          </div>
         </div>
 
-        <div class="form-group">
-          <label for="f-trapper">Trapper<span class="req">*</span></label>
-          <select id="f-trapper" required>
-            <option value="">— select trapper —</option>
-          </select>
+        <h3 class="form-section">Client</h3>
+        <div class="field-row two">
+          <div class="form-group">
+            <label for="f-client-name">Client Name<span class="req">*</span></label>
+            <input type="text" id="f-client-name" autocomplete="name" required>
+          </div>
+          <div class="form-group">
+            <label for="f-client-phone">Phone<span class="req">*</span></label>
+            <input type="tel" id="f-client-phone" autocomplete="tel" inputmode="tel" required>
+          </div>
+        </div>
+        <div class="field-row two">
+          <div class="form-group">
+            <label for="f-client-business">Business Name<span class="opt">(optional)</span></label>
+            <input type="text" id="f-client-business" autocomplete="organization">
+          </div>
+          <div class="form-group">
+            <label for="f-client-email">Email<span class="opt">(optional)</span></label>
+            <input type="email" id="f-client-email" autocomplete="email" inputmode="email">
+          </div>
         </div>
 
+        <h3 class="form-section">Animal</h3>
         <div class="form-group">
           <label for="f-species">Species<span class="req">*</span></label>
           <select id="f-species" required>
             <option value="">— select species —</option>
           </select>
         </div>
-
         <div class="form-group conditional" id="cg-speciesOther">
           <label for="f-species-other">Specify species<span class="req">*</span></label>
           <input type="text" id="f-species-other" placeholder="e.g. Eastern Box Turtle">
         </div>
-
-        <div class="form-group conditional" id="cg-otherAnimalCount">
-          <label for="f-other-animal-count">Number of animals</label>
-          <input type="number" id="f-other-animal-count" min="1" step="1" value="1">
+        <div class="form-group conditional" id="cg-animalCount">
+          <label for="f-animal-count">Number of Animals<span class="req">*</span></label>
+          <input type="number" id="f-animal-count" min="1" step="1" value="1">
+          <div class="hint" id="hint-animalCount">For bats and birds, enter the total animals in this record — captured, dispersed, or excluded.</div>
         </div>
 
+        <h3 class="form-section">Location</h3>
         <div class="form-group">
           <label for="f-county">County of Collection<span class="req">*</span></label>
           <select id="f-county" required>
             <option value="">— select county —</option>
           </select>
         </div>
-
         <div class="form-group">
           <label for="f-address">Address of Collection<span class="req">*</span></label>
           <input type="text" id="f-address" placeholder="123 Main St, Lexington" autocomplete="off" required>
         </div>
 
-        <div class="form-group">
-          <label for="f-capture">Capture Method<span class="req">*</span></label>
-          <select id="f-capture" required>
-            <option value="">— select method —</option>
-          </select>
+        <h3 class="form-section">Capture &amp; Disposal</h3>
+        <div class="field-row two">
+          <div class="form-group">
+            <label for="f-capture">Capture Method<span class="req">*</span></label>
+            <select id="f-capture" required>
+              <option value="">— select method —</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="f-disposal">Disposal Method<span class="req">*</span></label>
+            <select id="f-disposal" required>
+              <option value="">— select disposal —</option>
+            </select>
+          </div>
         </div>
-
         <div class="form-group conditional" id="cg-captureOther">
           <label for="f-capture-other">Specify method<span class="req">*</span></label>
           <input type="text" id="f-capture-other">
         </div>
-
-        <div class="form-group">
-          <label for="f-disposal">Disposal Method<span class="req">*</span></label>
-          <select id="f-disposal" required>
-            <option value="">— select disposal —</option>
-          </select>
-        </div>
-
         <div class="form-group conditional" id="cg-disposalOther">
           <label for="f-disposal-other">Specify disposal<span class="req">*</span></label>
           <input type="text" id="f-disposal-other">
         </div>
-
         <div class="form-group conditional" id="cg-dispatch">
           <label for="f-dispatch">Method of Dispatch<span class="req">*</span></label>
           <select id="f-dispatch">
@@ -481,47 +576,34 @@
           </select>
           <div class="hint">Required by KDFWR for euthanized animals.</div>
         </div>
-
         <div class="conditional" id="cg-release">
-          <div class="form-group">
-            <label for="f-release-county">County of Release<span class="req">*</span></label>
-            <select id="f-release-county">
-              <option value="">— select county —</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label for="f-release-date">Date of Release<span class="req">*</span></label>
-            <input type="date" id="f-release-date">
+          <div class="field-row two">
+            <div class="form-group">
+              <label for="f-release-county">County of Release<span class="req">*</span></label>
+              <select id="f-release-county">
+                <option value="">— select county —</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="f-release-date">Date of Release<span class="req">*</span></label>
+              <input type="date" id="f-release-date">
+            </div>
           </div>
         </div>
-
-        <div class="form-group conditional" id="cg-excludedRange">
-          <label for="f-excluded-range">Number Excluded</label>
-          <select id="f-excluded-range">
-            <option value="">— select range —</option>
-            <option>None</option>
-            <option>1–25</option>
-            <option>26–50</option>
-            <option>51–75</option>
-            <option>76–100</option>
-            <option>&gt;100</option>
-          </select>
-          <div class="hint">KDFWR tracks bats and birds excluded in ranges.</div>
-        </div>
-
         <div class="form-group conditional" id="cg-excludedNumber">
-          <label for="f-excluded-number">Number Excluded / Dispersed</label>
+          <label for="f-excluded-number">Number Excluded / Dispersed<span class="req">*</span></label>
           <input type="number" id="f-excluded-number" min="0" step="1" placeholder="0">
         </div>
 
+        <h3 class="form-section">Notes</h3>
         <div class="form-group">
-          <label for="f-notes">Notes</label>
-          <textarea id="f-notes" placeholder="Optional — client name, conditions, animal condition…"></textarea>
+          <label for="f-notes">Notes<span class="opt">(optional)</span></label>
+          <textarea id="f-notes" placeholder="Client situation, animal condition, follow-up details…"></textarea>
         </div>
 
         <div class="btn-row" style="margin-top:18px;">
           <button type="button" class="btn btn-ghost" id="cancelBtn">Cancel</button>
-          <button type="submit" class="btn btn-primary" id="saveBtn">Save Record</button>
+          <button type="submit" class="btn btn-primary" id="saveBtn">Review Record</button>
         </div>
         <button type="button" class="btn btn-danger" id="deleteBtn" style="margin-top:10px; display:none;">Delete Record</button>
       </form>
@@ -542,7 +624,7 @@
 
       <div class="card">
         <h3 style="margin-bottom:6px;">Full Data Export</h3>
-        <p class="muted" style="font-size:14px;">All fields including trapper, notes, and timestamps.</p>
+        <p class="muted" style="font-size:14px;">All fields including client contact, notes, and timestamps.</p>
         <div class="btn-row" style="margin-top:12px;">
           <button class="btn btn-ghost" id="exportFullCsv">Full CSV</button>
           <button class="btn btn-ghost" id="exportJson">JSON Backup</button>
@@ -551,7 +633,7 @@
 
       <div class="card">
         <h3 style="margin-bottom:6px;">Custom Date Range</h3>
-        <div class="field-row" style="margin-top:8px;">
+        <div class="field-row two" style="margin-top:8px;">
           <div class="form-group">
             <label for="rangeStart">From</label>
             <input type="date" id="rangeStart">
@@ -600,7 +682,7 @@
       </div>
 
       <div class="card center muted" style="font-size:12px;">
-        Southern Wildlife Tracker · v1.0<br>
+        Southern Wildlife Tracker · v1.1<br>
         Designed for KDFWR Commercial NWCO compliance.
       </div>
     </section>
@@ -629,10 +711,11 @@
   </nav>
 </div>
 
-<!-- Detail sheet -->
+<!-- Detail / Review sheet -->
 <div class="sheet-backdrop" id="sheetBackdrop"></div>
 <div class="sheet" id="detailSheet">
   <div class="sheet-handle"></div>
+  <div class="review-banner" id="reviewBanner">Verify the details below before saving this record. Tap <strong>Back to Edit</strong> to make changes, or <strong>Confirm &amp; Save</strong> when ready.</div>
   <h2 id="detailTitle">Record</h2>
   <div class="muted" id="detailSub" style="font-size:13px;"></div>
   <div class="detail-rows" id="detailRows"></div>
@@ -664,13 +747,20 @@
 
 const TRAPPERS = ['Jon Gassett', 'Robin Gassett', 'Chris Griffith'];
 
-const SPECIES = [
-  'Bat (any species)','Beaver','Bobcat','Chipmunk','Coyote','Red Fox','Gray Fox',
-  'Groundhog','Mink','Muskrat','Opossum','River Otter','Rabbit','Raccoon','Mole',
-  'Striped Skunk','Snake','Tree Squirrel','Flying Squirrel','Weasel',
-  'Duck','Goose','European Starling','American Robin','Black Vulture','Turkey Vulture',
-  'Other Bird (Indicate Species)','Other Animal (Indicate Species and Number)'
+const SPECIES_GROUPS = [
+  { label: 'Mammals', items: [
+    'Bat (any species)','Beaver','Bobcat','Chipmunk','Coyote','Red Fox','Gray Fox',
+    'Groundhog','Mink','Muskrat','Opossum','River Otter','Rabbit','Raccoon','Mole',
+    'Striped Skunk','Tree Squirrel','Flying Squirrel','Weasel'
+  ]},
+  { label: 'Birds', items: [
+    'Duck','Goose','European Starling','American Robin','Black Vulture','Turkey Vulture','Other Bird (Indicate Species)'
+  ]},
+  { label: 'Other', items: [
+    'Snake','Other Animal (Indicate Species and Number)'
+  ]}
 ];
+const SPECIES = SPECIES_GROUPS.flatMap((g) => g.items);
 
 const CAPTURE_METHODS = [
   'Cage Trap','Tube Trap','Foothold – Live','Foothold – Drowning Set',
@@ -704,6 +794,7 @@ const BAT_SPECIES = new Set(['Bat (any species)']);
 const SPECIFY_CAPTURES = new Set(['Live Trap – Other','Kill Trap – Other','Other (please specify)']);
 const SPECIFY_DISPOSALS = new Set(['Other (please specify)']);
 const SPECIFY_SPECIES = new Set(['Other Bird (Indicate Species)','Other Animal (Indicate Species and Number)']);
+const OTHER_ANIMAL = 'Other Animal (Indicate Species and Number)';
 
 const RELEASE_DISPOSALS = new Set(['Released Onsite','Relocated to Suitable Habitat']);
 const EUTHANIZE_DISPOSALS = new Set(['Euthanized Onsite','Euthanized Offsite']);
@@ -716,6 +807,8 @@ const SETTINGS_DEFAULTS = {
   permitHolder: 'Jon Gassett',
   permitNumber: ''
 };
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 /* ---------- IndexedDB ---------- */
 const DB_NAME = 'swrTrackerDB';
@@ -828,7 +921,6 @@ function fmtShortDate(iso) {
   return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 }
 function reportPeriod(refDate = new Date()) {
-  /* KDFWR period: Feb 1 — Jan 31. If month >= Feb, period starts Feb 1 this year. */
   const y = refDate.getFullYear();
   const startYear = refDate.getMonth() >= 1 ? y : y - 1;
   const start = `${startYear}-02-01`;
@@ -861,6 +953,12 @@ function disposalDisplay(rec) {
   return SPECIFY_DISPOSALS.has(rec.disposalMethod) && rec.disposalOther
     ? `${rec.disposalMethod}: ${rec.disposalOther}` : rec.disposalMethod;
 }
+function isBatOrBird(species) {
+  return BAT_SPECIES.has(species) || BIRD_SPECIES.has(species);
+}
+function needsAnimalCount(species) {
+  return isBatOrBird(species) || species === OTHER_ANIMAL;
+}
 
 function toast(msg, type = '') {
   const el = $('#toast');
@@ -886,9 +984,14 @@ function confirmDialog(title, body) {
   });
 }
 
+function escapeHtml(s) {
+  if (s == null) return '';
+  return String(s).replace(/[&<>"']/g, (c) => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+}
+
 /* ---------- PIN screen ---------- */
 let pinEntry = '';
-let pinMode = 'unlock';   /* unlock | set-new | confirm-new */
+let pinMode = 'unlock';
 let pinNewBuffer = '';
 
 function renderPinDots() {
@@ -981,8 +1084,9 @@ function setView(name) {
   $$('#bottomNav .nav-btn').forEach((b) => b.classList.toggle('active', b.dataset.view === name));
   $('#viewTitle').textContent = VIEW_TITLES[name];
   $('#appMain').scrollTop = 0;
-  if (name === 'add') {
-    if (!editingId) resetForm();
+  if (name === 'add' && !editingId) {
+    /* fresh form only when not in the middle of an edit */
+    if (!pendingRecord) resetForm();
   }
 }
 
@@ -1006,6 +1110,28 @@ function fillSelect(id, items, includeBlank = true, blankLabel = '— select —
   }
   if (current && items.includes(current)) sel.value = current;
 }
+function fillGroupedSelect(id, groups, blankLabel) {
+  const sel = document.getElementById(id);
+  if (!sel) return;
+  const current = sel.value;
+  sel.innerHTML = '';
+  const o = document.createElement('option');
+  o.value = '';
+  o.textContent = blankLabel;
+  sel.appendChild(o);
+  for (const g of groups) {
+    const og = document.createElement('optgroup');
+    og.label = g.label;
+    for (const item of g.items) {
+      const oi = document.createElement('option');
+      oi.value = item;
+      oi.textContent = item;
+      og.appendChild(oi);
+    }
+    sel.appendChild(og);
+  }
+  if (current) sel.value = current;
+}
 function fillFilters() {
   fillSelect('filterTrapper', TRAPPERS, true, 'All trappers');
   fillSelect('filterSpecies', SPECIES, true, 'All species');
@@ -1013,7 +1139,7 @@ function fillFilters() {
 }
 function fillForm() {
   fillSelect('f-trapper', TRAPPERS, true, '— select trapper —');
-  fillSelect('f-species', SPECIES, true, '— select species —');
+  fillGroupedSelect('f-species', SPECIES_GROUPS, '— select species —');
   fillSelect('f-county', COUNTIES, true, '— select county —');
   fillSelect('f-capture', CAPTURE_METHODS, true, '— select method —');
   fillSelect('f-disposal', DISPOSAL_METHODS, true, '— select disposal —');
@@ -1026,19 +1152,17 @@ function updateConditionals() {
   const species = $('#f-species').value;
   const capture = $('#f-capture').value;
   const disposal = $('#f-disposal').value;
-  const isBird = BIRD_SPECIES.has(species);
-  const isBat = BAT_SPECIES.has(species);
+  const isExclude = EXCLUDE_DISPOSALS.has(disposal);
+  const showCount = needsAnimalCount(species);
 
   toggleGroup('cg-speciesOther', SPECIFY_SPECIES.has(species));
-  toggleGroup('cg-otherAnimalCount', species === 'Other Animal (Indicate Species and Number)');
+  toggleGroup('cg-animalCount', showCount);
   toggleGroup('cg-captureOther', SPECIFY_CAPTURES.has(capture));
   toggleGroup('cg-disposalOther', SPECIFY_DISPOSALS.has(disposal));
   toggleGroup('cg-dispatch', EUTHANIZE_DISPOSALS.has(disposal));
   toggleGroup('cg-release', RELEASE_DISPOSALS.has(disposal));
-
-  const isExclude = EXCLUDE_DISPOSALS.has(disposal);
-  toggleGroup('cg-excludedRange', isExclude && (isBird || isBat));
-  toggleGroup('cg-excludedNumber', isExclude && !(isBird || isBat));
+  /* excluded number only for non-bat/bird species — bats/birds use the animal count field */
+  toggleGroup('cg-excludedNumber', isExclude && !isBatOrBird(species) && species !== OTHER_ANIMAL && species !== '');
 }
 function toggleGroup(id, on) {
   const el = document.getElementById(id);
@@ -1048,25 +1172,33 @@ function toggleGroup(id, on) {
 
 /* ---------- Form lifecycle ---------- */
 let editingId = null;
+let pendingRecord = null;
 
 function resetForm() {
   editingId = null;
+  pendingRecord = null;
   $('#recordForm').reset();
   $('#f-id').value = '';
   $('#f-date').value = todayISO();
+  $('#f-animal-count').value = 1;
   $('#deleteBtn').style.display = 'none';
-  $('#saveBtn').textContent = 'Save Record';
+  $('#saveBtn').textContent = 'Review Record';
   updateConditionals();
 }
 
 function loadIntoForm(rec) {
-  editingId = rec.id;
-  $('#f-id').value = rec.id;
+  editingId = rec.id || null;
+  pendingRecord = null;
+  $('#f-id').value = rec.id || '';
   $('#f-date').value = rec.dateCollected || '';
   $('#f-trapper').value = rec.trapper || '';
+  $('#f-client-name').value = rec.clientName || '';
+  $('#f-client-phone').value = rec.clientPhone || '';
+  $('#f-client-business').value = rec.clientBusiness || '';
+  $('#f-client-email').value = rec.clientEmail || '';
   $('#f-species').value = rec.species || '';
   $('#f-species-other').value = rec.speciesOther || '';
-  $('#f-other-animal-count').value = rec.otherAnimalCount || 1;
+  $('#f-animal-count').value = rec.animalCount != null ? rec.animalCount : 1;
   $('#f-county').value = rec.county || '';
   $('#f-address').value = rec.address || '';
   $('#f-capture').value = rec.captureMethod || '';
@@ -1076,11 +1208,10 @@ function loadIntoForm(rec) {
   $('#f-dispatch').value = rec.dispatchMethod || '';
   $('#f-release-county').value = rec.releaseCounty || '';
   $('#f-release-date').value = rec.releaseDate || '';
-  $('#f-excluded-range').value = rec.excludedRange || '';
   $('#f-excluded-number').value = rec.excludedNumber ?? '';
   $('#f-notes').value = rec.notes || '';
-  $('#deleteBtn').style.display = 'block';
-  $('#saveBtn').textContent = 'Save Changes';
+  $('#deleteBtn').style.display = editingId ? 'block' : 'none';
+  $('#saveBtn').textContent = editingId ? 'Review Changes' : 'Review Record';
   updateConditionals();
 }
 
@@ -1088,9 +1219,12 @@ function readForm() {
   const r = {
     dateCollected: $('#f-date').value,
     trapper: $('#f-trapper').value,
+    clientName: $('#f-client-name').value.trim(),
+    clientPhone: $('#f-client-phone').value.trim(),
+    clientBusiness: $('#f-client-business').value.trim(),
+    clientEmail: $('#f-client-email').value.trim(),
     species: $('#f-species').value,
     speciesOther: $('#f-species-other').value.trim(),
-    otherAnimalCount: parseInt($('#f-other-animal-count').value, 10) || 1,
     county: $('#f-county').value,
     address: $('#f-address').value.trim(),
     captureMethod: $('#f-capture').value,
@@ -1100,10 +1234,15 @@ function readForm() {
     dispatchMethod: $('#f-dispatch').value,
     releaseCounty: $('#f-release-county').value,
     releaseDate: $('#f-release-date').value,
-    excludedRange: $('#f-excluded-range').value,
     excludedNumber: $('#f-excluded-number').value === '' ? null : Number($('#f-excluded-number').value),
     notes: $('#f-notes').value.trim()
   };
+  if (needsAnimalCount(r.species)) {
+    const n = parseInt($('#f-animal-count').value, 10);
+    r.animalCount = Number.isFinite(n) && n > 0 ? n : 1;
+  } else {
+    r.animalCount = 1;
+  }
   if (editingId) r.id = editingId;
   return r;
 }
@@ -1112,8 +1251,12 @@ function validateRecord(r) {
   const errs = [];
   if (!r.dateCollected) errs.push('Date');
   if (!r.trapper) errs.push('Trapper');
+  if (!r.clientName) errs.push('Client name');
+  if (!r.clientPhone) errs.push('Phone');
+  if (r.clientEmail && !EMAIL_RE.test(r.clientEmail)) errs.push('Valid email');
   if (!r.species) errs.push('Species');
   if (SPECIFY_SPECIES.has(r.species) && !r.speciesOther) errs.push('Specify species');
+  if (needsAnimalCount(r.species) && (!r.animalCount || r.animalCount < 1)) errs.push('Number of animals');
   if (!r.county) errs.push('County');
   if (!r.address) errs.push('Address');
   if (!r.captureMethod) errs.push('Capture method');
@@ -1125,15 +1268,24 @@ function validateRecord(r) {
     if (!r.releaseCounty) errs.push('Release county');
     if (!r.releaseDate) errs.push('Release date');
   }
+  if (EXCLUDE_DISPOSALS.has(r.disposalMethod) && !isBatOrBird(r.species) && r.species !== OTHER_ANIMAL) {
+    if (r.excludedNumber == null || r.excludedNumber < 0) errs.push('Number excluded');
+  }
   return errs;
 }
 
-async function saveForm(e) {
+function reviewForm(e) {
   e.preventDefault();
   const rec = readForm();
   const errs = validateRecord(rec);
   if (errs.length) { toast('Required: ' + errs.join(', '), 'error'); return; }
+  pendingRecord = rec;
+  openSheet(rec, 'review');
+}
 
+async function confirmSave() {
+  if (!pendingRecord) return;
+  const rec = pendingRecord;
   if (!rec.id) {
     rec.createdAt = new Date().toISOString();
   } else {
@@ -1141,11 +1293,14 @@ async function saveForm(e) {
     if (existing) rec.createdAt = existing.createdAt;
   }
   rec.updatedAt = new Date().toISOString();
+  const wasEdit = !!rec.id;
   await dbPut(rec);
-  toast(editingId ? 'Record updated' : 'Record saved');
+  pendingRecord = null;
+  closeSheet();
   resetForm();
   setView('records');
-  refreshAll();
+  await refreshAll();
+  toast(wasEdit ? 'Record updated' : 'Record saved');
 }
 
 /* ---------- Records view ---------- */
@@ -1166,8 +1321,11 @@ function filteredRecords() {
     if (fc && r.county !== fc) return false;
     if (fd && disposalCode(r.disposalMethod) !== fd) return false;
     if (q) {
-      const hay = [r.address, r.species, r.speciesOther, r.notes, r.captureMethod, r.captureOther, r.disposalMethod, r.disposalOther, r.county]
-        .filter(Boolean).join(' ').toLowerCase();
+      const hay = [
+        r.address, r.species, r.speciesOther, r.notes,
+        r.captureMethod, r.captureOther, r.disposalMethod, r.disposalOther,
+        r.county, r.clientName, r.clientBusiness, r.clientPhone, r.clientEmail
+      ].filter(Boolean).join(' ').toLowerCase();
       if (!hay.includes(q)) return false;
     }
     return true;
@@ -1193,22 +1351,19 @@ function renderRecordList() {
     const code = disposalCode(r.disposalMethod);
     const tag = code === 'R' ? 'R' : code === 'D' ? 'D' : 'X';
     const tagLabel = code === 'R' ? 'Released' : code === 'D' ? 'Euthanized' : 'Other';
+    const countLabel = r.animalCount && r.animalCount > 1 ? ` × ${r.animalCount}` : '';
+    const clientLine = r.clientName ? `${escapeHtml(r.clientName)} · ` : '';
     const div = document.createElement('div');
     div.className = 'rec';
     div.innerHTML = `
       <div class="rec-thumb">${speciesInitial(r.species)}</div>
       <div class="rec-body">
-        <div class="rec-title">${escapeHtml(speciesDisplay(r))}<span class="rec-tag tag-${tag}">${tagLabel}</span></div>
-        <div class="rec-meta">${fmtShortDate(r.dateCollected)} · ${escapeHtml(r.county)} · ${escapeHtml(r.trapper)}</div>
+        <div class="rec-title">${escapeHtml(speciesDisplay(r))}${countLabel}<span class="rec-tag tag-${tag}">${tagLabel}</span></div>
+        <div class="rec-meta">${fmtShortDate(r.dateCollected)} · ${clientLine}${escapeHtml(r.county)} · ${escapeHtml(r.trapper)}</div>
       </div>`;
     div.onclick = () => openDetail(r.id);
     root.appendChild(div);
   }
-}
-
-function escapeHtml(s) {
-  if (s == null) return '';
-  return String(s).replace(/[&<>"']/g, (c) => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
 }
 
 /* ---------- Dashboard ---------- */
@@ -1224,11 +1379,10 @@ function renderDashboard() {
   $('#statTotal').textContent = inP.length;
   $('#statTotalSub').textContent = `${cachedRecords.length} total all time`;
 
-  /* Top species */
   const counts = {};
   for (const r of inP) {
     const k = speciesDisplay(r);
-    counts[k] = (counts[k] || 0) + 1;
+    counts[k] = (counts[k] || 0) + (r.animalCount || 1);
   }
   let topName = '—', topCount = 0;
   for (const [k, v] of Object.entries(counts)) if (v > topCount) { topCount = v; topName = k; }
@@ -1259,54 +1413,104 @@ function renderDashboard() {
     const code = disposalCode(r.disposalMethod);
     const tag = code === 'R' ? 'R' : code === 'D' ? 'D' : 'X';
     const tagLabel = code === 'R' ? 'Released' : code === 'D' ? 'Euthanized' : 'Other';
+    const countLabel = r.animalCount && r.animalCount > 1 ? ` × ${r.animalCount}` : '';
+    const clientLine = r.clientName ? `${escapeHtml(r.clientName)} · ` : '';
     const div = document.createElement('div');
     div.className = 'rec';
     div.innerHTML = `
       <div class="rec-thumb">${speciesInitial(r.species)}</div>
       <div class="rec-body">
-        <div class="rec-title">${escapeHtml(speciesDisplay(r))}<span class="rec-tag tag-${tag}">${tagLabel}</span></div>
-        <div class="rec-meta">${fmtShortDate(r.dateCollected)} · ${escapeHtml(r.county)} · ${escapeHtml(r.trapper)}</div>
+        <div class="rec-title">${escapeHtml(speciesDisplay(r))}${countLabel}<span class="rec-tag tag-${tag}">${tagLabel}</span></div>
+        <div class="rec-meta">${fmtShortDate(r.dateCollected)} · ${clientLine}${escapeHtml(r.county)} · ${escapeHtml(r.trapper)}</div>
       </div>`;
     div.onclick = () => openDetail(r.id);
     root.appendChild(div);
   }
 }
 
-/* ---------- Detail sheet ---------- */
+/* ---------- Detail / Review sheet ---------- */
+let sheetMode = 'detail';     /* 'detail' or 'review' */
 let detailRecordId = null;
+
+function buildDetailRows(r) {
+  const rows = [];
+  const push = (k, v) => { if (v != null && v !== '') rows.push([k, v]); };
+  const head = (k) => rows.push(['__head__', k]);
+
+  head('Job');
+  push('Date', fmtDate(r.dateCollected));
+  push('Trapper', r.trapper);
+
+  head('Client');
+  push('Name', r.clientName);
+  push('Phone', r.clientPhone);
+  if (r.clientBusiness) push('Business', r.clientBusiness);
+  if (r.clientEmail) push('Email', r.clientEmail);
+
+  head('Animal');
+  let speciesLine = speciesDisplay(r);
+  if (r.animalCount && r.animalCount > 1) speciesLine += ` (×${r.animalCount})`;
+  push('Species', speciesLine);
+
+  head('Location');
+  push('County', r.county);
+  push('Address', r.address);
+
+  head('Capture & Disposal');
+  push('Capture', captureDisplay(r));
+  push('Disposal', disposalDisplay(r));
+  if (EUTHANIZE_DISPOSALS.has(r.disposalMethod)) push('Dispatch', r.dispatchMethod);
+  if (RELEASE_DISPOSALS.has(r.disposalMethod)) {
+    push('Release County', r.releaseCounty);
+    push('Release Date', fmtDate(r.releaseDate));
+  }
+  if (EXCLUDE_DISPOSALS.has(r.disposalMethod) && !isBatOrBird(r.species) && r.species !== OTHER_ANIMAL) {
+    if (r.excludedNumber != null) push('Number Excluded', r.excludedNumber);
+  }
+
+  if (r.notes) {
+    head('Notes');
+    push('Notes', r.notes);
+  }
+
+  return rows.map(([k, v]) => {
+    if (k === '__head__') {
+      return `<div class="dr group-head"><div class="dk">${escapeHtml(v)}</div></div>`;
+    }
+    return `<div class="dr"><div class="dk">${escapeHtml(k)}</div><div class="dv">${escapeHtml(String(v))}</div></div>`;
+  }).join('');
+}
+
+function openSheet(rec, mode) {
+  sheetMode = mode;
+  if (mode === 'review') {
+    detailRecordId = null;
+    $('#reviewBanner').classList.add('on');
+    $('#detailTitle').textContent = editingId ? 'Review Changes' : 'Review New Record';
+    $('#detailSub').textContent = 'Verify before saving.';
+    $('#detailClose').textContent = 'Back to Edit';
+    $('#detailEdit').textContent = 'Confirm & Save';
+  } else {
+    detailRecordId = rec.id;
+    $('#reviewBanner').classList.remove('on');
+    $('#detailTitle').textContent = speciesDisplay(rec) + (rec.animalCount && rec.animalCount > 1 ? ` ×${rec.animalCount}` : '');
+    $('#detailSub').textContent = `${fmtDate(rec.dateCollected)} · ${rec.county} County · ${rec.trapper || ''}`;
+    $('#detailClose').textContent = 'Close';
+    $('#detailEdit').textContent = 'Edit';
+  }
+  $('#detailRows').innerHTML = buildDetailRows(rec);
+  $('#sheetBackdrop').classList.add('open');
+  $('#detailSheet').classList.add('open');
+  $('#detailSheet').scrollTop = 0;
+}
+
 async function openDetail(id) {
   const r = await dbGet(id);
   if (!r) return;
-  detailRecordId = id;
-  $('#detailTitle').textContent = speciesDisplay(r);
-  $('#detailSub').textContent = `${fmtDate(r.dateCollected)} · ${r.county} County`;
-  const rows = [
-    ['Trapper', r.trapper],
-    ['County', r.county],
-    ['Address', r.address],
-    ['Capture', captureDisplay(r)],
-    ['Disposal', disposalDisplay(r)]
-  ];
-  if (EUTHANIZE_DISPOSALS.has(r.disposalMethod)) rows.push(['Dispatch', r.dispatchMethod]);
-  if (RELEASE_DISPOSALS.has(r.disposalMethod)) {
-    rows.push(['Release County', r.releaseCounty]);
-    rows.push(['Release Date', fmtDate(r.releaseDate)]);
-  }
-  if (EXCLUDE_DISPOSALS.has(r.disposalMethod)) {
-    if (r.excludedRange) rows.push(['Number Excluded', r.excludedRange]);
-    else if (r.excludedNumber != null) rows.push(['Number Excluded', r.excludedNumber]);
-  }
-  if (r.species === 'Other Animal (Indicate Species and Number)' && r.otherAnimalCount > 1) {
-    rows.push(['Number of animals', r.otherAnimalCount]);
-  }
-  if (r.notes) rows.push(['Notes', r.notes]);
-  $('#detailRows').innerHTML = rows.map(([k, v]) =>
-    `<div class="dr"><div class="dk">${escapeHtml(k)}</div><div class="dv">${escapeHtml(v == null ? '' : String(v))}</div></div>`
-  ).join('');
-  $('#sheetBackdrop').classList.add('open');
-  $('#detailSheet').classList.add('open');
+  openSheet(r, 'detail');
 }
-function closeDetail() {
+
+function closeSheet() {
   $('#sheetBackdrop').classList.remove('open');
   $('#detailSheet').classList.remove('open');
   detailRecordId = null;
@@ -1347,37 +1551,47 @@ function kdfwrCSV(records) {
   for (const r of records) {
     const code = disposalCode(r.disposalMethod);
     const drCell = code === 'X' ? '' : code;
-    lines.push(csvLine([
-      r.dateCollected,
-      speciesDisplay(r),
-      r.county,
-      r.address,
-      captureDisplay(r),
-      drCell,
-      code === 'D' ? (r.dispatchMethod || '') : '',
-      code === 'R' ? (r.releaseCounty || '') : '',
-      code === 'R' ? (r.releaseDate || '') : ''
-    ]));
+    const count = r.animalCount && r.animalCount > 1 ? r.animalCount : 1;
+    /* Bats and birds frequently come in groups — emit one row per animal so each
+       row corresponds to a single KDFWR entry. For non-bat/bird species count is 1. */
+    const repeats = isBatOrBird(r.species) ? count : 1;
+    for (let i = 0; i < repeats; i++) {
+      lines.push(csvLine([
+        r.dateCollected,
+        speciesDisplay(r),
+        r.county,
+        r.address,
+        captureDisplay(r),
+        drCell,
+        code === 'D' ? (r.dispatchMethod || '') : '',
+        code === 'R' ? (r.releaseCounty || '') : '',
+        code === 'R' ? (r.releaseDate || '') : ''
+      ]));
+    }
   }
   return lines.join('\r\n') + '\r\n';
 }
 
 function fullCSV(records) {
   const header = [
-    'ID','Date Collected','Trapper','Species','Species (specify)','Other Animal Count',
+    'ID','Date Collected','Trapper',
+    'Client Name','Client Phone','Client Business','Client Email',
+    'Species','Species (specify)','Animal Count',
     'County','Address','Capture Method','Capture (specify)',
     'Disposal Method','Disposal (specify)','Dispatch Method',
-    'Release County','Release Date','Excluded Range','Excluded Number',
+    'Release County','Release Date','Excluded Number',
     'Notes','Created At','Updated At'
   ];
   const lines = [csvLine(header)];
   for (const r of records) {
     lines.push(csvLine([
-      r.id, r.dateCollected, r.trapper, r.species, r.speciesOther,
-      r.otherAnimalCount || '', r.county, r.address,
+      r.id, r.dateCollected, r.trapper,
+      r.clientName, r.clientPhone, r.clientBusiness, r.clientEmail,
+      r.species, r.speciesOther, r.animalCount == null ? '' : r.animalCount,
+      r.county, r.address,
       r.captureMethod, r.captureOther, r.disposalMethod, r.disposalOther,
       r.dispatchMethod, r.releaseCounty, r.releaseDate,
-      r.excludedRange, r.excludedNumber == null ? '' : r.excludedNumber,
+      r.excludedNumber == null ? '' : r.excludedNumber,
       r.notes, r.createdAt, r.updatedAt
     ]));
   }
@@ -1385,7 +1599,6 @@ function fullCSV(records) {
 }
 
 function fillExportPeriods() {
-  /* Offer current period plus three previous. */
   const sel = $('#exportPeriod');
   sel.innerHTML = '';
   const cur = reportPeriod();
@@ -1520,29 +1733,26 @@ async function init() {
   fillForm();
   fillExportPeriods();
 
-  /* PIN pad */
   $('#pinPad').addEventListener('click', (e) => {
     const btn = e.target.closest('.pin-key');
     if (!btn || btn.classList.contains('blank')) return;
     handlePinKey(btn.dataset.k);
   });
 
-  /* Nav */
   $('#bottomNav').addEventListener('click', (e) => {
     const btn = e.target.closest('button[data-view]');
     if (!btn) return;
     const v = btn.dataset.view;
-    if (v === 'add' && currentView !== 'add') resetForm();
+    if (v === 'add' && currentView !== 'add' && !pendingRecord) resetForm();
     setView(v);
   });
 
   $('#lockBtn').addEventListener('click', lockApp);
 
-  /* Form */
   ['f-species','f-capture','f-disposal'].forEach((id) => {
     $('#' + id).addEventListener('change', updateConditionals);
   });
-  $('#recordForm').addEventListener('submit', saveForm);
+  $('#recordForm').addEventListener('submit', reviewForm);
   $('#cancelBtn').addEventListener('click', () => {
     const wasEdit = !!editingId;
     resetForm();
@@ -1559,31 +1769,41 @@ async function init() {
     refreshAll();
   });
 
-  /* Records filters */
   ['recSearch','filterTrapper','filterSpecies','filterCounty','filterDisposal'].forEach((id) => {
     $('#' + id).addEventListener('input', renderRecordList);
     $('#' + id).addEventListener('change', renderRecordList);
   });
 
-  /* Detail sheet */
-  $('#sheetBackdrop').addEventListener('click', closeDetail);
-  $('#detailClose').addEventListener('click', closeDetail);
+  $('#sheetBackdrop').addEventListener('click', () => {
+    if (sheetMode === 'review') {
+      /* Reviewing — backdrop tap should not silently discard. Keep open. */
+      return;
+    }
+    closeSheet();
+  });
+  $('#detailClose').addEventListener('click', () => {
+    /* In review mode: just close the sheet, the form still holds the data. */
+    closeSheet();
+  });
   $('#detailEdit').addEventListener('click', async () => {
+    if (sheetMode === 'review') {
+      await confirmSave();
+      return;
+    }
+    /* detail mode: open the underlying record into the form for editing */
     if (!detailRecordId) return;
     const r = await dbGet(detailRecordId);
-    closeDetail();
+    closeSheet();
     if (!r) return;
     setView('add');
     loadIntoForm(r);
   });
 
-  /* Export */
   $('#exportKdfwr').addEventListener('click', exportKdfwr);
   $('#exportFullCsv').addEventListener('click', exportFullCsv);
   $('#exportJson').addEventListener('click', exportJsonBackup);
   $('#exportRange').addEventListener('click', exportRange);
 
-  /* Settings */
   $('#saveBusiness').addEventListener('click', saveBusiness);
   $('#changePinBtn').addEventListener('click', startChangePin);
   $('#lockNow').addEventListener('click', lockApp);
@@ -1595,13 +1815,11 @@ async function init() {
   });
   $('#wipeBtn').addEventListener('click', wipeAll);
 
-  /* Initial date defaults */
   $('#f-date').value = todayISO();
   const p = reportPeriod();
   $('#rangeStart').value = p.start;
   $('#rangeEnd').value = todayISO();
 
-  /* Register service worker */
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('sw.js').catch(() => {});
   }
