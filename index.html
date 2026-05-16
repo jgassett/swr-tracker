@@ -59,45 +59,31 @@
     .paw-mark { display: flex; align-items: center; justify-content: center; }
     .has-logo .paw-mark { display: none; }
 
-    /* PIN screen */
-    #pinScreen {
+    /* Splash screen */
+    #splashScreen {
       position: fixed; inset: 0; background: var(--green); color: var(--cream);
       display: flex; flex-direction: column; align-items: center; justify-content: center;
       padding: calc(var(--safe-top) + 16px) 20px calc(var(--safe-bot) + 16px);
       z-index: 100;
-      overflow-y: auto;
-      -webkit-overflow-scrolling: touch;
+      transition: opacity 0.2s;
     }
-    #pinScreen .paw-mark {
-      width: 64px; height: 64px; border-radius: 18px; background: var(--green-deep);
-      margin-bottom: 12px; flex-shrink: 0;
+    #splashScreen.hidden { opacity: 0; pointer-events: none; }
+    #splashScreen .paw-mark {
+      width: 84px; height: 84px; border-radius: 22px; background: var(--green-deep);
+      margin-bottom: 16px;
     }
-    #pinScreen .paw-mark svg { width: 44px; height: 44px; }
-    #pinScreen .brand-logo { height: 88px; max-width: 280px; margin-bottom: 14px; flex-shrink: 0; }
-    #pinScreen h1 { color: var(--cream); font-size: 22px; text-align: center; margin-bottom: 2px; flex-shrink: 0; }
-    #pinScreen .sub { color: var(--amber-soft); font-size: 13px; letter-spacing: 0.06em; text-transform: uppercase; margin-bottom: 18px; flex-shrink: 0; }
-    .pin-dots { display: flex; gap: 14px; margin-bottom: 14px; flex-shrink: 0; }
-    .pin-dots span { width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--amber-soft); background: transparent; transition: background 0.15s; }
-    .pin-dots span.on { background: var(--amber); border-color: var(--amber); }
-    .pin-pad { display: grid; grid-template-columns: repeat(3, 60px); gap: 10px; flex-shrink: 0; }
-    .pin-key {
-      height: 60px; border-radius: 50%; border: none;
-      background: rgba(255,255,255,0.08); color: var(--cream);
-      font-size: 24px; font-weight: 600; font-family: 'Source Sans 3', sans-serif;
+    #splashScreen .paw-mark svg { width: 56px; height: 56px; }
+    #splashScreen .brand-logo {
+      height: 110px; max-width: 280px; margin-bottom: 18px;
     }
-    .pin-key:active { background: rgba(196,119,42,0.35); }
-    .pin-key.blank { background: transparent; pointer-events: none; }
-    .pin-key.action { font-size: 13px; letter-spacing: 0.05em; text-transform: uppercase; color: var(--amber-soft); }
-    .pin-error { color: var(--amber-soft); min-height: 18px; margin-bottom: 8px; font-size: 13px; flex-shrink: 0; }
-    @media (min-height: 720px) {
-      #pinScreen .paw-mark { width: 84px; height: 84px; margin-bottom: 16px; }
-      #pinScreen .paw-mark svg { width: 56px; height: 56px; }
-      #pinScreen .brand-logo { height: 110px; margin-bottom: 18px; }
-      #pinScreen h1 { font-size: 26px; }
-      #pinScreen .sub { margin-bottom: 28px; }
-      .pin-pad { grid-template-columns: repeat(3, 68px); gap: 12px; }
-      .pin-key { height: 68px; font-size: 26px; }
+    #splashScreen h1 { color: var(--cream); font-size: 24px; text-align: center; margin-bottom: 18px; }
+    .splash-spinner {
+      width: 28px; height: 28px; border-radius: 50%;
+      border: 3px solid rgba(196,119,42,0.2);
+      border-top-color: var(--amber);
+      animation: splashSpin 0.9s linear infinite;
     }
+    @keyframes splashSpin { to { transform: rotate(360deg); } }
 
     /* App shell */
     #app { height: 100%; display: flex; flex-direction: column; }
@@ -575,8 +561,8 @@
 </head>
 <body>
 
-<!-- PIN screen -->
-<div id="pinScreen">
+<!-- Splash screen (briefly shown while Firebase auth state initializes) -->
+<div id="splashScreen">
   <img class="brand-logo" src="logo.jpg" alt="Southern Wildlife Resources"
        onload="this.classList.add('loaded'); this.parentElement.classList.add('has-logo');"
        onerror="this.remove();">
@@ -592,24 +578,7 @@
     </svg>
   </div>
   <h1>Southern Wildlife Tracker</h1>
-  <div class="sub" id="pinPrompt">Enter PIN</div>
-  <div style="height:8px"></div>
-  <div class="pin-dots" id="pinDots"><span></span><span></span><span></span><span></span></div>
-  <div class="pin-error" id="pinError"></div>
-  <div class="pin-pad" id="pinPad">
-    <button class="pin-key" data-k="1">1</button>
-    <button class="pin-key" data-k="2">2</button>
-    <button class="pin-key" data-k="3">3</button>
-    <button class="pin-key" data-k="4">4</button>
-    <button class="pin-key" data-k="5">5</button>
-    <button class="pin-key" data-k="6">6</button>
-    <button class="pin-key" data-k="7">7</button>
-    <button class="pin-key" data-k="8">8</button>
-    <button class="pin-key" data-k="9">9</button>
-    <button class="pin-key blank"></button>
-    <button class="pin-key" data-k="0">0</button>
-    <button class="pin-key action" data-k="del">Del</button>
-  </div>
+  <div class="splash-spinner" aria-hidden="true"></div>
 </div>
 
 <!-- Sign-in screen -->
@@ -663,7 +632,6 @@
         <span class="dot"></span>
         <span class="label">Offline</span>
       </div>
-      <button class="header-btn" id="lockBtn" aria-label="Lock app">Lock</button>
     </div>
   </header>
 
@@ -974,13 +942,6 @@
       </div>
 
       <div class="card">
-        <h3 style="margin-bottom:10px;">Security</h3>
-        <button class="btn btn-ghost" id="changePinBtn">Change PIN</button>
-        <div style="height:10px"></div>
-        <button class="btn btn-ghost" id="lockNow">Lock App Now</button>
-      </div>
-
-      <div class="card">
         <h3 style="margin-bottom:10px;">Data</h3>
         <button class="btn btn-ghost" id="restoreBtn">Restore From JSON Backup</button>
         <input type="file" id="restoreFile" accept="application/json" style="display:none">
@@ -989,7 +950,7 @@
       </div>
 
       <div class="card center muted" style="font-size:12px;">
-        Southern Wildlife Tracker · v1.1<br>
+        Southern Wildlife Tracker · v1.2<br>
         Designed for KDFWR Commercial NWCO compliance.
       </div>
     </section>
@@ -1144,9 +1105,7 @@ const RELEASE_DISPOSALS = new Set(['Released Onsite','Relocated to Suitable Habi
 const EUTHANIZE_DISPOSALS = new Set(['Euthanized Onsite','Euthanized Offsite']);
 const EXCLUDE_DISPOSALS = new Set(['Excluded but not Captured','Dispersed from Site']);
 
-const DEFAULT_PIN = '0000';
 const SETTINGS_DEFAULTS = {
-  pin: DEFAULT_PIN,
   businessName: 'Southern Wildlife Resources',
   permitHolder: 'Jon Gassett',
   permitNumber: ''
@@ -1389,89 +1348,18 @@ function escapeHtml(s) {
   return String(s).replace(/[&<>"']/g, (c) => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
 }
 
-/* ---------- PIN screen ---------- */
-let pinEntry = '';
-let pinMode = 'unlock';
-let pinNewBuffer = '';
-
-function renderPinDots() {
-  $$('#pinDots span').forEach((d, i) => d.classList.toggle('on', i < pinEntry.length));
-}
-
-async function handlePinKey(k) {
-  $('#pinError').textContent = '';
-  if (k === 'del') {
-    pinEntry = pinEntry.slice(0, -1);
-    renderPinDots();
-    return;
-  }
-  if (pinEntry.length >= 4) return;
-  pinEntry += k;
-  renderPinDots();
-  if (pinEntry.length !== 4) return;
-
-  const entered = pinEntry;
-  setTimeout(async () => {
-    if (pinMode === 'unlock') {
-      const pin = (await settingsGet('pin')) || DEFAULT_PIN;
-      if (entered === pin) {
-        pinEntry = '';
-        renderPinDots();
-        showApp();
-      } else {
-        pinEntry = '';
-        renderPinDots();
-        $('#pinError').textContent = 'Incorrect PIN';
-      }
-    } else if (pinMode === 'set-new') {
-      pinNewBuffer = entered;
-      pinEntry = '';
-      pinMode = 'confirm-new';
-      $('#pinPrompt').textContent = 'Confirm New PIN';
-      renderPinDots();
-    } else if (pinMode === 'confirm-new') {
-      if (entered === pinNewBuffer) {
-        await settingsSet('pin', entered);
-        pinEntry = '';
-        pinNewBuffer = '';
-        pinMode = 'unlock';
-        $('#pinPrompt').textContent = 'Enter PIN';
-        renderPinDots();
-        showApp();
-        toast('PIN updated');
-      } else {
-        pinEntry = '';
-        pinNewBuffer = '';
-        pinMode = 'set-new';
-        $('#pinPrompt').textContent = 'Set New PIN';
-        renderPinDots();
-        $('#pinError').textContent = 'PINs did not match — try again';
-      }
-    }
-  }, 80);
-}
-
-function showPinScreen() {
-  pinEntry = '';
-  renderPinDots();
-  $('#pinError').textContent = '';
-  $('#pinPrompt').textContent = pinMode === 'unlock' ? 'Enter PIN' : 'Set New PIN';
-  $('#pinScreen').classList.remove('hidden');
-  $('#signInScreen').classList.add('hidden');
-  $('#app').classList.add('hidden');
+/* ---------- Screen routing ---------- */
+function hideSplash() {
+  $('#splashScreen').classList.add('hidden');
 }
 function showSignInScreen() {
-  $('#pinScreen').classList.add('hidden');
+  hideSplash();
   $('#signInScreen').classList.remove('hidden');
   $('#app').classList.add('hidden');
-  $('#signInEmail').focus();
+  setTimeout(() => { try { $('#signInEmail').focus(); } catch (e) {} }, 120);
 }
 function showApp() {
-  $('#pinScreen').classList.add('hidden');
-  if (!currentUser) {
-    showSignInScreen();
-    return;
-  }
+  hideSplash();
   $('#signInScreen').classList.add('hidden');
   $('#app').classList.remove('hidden');
   setView(currentView);
@@ -2266,11 +2154,6 @@ async function saveBusiness() {
   toast('Business info saved');
   renderDashboard();
 }
-function startChangePin() {
-  pinMode = 'set-new';
-  pinNewBuffer = '';
-  showPinScreen();
-}
 async function restoreFromFile(file) {
   try {
     const txt = await file.text();
@@ -2305,12 +2188,6 @@ async function wipeAll() {
   await refreshAll();
 }
 
-/* ---------- Lock ---------- */
-function lockApp() {
-  pinMode = 'unlock';
-  showPinScreen();
-}
-
 /* ---------- Refresh ---------- */
 async function refreshAll() {
   /* Records snapshot is maintained by the Firestore subscription;
@@ -2327,12 +2204,6 @@ async function init() {
   fillForm();
   fillExportPeriods();
 
-  $('#pinPad').addEventListener('click', (e) => {
-    const btn = e.target.closest('.pin-key');
-    if (!btn || btn.classList.contains('blank')) return;
-    handlePinKey(btn.dataset.k);
-  });
-
   $('#bottomNav').addEventListener('click', (e) => {
     const btn = e.target.closest('button[data-view]');
     if (!btn) return;
@@ -2340,8 +2211,6 @@ async function init() {
     if (v === 'add' && currentView !== 'add' && !pendingRecord) resetForm();
     setView(v);
   });
-
-  $('#lockBtn').addEventListener('click', lockApp);
 
   ['f-species','f-capture','f-disposal'].forEach((id) => {
     $('#' + id).addEventListener('change', updateConditionals);
@@ -2428,8 +2297,6 @@ async function init() {
   $('#exportRange').addEventListener('click', exportRange);
 
   $('#saveBusiness').addEventListener('click', saveBusiness);
-  $('#changePinBtn').addEventListener('click', startChangePin);
-  $('#lockNow').addEventListener('click', lockApp);
   $('#restoreBtn').addEventListener('click', () => $('#restoreFile').click());
   $('#restoreFile').addEventListener('change', (e) => {
     const file = e.target.files[0];
@@ -2454,18 +2321,12 @@ async function init() {
         (trapper ? `<br><span class="muted">Trapper: ${escapeHtml(trapper)}</span>` : '');
       try { await maybeMigrateLocalRecords(); } catch (e) { console.error('Migration error', e); }
       subscribeToRecords();
-      /* If the user was stuck on the sign-in screen, reveal the app. */
-      if (!$('#signInScreen').classList.contains('hidden')) {
-        showApp();
-      }
+      showApp();
     } else {
       unsubscribeFromRecords();
       $('#accountInfo').textContent = 'Not signed in';
       updateSyncIndicator('offline');
-      /* If app was visible (sign-out), redirect to sign-in. */
-      if (!$('#app').classList.contains('hidden')) {
-        showSignInScreen();
-      }
+      showSignInScreen();
     }
   });
 
@@ -2478,7 +2339,9 @@ async function init() {
     navigator.serviceWorker.register('sw.js').catch(() => {});
   }
 
-  showPinScreen();
+  /* Splash stays visible until the first auth-state callback fires
+     (handled in onAuthStateChanged above), which routes to either
+     the sign-in screen or the app. */
 }
 
 init();
