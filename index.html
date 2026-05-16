@@ -146,9 +146,12 @@
       align-self: center; justify-self: center;
       margin-top: -24px; box-shadow: 0 6px 14px rgba(196,119,42,0.4);
       display: flex; align-items: center; justify-content: center;
+      transition: opacity 0.15s;
     }
     .nav-fab svg { width: 28px; height: 28px; stroke: #fff; }
     .nav-fab:active { background: #B06B26; }
+    /* Hide the + button while a record is being created or edited. */
+    body.in-add .nav-fab { visibility: hidden; pointer-events: none; opacity: 0; }
 
     /* Cards & layout */
     .card {
@@ -335,6 +338,17 @@
     .conditional { display: none; }
     .conditional.on { display: block; }
 
+    .map-section-label {
+      font-family: 'Playfair Display', serif;
+      color: var(--green-deep);
+      font-size: 16px;
+      font-weight: 700;
+      margin-bottom: 8px;
+      padding-top: 4px;
+      border-top: 1px dashed var(--line);
+      padding-top: 10px;
+    }
+
     /* Map widgets */
     .location-map {
       height: 280px;
@@ -386,17 +400,13 @@
     /* Dashboard pieces */
     .period-banner {
       padding: 12px 16px;
-      display: flex; align-items: center; justify-content: space-between; gap: 12px;
+      display: flex; flex-direction: column; gap: 2px;
     }
     .period-banner-label {
       font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-soft);
     }
     .period-banner-value {
-      font-family: 'Playfair Display', serif; font-size: 15px; color: var(--green-deep); font-weight: 700;
-      margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-    }
-    @media (min-width: 380px) {
-      .period-banner-value { font-size: 17px; }
+      font-family: 'Playfair Display', serif; font-size: 18px; color: var(--green-deep); font-weight: 700;
     }
     .stat-grid.stats-2 { grid-template-columns: 1fr 1fr; }
     @media (min-width: 600px) {
@@ -498,6 +508,18 @@
       font-size: 12px;
       color: var(--amber-soft);
     }
+    #signInBtn {
+      padding: 18px 24px;
+      font-size: 18px;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+      margin-top: 8px;
+      background: var(--amber);
+      color: #fff;
+      box-shadow: 0 6px 18px rgba(196,119,42,0.35);
+    }
+    #signInBtn:active { background: #B06B26; }
+    #signInBtn:disabled { background: var(--amber-soft); box-shadow: none; }
 
     /* Sync indicator */
     .header-right {
@@ -951,32 +973,33 @@
           <div class="hint" id="hint-animalCount">For bats and birds, enter the total animals in this record — captured, dispersed, or excluded.</div>
         </div>
 
-        <h3 class="form-section">Location</h3>
-        <div class="form-group">
-          <label for="f-county">County of Collection<span class="req">*</span></label>
-          <select id="f-county" required>
-            <option value="">— select county —</option>
-          </select>
-        </div>
+        <h3 class="form-section">Trap Location</h3>
         <div class="form-group">
           <label for="f-address">Address of Collection<span class="req">*</span></label>
           <input type="text" id="f-address" placeholder="123 Main St, Lexington" autocomplete="off" required>
           <div class="hint">Auto-fills when you drop a pin below; type manually if needed.</div>
         </div>
         <div class="form-group">
-          <label>Trap Location Map</label>
+          <div class="map-section-label">Trap Location Map</div>
           <div class="map-controls">
-            <button type="button" class="map-btn" id="trapLocateBtn">
-              <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>
-              Use My Location
-            </button>
             <button type="button" class="map-btn ghost" id="trapAddressLookupBtn">
               <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
               Find From Address
             </button>
+            <button type="button" class="map-btn" id="trapLocateBtn">
+              <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>
+              Use My Location
+            </button>
           </div>
           <div id="trapMap" class="location-map"></div>
-          <div class="map-status" id="trapMapStatus">Drop a pin (or use a button above) to capture trap coordinates.</div>
+          <div class="map-status" id="trapMapStatus">Drop a pin or tap a button above to capture trap coordinates.</div>
+        </div>
+        <div class="form-group">
+          <label for="f-county">County of Collection<span class="req">*</span></label>
+          <select id="f-county" required>
+            <option value="">— select county —</option>
+          </select>
+          <div class="hint">Auto-populates from the map pin (you'll be asked to confirm). Pick manually if the pin's not used.</div>
         </div>
 
         <h3 class="form-section">Capture &amp; Disposal</h3>
@@ -1010,20 +1033,12 @@
           <div class="hint">Required by KDFWR for euthanized animals.</div>
         </div>
         <div class="conditional" id="cg-release">
-          <div class="field-row two">
-            <div class="form-group">
-              <label for="f-release-county">County of Release<span class="req">*</span></label>
-              <select id="f-release-county">
-                <option value="">— select county —</option>
-              </select>
-            </div>
-            <div class="form-group">
-              <label for="f-release-date">Date of Release<span class="req">*</span></label>
-              <input type="date" id="f-release-date">
-            </div>
+          <div class="form-group">
+            <label for="f-release-date">Date of Release<span class="req">*</span></label>
+            <input type="date" id="f-release-date">
           </div>
           <div class="form-group">
-            <label>Release Location Map</label>
+            <div class="map-section-label">Release Location Map</div>
             <div class="map-controls">
               <button type="button" class="map-btn" id="releaseLocateBtn">
                 <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>
@@ -1032,6 +1047,13 @@
             </div>
             <div id="releaseMap" class="location-map"></div>
             <div class="map-status" id="releaseMapStatus">Drop a pin to capture release coordinates and auto-fill the county.</div>
+          </div>
+          <div class="form-group">
+            <label for="f-release-county">County of Release<span class="req">*</span></label>
+            <select id="f-release-county">
+              <option value="">— select county —</option>
+            </select>
+            <div class="hint">Auto-populates from the map pin (you'll be asked to confirm).</div>
           </div>
         </div>
         <div class="form-group conditional" id="cg-excludedNumber">
@@ -1848,6 +1870,9 @@ function setView(name) {
   $$('#bottomNav .nav-btn').forEach((b) => b.classList.toggle('active', b.dataset.view === name));
   $('#viewTitle').textContent = VIEW_TITLES[name];
   $('#appMain').scrollTop = 0;
+  /* Hide the + FAB while a record is being created/edited so an accidental
+     tap can't blow away in-progress data. */
+  document.body.classList.toggle('in-add', name === 'add');
   if (name === 'add' && !editingId) {
     /* fresh form only when not in the middle of an edit */
     if (!pendingRecord) resetForm();
@@ -2336,6 +2361,40 @@ function selectCountyIfKnown(selectId, countyName) {
   return false;
 }
 
+function dropdownHasOption(selectId, value) {
+  if (!value) return false;
+  const sel = $('#' + selectId);
+  if (!sel) return false;
+  return Array.from(sel.options).some((o) => o.value.toLowerCase() === value.toLowerCase());
+}
+function matchingOptionValue(selectId, value) {
+  if (!value) return null;
+  const sel = $('#' + selectId);
+  if (!sel) return null;
+  const match = Array.from(sel.options).find((o) => o.value.toLowerCase() === value.toLowerCase());
+  return match ? match.value : null;
+}
+
+async function maybeConfirmCounty(selectId, detectedCounty, fieldLabel) {
+  /* Returns true if county was set (either now or already matching). */
+  if (!detectedCounty) return false;
+  const sel = $('#' + selectId);
+  if (!sel) return false;
+  const match = matchingOptionValue(selectId, detectedCounty);
+  if (!match) return false;
+  if (sel.value === match) return true;  /* already set, no dialog needed */
+  const ok = await confirmDialog(
+    `Detected: ${match} County`,
+    `Use "${match}" for ${fieldLabel}?`,
+    { okText: 'Yes, use it' }
+  );
+  if (ok) {
+    sel.value = match;
+    return true;
+  }
+  return false;
+}
+
 async function handleTrapLocationChange(lat, lng) {
   $('#f-trap-lat').value = lat;
   $('#f-trap-lng').value = lng;
@@ -2347,13 +2406,18 @@ async function handleTrapLocationChange(lat, lng) {
       addressInput.value = geo.formattedAddress;
       addressInput.dataset.fromMap = '1';
     }
-    const found = selectCountyIfKnown('f-county', geo.county);
-    if (found) {
-      setMapStatus('trapMapStatus',
-        `Located: ${geo.county} County${geo.formattedAddress ? ' — ' + geo.formattedAddress : ''}`, 'success');
-    } else if (geo.county) {
-      setMapStatus('trapMapStatus',
-        `Coordinates saved. "${geo.county}" not in dropdown — please verify the county manually.`, 'success');
+    if (geo.county) {
+      if (dropdownHasOption('f-county', geo.county)) {
+        setMapStatus('trapMapStatus',
+          `Detected: ${geo.county} County. Confirm to use it.`, 'working');
+        const set = await maybeConfirmCounty('f-county', geo.county, 'County of Collection');
+        setMapStatus('trapMapStatus',
+          set ? `County: ${geo.county} · ${geo.formattedAddress || '(no street)'}`
+              : `Coordinates saved. Pick the county manually.`, 'success');
+      } else {
+        setMapStatus('trapMapStatus',
+          `Detected "${geo.county}" — not in dropdown. Pick the county manually.`, 'success');
+      }
     } else {
       setMapStatus('trapMapStatus',
         `Coordinates saved (${lat.toFixed(5)}, ${lng.toFixed(5)}). Couldn't auto-derive county.`, 'success');
@@ -2370,12 +2434,18 @@ async function handleReleaseLocationChange(lat, lng) {
   setMapStatus('releaseMapStatus', 'Looking up county…', 'working');
   try {
     const geo = await reverseGeocode(lat, lng);
-    const found = selectCountyIfKnown('f-release-county', geo.county);
-    if (found) {
-      setMapStatus('releaseMapStatus', `Located: ${geo.county} County`, 'success');
-    } else if (geo.county) {
-      setMapStatus('releaseMapStatus',
-        `Coordinates saved. "${geo.county}" not in dropdown — please verify.`, 'success');
+    if (geo.county) {
+      if (dropdownHasOption('f-release-county', geo.county)) {
+        setMapStatus('releaseMapStatus',
+          `Detected: ${geo.county} County. Confirm to use it.`, 'working');
+        const set = await maybeConfirmCounty('f-release-county', geo.county, 'County of Release');
+        setMapStatus('releaseMapStatus',
+          set ? `Release county: ${geo.county}`
+              : `Coordinates saved. Pick the county manually.`, 'success');
+      } else {
+        setMapStatus('releaseMapStatus',
+          `Detected "${geo.county}" — not in dropdown. Pick manually.`, 'success');
+      }
     } else {
       setMapStatus('releaseMapStatus',
         `Coordinates saved (${lat.toFixed(5)}, ${lng.toFixed(5)}).`, 'success');
