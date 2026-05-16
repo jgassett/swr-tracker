@@ -887,7 +887,7 @@
         </div>
         <div class="form-group conditional" id="cg-speciesOther">
           <label for="f-species-other">Specify species<span class="req">*</span></label>
-          <input type="text" id="f-species-other" placeholder="e.g. Eastern Box Turtle">
+          <input type="text" id="f-species-other" placeholder="e.g. Wild Turkey">
         </div>
         <div class="form-group conditional" id="cg-animalCount">
           <label for="f-animal-count">Number of Animals<span class="req">*</span></label>
@@ -1436,6 +1436,23 @@ function titleCaseName(s) {
      Known limitation: 'McDonald' becomes 'Mcdonald'. */
   return s.toLowerCase().replace(/\b([a-z])/g, (m, c) => c.toUpperCase());
 }
+
+function formatPhone(s) {
+  if (!s) return '';
+  const digits = s.replace(/\D/g, '');
+  if (digits.length === 11 && digits[0] === '1') {
+    return `(${digits.slice(1, 4)}) ${digits.slice(4, 7)}-${digits.slice(7)}`;
+  }
+  if (digits.length === 10) {
+    return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`;
+  }
+  return s.trim();
+}
+function isValidPhone(s) {
+  if (!s) return false;
+  const digits = s.replace(/\D/g, '');
+  return digits.length === 10 || (digits.length === 11 && digits[0] === '1');
+}
 function inPeriod(iso, period) {
   return iso >= period.start && iso <= period.end;
 }
@@ -1820,6 +1837,13 @@ function updateConditionals() {
   const showCount = needsAnimalCount(species);
 
   toggleGroup('cg-speciesOther', SPECIFY_SPECIES.has(species));
+  /* Swap the placeholder so the example matches the species category. */
+  const speciesOtherInput = $('#f-species-other');
+  if (species === 'Other Bird (Indicate Species)') {
+    speciesOtherInput.placeholder = 'e.g. Wild Turkey';
+  } else if (species === OTHER_ANIMAL) {
+    speciesOtherInput.placeholder = 'e.g. Eastern Box Turtle';
+  }
   toggleGroup('cg-animalCount', showCount);
   toggleGroup('cg-captureOther', SPECIFY_CAPTURES.has(capture));
   toggleGroup('cg-disposalOther', SPECIFY_DISPOSALS.has(disposal));
@@ -1932,6 +1956,7 @@ function validateRecord(r) {
   if (!r.trapper) errs.push('Trapper');
   if (!r.clientName) errs.push('Client name');
   if (!r.clientPhone) errs.push('Phone');
+  else if (!isValidPhone(r.clientPhone)) errs.push('Valid phone (10 digits)');
   if (r.clientEmail && !EMAIL_RE.test(r.clientEmail)) errs.push('Valid email');
   if (!r.species) errs.push('Species');
   if (SPECIFY_SPECIES.has(r.species) && !r.speciesOther) errs.push('Specify species');
@@ -2666,6 +2691,11 @@ async function init() {
   $('#f-client-business').addEventListener('blur', (e) => {
     const v = e.target.value.trim();
     if (v) e.target.value = titleCaseName(v);
+  });
+  /* Auto-format phone on blur: digits-only -> (XXX) XXX-XXXX. */
+  $('#f-client-phone').addEventListener('blur', (e) => {
+    const v = e.target.value.trim();
+    if (v) e.target.value = formatPhone(v);
   });
 
   $('#restoreBtn').addEventListener('click', () => $('#restoreFile').click());
