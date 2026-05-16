@@ -17,6 +17,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Source+Sans+3:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
   <style>
     :root {
       --green: #1E3A2A;
@@ -332,6 +334,54 @@
 
     .conditional { display: none; }
     .conditional.on { display: block; }
+
+    /* Map widgets */
+    .location-map {
+      height: 280px;
+      border-radius: 12px;
+      overflow: hidden;
+      margin: 6px 0 8px;
+      background: var(--cream-deep);
+    }
+    .location-map.dashboard-map { height: 240px; }
+    .map-controls {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-bottom: 6px;
+    }
+    .map-controls .map-btn {
+      background: var(--green);
+      color: var(--cream);
+      border: none;
+      padding: 8px 14px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 600;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .map-controls .map-btn.ghost {
+      background: var(--cream-deep);
+      color: var(--green-deep);
+    }
+    .map-controls .map-btn:active { transform: scale(0.97); }
+    .map-controls .map-btn svg {
+      width: 14px; height: 14px; stroke: currentColor; fill: none;
+      stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;
+    }
+    .map-status {
+      font-size: 12px;
+      color: var(--ink-soft);
+      padding: 4px 0;
+      min-height: 18px;
+    }
+    .map-status.success { color: var(--released); }
+    .map-status.error { color: var(--danger); }
+    .map-status.working { color: var(--amber); font-style: italic; }
+    /* Leaflet override for our brand */
+    .leaflet-control-attribution { font-size: 9px; }
 
     /* Dashboard pieces */
     .period-banner {
@@ -732,14 +782,16 @@
         </div>
       </div>
 
-      <div class="card map-placeholder" id="mapPlaceholder">
-        <div class="row">
-          <div>
-            <div class="placeholder-label">Location</div>
-            <div class="placeholder-text">Map widget arriving next update — drop a pin at the trap or release site and the app will fill in coords, address, and county automatically.</div>
-          </div>
-          <svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="color: var(--amber); flex-shrink:0;"><path d="M12 22s-8-8.5-8-13a8 8 0 1 1 16 0c0 4.5-8 13-8 13Z"/><circle cx="12" cy="9" r="3"/></svg>
+      <div class="card">
+        <div class="row" style="margin-bottom: 10px;">
+          <h3 style="margin: 0;">Current Location</h3>
+          <button type="button" class="map-btn ghost" id="dashLocateBtn" style="background: var(--cream-deep); color: var(--green-deep); border: none; padding: 6px 12px; border-radius: 8px; font-size: 12px; font-weight: 600;">Locate Me</button>
         </div>
+        <div class="map-controls">
+          <button type="button" class="map-btn" id="startRecordFromMap">+ Start Record Here</button>
+        </div>
+        <div id="dashMap" class="location-map dashboard-map"></div>
+        <div class="map-status" id="dashMapStatus"></div>
       </div>
 
       <div class="section-title-row">
@@ -842,6 +894,10 @@
     <section id="view-add" class="view hidden">
       <form id="recordForm" novalidate>
         <input type="hidden" id="f-id">
+        <input type="hidden" id="f-trap-lat">
+        <input type="hidden" id="f-trap-lng">
+        <input type="hidden" id="f-release-lat">
+        <input type="hidden" id="f-release-lng">
 
         <h3 class="form-section">Job Details</h3>
         <div class="field-row two">
@@ -905,6 +961,22 @@
         <div class="form-group">
           <label for="f-address">Address of Collection<span class="req">*</span></label>
           <input type="text" id="f-address" placeholder="123 Main St, Lexington" autocomplete="off" required>
+          <div class="hint">Auto-fills when you drop a pin below; type manually if needed.</div>
+        </div>
+        <div class="form-group">
+          <label>Trap Location Map</label>
+          <div class="map-controls">
+            <button type="button" class="map-btn" id="trapLocateBtn">
+              <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>
+              Use My Location
+            </button>
+            <button type="button" class="map-btn ghost" id="trapAddressLookupBtn">
+              <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+              Find From Address
+            </button>
+          </div>
+          <div id="trapMap" class="location-map"></div>
+          <div class="map-status" id="trapMapStatus">Drop a pin (or use a button above) to capture trap coordinates.</div>
         </div>
 
         <h3 class="form-section">Capture &amp; Disposal</h3>
@@ -949,6 +1021,17 @@
               <label for="f-release-date">Date of Release<span class="req">*</span></label>
               <input type="date" id="f-release-date">
             </div>
+          </div>
+          <div class="form-group">
+            <label>Release Location Map</label>
+            <div class="map-controls">
+              <button type="button" class="map-btn" id="releaseLocateBtn">
+                <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>
+                Use My Location
+              </button>
+            </div>
+            <div id="releaseMap" class="location-map"></div>
+            <div class="map-status" id="releaseMapStatus">Drop a pin to capture release coordinates and auto-fill the county.</div>
           </div>
         </div>
         <div class="form-group conditional" id="cg-excludedNumber">
@@ -1769,6 +1852,21 @@ function setView(name) {
     /* fresh form only when not in the middle of an edit */
     if (!pendingRecord) resetForm();
   }
+  /* Lazy-init maps when their view becomes visible. */
+  if (name === 'dashboard') setTimeout(ensureDashMap, 80);
+  if (name === 'add') {
+    setTimeout(ensureTrapMap, 80);
+    if (RELEASE_DISPOSALS.has($('#f-disposal').value)) setTimeout(ensureReleaseMap, 100);
+    /* Apply any dashboard -> "Start Record" prefill */
+    if (pendingTrapPrefill) {
+      const { lat, lng } = pendingTrapPrefill;
+      pendingTrapPrefill = null;
+      setTimeout(() => {
+        ensureTrapMap();
+        if (trapMapInstance) trapMapInstance.setLocation(lat, lng);
+      }, 200);
+    }
+  }
 }
 
 /* ---------- Populate selects ---------- */
@@ -1849,6 +1947,7 @@ function updateConditionals() {
   toggleGroup('cg-disposalOther', SPECIFY_DISPOSALS.has(disposal));
   toggleGroup('cg-dispatch', EUTHANIZE_DISPOSALS.has(disposal));
   toggleGroup('cg-release', RELEASE_DISPOSALS.has(disposal));
+  if (RELEASE_DISPOSALS.has(disposal)) setTimeout(ensureReleaseMap, 80);
   /* excluded number only for non-bat/bird species — bats/birds use the animal count field */
   toggleGroup('cg-excludedNumber', isExclude && !isBatOrBird(species) && species !== OTHER_ANIMAL && species !== '');
 }
@@ -1869,6 +1968,16 @@ function resetForm() {
   $('#f-id').value = '';
   $('#f-date').value = todayISO();
   $('#f-animal-count').value = 1;
+  $('#f-trap-lat').value = '';
+  $('#f-trap-lng').value = '';
+  $('#f-release-lat').value = '';
+  $('#f-release-lng').value = '';
+  if ($('#f-address').dataset) delete $('#f-address').dataset.fromMap;
+  /* Clear any markers on map widgets if they're already initialized. */
+  if (trapMapInstance) trapMapInstance.clear();
+  if (releaseMapInstance) releaseMapInstance.clear();
+  setMapStatus('trapMapStatus', 'Drop a pin (or use a button above) to capture trap coordinates.');
+  setMapStatus('releaseMapStatus', 'Drop a pin to capture release coordinates and auto-fill the county.');
   /* Pre-fill the Trapper dropdown based on the signed-in account. */
   if (currentUser && currentUser.email && EMAIL_TO_TRAPPER[currentUser.email.toLowerCase()]) {
     $('#f-trapper').value = EMAIL_TO_TRAPPER[currentUser.email.toLowerCase()];
@@ -1913,6 +2022,21 @@ function loadIntoForm(rec) {
   $('#f-release-date').value = rec.releaseDate || '';
   $('#f-excluded-number').value = rec.excludedNumber ?? '';
   $('#f-notes').value = rec.notes || '';
+  $('#f-trap-lat').value = rec.trapLat != null ? rec.trapLat : '';
+  $('#f-trap-lng').value = rec.trapLng != null ? rec.trapLng : '';
+  $('#f-release-lat').value = rec.releaseLat != null ? rec.releaseLat : '';
+  $('#f-release-lng').value = rec.releaseLng != null ? rec.releaseLng : '';
+  /* If coords exist, drop them onto the map once it's initialized. */
+  setTimeout(() => {
+    if (rec.trapLat != null && rec.trapLng != null) {
+      ensureTrapMap();
+      if (trapMapInstance) trapMapInstance.setLocation(rec.trapLat, rec.trapLng, { notify: false });
+    }
+    if (rec.releaseLat != null && rec.releaseLng != null) {
+      ensureReleaseMap();
+      if (releaseMapInstance) releaseMapInstance.setLocation(rec.releaseLat, rec.releaseLng, { notify: false });
+    }
+  }, 250);
   $('#deleteBtn').style.display = editingId ? 'block' : 'none';
   $('#saveBtn').textContent = editingId ? 'Review Changes' : 'Review Record';
   updateConditionals();
@@ -1938,7 +2062,11 @@ function readForm() {
     releaseCounty: $('#f-release-county').value,
     releaseDate: $('#f-release-date').value,
     excludedNumber: $('#f-excluded-number').value === '' ? null : Number($('#f-excluded-number').value),
-    notes: $('#f-notes').value.trim()
+    notes: $('#f-notes').value.trim(),
+    trapLat: $('#f-trap-lat').value === '' ? null : parseFloat($('#f-trap-lat').value),
+    trapLng: $('#f-trap-lng').value === '' ? null : parseFloat($('#f-trap-lng').value),
+    releaseLat: $('#f-release-lat').value === '' ? null : parseFloat($('#f-release-lat').value),
+    releaseLng: $('#f-release-lng').value === '' ? null : parseFloat($('#f-release-lng').value)
   };
   if (needsAnimalCount(r.species)) {
     const n = parseInt($('#f-animal-count').value, 10);
@@ -2026,6 +2154,236 @@ async function confirmSave() {
   setView('records');
   await refreshAll();
   toast(wasEdit ? 'Record updated' : `Record saved · ${rec.recordNumber}`);
+}
+
+/* ---------- Maps + Geocoding ---------- */
+let dashMapInstance = null;
+let trapMapInstance = null;
+let releaseMapInstance = null;
+let pendingTrapPrefill = null;  /* set when user starts a record from dashboard map */
+
+const KY_CENTER = [37.84, -84.27];
+
+function makeTileLayers() {
+  const street = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19, attribution: '© OpenStreetMap'
+  });
+  const satellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+    maxZoom: 19, attribution: 'Imagery © Esri'
+  });
+  const terrain = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
+    maxZoom: 17, attribution: '© OpenTopoMap'
+  });
+  return { Street: street, Satellite: satellite, Terrain: terrain };
+}
+
+function createLocationMap(containerId, callbacks = {}) {
+  const el = document.getElementById(containerId);
+  if (!el || typeof L === 'undefined') return null;
+  if (el._leafletInstance) {
+    setTimeout(() => el._leafletInstance.invalidate(), 50);
+    return el._leafletInstance;
+  }
+
+  const map = L.map(containerId, {
+    center: KY_CENTER, zoom: 7,
+    zoomControl: true, attributionControl: true,
+    tap: true
+  });
+  const layers = makeTileLayers();
+  layers.Street.addTo(map);
+  L.control.layers(layers, null, { position: 'topright', collapsed: true }).addTo(map);
+
+  let marker = null;
+
+  const instance = {
+    map,
+    setLocation(lat, lng, opts = {}) {
+      const ll = [lat, lng];
+      if (!marker) {
+        marker = L.marker(ll, { draggable: true }).addTo(map);
+        marker.on('dragend', () => {
+          const p = marker.getLatLng();
+          if (callbacks.onMoved) callbacks.onMoved(p.lat, p.lng);
+        });
+      } else {
+        marker.setLatLng(ll);
+      }
+      if (opts.center !== false) map.setView(ll, opts.zoom || 16);
+      if (opts.notify !== false && callbacks.onMoved) callbacks.onMoved(lat, lng);
+    },
+    getLocation() { return marker ? marker.getLatLng() : null; },
+    clear() { if (marker) { marker.remove(); marker = null; } },
+    invalidate() { map.invalidateSize(); }
+  };
+  map.on('click', (e) => instance.setLocation(e.latlng.lat, e.latlng.lng));
+  el._leafletInstance = instance;
+  return instance;
+}
+
+function ensureTrapMap() {
+  if (!trapMapInstance) {
+    trapMapInstance = createLocationMap('trapMap', { onMoved: handleTrapLocationChange });
+  }
+  setTimeout(() => trapMapInstance && trapMapInstance.invalidate(), 60);
+  return trapMapInstance;
+}
+function ensureReleaseMap() {
+  if (!releaseMapInstance) {
+    releaseMapInstance = createLocationMap('releaseMap', { onMoved: handleReleaseLocationChange });
+  }
+  setTimeout(() => releaseMapInstance && releaseMapInstance.invalidate(), 60);
+  return releaseMapInstance;
+}
+function ensureDashMap() {
+  if (!dashMapInstance) {
+    dashMapInstance = createLocationMap('dashMap', {
+      onMoved: (lat, lng) => setMapStatus('dashMapStatus',
+        `Pin at (${lat.toFixed(5)}, ${lng.toFixed(5)}). Tap "+ Start Record Here" to begin.`, 'success')
+    });
+  }
+  setTimeout(() => dashMapInstance && dashMapInstance.invalidate(), 60);
+  return dashMapInstance;
+}
+
+async function getCurrentPositionPromise() {
+  if (!navigator.geolocation) throw new Error('Geolocation not supported on this device.');
+  return new Promise((resolve, reject) => {
+    navigator.geolocation.getCurrentPosition(
+      (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy }),
+      (err) => reject(err),
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 30000 }
+    );
+  });
+}
+
+async function reverseGeocode(lat, lng) {
+  /* Primary: Nominatim — returns street address + county. */
+  try {
+    const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`;
+    const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
+    if (res.ok) {
+      const data = await res.json();
+      const a = data.address || {};
+      const street = [a.house_number, a.road].filter(Boolean).join(' ').trim();
+      const city = a.city || a.town || a.village || a.hamlet || a.municipality || '';
+      const county = (a.county || '').replace(/\s+County$/i, '').trim();
+      const state = a.state || '';
+      const formatted = [street, city, state, a.postcode].filter(Boolean).join(', ');
+      return { streetAddress: street, city, county, state, formattedAddress: formatted };
+    }
+  } catch (e) { /* fall through to Census */ }
+
+  /* Fallback: Census geocoder — county only, US addresses. */
+  try {
+    const url = `https://geocoding.geo.census.gov/geocoder/geographies/coordinates?x=${lng}&y=${lat}&benchmark=Public_AR_Current&vintage=Current_Current&format=json&layers=Counties,States`;
+    const res = await fetch(url);
+    if (res.ok) {
+      const data = await res.json();
+      const counties = (data && data.result && data.result.geographies && data.result.geographies['Counties']) || [];
+      const states = (data && data.result && data.result.geographies && data.result.geographies['States']) || [];
+      if (counties[0]) {
+        return {
+          streetAddress: '', city: '',
+          county: (counties[0].BASENAME || '').replace(/\s+County$/i, '').trim(),
+          state: states[0] ? states[0].STUSAB : '',
+          formattedAddress: ''
+        };
+      }
+    }
+  } catch (e) { /* nothing */ }
+
+  throw new Error('Reverse geocode failed');
+}
+
+async function forwardGeocode(query) {
+  try {
+    const url = `https://nominatim.openstreetmap.org/search?format=jsonv2&q=${encodeURIComponent(query)}&limit=1&countrycodes=us&addressdetails=1`;
+    const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
+    if (!res.ok) return null;
+    const data = await res.json();
+    if (!data.length) return null;
+    const r = data[0];
+    const a = r.address || {};
+    const street = [a.house_number, a.road].filter(Boolean).join(' ').trim();
+    const city = a.city || a.town || a.village || a.hamlet || '';
+    const county = (a.county || '').replace(/\s+County$/i, '').trim();
+    return {
+      lat: parseFloat(r.lat),
+      lng: parseFloat(r.lon),
+      streetAddress: street, city, county,
+      state: a.state || '',
+      formattedAddress: r.display_name
+    };
+  } catch (e) { return null; }
+}
+
+function setMapStatus(id, text, type = '') {
+  const el = $('#' + id);
+  if (!el) return;
+  el.textContent = text;
+  el.className = 'map-status' + (type ? ' ' + type : '');
+}
+
+function selectCountyIfKnown(selectId, countyName) {
+  if (!countyName) return false;
+  const sel = $('#' + selectId);
+  if (!sel) return false;
+  const opts = Array.from(sel.options);
+  const match = opts.find((o) => o.value === countyName)
+    || opts.find((o) => o.value.toLowerCase() === countyName.toLowerCase());
+  if (match) { sel.value = match.value; return true; }
+  return false;
+}
+
+async function handleTrapLocationChange(lat, lng) {
+  $('#f-trap-lat').value = lat;
+  $('#f-trap-lng').value = lng;
+  setMapStatus('trapMapStatus', 'Looking up address…', 'working');
+  try {
+    const geo = await reverseGeocode(lat, lng);
+    const addressInput = $('#f-address');
+    if (geo.formattedAddress && (!addressInput.value.trim() || addressInput.dataset.fromMap === '1')) {
+      addressInput.value = geo.formattedAddress;
+      addressInput.dataset.fromMap = '1';
+    }
+    const found = selectCountyIfKnown('f-county', geo.county);
+    if (found) {
+      setMapStatus('trapMapStatus',
+        `Located: ${geo.county} County${geo.formattedAddress ? ' — ' + geo.formattedAddress : ''}`, 'success');
+    } else if (geo.county) {
+      setMapStatus('trapMapStatus',
+        `Coordinates saved. "${geo.county}" not in dropdown — please verify the county manually.`, 'success');
+    } else {
+      setMapStatus('trapMapStatus',
+        `Coordinates saved (${lat.toFixed(5)}, ${lng.toFixed(5)}). Couldn't auto-derive county.`, 'success');
+    }
+  } catch (e) {
+    setMapStatus('trapMapStatus',
+      `Coordinates saved (${lat.toFixed(5)}, ${lng.toFixed(5)}). Geocoder offline — fill address & county manually.`, 'error');
+  }
+}
+
+async function handleReleaseLocationChange(lat, lng) {
+  $('#f-release-lat').value = lat;
+  $('#f-release-lng').value = lng;
+  setMapStatus('releaseMapStatus', 'Looking up county…', 'working');
+  try {
+    const geo = await reverseGeocode(lat, lng);
+    const found = selectCountyIfKnown('f-release-county', geo.county);
+    if (found) {
+      setMapStatus('releaseMapStatus', `Located: ${geo.county} County`, 'success');
+    } else if (geo.county) {
+      setMapStatus('releaseMapStatus',
+        `Coordinates saved. "${geo.county}" not in dropdown — please verify.`, 'success');
+    } else {
+      setMapStatus('releaseMapStatus',
+        `Coordinates saved (${lat.toFixed(5)}, ${lng.toFixed(5)}).`, 'success');
+    }
+  } catch (e) {
+    setMapStatus('releaseMapStatus',
+      `Coordinates saved (${lat.toFixed(5)}, ${lng.toFixed(5)}). County lookup failed.`, 'error');
+  }
 }
 
 /* ---------- Records view ---------- */
@@ -2365,10 +2723,11 @@ function fullCSV(records) {
     'Record #','ID','Date Collected','Trapper',
     'Client Name','Client Phone','Client Business','Client Email',
     'Species','Species (specify)','Animal Count',
-    'County','County (specify)','Address',
+    'County','County (specify)','Address','Trap Lat','Trap Lng',
     'Capture Method','Capture (specify)',
     'Disposal Method','Disposal (specify)','Dispatch Method',
-    'Release County','Release County (specify)','Release Date','Excluded Number',
+    'Release County','Release County (specify)','Release Lat','Release Lng',
+    'Release Date','Excluded Number',
     'Notes','Created At','Updated At'
   ];
   const lines = [csvLine(header)];
@@ -2378,8 +2737,11 @@ function fullCSV(records) {
       r.clientName, r.clientPhone, r.clientBusiness, r.clientEmail,
       r.species, r.speciesOther, r.animalCount == null ? '' : r.animalCount,
       countyDisplay(r), r.countyOther || '', r.address,
+      r.trapLat == null ? '' : r.trapLat, r.trapLng == null ? '' : r.trapLng,
       r.captureMethod, r.captureOther, r.disposalMethod, r.disposalOther,
-      r.dispatchMethod, releaseCountyDisplay(r), r.releaseCountyOther || '', r.releaseDate,
+      r.dispatchMethod, releaseCountyDisplay(r), r.releaseCountyOther || '',
+      r.releaseLat == null ? '' : r.releaseLat, r.releaseLng == null ? '' : r.releaseLng,
+      r.releaseDate,
       r.excludedNumber == null ? '' : r.excludedNumber,
       r.notes, r.createdAt, r.updatedAt
     ]));
@@ -2696,6 +3058,63 @@ async function init() {
   $('#f-client-phone').addEventListener('blur', (e) => {
     const v = e.target.value.trim();
     if (v) e.target.value = formatPhone(v);
+  });
+
+  /* Map locate buttons */
+  async function doLocate(handler, statusId) {
+    setMapStatus(statusId, 'Getting your location…', 'working');
+    try {
+      const pos = await getCurrentPositionPromise();
+      handler(pos.lat, pos.lng);
+    } catch (err) {
+      const msg = err.code === 1 ? 'Location permission denied.'
+                : err.code === 2 ? 'Location unavailable.'
+                : err.code === 3 ? 'Location request timed out.'
+                : (err.message || 'Could not get location.');
+      setMapStatus(statusId, msg, 'error');
+    }
+  }
+  $('#trapLocateBtn').addEventListener('click', () => {
+    ensureTrapMap();
+    doLocate((lat, lng) => trapMapInstance.setLocation(lat, lng), 'trapMapStatus');
+  });
+  $('#releaseLocateBtn').addEventListener('click', () => {
+    ensureReleaseMap();
+    doLocate((lat, lng) => releaseMapInstance.setLocation(lat, lng), 'releaseMapStatus');
+  });
+  $('#dashLocateBtn').addEventListener('click', () => {
+    ensureDashMap();
+    doLocate((lat, lng) => dashMapInstance.setLocation(lat, lng), 'dashMapStatus');
+  });
+
+  /* Find From Address — forward geocode the typed address and move trap pin. */
+  $('#trapAddressLookupBtn').addEventListener('click', async () => {
+    const q = $('#f-address').value.trim();
+    if (!q) { setMapStatus('trapMapStatus', 'Type an address first, then tap Find.', 'error'); return; }
+    setMapStatus('trapMapStatus', 'Looking up address…', 'working');
+    const geo = await forwardGeocode(q + (q.toLowerCase().includes('ky') || q.toLowerCase().includes('kentucky') ? '' : ', Kentucky'));
+    if (!geo) { setMapStatus('trapMapStatus', 'Address not found — verify or drop a pin manually.', 'error'); return; }
+    ensureTrapMap();
+    trapMapInstance.setLocation(geo.lat, geo.lng);
+  });
+
+  /* Start Record from Dashboard — capture current pin (or current location) and open Add Record */
+  $('#startRecordFromMap').addEventListener('click', async () => {
+    ensureDashMap();
+    let loc = dashMapInstance.getLocation();
+    if (!loc) {
+      try {
+        const pos = await getCurrentPositionPromise();
+        loc = { lat: pos.lat, lng: pos.lng };
+        dashMapInstance.setLocation(pos.lat, pos.lng);
+      } catch (e) {
+        setMapStatus('dashMapStatus', 'Drop a pin or use Locate Me first.', 'error');
+        return;
+      }
+    }
+    pendingTrapPrefill = { lat: loc.lat, lng: loc.lng };
+    if (currentView === 'add') resetForm();
+    setView('add');
   });
 
   $('#restoreBtn').addEventListener('click', () => $('#restoreFile').click());
