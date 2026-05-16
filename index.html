@@ -19,6 +19,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Source+Sans+3:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+  <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
   <style>
     :root {
       --green: #1E3A2A;
@@ -1288,6 +1289,19 @@ const EMAIL_TO_TRAPPER = {
   'chris@southern-wildlife.com': 'Chris Griffith'
 };
 
+/* EmailJS — sends a per-record notification on save. Destination address
+   is configured inside the EmailJS template, not here. */
+const EMAILJS_CONFIG = {
+  publicKey: 'r2ljS9rfa8KW_dXdY',
+  serviceId: 'service_rn8z098',
+  templateId: 'template_wx4e268'
+};
+try {
+  if (typeof emailjs !== 'undefined') {
+    emailjs.init({ publicKey: EMAILJS_CONFIG.publicKey });
+  }
+} catch (e) { console.warn('EmailJS init failed', e); }
+
 /* Admin accounts can perform destructive shared-data actions (Clear All Records). */
 const ADMIN_EMAILS = new Set(['jon@southern-wildlife.com']);
 function isAdmin() {
@@ -1557,6 +1571,42 @@ function isValidPhone(s) {
   if (!s) return false;
   const digits = s.replace(/\D/g, '');
   return digits.length === 10 || (digits.length === 11 && digits[0] === '1');
+}
+
+async function sendRecordEmail(rec) {
+  if (typeof emailjs === 'undefined') return;
+  try {
+    const params = {
+      record_number: rec.recordNumber || '',
+      date_collected: rec.dateCollected || '',
+      trapper: rec.trapper || '',
+      client_name: rec.clientName || '',
+      client_phone: rec.clientPhone || '',
+      client_email: rec.clientEmail || '',
+      client_business: rec.clientBusiness || '',
+      species: speciesDisplay(rec),
+      animal_count: rec.animalCount != null ? String(rec.animalCount) : '1',
+      county: countyDisplay(rec) || '',
+      address: rec.address || '',
+      capture_method: captureDisplay(rec) || '',
+      disposal_method: disposalDisplay(rec) || '',
+      dispatch_method: rec.dispatchMethod || '',
+      release_county: releaseCountyDisplay(rec) || '',
+      release_date: rec.releaseDate || '',
+      excluded_number: rec.excludedNumber == null ? '' : String(rec.excludedNumber),
+      notes: rec.notes || '',
+      created_by_email: rec.createdByEmail || (currentUser ? currentUser.email : ''),
+      created_at: rec.createdAt || new Date().toISOString(),
+      trap_lat: rec.trapLat == null ? '' : String(rec.trapLat),
+      trap_lng: rec.trapLng == null ? '' : String(rec.trapLng),
+      release_lat: rec.releaseLat == null ? '' : String(rec.releaseLat),
+      release_lng: rec.releaseLng == null ? '' : String(rec.releaseLng)
+    };
+    await emailjs.send(EMAILJS_CONFIG.serviceId, EMAILJS_CONFIG.templateId, params);
+  } catch (err) {
+    /* Non-fatal — record is already saved to Firestore. */
+    console.error('Record email send failed:', err);
+  }
 }
 function inPeriod(iso, period) {
   return iso >= period.start && iso <= period.end;
@@ -2170,7 +2220,10 @@ async function confirmSave() {
   }
   rec.updatedAt = new Date().toISOString();
   const wasEdit = !!rec.id;
-  await dbPut(rec);
+  const newId = await dbPut(rec);
+  /* For new records, get the Firestore-assigned id back so the email
+     reflects the saved record. Edits keep their existing id. */
+  if (!wasEdit && newId) rec.id = newId;
   pendingRecord = null;
   closeSheet();
   resetForm();
@@ -2179,6 +2232,9 @@ async function confirmSave() {
   setView('records');
   await refreshAll();
   toast(wasEdit ? 'Record updated' : `Record saved · ${rec.recordNumber}`);
+  /* Fire the EmailJS notification on new records only. Fire-and-forget;
+     a failed send won't undo the saved record. */
+  if (!wasEdit) sendRecordEmail(rec);
 }
 
 /* ---------- Maps + Geocoding ---------- */
