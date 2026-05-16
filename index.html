@@ -351,6 +351,127 @@
     .center { text-align: center; }
     hr.div { border: none; border-top: 1px solid var(--line); margin: 14px 0; }
 
+    /* View-mode toggle (List / Single) */
+    .view-mode-toggle {
+      display: inline-flex;
+      background: var(--cream-deep);
+      border-radius: 10px;
+      padding: 3px;
+      margin-bottom: 12px;
+    }
+    .view-mode-toggle button {
+      background: transparent;
+      border: none;
+      padding: 8px 14px;
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--ink-soft);
+      border-radius: 8px;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .view-mode-toggle button.active {
+      background: #fff;
+      color: var(--green-deep);
+      box-shadow: 0 1px 4px rgba(30,58,42,0.1);
+    }
+    .view-mode-toggle svg { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
+    /* Records table (List mode) */
+    .records-table-wrap {
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      background: #fff;
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+    }
+    .records-table {
+      border-collapse: collapse;
+      width: max-content;
+      min-width: 100%;
+    }
+    .records-table th, .records-table td {
+      padding: 10px 14px;
+      text-align: left;
+      border-bottom: 1px solid var(--line);
+      font-size: 14px;
+      white-space: nowrap;
+    }
+    .records-table th {
+      background: var(--cream-deep);
+      font-size: 11px;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--ink-soft);
+      font-weight: 700;
+      position: sticky;
+      top: 0;
+      z-index: 1;
+    }
+    .records-table tbody tr { cursor: pointer; }
+    .records-table tbody tr:active { background: var(--cream); }
+    .records-table tbody tr:last-child td { border-bottom: none; }
+    .records-table .col-num {
+      font-family: ui-monospace, 'SF Mono', 'Source Sans 3', monospace;
+      color: var(--green-deep);
+      font-weight: 600;
+      font-size: 13px;
+    }
+    .records-table .col-species { font-weight: 600; color: var(--green-deep); }
+
+    /* Single-record view */
+    .single-nav {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: #fff;
+      border-radius: var(--radius);
+      padding: 8px;
+      margin-bottom: 12px;
+      box-shadow: var(--shadow);
+    }
+    .single-nav button {
+      background: var(--cream-deep);
+      border: none;
+      width: 48px;
+      height: 48px;
+      border-radius: 12px;
+      color: var(--green-deep);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .single-nav button:disabled {
+      color: var(--line);
+      background: transparent;
+    }
+    .single-nav button:active:not(:disabled) { background: var(--amber); color: #fff; }
+    .single-nav button svg { width: 20px; height: 20px; stroke: currentColor; fill: none; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
+    .single-counter {
+      font-size: 13px;
+      color: var(--ink-soft);
+      font-weight: 500;
+    }
+    .single-counter .num {
+      font-family: 'Playfair Display', serif;
+      font-size: 18px;
+      color: var(--green-deep);
+      font-weight: 700;
+    }
+    .record-no-badge {
+      display: inline-block;
+      background: var(--green-deep);
+      color: var(--amber-soft);
+      padding: 4px 10px;
+      border-radius: 6px;
+      font-family: ui-monospace, 'SF Mono', monospace;
+      font-size: 13px;
+      font-weight: 600;
+      margin-bottom: 6px;
+      letter-spacing: 0.04em;
+    }
+
     /* Wider screens — center the form, two-up rows */
     @media (min-width: 600px) {
       #view-add, #view-dashboard, #view-records, #view-export, #view-settings {
@@ -460,7 +581,7 @@
     <section id="view-records" class="view hidden">
       <div class="search-bar">
         <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
-        <input type="text" id="recSearch" placeholder="Search client, address, species, notes…" autocomplete="off">
+        <input type="text" id="recSearch" placeholder="Search record #, client, address, species…" autocomplete="off">
       </div>
       <div class="filter-row">
         <select id="filterTrapper"><option value="">All trappers</option></select>
@@ -475,7 +596,68 @@
           <option value="X">Excluded / Dispersed / Other</option>
         </select>
       </div>
-      <div class="card" id="recordList"></div>
+
+      <div class="view-mode-toggle" id="viewModeToggle">
+        <button data-mode="list" class="active">
+          <svg viewBox="0 0 24 24"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+          List
+        </button>
+        <button data-mode="single">
+          <svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M8 9h8M8 13h8M8 17h5"/></svg>
+          Single
+        </button>
+      </div>
+
+      <!-- List mode: horizontally scrollable table -->
+      <div id="recordsListMode">
+        <div class="records-table-wrap" id="recordsTableWrap">
+          <table class="records-table">
+            <thead>
+              <tr>
+                <th>Record #</th>
+                <th>Date</th>
+                <th>Trapper</th>
+                <th>Species</th>
+                <th>Client</th>
+                <th>County</th>
+                <th>Disposal</th>
+              </tr>
+            </thead>
+            <tbody id="recordsTableBody"></tbody>
+          </table>
+        </div>
+        <div id="recordsEmptyList" class="empty hidden">
+          <div class="em-title">No records yet</div>
+          <div>Tap the <strong style="color:var(--amber);">+</strong> button to add one.</div>
+        </div>
+      </div>
+
+      <!-- Single mode: one record per page with prev/next -->
+      <div id="recordsSingleMode" class="hidden">
+        <div class="single-nav" id="singleNav">
+          <button id="prevRec" aria-label="Previous record">
+            <svg viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></svg>
+          </button>
+          <div class="single-counter"><span class="num" id="singleIndexNum">0</span> of <span id="singleTotal">0</span></div>
+          <button id="nextRec" aria-label="Next record">
+            <svg viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></svg>
+          </button>
+        </div>
+        <div class="card" id="singleCard">
+          <div class="record-no-badge" id="singleRecordNo">—</div>
+          <h2 id="singleTitle">—</h2>
+          <div class="muted" id="singleSub" style="font-size:13px;"></div>
+          <div class="detail-rows" id="singleRows"></div>
+          <div class="btn-row" style="margin-top:14px;">
+            <button class="btn btn-ghost" id="singleBack">Back to List</button>
+            <button class="btn btn-primary" id="singleEdit">Edit Record</button>
+          </div>
+        </div>
+        <div id="recordsEmptySingle" class="empty hidden">
+          <div class="em-title">No records to view</div>
+          <div>Add a record or adjust your filters.</div>
+        </div>
+      </div>
     </section>
 
     <!-- ADD / EDIT -->
@@ -962,6 +1144,45 @@ function needsAnimalCount(species) {
   return isBatOrBird(species) || species === OTHER_ANIMAL;
 }
 
+function trapperInitials(name) {
+  if (!name) return 'XX';
+  const parts = name.trim().split(/\s+/);
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
+
+function generateRecordNumber(rec, allRecords) {
+  const yy = (rec.dateCollected || todayISO()).slice(2, 4);
+  const fl = trapperInitials(rec.trapper);
+  const prefix = `SWR-${yy}-${fl}-`;
+  let max = 0;
+  for (const r of allRecords) {
+    if (!r.recordNumber) continue;
+    if (r.id === rec.id) continue;
+    if (r.recordNumber.startsWith(prefix)) {
+      const n = parseInt(r.recordNumber.slice(prefix.length), 10);
+      if (Number.isFinite(n) && n > max) max = n;
+    }
+  }
+  return `${prefix}${String(max + 1).padStart(4, '0')}`;
+}
+
+async function backfillRecordNumbers() {
+  const records = await dbAll();
+  const need = records.filter((r) => !r.recordNumber);
+  if (!need.length) return;
+  /* Sort by creation order so older records get lower numbers within their year+trapper bucket. */
+  need.sort((a, b) => (a.createdAt || a.dateCollected || '').localeCompare(b.createdAt || b.dateCollected || ''));
+  const all = [...records];
+  for (const r of need) {
+    r.recordNumber = generateRecordNumber(r, all);
+    r.updatedAt = new Date().toISOString();
+    await dbPut(r);
+    const i = all.findIndex((x) => x.id === r.id);
+    if (i >= 0) all[i] = r;
+  }
+}
+
 function toast(msg, type = '') {
   const el = $('#toast');
   el.textContent = msg;
@@ -1290,9 +1511,14 @@ async function confirmSave() {
   const rec = pendingRecord;
   if (!rec.id) {
     rec.createdAt = new Date().toISOString();
+    rec.recordNumber = generateRecordNumber(rec, cachedRecords);
   } else {
     const existing = await dbGet(rec.id);
-    if (existing) rec.createdAt = existing.createdAt;
+    if (existing) {
+      rec.createdAt = existing.createdAt;
+      /* recordNumber is immutable once assigned. Generate if missing for legacy records. */
+      rec.recordNumber = existing.recordNumber || generateRecordNumber(rec, cachedRecords);
+    }
   }
   rec.updatedAt = new Date().toISOString();
   const wasEdit = !!rec.id;
@@ -1300,9 +1526,11 @@ async function confirmSave() {
   pendingRecord = null;
   closeSheet();
   resetForm();
+  recordsViewMode = 'list';
+  updateModeToggleUI();
   setView('records');
   await refreshAll();
-  toast(wasEdit ? 'Record updated' : 'Record saved');
+  toast(wasEdit ? 'Record updated' : `Record saved · ${rec.recordNumber}`);
 }
 
 /* ---------- Records view ---------- */
@@ -1324,9 +1552,10 @@ function filteredRecords() {
     if (fd && disposalCode(r.disposalMethod) !== fd) return false;
     if (q) {
       const hay = [
-        r.address, r.species, r.speciesOther, r.notes,
+        r.recordNumber, r.address, r.species, r.speciesOther, r.notes,
         r.captureMethod, r.captureOther, r.disposalMethod, r.disposalOther,
-        r.county, r.clientName, r.clientBusiness, r.clientPhone, r.clientEmail
+        r.county, r.clientName, r.clientBusiness, r.clientPhone, r.clientEmail,
+        r.trapper
       ].filter(Boolean).join(' ').toLowerCase();
       if (!hay.includes(q)) return false;
     }
@@ -1338,34 +1567,91 @@ function speciesInitial(name) {
   return (name || '?').replace(/[^A-Za-z]/g, '').slice(0, 2).toUpperCase() || '?';
 }
 
-function renderRecordList() {
+let recordsViewMode = 'list';
+let singleIndex = 0;
+
+function updateModeToggleUI() {
+  $$('.view-mode-toggle button').forEach((b) => b.classList.toggle('active', b.dataset.mode === recordsViewMode));
+}
+
+function renderRecords() {
   const list = filteredRecords();
-  const root = $('#recordList');
+  if (recordsViewMode === 'list') {
+    renderListMode(list);
+  } else {
+    renderSingleMode(list);
+  }
+}
+
+function renderListMode(list) {
+  $('#recordsListMode').classList.remove('hidden');
+  $('#recordsSingleMode').classList.add('hidden');
+  const wrap = $('#recordsTableWrap');
+  const empty = $('#recordsEmptyList');
+  const body = $('#recordsTableBody');
   if (!list.length) {
-    root.innerHTML = `<div class="empty">
-      <div class="em-title">No records yet</div>
-      <div>Tap the <strong style="color:var(--amber);">+</strong> button to add one.</div>
-    </div>`;
+    wrap.classList.add('hidden');
+    empty.classList.remove('hidden');
     return;
   }
-  root.innerHTML = '';
-  for (const r of list) {
+  wrap.classList.remove('hidden');
+  empty.classList.add('hidden');
+  body.innerHTML = '';
+  for (let i = 0; i < list.length; i++) {
+    const r = list[i];
     const code = disposalCode(r.disposalMethod);
     const tag = code === 'R' ? 'R' : code === 'D' ? 'D' : 'X';
     const tagLabel = code === 'R' ? 'Released' : code === 'D' ? 'Euthanized' : 'Other';
-    const countLabel = r.animalCount && r.animalCount > 1 ? ` × ${r.animalCount}` : '';
-    const clientLine = r.clientName ? `${escapeHtml(r.clientName)} · ` : '';
-    const div = document.createElement('div');
-    div.className = 'rec';
-    div.innerHTML = `
-      <div class="rec-thumb">${speciesInitial(r.species)}</div>
-      <div class="rec-body">
-        <div class="rec-title">${escapeHtml(speciesDisplay(r))}${countLabel}<span class="rec-tag tag-${tag}">${tagLabel}</span></div>
-        <div class="rec-meta">${fmtShortDate(r.dateCollected)} · ${clientLine}${escapeHtml(r.county)} · ${escapeHtml(r.trapper)}</div>
-      </div>`;
-    div.onclick = () => openDetail(r.id);
-    root.appendChild(div);
+    const countLabel = r.animalCount && r.animalCount > 1 ? ` ×${r.animalCount}` : '';
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td class="col-num">${escapeHtml(r.recordNumber || '—')}</td>
+      <td>${fmtShortDate(r.dateCollected)}</td>
+      <td>${escapeHtml(r.trapper)}</td>
+      <td class="col-species">${escapeHtml(speciesDisplay(r))}${countLabel}</td>
+      <td>${escapeHtml(r.clientName || '—')}</td>
+      <td>${escapeHtml(r.county)}</td>
+      <td><span class="rec-tag tag-${tag}">${tagLabel}</span></td>
+    `;
+    tr.addEventListener('click', () => {
+      singleIndex = i;
+      recordsViewMode = 'single';
+      updateModeToggleUI();
+      renderRecords();
+    });
+    body.appendChild(tr);
   }
+}
+
+function renderSingleMode(list) {
+  $('#recordsListMode').classList.add('hidden');
+  $('#recordsSingleMode').classList.remove('hidden');
+  const card = $('#singleCard');
+  const nav = $('#singleNav');
+  const emptyEl = $('#recordsEmptySingle');
+  if (!list.length) {
+    card.classList.add('hidden');
+    nav.classList.add('hidden');
+    emptyEl.classList.remove('hidden');
+    return;
+  }
+  card.classList.remove('hidden');
+  nav.classList.remove('hidden');
+  emptyEl.classList.add('hidden');
+  if (singleIndex < 0) singleIndex = 0;
+  if (singleIndex >= list.length) singleIndex = list.length - 1;
+  const r = list[singleIndex];
+  $('#singleIndexNum').textContent = singleIndex + 1;
+  $('#singleTotal').textContent = list.length;
+  $('#prevRec').disabled = singleIndex === 0;
+  $('#nextRec').disabled = singleIndex === list.length - 1;
+  $('#singleRecordNo').textContent = r.recordNumber || '—';
+  const countLabel = r.animalCount && r.animalCount > 1 ? ` ×${r.animalCount}` : '';
+  $('#singleTitle').textContent = speciesDisplay(r) + countLabel;
+  $('#singleSub').textContent = `${fmtDate(r.dateCollected)} · ${r.county} County · ${r.trapper}`;
+  $('#singleRows').innerHTML = buildDetailRows(r);
+  $('#singleEdit').dataset.id = String(r.id || '');
+  $('#singleCard').scrollIntoView({ block: 'start', behavior: 'auto' });
 }
 
 /* ---------- Dashboard ---------- */
@@ -1439,6 +1725,7 @@ function buildDetailRows(r) {
   const push = (k, v) => { if (v != null && v !== '') rows.push([k, v]); };
   const head = (k) => rows.push(['__head__', k]);
 
+  if (r.recordNumber) push('Record #', r.recordNumber);
   head('Job');
   push('Date', fmtDate(r.dateCollected));
   push('Trapper', r.trapper);
@@ -1576,7 +1863,7 @@ function kdfwrCSV(records) {
 
 function fullCSV(records) {
   const header = [
-    'ID','Date Collected','Trapper',
+    'Record #','ID','Date Collected','Trapper',
     'Client Name','Client Phone','Client Business','Client Email',
     'Species','Species (specify)','Animal Count',
     'County','Address','Capture Method','Capture (specify)',
@@ -1587,7 +1874,7 @@ function fullCSV(records) {
   const lines = [csvLine(header)];
   for (const r of records) {
     lines.push(csvLine([
-      r.id, r.dateCollected, r.trapper,
+      r.recordNumber || '', r.id, r.dateCollected, r.trapper,
       r.clientName, r.clientPhone, r.clientBusiness, r.clientEmail,
       r.species, r.speciesOther, r.animalCount == null ? '' : r.animalCount,
       r.county, r.address,
@@ -1724,12 +2011,13 @@ function lockApp() {
 async function refreshAll() {
   await loadRecords();
   renderDashboard();
-  renderRecordList();
+  renderRecords();
 }
 
 /* ---------- Wiring ---------- */
 async function init() {
   await openDB();
+  await backfillRecordNumbers();
   await loadSettings();
   fillFilters();
   fillForm();
@@ -1772,8 +2060,37 @@ async function init() {
   });
 
   ['recSearch','filterTrapper','filterSpecies','filterCounty','filterDisposal'].forEach((id) => {
-    $('#' + id).addEventListener('input', renderRecordList);
-    $('#' + id).addEventListener('change', renderRecordList);
+    $('#' + id).addEventListener('input', () => { singleIndex = 0; renderRecords(); });
+    $('#' + id).addEventListener('change', () => { singleIndex = 0; renderRecords(); });
+  });
+
+  $('#viewModeToggle').addEventListener('click', (e) => {
+    const btn = e.target.closest('button[data-mode]');
+    if (!btn) return;
+    recordsViewMode = btn.dataset.mode;
+    if (recordsViewMode === 'single') singleIndex = 0;
+    updateModeToggleUI();
+    renderRecords();
+  });
+  $('#prevRec').addEventListener('click', () => {
+    if (singleIndex > 0) { singleIndex--; renderRecords(); }
+  });
+  $('#nextRec').addEventListener('click', () => {
+    const total = filteredRecords().length;
+    if (singleIndex < total - 1) { singleIndex++; renderRecords(); }
+  });
+  $('#singleBack').addEventListener('click', () => {
+    recordsViewMode = 'list';
+    updateModeToggleUI();
+    renderRecords();
+  });
+  $('#singleEdit').addEventListener('click', async () => {
+    const id = parseInt($('#singleEdit').dataset.id, 10);
+    if (!id) return;
+    const r = await dbGet(id);
+    if (!r) return;
+    setView('add');
+    loadIntoForm(r);
   });
 
   $('#sheetBackdrop').addEventListener('click', () => {
