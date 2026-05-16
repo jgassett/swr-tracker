@@ -10,17 +10,8 @@
   "theme_color": "#1E3A2A",
   "categories": ["productivity", "business", "utilities"],
   "icons": [
-    {
-      "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='96' fill='%231E3A2A'/%3E%3Cg fill='%23C4772A'%3E%3Cellipse cx='256' cy='342' rx='108' ry='90'/%3E%3Cellipse cx='138' cy='228' rx='46' ry='58'/%3E%3Cellipse cx='220' cy='150' rx='42' ry='56'/%3E%3Cellipse cx='292' cy='150' rx='42' ry='56'/%3E%3Cellipse cx='374' cy='228' rx='46' ry='58'/%3E%3C/g%3E%3C/svg%3E",
-      "sizes": "any",
-      "type": "image/svg+xml",
-      "purpose": "any"
-    },
-    {
-      "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' fill='%231E3A2A'/%3E%3Cg fill='%23C4772A'%3E%3Cellipse cx='256' cy='342' rx='108' ry='90'/%3E%3Cellipse cx='138' cy='228' rx='46' ry='58'/%3E%3Cellipse cx='220' cy='150' rx='42' ry='56'/%3E%3Cellipse cx='292' cy='150' rx='42' ry='56'/%3E%3Cellipse cx='374' cy='228' rx='46' ry='58'/%3E%3C/g%3E%3C/svg%3E",
-      "sizes": "any",
-      "type": "image/svg+xml",
-      "purpose": "maskable"
-    }
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
   ]
 }
