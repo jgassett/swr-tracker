@@ -332,6 +332,38 @@
     .conditional { display: none; }
     .conditional.on { display: block; }
 
+    /* Dashboard pieces */
+    .period-banner {
+      padding: 12px 16px;
+      display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    }
+    .period-banner-label {
+      font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-soft);
+    }
+    .period-banner-value {
+      font-family: 'Playfair Display', serif; font-size: 18px; color: var(--green-deep); font-weight: 700;
+      margin-top: 2px;
+    }
+    .stat-grid.stats-2 { grid-template-columns: 1fr 1fr; }
+    @media (min-width: 600px) {
+      .stat-grid.stats-2 { grid-template-columns: 1fr 1fr; max-width: 520px; margin-left: auto; margin-right: auto; }
+    }
+    .map-placeholder { background: var(--cream-deep); border: 1px dashed var(--amber-soft); box-shadow: none; }
+    .placeholder-label { font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-soft); }
+    .placeholder-text { font-size: 13px; color: var(--ink-soft); margin-top: 4px; line-height: 1.45; }
+
+    .section-title-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 18px 0 10px; }
+    .view-mode-toggle.small { margin-bottom: 0; padding: 2px; }
+    .view-mode-toggle.small button { padding: 6px 12px; font-size: 12px; }
+
+    .species-row {
+      display: flex; align-items: center; justify-content: space-between; gap: 12px;
+      padding: 10px 0; border-bottom: 1px solid var(--line);
+    }
+    .species-row:last-child { border-bottom: none; }
+    .species-row .name { font-weight: 600; color: var(--green-deep); }
+    .species-row .count { font-family: 'Playfair Display', serif; font-size: 18px; color: var(--amber); font-weight: 700; }
+
     /* Helpers */
     .muted { color: var(--ink-soft); }
     .center { text-align: center; }
@@ -658,7 +690,6 @@
       </div>
       <div class="titlebox">
         <h1 id="viewTitle">Dashboard</h1>
-        <div class="period" id="headerPeriod"></div>
       </div>
     </div>
     <div class="header-right">
@@ -672,26 +703,48 @@
   <main id="appMain">
     <!-- DASHBOARD -->
     <section id="view-dashboard" class="view">
-      <div class="period-badge"><span class="dot"></span><span id="periodBadge"></span></div>
+      <div class="card period-banner">
+        <div class="period-banner-label">Reporting Period</div>
+        <div class="period-banner-value" id="periodValue">—</div>
+      </div>
+
       <div class="greeting">
         <h2 id="greetingTitle">Welcome back</h2>
         <p id="greetingSub">Here's how your reporting period is shaping up.</p>
       </div>
-      <div class="stat-grid">
-        <div class="stat"><div class="label">Total Records</div><div class="value" id="statTotal">0</div><div class="sub" id="statTotalSub">this period</div></div>
-        <div class="stat"><div class="label">Top Species</div><div class="value" id="statSpeciesCount">0</div><div class="sub" id="statSpeciesName">—</div></div>
-        <div class="stat released"><div class="label">Released</div><div class="value" id="statReleased">0</div><div class="sub">released or relocated</div></div>
-        <div class="stat euthanized"><div class="label">Euthanized</div><div class="value" id="statEuthanized">0</div><div class="sub">on or off site</div></div>
-      </div>
-      <div class="card">
-        <div class="row">
-          <div>
-            <div class="label" style="font-size:11px;letter-spacing:0.06em;text-transform:uppercase;color:var(--ink-soft);">Most Active County</div>
-            <div style="font-family:'Playfair Display',serif;font-size:22px;color:var(--green-deep);margin-top:4px;" id="statCountyName">—</div>
-          </div>
-          <div class="muted" id="statCountyCount" style="font-weight:600;font-size:18px;">0</div>
+
+      <div class="stat-grid stats-2">
+        <div class="stat">
+          <div class="label">SWR · This Period</div>
+          <div class="value" id="statTotalSwr">0</div>
+          <div class="sub">all trappers</div>
+        </div>
+        <div class="stat">
+          <div class="label">You · This Period</div>
+          <div class="value" id="statTotalUser">0</div>
+          <div class="sub" id="statTotalUserSub">your records</div>
         </div>
       </div>
+
+      <div class="card map-placeholder" id="mapPlaceholder">
+        <div class="row">
+          <div>
+            <div class="placeholder-label">Location</div>
+            <div class="placeholder-text">Map widget arriving next update — drop a pin at the trap or release site and the app will fill in coords, address, and county automatically.</div>
+          </div>
+          <svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="color: var(--amber); flex-shrink:0;"><path d="M12 22s-8-8.5-8-13a8 8 0 1 1 16 0c0 4.5-8 13-8 13Z"/><circle cx="12" cy="9" r="3"/></svg>
+        </div>
+      </div>
+
+      <div class="section-title-row">
+        <div class="section-title" style="margin: 0;">Top Species</div>
+        <div class="view-mode-toggle small" id="topSpeciesScope">
+          <button data-scope="all" class="active">All</button>
+          <button data-scope="me">Just Me</button>
+        </div>
+      </div>
+      <div class="card" id="topSpeciesList"></div>
+
       <div class="section-title">Recent Records</div>
       <div class="card" id="dashRecent"></div>
     </section>
@@ -952,12 +1005,50 @@
 
     <!-- SETTINGS -->
     <section id="view-settings" class="view hidden">
-      <div class="card">
+      <div class="card" id="bizCard">
         <h3 style="margin-bottom:10px;">Business</h3>
-        <div class="biz-info">
+        <div id="bizDisplay" class="biz-info">
           <div class="biz-row"><span class="biz-label">Business</span><span class="biz-value" id="bizName">—</span></div>
           <div class="biz-row"><span class="biz-label">Permit Holder</span><span class="biz-value" id="bizHolder">—</span></div>
-          <div class="biz-row"><span class="biz-label">Permit #</span><span class="biz-value" id="bizPermit">—</span></div>
+          <div class="biz-row"><span class="biz-label">Permit #</span><span class="biz-value mono" id="bizPermit">—</span></div>
+        </div>
+        <div id="bizEdit" class="hidden">
+          <div class="form-group">
+            <label for="editBizName">Business Name</label>
+            <input type="text" id="editBizName">
+          </div>
+          <div class="form-group">
+            <label for="editBizHolder">Permit Holder</label>
+            <input type="text" id="editBizHolder">
+          </div>
+          <div class="form-group">
+            <label for="editBizPermit">Permit Number</label>
+            <input type="text" id="editBizPermit">
+          </div>
+          <button class="btn btn-primary" id="saveBizBtn">Save Business Info</button>
+        </div>
+      </div>
+
+      <div class="card" id="reportCard">
+        <h3 style="margin-bottom:10px;">Reporting Period</h3>
+        <div id="reportDisplay" class="biz-info">
+          <div class="biz-row"><span class="biz-label">Start</span><span class="biz-value" id="rptStart">—</span></div>
+          <div class="biz-row"><span class="biz-label">End</span><span class="biz-value" id="rptEnd">—</span></div>
+          <div class="biz-row"><span class="biz-label">Source</span><span class="biz-value muted" id="rptSource">KDFWR default</span></div>
+        </div>
+        <div id="reportEdit" class="hidden">
+          <p class="muted" style="font-size:13px; margin-bottom:10px;">Leave both fields blank to revert to the KDFWR default (Feb 1 – Jan 31). Any change is saved to the shared org config and applies to every trapper.</p>
+          <div class="field-row two">
+            <div class="form-group">
+              <label for="editRptStart">Start Date</label>
+              <input type="date" id="editRptStart">
+            </div>
+            <div class="form-group">
+              <label for="editRptEnd">End Date</label>
+              <input type="date" id="editRptEnd">
+            </div>
+          </div>
+          <button class="btn btn-primary" id="saveRptBtn">Save Reporting Period</button>
         </div>
       </div>
 
@@ -1074,8 +1165,10 @@ try { await setPersistence(fbAuth, browserLocalPersistence); } catch (e) { /* pr
 
 let currentUser = null;
 let recordsUnsub = null;
+let orgUnsub = null;
 let lastSyncError = null;
 let syncRetryTimer = null;
+let topSpeciesScope = 'all';
 
 const TRAPPERS = ['Jon Gassett', 'Robin Gassett', 'Chris Griffith'];
 
@@ -1144,15 +1237,23 @@ const RELEASE_DISPOSALS = new Set(['Released Onsite','Relocated to Suitable Habi
 const EUTHANIZE_DISPOSALS = new Set(['Euthanized Onsite','Euthanized Offsite']);
 const EXCLUDE_DISPOSALS = new Set(['Excluded but not Captured','Dispersed from Site']);
 
-/* Business constants — same across all trappers, baked into the app. */
+/* Business defaults — admin can override via the org config doc in Firestore. */
 const BUSINESS_NAME = 'Southern Wildlife Resources';
 const PERMIT_HOLDER = 'Jon Gassett';
 const PERMIT_NUMBER = 'NC2611172';
 
 const SETTINGS_DEFAULTS = {
+  /* Per-device only: kept for backward compat and any future device prefs. */
+};
+
+/* Org-wide config — single source of truth at /org/swr in Firestore.
+   Admin (Jon) can edit; everyone else sees read-only. */
+let orgSettings = {
   businessName: BUSINESS_NAME,
   permitHolder: PERMIT_HOLDER,
-  permitNumber: PERMIT_NUMBER
+  permitNumber: PERMIT_NUMBER,
+  reportingPeriodStart: null,
+  reportingPeriodEnd: null
 };
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -1285,11 +1386,25 @@ function fmtShortDate(iso) {
   return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 }
 function reportPeriod(refDate = new Date()) {
+  /* If admin has set an explicit period in the org config, honor it. */
+  if (orgSettings.reportingPeriodStart && orgSettings.reportingPeriodEnd) {
+    const start = orgSettings.reportingPeriodStart;
+    const end = orgSettings.reportingPeriodEnd;
+    return { start, end, startYear: parseInt(start.slice(0, 4), 10) };
+  }
+  /* Default: KDFWR Feb 1 – Jan 31. */
   const y = refDate.getFullYear();
   const startYear = refDate.getMonth() >= 1 ? y : y - 1;
   const start = `${startYear}-02-01`;
   const end = `${startYear + 1}-01-31`;
   return { start, end, startYear };
+}
+
+function titleCaseName(s) {
+  if (!s) return '';
+  /* "JOHN DOE" / "john doe" → "John Doe". Splits on whitespace + hyphens.
+     Known limitation: 'McDonald' becomes 'Mcdonald'. */
+  return s.toLowerCase().replace(/\b([a-z])/g, (m, c) => c.toUpperCase());
 }
 function inPeriod(iso, period) {
   return iso >= period.start && iso <= period.end;
@@ -1474,6 +1589,32 @@ function subscribeToRecords() {
 function unsubscribeFromRecords() {
   if (recordsUnsub) { recordsUnsub(); recordsUnsub = null; }
   cachedRecords = [];
+}
+
+/* ---------- Org config (shared business + reporting period) ---------- */
+function subscribeToOrg() {
+  if (orgUnsub) return;
+  orgUnsub = onSnapshot(doc(fbDb, 'org', 'swr'), (snap) => {
+    if (snap.exists()) {
+      orgSettings = {
+        businessName: BUSINESS_NAME,
+        permitHolder: PERMIT_HOLDER,
+        permitNumber: PERMIT_NUMBER,
+        reportingPeriodStart: null,
+        reportingPeriodEnd: null,
+        ...snap.data()
+      };
+    }
+    renderBusinessCard();
+    renderReportingCard();
+    renderDashboard();
+  }, (err) => console.error('Org subscription error', err));
+}
+function unsubscribeFromOrg() {
+  if (orgUnsub) { orgUnsub(); orgUnsub = null; }
+}
+async function saveOrgConfig(updates) {
+  await setDoc(doc(fbDb, 'org', 'swr'), { ...orgSettings, ...updates }, { merge: true });
 }
 
 /* ---------- One-time migration of local records to Firestore ---------- */
@@ -1924,35 +2065,39 @@ function renderSingleMode(list) {
 /* ---------- Dashboard ---------- */
 function renderDashboard() {
   const period = reportPeriod();
-  $('#periodBadge').textContent = `Reporting Period · ${periodLabel(period)}`;
-  $('#headerPeriod').textContent = periodLabel(period);
+  $('#periodValue').textContent = periodLabel(period);
+
   const hr = new Date().getHours();
   const greet = hr < 12 ? 'Good morning' : hr < 18 ? 'Good afternoon' : 'Good evening';
-  $('#greetingTitle').textContent = `${greet}, ${(currentSettings.permitHolder || '').split(' ')[0] || 'there'}.`;
+  const friendlyName = currentUser && EMAIL_TO_TRAPPER[currentUser.email.toLowerCase()]
+    ? EMAIL_TO_TRAPPER[currentUser.email.toLowerCase()].split(' ')[0]
+    : (orgSettings.permitHolder || '').split(' ')[0] || 'there';
+  $('#greetingTitle').textContent = `${greet}, ${friendlyName}.`;
 
   const inP = cachedRecords.filter((r) => inPeriod(r.dateCollected, period));
-  $('#statTotal').textContent = inP.length;
-  $('#statTotalSub').textContent = `${cachedRecords.length} total all time`;
+  const myEmail = currentUser ? currentUser.email.toLowerCase() : null;
+  const minePeriod = inP.filter((r) => (r.createdByEmail || '').toLowerCase() === myEmail);
 
+  $('#statTotalSwr').textContent = inP.length;
+  $('#statTotalUser').textContent = minePeriod.length;
+  $('#statTotalUserSub').textContent = minePeriod.length === 1 ? 'your record' : 'your records';
+
+  /* Top species */
+  const scope = topSpeciesScope === 'me' ? minePeriod : inP;
   const counts = {};
-  for (const r of inP) {
+  for (const r of scope) {
     const k = speciesDisplay(r);
     counts[k] = (counts[k] || 0) + (r.animalCount || 1);
   }
-  let topName = '—', topCount = 0;
-  for (const [k, v] of Object.entries(counts)) if (v > topCount) { topCount = v; topName = k; }
-  $('#statSpeciesCount').textContent = topCount;
-  $('#statSpeciesName').textContent = topName;
-
-  $('#statReleased').textContent = inP.filter((r) => disposalCode(r.disposalMethod) === 'R').length;
-  $('#statEuthanized').textContent = inP.filter((r) => disposalCode(r.disposalMethod) === 'D').length;
-
-  const cc = {};
-  for (const r of inP) cc[r.county] = (cc[r.county] || 0) + 1;
-  let topCounty = '—', topCC = 0;
-  for (const [k, v] of Object.entries(cc)) if (v > topCC) { topCC = v; topCounty = k; }
-  $('#statCountyName').textContent = topCounty;
-  $('#statCountyCount').textContent = topCC ? `${topCC} ${topCC === 1 ? 'record' : 'records'}` : '';
+  const ranked = Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 8);
+  const tsList = $('#topSpeciesList');
+  if (!ranked.length) {
+    tsList.innerHTML = `<div class="empty" style="padding:18px;"><div class="em-title">No records yet</div><div>Records this period will be ranked here.</div></div>`;
+  } else {
+    tsList.innerHTML = ranked.map(([name, n]) =>
+      `<div class="species-row"><span class="name">${escapeHtml(name)}</span><span class="count">${n}</span></div>`
+    ).join('');
+  }
 
   const recent = cachedRecords.slice(0, 5);
   const root = $('#dashRecent');
@@ -2214,13 +2359,81 @@ function exportRange() {
 let currentSettings = { ...SETTINGS_DEFAULTS };
 
 async function loadSettings() {
-  /* Business info is constant and baked in. Settings store is now only
-     used for the cloudMigrated flag and any future per-device prefs. */
   currentSettings = { ...SETTINGS_DEFAULTS };
-  $('#bizName').textContent = BUSINESS_NAME;
-  $('#bizHolder').textContent = PERMIT_HOLDER;
-  $('#bizPermit').textContent = PERMIT_NUMBER;
-  $('#bizPermit').classList.add('mono');
+}
+
+function renderBusinessCard() {
+  $('#bizName').textContent = orgSettings.businessName;
+  $('#bizHolder').textContent = orgSettings.permitHolder;
+  $('#bizPermit').textContent = orgSettings.permitNumber;
+  $('#editBizName').value = orgSettings.businessName;
+  $('#editBizHolder').value = orgSettings.permitHolder;
+  $('#editBizPermit').value = orgSettings.permitNumber;
+  /* Toggle edit vs display based on admin. */
+  $('#bizDisplay').classList.toggle('hidden', isAdmin());
+  $('#bizEdit').classList.toggle('hidden', !isAdmin());
+}
+
+function renderReportingCard() {
+  const p = reportPeriod();
+  $('#rptStart').textContent = fmtDate(p.start);
+  $('#rptEnd').textContent = fmtDate(p.end);
+  $('#rptSource').textContent = (orgSettings.reportingPeriodStart && orgSettings.reportingPeriodEnd)
+    ? 'Custom (admin set)' : 'KDFWR default (Feb 1 – Jan 31)';
+  $('#editRptStart').value = orgSettings.reportingPeriodStart || '';
+  $('#editRptEnd').value = orgSettings.reportingPeriodEnd || '';
+  $('#reportDisplay').classList.toggle('hidden', isAdmin());
+  $('#reportEdit').classList.toggle('hidden', !isAdmin());
+}
+
+async function handleSaveBusiness() {
+  if (!isAdmin()) return;
+  const newBiz = {
+    businessName: $('#editBizName').value.trim() || BUSINESS_NAME,
+    permitHolder: $('#editBizHolder').value.trim() || PERMIT_HOLDER,
+    permitNumber: $('#editBizPermit').value.trim() || PERMIT_NUMBER
+  };
+  const ok = await confirmDialog(
+    'Save business info?',
+    `This updates the shared business record for SWR. All trappers will see the new values within seconds. Type CONFIRM to proceed.`,
+    { sentinel: 'CONFIRM', okText: 'Save' }
+  );
+  if (!ok) return;
+  try {
+    await saveOrgConfig(newBiz);
+    toast('Business info saved');
+  } catch (err) {
+    toast(`Save failed: ${err.message || err}`, 'error');
+  }
+}
+
+async function handleSaveReporting() {
+  if (!isAdmin()) return;
+  const start = $('#editRptStart').value;
+  const end = $('#editRptEnd').value;
+  if ((start && !end) || (!start && end)) {
+    toast('Set both start and end, or leave both blank for the KDFWR default.', 'error');
+    return;
+  }
+  if (start && end && start > end) {
+    toast('Start date must come before end date.', 'error');
+    return;
+  }
+  const reverting = !start && !end;
+  const body = reverting
+    ? 'This reverts the reporting period to the KDFWR default (Feb 1 – Jan 31, auto-computed). Type CONFIRM to proceed.'
+    : `Set reporting period to ${fmtDate(start)} – ${fmtDate(end)}. This applies to every trapper's dashboard and KDFWR export. Type CONFIRM to proceed.`;
+  const ok = await confirmDialog('Save reporting period?', body, { sentinel: 'CONFIRM', okText: 'Save' });
+  if (!ok) return;
+  try {
+    await saveOrgConfig({
+      reportingPeriodStart: start || null,
+      reportingPeriodEnd: end || null
+    });
+    toast('Reporting period saved');
+  } catch (err) {
+    toast(`Save failed: ${err.message || err}`, 'error');
+  }
 }
 async function restoreFromFile(file) {
   try {
@@ -2371,6 +2584,27 @@ async function init() {
   $('#exportJson').addEventListener('click', exportJsonBackup);
   $('#exportRange').addEventListener('click', exportRange);
 
+  $('#saveBizBtn').addEventListener('click', handleSaveBusiness);
+  $('#saveRptBtn').addEventListener('click', handleSaveReporting);
+
+  $('#topSpeciesScope').addEventListener('click', (e) => {
+    const btn = e.target.closest('button[data-scope]');
+    if (!btn) return;
+    topSpeciesScope = btn.dataset.scope;
+    $$('#topSpeciesScope button').forEach((b) => b.classList.toggle('active', b.dataset.scope === topSpeciesScope));
+    renderDashboard();
+  });
+
+  /* Auto-title-case on Client Name and Business Name blur. */
+  $('#f-client-name').addEventListener('blur', (e) => {
+    const v = e.target.value.trim();
+    if (v) e.target.value = titleCaseName(v);
+  });
+  $('#f-client-business').addEventListener('blur', (e) => {
+    const v = e.target.value.trim();
+    if (v) e.target.value = titleCaseName(v);
+  });
+
   $('#restoreBtn').addEventListener('click', () => $('#restoreFile').click());
   $('#restoreFile').addEventListener('change', (e) => {
     const file = e.target.files[0];
@@ -2414,9 +2648,13 @@ async function init() {
       $('#wipeBtn').style.display = isAdmin() ? 'block' : 'none';
       try { await maybeMigrateLocalRecords(); } catch (e) { console.error('Migration error', e); }
       subscribeToRecords();
+      subscribeToOrg();
+      renderBusinessCard();
+      renderReportingCard();
       showApp();
     } else {
       unsubscribeFromRecords();
+      unsubscribeFromOrg();
       $('#accountInfo').textContent = 'Not signed in';
       $('#wipeBtn').style.display = 'none';
       updateSyncIndicator('offline');
