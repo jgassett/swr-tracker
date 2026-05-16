@@ -1,5 +1,5 @@
 /* Southern Wildlife Tracker service worker — cache-first for the app shell. */
-const CACHE = 'swr-tracker-v8';
+const CACHE = 'swr-tracker-v9';
 const SHELL = [
   './',
   './index.html',

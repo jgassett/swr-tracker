@@ -411,7 +411,11 @@
       border-radius: 999px;
       background: rgba(255,255,255,0.06);
       text-transform: uppercase;
+      cursor: pointer;
+      border: none;
+      color: inherit;
     }
+    .sync-indicator:active { background: rgba(255,255,255,0.12); }
     .sync-indicator .dot {
       width: 7px; height: 7px; border-radius: 50%;
       background: #888;
@@ -639,10 +643,10 @@
       </div>
     </div>
     <div class="header-right">
-      <div class="sync-indicator" id="syncIndicator" data-state="offline" title="Cloud sync status">
+      <button type="button" class="sync-indicator" id="syncIndicator" data-state="offline" title="Tap for sync status">
         <span class="dot"></span>
         <span class="label">Offline</span>
-      </div>
+      </button>
     </div>
   </header>
 
@@ -1054,6 +1058,8 @@ try { await setPersistence(fbAuth, browserLocalPersistence); } catch (e) { /* pr
 
 let currentUser = null;
 let recordsUnsub = null;
+let lastSyncError = null;
+let syncRetryTimer = null;
 
 const TRAPPERS = ['Jon Gassett', 'Robin Gassett', 'Chris Griffith'];
 
@@ -1395,6 +1401,7 @@ function subscribeToRecords() {
   const q = query(recordsCol(), orderBy('dateCollected', 'desc'));
   recordsUnsub = onSnapshot(q, { includeMetadataChanges: true }, (snap) => {
     cachedRecords = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    lastSyncError = null;
     const fromCache = snap.metadata.fromCache;
     const pending = snap.metadata.hasPendingWrites;
     updateSyncIndicator(pending ? 'syncing' : fromCache ? 'offline' : 'synced');
@@ -1403,8 +1410,15 @@ function subscribeToRecords() {
       renderRecords();
     }
   }, (err) => {
+    lastSyncError = err;
     updateSyncIndicator('error');
     console.error('Firestore subscription error', err);
+    /* The subscription is dead after an error — clear and retry. */
+    recordsUnsub = null;
+    if (syncRetryTimer) clearTimeout(syncRetryTimer);
+    syncRetryTimer = setTimeout(() => {
+      if (currentUser) subscribeToRecords();
+    }, 5000);
   });
 }
 function unsubscribeFromRecords() {
@@ -2323,6 +2337,23 @@ async function init() {
 
   $('#signInForm').addEventListener('submit', handleSignIn);
   $('#signOutBtn').addEventListener('click', handleSignOut);
+
+  $('#syncIndicator').addEventListener('click', () => {
+    const state = $('#syncIndicator').dataset.state;
+    if (state === 'error' && lastSyncError) {
+      const code = lastSyncError.code ? `[${lastSyncError.code}] ` : '';
+      const msg = lastSyncError.message || String(lastSyncError);
+      toast(`Sync error — ${code}${msg}`, 'error');
+    } else if (state === 'offline') {
+      toast(currentUser
+        ? 'Offline — records cached locally, will sync when connection returns.'
+        : 'Not signed in. Open Settings to sign in.');
+    } else if (state === 'synced') {
+      toast(`In sync · ${cachedRecords.length} record${cachedRecords.length === 1 ? '' : 's'}`);
+    } else if (state === 'syncing') {
+      toast('Syncing — pending writes uploading…');
+    }
+  });
 
   onAuthStateChanged(fbAuth, async (user) => {
     currentUser = user;
