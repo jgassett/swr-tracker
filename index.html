@@ -335,6 +335,25 @@
     /* Helpers */
     .muted { color: var(--ink-soft); }
     .center { text-align: center; }
+    .biz-info { display: flex; flex-direction: column; gap: 8px; }
+    .biz-row { display: flex; justify-content: space-between; gap: 12px; padding: 6px 0; border-bottom: 1px solid var(--line); }
+    .biz-row:last-child { border-bottom: none; }
+    .biz-label { font-size: 12px; letter-spacing: 0.05em; text-transform: uppercase; color: var(--ink-soft); }
+    .biz-value { font-weight: 600; color: var(--green-deep); font-family: 'Source Sans 3', sans-serif; }
+    .biz-value.mono { font-family: ui-monospace, 'SF Mono', monospace; letter-spacing: 0.04em; }
+    .badge-admin {
+      display: inline-block;
+      background: var(--amber);
+      color: #fff;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      padding: 2px 6px;
+      border-radius: 4px;
+      vertical-align: middle;
+      margin-left: 6px;
+    }
     hr.div { border: none; border-top: 1px solid var(--line); margin: 14px 0; }
 
     /* Sign-in screen — dark green so the white-on-transparent logo reads. */
@@ -935,19 +954,11 @@
     <section id="view-settings" class="view hidden">
       <div class="card">
         <h3 style="margin-bottom:10px;">Business</h3>
-        <div class="form-group">
-          <label for="set-businessName">Business Name</label>
-          <input type="text" id="set-businessName">
+        <div class="biz-info">
+          <div class="biz-row"><span class="biz-label">Business</span><span class="biz-value" id="bizName">—</span></div>
+          <div class="biz-row"><span class="biz-label">Permit Holder</span><span class="biz-value" id="bizHolder">—</span></div>
+          <div class="biz-row"><span class="biz-label">Permit #</span><span class="biz-value" id="bizPermit">—</span></div>
         </div>
-        <div class="form-group">
-          <label for="set-permitHolder">Permit Holder</label>
-          <input type="text" id="set-permitHolder">
-        </div>
-        <div class="form-group">
-          <label for="set-permitNumber">Permit Number</label>
-          <input type="text" id="set-permitNumber" placeholder="KDFWR NWCO permit #">
-        </div>
-        <button class="btn btn-primary" id="saveBusiness">Save Business Info</button>
       </div>
 
       <div class="card">
@@ -1013,6 +1024,11 @@
   <div class="box">
     <h3 id="confirmTitle">Are you sure?</h3>
     <p id="confirmBody"></p>
+    <div id="confirmSentinel" class="hidden" style="margin-bottom: 14px;">
+      <input type="text" id="confirmSentinelInput" autocomplete="off"
+             autocapitalize="characters" autocorrect="off" spellcheck="false"
+             style="text-transform: uppercase; letter-spacing: 0.08em;">
+    </div>
     <div class="btn-row">
       <button class="btn btn-ghost" id="confirmCancel">Cancel</button>
       <button class="btn btn-danger" id="confirmOk">Confirm</button>
@@ -1069,6 +1085,12 @@ const EMAIL_TO_TRAPPER = {
   'chris@southern-wildlife.com': 'Chris Griffith'
 };
 
+/* Admin accounts can perform destructive shared-data actions (Clear All Records). */
+const ADMIN_EMAILS = new Set(['jon@southern-wildlife.com']);
+function isAdmin() {
+  return currentUser && currentUser.email && ADMIN_EMAILS.has(currentUser.email.toLowerCase());
+}
+
 const SPECIES_GROUPS = [
   { label: 'Mammals', items: [
     'Bat (any species)','Beaver','Bobcat','Chipmunk','Coyote','Red Fox','Gray Fox',
@@ -1122,10 +1144,15 @@ const RELEASE_DISPOSALS = new Set(['Released Onsite','Relocated to Suitable Habi
 const EUTHANIZE_DISPOSALS = new Set(['Euthanized Onsite','Euthanized Offsite']);
 const EXCLUDE_DISPOSALS = new Set(['Excluded but not Captured','Dispersed from Site']);
 
+/* Business constants — same across all trappers, baked into the app. */
+const BUSINESS_NAME = 'Southern Wildlife Resources';
+const PERMIT_HOLDER = 'Jon Gassett';
+const PERMIT_NUMBER = 'NC2611172';
+
 const SETTINGS_DEFAULTS = {
-  businessName: 'Southern Wildlife Resources',
-  permitHolder: 'Jon Gassett',
-  permitNumber: ''
+  businessName: BUSINESS_NAME,
+  permitHolder: PERMIT_HOLDER,
+  permitNumber: PERMIT_NUMBER
 };
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -1344,18 +1371,41 @@ function toast(msg, type = '') {
   toast._t = setTimeout(() => { el.className = type; }, 2400);
 }
 
-function confirmDialog(title, body) {
+function confirmDialog(title, body, opts = {}) {
   return new Promise((resolve) => {
     $('#confirmTitle').textContent = title;
     $('#confirmBody').textContent = body;
+    const sentinelWrap = $('#confirmSentinel');
+    const sentinelInput = $('#confirmSentinelInput');
+    const ok = $('#confirmOk');
+    let inputHandler = null;
+    if (opts.sentinel) {
+      sentinelWrap.classList.remove('hidden');
+      sentinelInput.value = '';
+      sentinelInput.placeholder = opts.sentinel;
+      ok.disabled = true;
+      ok.textContent = opts.okText || 'Confirm';
+      inputHandler = () => {
+        ok.disabled = sentinelInput.value.trim() !== opts.sentinel;
+      };
+      sentinelInput.addEventListener('input', inputHandler);
+      setTimeout(() => sentinelInput.focus(), 100);
+    } else {
+      sentinelWrap.classList.add('hidden');
+      ok.disabled = false;
+      ok.textContent = opts.okText || 'Confirm';
+    }
     $('#confirm').classList.add('open');
     const cleanup = (v) => {
       $('#confirm').classList.remove('open');
-      $('#confirmOk').onclick = null;
+      ok.onclick = null;
       $('#confirmCancel').onclick = null;
+      if (inputHandler) sentinelInput.removeEventListener('input', inputHandler);
+      sentinelWrap.classList.add('hidden');
+      ok.disabled = false;
       resolve(v);
     };
-    $('#confirmOk').onclick = () => cleanup(true);
+    ok.onclick = () => cleanup(true);
     $('#confirmCancel').onclick = () => cleanup(false);
   });
 }
@@ -2164,20 +2214,13 @@ function exportRange() {
 let currentSettings = { ...SETTINGS_DEFAULTS };
 
 async function loadSettings() {
-  currentSettings = await settingsAll();
-  $('#set-businessName').value = currentSettings.businessName;
-  $('#set-permitHolder').value = currentSettings.permitHolder;
-  $('#set-permitNumber').value = currentSettings.permitNumber;
-}
-async function saveBusiness() {
-  currentSettings.businessName = $('#set-businessName').value.trim() || 'Southern Wildlife Resources';
-  currentSettings.permitHolder = $('#set-permitHolder').value.trim() || 'Jon Gassett';
-  currentSettings.permitNumber = $('#set-permitNumber').value.trim();
-  await settingsSet('businessName', currentSettings.businessName);
-  await settingsSet('permitHolder', currentSettings.permitHolder);
-  await settingsSet('permitNumber', currentSettings.permitNumber);
-  toast('Business info saved');
-  renderDashboard();
+  /* Business info is constant and baked in. Settings store is now only
+     used for the cloudMigrated flag and any future per-device prefs. */
+  currentSettings = { ...SETTINGS_DEFAULTS };
+  $('#bizName').textContent = BUSINESS_NAME;
+  $('#bizHolder').textContent = PERMIT_HOLDER;
+  $('#bizPermit').textContent = PERMIT_NUMBER;
+  $('#bizPermit').classList.add('mono');
 }
 async function restoreFromFile(file) {
   try {
@@ -2205,8 +2248,15 @@ async function restoreFromFile(file) {
   }
 }
 async function wipeAll() {
-  const ok = await confirmDialog('Clear all records?',
-    'This permanently deletes every record from this device. Settings are kept. Consider downloading a JSON backup first.');
+  if (!isAdmin()) {
+    toast('Only the admin account can clear all records.', 'error');
+    return;
+  }
+  const ok = await confirmDialog(
+    'Clear ALL cloud records?',
+    'This permanently deletes every record for every trapper from the shared cloud collection. Cannot be undone. Download a JSON backup first if you might need this data later. Type CONFIRM to proceed.',
+    { sentinel: 'CONFIRM', okText: 'Delete Everything' }
+  );
   if (!ok) return;
   await dbClear();
   toast('All records cleared');
@@ -2321,7 +2371,6 @@ async function init() {
   $('#exportJson').addEventListener('click', exportJsonBackup);
   $('#exportRange').addEventListener('click', exportRange);
 
-  $('#saveBusiness').addEventListener('click', saveBusiness);
   $('#restoreBtn').addEventListener('click', () => $('#restoreFile').click());
   $('#restoreFile').addEventListener('change', (e) => {
     const file = e.target.files[0];
@@ -2359,14 +2408,17 @@ async function init() {
     currentUser = user;
     if (user) {
       const trapper = EMAIL_TO_TRAPPER[user.email.toLowerCase()];
-      $('#accountInfo').innerHTML = `Signed in as <strong>${escapeHtml(user.email)}</strong>` +
+      const adminFlag = isAdmin() ? ' <span class="badge-admin">admin</span>' : '';
+      $('#accountInfo').innerHTML = `Signed in as <strong>${escapeHtml(user.email)}</strong>${adminFlag}` +
         (trapper ? `<br><span class="muted">Trapper: ${escapeHtml(trapper)}</span>` : '');
+      $('#wipeBtn').style.display = isAdmin() ? 'block' : 'none';
       try { await maybeMigrateLocalRecords(); } catch (e) { console.error('Migration error', e); }
       subscribeToRecords();
       showApp();
     } else {
       unsubscribeFromRecords();
       $('#accountInfo').textContent = 'Not signed in';
+      $('#wipeBtn').style.display = 'none';
       updateSyncIndicator('offline');
       showSignInScreen();
     }
