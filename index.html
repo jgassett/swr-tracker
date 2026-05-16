@@ -351,6 +351,94 @@
     .center { text-align: center; }
     hr.div { border: none; border-top: 1px solid var(--line); margin: 14px 0; }
 
+    /* Sign-in screen */
+    #signInScreen {
+      position: fixed; inset: 0;
+      background: var(--cream);
+      padding: calc(var(--safe-top) + 24px) 24px calc(var(--safe-bot) + 24px);
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      z-index: 95;
+    }
+    .signin-wrap {
+      max-width: 400px;
+      margin: 0 auto;
+      padding-top: 24px;
+    }
+    .signin-wrap .brand-logo {
+      display: none;
+      height: 72px;
+      max-width: 220px;
+      margin: 0 auto 18px;
+      object-fit: contain;
+    }
+    .signin-wrap .brand-logo.loaded { display: block; }
+    .signin-wrap h1 {
+      text-align: center;
+      font-size: 26px;
+      margin-bottom: 6px;
+    }
+    .signin-wrap > p {
+      text-align: center;
+      color: var(--ink-soft);
+      font-size: 14px;
+      margin: 0 0 22px;
+    }
+    .signin-error {
+      color: var(--danger);
+      font-size: 13px;
+      min-height: 18px;
+      margin-bottom: 10px;
+    }
+    .signin-note {
+      margin-top: 18px;
+      text-align: center;
+      font-size: 12px;
+      color: var(--ink-soft);
+    }
+
+    /* Sync indicator */
+    .header-right {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-shrink: 0;
+    }
+    .sync-indicator {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 11px;
+      letter-spacing: 0.04em;
+      padding: 4px 8px;
+      border-radius: 999px;
+      background: rgba(255,255,255,0.06);
+      text-transform: uppercase;
+    }
+    .sync-indicator .dot {
+      width: 7px; height: 7px; border-radius: 50%;
+      background: #888;
+      flex-shrink: 0;
+    }
+    .sync-indicator .label { color: #aaa; }
+    .sync-indicator[data-state="synced"] .dot { background: #6FCF7A; box-shadow: 0 0 5px rgba(111,207,122,0.6); }
+    .sync-indicator[data-state="synced"] .label { color: #B0E0B5; }
+    .sync-indicator[data-state="syncing"] .dot { background: var(--amber); animation: swrPulse 1s ease-in-out infinite; }
+    .sync-indicator[data-state="syncing"] .label { color: var(--amber-soft); }
+    .sync-indicator[data-state="offline"] .dot { background: #888; }
+    .sync-indicator[data-state="offline"] .label { color: #999; }
+    .sync-indicator[data-state="error"] .dot { background: var(--danger); }
+    .sync-indicator[data-state="error"] .label { color: #E08070; }
+    @keyframes swrPulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+    @media (max-width: 380px) {
+      /* On very narrow screens, hide the sync label, keep the dot. */
+      .sync-indicator .label { display: none; }
+      .sync-indicator { padding: 6px; }
+    }
+
     /* View-mode toggle (List / Single) */
     .view-mode-toggle {
       display: inline-flex;
@@ -524,6 +612,29 @@
   </div>
 </div>
 
+<!-- Sign-in screen -->
+<div id="signInScreen" class="hidden">
+  <div class="signin-wrap">
+    <img class="brand-logo" src="logo.jpg" alt="SWR"
+         onload="this.classList.add('loaded');" onerror="this.remove();">
+    <h1>Sign In</h1>
+    <p>Each trapper signs in once per device. Firebase keeps the session — you'll stay signed in offline.</p>
+    <form id="signInForm" novalidate>
+      <div class="form-group">
+        <label for="signInEmail">Email</label>
+        <input type="email" id="signInEmail" autocomplete="email" inputmode="email" required>
+      </div>
+      <div class="form-group">
+        <label for="signInPassword">Password</label>
+        <input type="password" id="signInPassword" autocomplete="current-password" required>
+      </div>
+      <div class="signin-error" id="signInError"></div>
+      <button type="submit" class="btn btn-primary" id="signInBtn">Sign In</button>
+    </form>
+    <div class="signin-note">Forgot your password? Ask Jon to reset it in the Firebase console.</div>
+  </div>
+</div>
+
 <!-- App -->
 <div id="app" class="hidden">
   <header id="appHeader">
@@ -547,7 +658,13 @@
         <div class="period" id="headerPeriod"></div>
       </div>
     </div>
-    <button class="header-btn" id="lockBtn" aria-label="Lock app">Lock</button>
+    <div class="header-right">
+      <div class="sync-indicator" id="syncIndicator" data-state="offline" title="Cloud sync status">
+        <span class="dot"></span>
+        <span class="label">Offline</span>
+      </div>
+      <button class="header-btn" id="lockBtn" aria-label="Lock app">Lock</button>
+    </div>
   </header>
 
   <main id="appMain">
@@ -851,6 +968,12 @@
       </div>
 
       <div class="card">
+        <h3 style="margin-bottom:10px;">Account</h3>
+        <div id="accountInfo" class="muted" style="font-size:13px; margin-bottom: 12px;">Not signed in</div>
+        <button class="btn btn-ghost" id="signOutBtn">Sign Out</button>
+      </div>
+
+      <div class="card">
         <h3 style="margin-bottom:10px;">Security</h3>
         <button class="btn btn-ghost" id="changePinBtn">Change PIN</button>
         <div style="height:10px"></div>
@@ -923,13 +1046,50 @@
 
 <div id="toast"></div>
 
-<script>
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
+import {
+  getAuth, signInWithEmailAndPassword, signOut as fbSignOut,
+  onAuthStateChanged, setPersistence, browserLocalPersistence
+} from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
+import {
+  initializeFirestore, persistentLocalCache, persistentMultipleTabManager,
+  collection, doc, getDoc, getDocs, addDoc, setDoc, deleteDoc,
+  query, orderBy, onSnapshot, writeBatch
+} from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+
 /* =====================================================================
- * Southern Wildlife Tracker — vanilla JS app, single file.
- * KDFWR Commercial NWCO Annual Activity Report (Feb 1 – Jan 31).
+ * Southern Wildlife Tracker
+ * Firebase-backed records (with offline cache); IndexedDB for local
+ * device settings (PIN, business info, migration flag).
  * ===================================================================== */
 
+const firebaseConfig = {
+  apiKey: "AIzaSyDTfeTRBYN4WT-I7NtAyx8vfO7Tq0N-Tz0",
+  authDomain: "swr-tracker-54dfd.firebaseapp.com",
+  projectId: "swr-tracker-54dfd",
+  storageBucket: "swr-tracker-54dfd.firebasestorage.app",
+  messagingSenderId: "333363468822",
+  appId: "1:333363468822:web:a715bb7255d88f6a1cb337"
+};
+
+const fbApp = initializeApp(firebaseConfig);
+const fbAuth = getAuth(fbApp);
+const fbDb = initializeFirestore(fbApp, {
+  localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() })
+});
+try { await setPersistence(fbAuth, browserLocalPersistence); } catch (e) { /* private mode */ }
+
+let currentUser = null;
+let recordsUnsub = null;
+
 const TRAPPERS = ['Jon Gassett', 'Robin Gassett', 'Chris Griffith'];
+
+const EMAIL_TO_TRAPPER = {
+  'jon@southern-wildlife.com': 'Jon Gassett',
+  'robin@southern-wildlife.com': 'Robin Gassett',
+  'chris@southern-wildlife.com': 'Chris Griffith'
+};
 
 const SPECIES_GROUPS = [
   { label: 'Mammals', items: [
@@ -1024,35 +1184,52 @@ function tx(store, mode = 'readonly') {
   return db.transaction(store, mode).objectStore(store);
 }
 
-function dbAll() {
+/* Records live in Firestore. cachedRecords is populated by the
+   onSnapshot subscription and is the single source of truth for the UI. */
+function recordsCol() { return collection(fbDb, 'records'); }
+
+async function dbAll() { return cachedRecords; }
+async function dbGet(id) { return cachedRecords.find((r) => r.id === id); }
+
+async function dbPut(record) {
+  const data = { ...record };
+  delete data.id;
+  if (record.id) {
+    /* update existing — preserve createdByUid/Email if absent */
+    await setDoc(doc(fbDb, 'records', record.id), data, { merge: true });
+    return record.id;
+  }
+  data.createdByUid = currentUser ? currentUser.uid : null;
+  data.createdByEmail = currentUser ? currentUser.email : null;
+  const ref = await addDoc(recordsCol(), data);
+  return ref.id;
+}
+async function dbDelete(id) {
+  if (!id) return;
+  await deleteDoc(doc(fbDb, 'records', id));
+}
+async function dbClear() {
+  /* Wipes the shared cloud collection — affects all trappers. */
+  const snap = await getDocs(recordsCol());
+  let batch = writeBatch(fbDb);
+  let n = 0;
+  for (const d of snap.docs) {
+    batch.delete(d.ref);
+    n++;
+    if (n >= 400) { await batch.commit(); batch = writeBatch(fbDb); n = 0; }
+  }
+  if (n) await batch.commit();
+}
+
+/* Local-IDB record access — only used during one-time migration. */
+function _dbAllLocal() {
   return new Promise((resolve, reject) => {
     const r = tx('records').getAll();
     r.onsuccess = () => resolve(r.result || []);
     r.onerror = () => reject(r.error);
   });
 }
-function dbGet(id) {
-  return new Promise((resolve, reject) => {
-    const r = tx('records').get(id);
-    r.onsuccess = () => resolve(r.result);
-    r.onerror = () => reject(r.error);
-  });
-}
-function dbPut(record) {
-  return new Promise((resolve, reject) => {
-    const r = tx('records', 'readwrite').put(record);
-    r.onsuccess = () => resolve(r.result);
-    r.onerror = () => reject(r.error);
-  });
-}
-function dbDelete(id) {
-  return new Promise((resolve, reject) => {
-    const r = tx('records', 'readwrite').delete(id);
-    r.onsuccess = () => resolve();
-    r.onerror = () => reject(r.error);
-  });
-}
-function dbClear() {
+function _dbClearLocal() {
   return new Promise((resolve, reject) => {
     const r = tx('records', 'readwrite').clear();
     r.onsuccess = () => resolve();
@@ -1280,13 +1457,136 @@ function showPinScreen() {
   $('#pinError').textContent = '';
   $('#pinPrompt').textContent = pinMode === 'unlock' ? 'Enter PIN' : 'Set New PIN';
   $('#pinScreen').classList.remove('hidden');
+  $('#signInScreen').classList.add('hidden');
   $('#app').classList.add('hidden');
+}
+function showSignInScreen() {
+  $('#pinScreen').classList.add('hidden');
+  $('#signInScreen').classList.remove('hidden');
+  $('#app').classList.add('hidden');
+  $('#signInEmail').focus();
 }
 function showApp() {
   $('#pinScreen').classList.add('hidden');
+  if (!currentUser) {
+    showSignInScreen();
+    return;
+  }
+  $('#signInScreen').classList.add('hidden');
   $('#app').classList.remove('hidden');
   setView(currentView);
   refreshAll();
+}
+
+/* ---------- Sync indicator ---------- */
+function updateSyncIndicator(state) {
+  /* state: synced | syncing | offline | error */
+  const el = $('#syncIndicator');
+  if (!el) return;
+  el.dataset.state = state;
+  const label = el.querySelector('.label');
+  if (label) {
+    label.textContent = state === 'synced' ? 'Synced' : state === 'syncing' ? 'Syncing' : state === 'offline' ? 'Offline' : 'Sync error';
+  }
+}
+
+/* ---------- Firestore subscription ---------- */
+function subscribeToRecords() {
+  if (recordsUnsub) return;
+  const q = query(recordsCol(), orderBy('dateCollected', 'desc'));
+  recordsUnsub = onSnapshot(q, { includeMetadataChanges: true }, (snap) => {
+    cachedRecords = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    const fromCache = snap.metadata.fromCache;
+    const pending = snap.metadata.hasPendingWrites;
+    updateSyncIndicator(pending ? 'syncing' : fromCache ? 'offline' : 'synced');
+    if (!$('#app').classList.contains('hidden')) {
+      renderDashboard();
+      renderRecords();
+    }
+  }, (err) => {
+    updateSyncIndicator('error');
+    console.error('Firestore subscription error', err);
+  });
+}
+function unsubscribeFromRecords() {
+  if (recordsUnsub) { recordsUnsub(); recordsUnsub = null; }
+  cachedRecords = [];
+}
+
+/* ---------- One-time migration of local records to Firestore ---------- */
+async function maybeMigrateLocalRecords() {
+  if (!currentUser) return;
+  const migrated = await settingsGet('cloudMigrated');
+  if (migrated) return;
+  const local = await _dbAllLocal();
+  if (!local.length) {
+    await settingsSet('cloudMigrated', true);
+    return;
+  }
+  /* Backfill record numbers for any unnumbered local records before upload. */
+  local.sort((a, b) => (a.createdAt || a.dateCollected || '').localeCompare(b.createdAt || b.dateCollected || ''));
+  const numbered = [];
+  for (const r of local) {
+    if (!r.recordNumber) {
+      r.recordNumber = generateRecordNumber(r, numbered);
+    }
+    numbered.push(r);
+  }
+  toast(`Uploading ${local.length} local record${local.length === 1 ? '' : 's'}…`);
+  const batch = writeBatch(fbDb);
+  for (const r of local) {
+    const data = { ...r };
+    delete data.id;
+    data.createdByUid = currentUser.uid;
+    data.createdByEmail = currentUser.email;
+    data.migratedFromLocal = true;
+    batch.set(doc(recordsCol()), data);
+  }
+  try {
+    await batch.commit();
+    await _dbClearLocal();
+    await settingsSet('cloudMigrated', true);
+    toast(`Migrated ${local.length} records to cloud`);
+  } catch (err) {
+    console.error('Migration failed', err);
+    toast('Cloud upload failed — will retry next sign-in', 'error');
+  }
+}
+
+/* ---------- Auth handlers ---------- */
+async function handleSignIn(e) {
+  e.preventDefault();
+  const email = $('#signInEmail').value.trim();
+  const password = $('#signInPassword').value;
+  if (!email || !password) return;
+  $('#signInError').textContent = '';
+  const btn = $('#signInBtn');
+  btn.disabled = true;
+  btn.textContent = 'Signing in…';
+  try {
+    await signInWithEmailAndPassword(fbAuth, email, password);
+    $('#signInPassword').value = '';
+    /* onAuthStateChanged will fire and reveal the app */
+  } catch (err) {
+    $('#signInError').textContent = friendlyAuthError(err);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Sign In';
+  }
+}
+function friendlyAuthError(err) {
+  const code = err && err.code || '';
+  if (code === 'auth/invalid-credential' || code === 'auth/wrong-password') return 'Incorrect email or password.';
+  if (code === 'auth/user-not-found') return 'No account found for that email.';
+  if (code === 'auth/invalid-email') return 'That doesn’t look like a valid email.';
+  if (code === 'auth/too-many-requests') return 'Too many attempts — try again in a few minutes.';
+  if (code === 'auth/network-request-failed') return 'No internet. Connect and try again.';
+  return (err && err.message) || 'Sign-in failed.';
+}
+async function handleSignOut() {
+  const ok = await confirmDialog('Sign out?', 'Records won’t sync until you sign in again on this device. Local PIN unlock still works.');
+  if (!ok) return;
+  await fbSignOut(fbAuth);
 }
 
 /* ---------- Navigation ---------- */
@@ -1404,6 +1704,10 @@ function resetForm() {
   $('#f-id').value = '';
   $('#f-date').value = todayISO();
   $('#f-animal-count').value = 1;
+  /* Pre-fill the Trapper dropdown based on the signed-in account. */
+  if (currentUser && currentUser.email && EMAIL_TO_TRAPPER[currentUser.email.toLowerCase()]) {
+    $('#f-trapper').value = EMAIL_TO_TRAPPER[currentUser.email.toLowerCase()];
+  }
   $('#deleteBtn').style.display = 'none';
   $('#saveBtn').textContent = 'Review Record';
   updateConditionals();
@@ -2009,7 +2313,8 @@ function lockApp() {
 
 /* ---------- Refresh ---------- */
 async function refreshAll() {
-  await loadRecords();
+  /* Records snapshot is maintained by the Firestore subscription;
+     we just re-render here. */
   renderDashboard();
   renderRecords();
 }
@@ -2017,7 +2322,6 @@ async function refreshAll() {
 /* ---------- Wiring ---------- */
 async function init() {
   await openDB();
-  await backfillRecordNumbers();
   await loadSettings();
   fillFilters();
   fillForm();
@@ -2138,6 +2442,37 @@ async function init() {
   const p = reportPeriod();
   $('#rangeStart').value = p.start;
   $('#rangeEnd').value = todayISO();
+
+  $('#signInForm').addEventListener('submit', handleSignIn);
+  $('#signOutBtn').addEventListener('click', handleSignOut);
+
+  onAuthStateChanged(fbAuth, async (user) => {
+    currentUser = user;
+    if (user) {
+      const trapper = EMAIL_TO_TRAPPER[user.email.toLowerCase()];
+      $('#accountInfo').innerHTML = `Signed in as <strong>${escapeHtml(user.email)}</strong>` +
+        (trapper ? `<br><span class="muted">Trapper: ${escapeHtml(trapper)}</span>` : '');
+      try { await maybeMigrateLocalRecords(); } catch (e) { console.error('Migration error', e); }
+      subscribeToRecords();
+      /* If the user was stuck on the sign-in screen, reveal the app. */
+      if (!$('#signInScreen').classList.contains('hidden')) {
+        showApp();
+      }
+    } else {
+      unsubscribeFromRecords();
+      $('#accountInfo').textContent = 'Not signed in';
+      updateSyncIndicator('offline');
+      /* If app was visible (sign-out), redirect to sign-in. */
+      if (!$('#app').classList.contains('hidden')) {
+        showSignInScreen();
+      }
+    }
+  });
+
+  window.addEventListener('online', () => {
+    if (currentUser) updateSyncIndicator('syncing');
+  });
+  window.addEventListener('offline', () => updateSyncIndicator('offline'));
 
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('sw.js').catch(() => {});
