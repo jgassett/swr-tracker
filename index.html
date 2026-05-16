@@ -98,9 +98,9 @@
       flex-shrink: 0;
     }
     .header-left { display: flex; align-items: center; gap: 12px; min-width: 0; flex: 1; }
-    #appHeader .brand-logo { height: 42px; max-width: 170px; }
-    #appHeader .paw-mark { width: 44px; height: 44px; border-radius: 10px; background: var(--green-deep); flex-shrink: 0; }
-    #appHeader .paw-mark svg { width: 30px; height: 30px; }
+    #appHeader .brand-logo { height: 52px; max-width: 200px; }
+    #appHeader .paw-mark { width: 52px; height: 52px; border-radius: 12px; background: var(--green-deep); flex-shrink: 0; }
+    #appHeader .paw-mark svg { width: 36px; height: 36px; }
     #appHeader .titlebox { min-width: 0; flex: 1; }
     #appHeader h1 { color: var(--cream); font-size: 20px; }
     #appHeader .period {
@@ -453,61 +453,73 @@
     }
     hr.div { border: none; border-top: 1px solid var(--line); margin: 14px 0; }
 
-    /* Sign-in screen — dark green so the white-on-transparent logo reads. */
+    /* Sign-in screen — compact, fields high so iOS keyboard doesn't cover them. */
     #signInScreen {
       position: fixed; inset: 0;
       background: var(--green);
       color: var(--cream);
-      padding: calc(var(--safe-top) + 24px) 24px calc(var(--safe-bot) + 24px);
+      padding: calc(var(--safe-top) + 12px) 20px calc(var(--safe-bot) + 16px);
       overflow-y: auto;
       -webkit-overflow-scrolling: touch;
       z-index: 95;
     }
     .signin-wrap {
-      max-width: 400px;
+      max-width: 420px;
       margin: 0 auto;
-      padding-top: 24px;
+      padding-top: 8px;
     }
     .signin-wrap .brand-logo {
       display: none;
-      height: 110px;
-      max-width: 260px;
-      margin: 0 auto 20px;
+      height: 60px;
+      max-width: 180px;
+      margin: 0 auto 10px;
       object-fit: contain;
     }
     .signin-wrap .brand-logo.loaded { display: block; }
     .signin-wrap h1 {
       color: var(--cream);
       text-align: center;
-      font-size: 26px;
-      margin-bottom: 6px;
+      font-size: 22px;
+      margin-bottom: 2px;
     }
     .signin-wrap > p {
       text-align: center;
       color: var(--amber-soft);
-      font-size: 14px;
-      margin: 0 0 22px;
+      font-size: 13px;
+      margin: 0 0 14px;
     }
+    .signin-fields { grid-template-columns: 1fr 1fr; gap: 10px; }
     #signInScreen label { color: var(--amber-soft); }
+    #signInScreen input[type=text],
     #signInScreen input[type=email],
     #signInScreen input[type=password] {
       background: rgba(255,255,255,0.08);
       border-color: rgba(255,255,255,0.18);
       color: var(--cream);
+      text-align: center;
+      letter-spacing: 0.08em;
+      font-weight: 600;
     }
-    #signInScreen input::placeholder { color: rgba(248,244,238,0.4); }
+    #signInScreen input::placeholder { color: rgba(248,244,238,0.35); letter-spacing: normal; font-weight: 400; }
     #signInScreen input:focus { outline-color: var(--amber); border-color: var(--amber); }
     .signin-error {
       color: #FFB3A0;
       font-size: 13px;
       min-height: 18px;
-      margin-bottom: 10px;
+      margin: 6px 0 8px;
+      text-align: center;
     }
     .signin-note {
-      margin-top: 18px;
+      margin-top: 14px;
       text-align: center;
       font-size: 12px;
       color: var(--amber-soft);
+    }
+    @media (min-height: 700px) {
+      .signin-wrap { padding-top: 20px; }
+      .signin-wrap .brand-logo { height: 84px; margin-bottom: 14px; }
+      .signin-wrap h1 { font-size: 26px; margin-bottom: 4px; }
+      .signin-wrap > p { font-size: 14px; margin-bottom: 18px; }
     }
     #signInBtn {
       padding: 18px 24px;
@@ -732,20 +744,26 @@
     <img class="brand-logo" src="logo.png" alt="SWR"
          onload="this.classList.add('loaded');" onerror="this.remove();">
     <h1>Sign In</h1>
-    <p>Each trapper signs in once per device. Firebase keeps the session — you'll stay signed in offline.</p>
+    <p>Employee ID and 6-digit PIN</p>
     <form id="signInForm" novalidate>
-      <div class="form-group">
-        <label for="signInEmail">Email</label>
-        <input type="email" id="signInEmail" autocomplete="email" inputmode="email" required>
-      </div>
-      <div class="form-group">
-        <label for="signInPassword">Password</label>
-        <input type="password" id="signInPassword" autocomplete="current-password" required>
+      <div class="field-row two signin-fields">
+        <div class="form-group">
+          <label for="signInId">Employee ID</label>
+          <input type="text" id="signInId" autocapitalize="characters" autocorrect="off"
+                 spellcheck="false" autocomplete="username" maxlength="6"
+                 placeholder="JG01" required>
+        </div>
+        <div class="form-group">
+          <label for="signInPin">PIN</label>
+          <input type="password" id="signInPin" inputmode="numeric"
+                 pattern="[0-9]*" maxlength="12" autocomplete="current-password"
+                 placeholder="••••••" required>
+        </div>
       </div>
       <div class="signin-error" id="signInError"></div>
       <button type="submit" class="btn btn-primary" id="signInBtn">Sign In</button>
     </form>
-    <div class="signin-note">Forgot your password? Ask Jon to reset it in the Firebase console.</div>
+    <div class="signin-note">Forgot your PIN? Ask the admin to reset it.</div>
   </div>
 </div>
 
@@ -1289,6 +1307,13 @@ const EMAIL_TO_TRAPPER = {
   'chris@southern-wildlife.com': 'Chris Griffith'
 };
 
+/* Employee ID (FLXX) -> account email. Per-initial-pair sequence. */
+const EMPLOYEE_ID_TO_EMAIL = {
+  'JG01': 'jon@southern-wildlife.com',
+  'RG01': 'robin@southern-wildlife.com',
+  'CG01': 'chris@southern-wildlife.com'
+};
+
 /* EmailJS — sends a per-record notification on save. Destination address
    is configured inside the EmailJS template, not here. */
 const EMAILJS_CONFIG = {
@@ -1747,7 +1772,7 @@ function showSignInScreen() {
   hideSplash();
   $('#signInScreen').classList.remove('hidden');
   $('#app').classList.add('hidden');
-  setTimeout(() => { try { $('#signInEmail').focus(); } catch (e) {} }, 120);
+  setTimeout(() => { try { $('#signInId').focus(); } catch (e) {} }, 120);
 }
 function showApp() {
   hideSplash();
@@ -1869,17 +1894,21 @@ async function maybeMigrateLocalRecords() {
 /* ---------- Auth handlers ---------- */
 async function handleSignIn(e) {
   e.preventDefault();
-  const email = $('#signInEmail').value.trim();
-  const password = $('#signInPassword').value;
-  if (!email || !password) return;
+  const idRaw = $('#signInId').value.trim().toUpperCase();
+  const pin = $('#signInPin').value;
+  if (!idRaw || !pin) return;
   $('#signInError').textContent = '';
+  const email = EMPLOYEE_ID_TO_EMAIL[idRaw];
+  if (!email) {
+    $('#signInError').textContent = `Unknown Employee ID: ${idRaw}`;
+    return;
+  }
   const btn = $('#signInBtn');
   btn.disabled = true;
   btn.textContent = 'Signing in…';
   try {
-    await signInWithEmailAndPassword(fbAuth, email, password);
-    $('#signInPassword').value = '';
-    /* onAuthStateChanged will fire and reveal the app */
+    await signInWithEmailAndPassword(fbAuth, email, pin);
+    $('#signInPin').value = '';
   } catch (err) {
     $('#signInError').textContent = friendlyAuthError(err);
   } finally {
@@ -2285,19 +2314,19 @@ function createLocationMap(containerId, callbacks = {}) {
         marker = L.marker(ll, { draggable: true }).addTo(map);
         marker.on('dragend', () => {
           const p = marker.getLatLng();
-          if (callbacks.onMoved) callbacks.onMoved(p.lat, p.lng);
+          if (callbacks.onMoved) callbacks.onMoved(p.lat, p.lng, 'drag');
         });
       } else {
         marker.setLatLng(ll);
       }
       if (opts.center !== false) map.setView(ll, opts.zoom || 16);
-      if (opts.notify !== false && callbacks.onMoved) callbacks.onMoved(lat, lng);
+      if (opts.notify !== false && callbacks.onMoved) callbacks.onMoved(lat, lng, opts.source || 'click');
     },
     getLocation() { return marker ? marker.getLatLng() : null; },
     clear() { if (marker) { marker.remove(); marker = null; } },
     invalidate() { map.invalidateSize(); }
   };
-  map.on('click', (e) => instance.setLocation(e.latlng.lat, e.latlng.lng));
+  map.on('click', (e) => instance.setLocation(e.latlng.lat, e.latlng.lng, { source: 'click' }));
   el._leafletInstance = instance;
   return instance;
 }
@@ -2451,7 +2480,14 @@ async function maybeConfirmCounty(selectId, detectedCounty, fieldLabel) {
   return false;
 }
 
-async function handleTrapLocationChange(lat, lng) {
+function autoScrollPastMap(targetFieldId) {
+  setTimeout(() => {
+    const el = document.getElementById(targetFieldId);
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, 250);
+}
+
+async function handleTrapLocationChange(lat, lng, source) {
   $('#f-trap-lat').value = lat;
   $('#f-trap-lng').value = lng;
   setMapStatus('trapMapStatus', 'Looking up address…', 'working');
@@ -2482,9 +2518,13 @@ async function handleTrapLocationChange(lat, lng) {
     setMapStatus('trapMapStatus',
       `Coordinates saved (${lat.toFixed(5)}, ${lng.toFixed(5)}). Geocoder offline — fill address & county manually.`, 'error');
   }
+  /* After a map click or Use-My-Location, scroll past the map so the
+     trapper can see the County dropdown immediately. Skip on drag
+     (they're still adjusting the pin). */
+  if (source !== 'drag') autoScrollPastMap('f-county');
 }
 
-async function handleReleaseLocationChange(lat, lng) {
+async function handleReleaseLocationChange(lat, lng, source) {
   $('#f-release-lat').value = lat;
   $('#f-release-lng').value = lng;
   setMapStatus('releaseMapStatus', 'Looking up county…', 'working');
@@ -2510,6 +2550,7 @@ async function handleReleaseLocationChange(lat, lng) {
     setMapStatus('releaseMapStatus',
       `Coordinates saved (${lat.toFixed(5)}, ${lng.toFixed(5)}). County lookup failed.`, 'error');
   }
+  if (source !== 'drag') autoScrollPastMap('f-release-county');
 }
 
 /* ---------- Records view ---------- */
@@ -3202,15 +3243,15 @@ async function init() {
   }
   $('#trapLocateBtn').addEventListener('click', () => {
     ensureTrapMap();
-    doLocate((lat, lng) => trapMapInstance.setLocation(lat, lng), 'trapMapStatus');
+    doLocate((lat, lng) => trapMapInstance.setLocation(lat, lng, { source: 'locate' }), 'trapMapStatus');
   });
   $('#releaseLocateBtn').addEventListener('click', () => {
     ensureReleaseMap();
-    doLocate((lat, lng) => releaseMapInstance.setLocation(lat, lng), 'releaseMapStatus');
+    doLocate((lat, lng) => releaseMapInstance.setLocation(lat, lng, { source: 'locate' }), 'releaseMapStatus');
   });
   $('#dashLocateBtn').addEventListener('click', () => {
     ensureDashMap();
-    doLocate((lat, lng) => dashMapInstance.setLocation(lat, lng), 'dashMapStatus');
+    doLocate((lat, lng) => dashMapInstance.setLocation(lat, lng, { source: 'locate' }), 'dashMapStatus');
   });
 
   /* Find From Address — forward geocode the typed address and move trap pin. */
@@ -3221,7 +3262,7 @@ async function init() {
     const geo = await forwardGeocode(q + (q.toLowerCase().includes('ky') || q.toLowerCase().includes('kentucky') ? '' : ', Kentucky'));
     if (!geo) { setMapStatus('trapMapStatus', 'Address not found — verify or drop a pin manually.', 'error'); return; }
     ensureTrapMap();
-    trapMapInstance.setLocation(geo.lat, geo.lng);
+    trapMapInstance.setLocation(geo.lat, geo.lng, { source: 'locate' });
   });
 
   /* Start Record from Dashboard — capture current pin (or current location) and open Add Record */
