@@ -1,10 +1,10 @@
 /* Southern Wildlife Tracker service worker — cache-first for the app shell. */
-const CACHE = 'swr-tracker-v7';
+const CACHE = 'swr-tracker-v8';
 const SHELL = [
   './',
   './index.html',
   './manifest.json',
-  './logo.jpg',
+  './logo.png',
   './icon-192.png',
   './icon-512.png',
   './apple-touch-icon.png'

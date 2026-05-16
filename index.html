@@ -337,10 +337,11 @@
     .center { text-align: center; }
     hr.div { border: none; border-top: 1px solid var(--line); margin: 14px 0; }
 
-    /* Sign-in screen */
+    /* Sign-in screen — dark green so the white-on-transparent logo reads. */
     #signInScreen {
       position: fixed; inset: 0;
-      background: var(--cream);
+      background: var(--green);
+      color: var(--cream);
       padding: calc(var(--safe-top) + 24px) 24px calc(var(--safe-bot) + 24px);
       overflow-y: auto;
       -webkit-overflow-scrolling: touch;
@@ -353,25 +354,35 @@
     }
     .signin-wrap .brand-logo {
       display: none;
-      height: 72px;
-      max-width: 220px;
-      margin: 0 auto 18px;
+      height: 110px;
+      max-width: 260px;
+      margin: 0 auto 20px;
       object-fit: contain;
     }
     .signin-wrap .brand-logo.loaded { display: block; }
     .signin-wrap h1 {
+      color: var(--cream);
       text-align: center;
       font-size: 26px;
       margin-bottom: 6px;
     }
     .signin-wrap > p {
       text-align: center;
-      color: var(--ink-soft);
+      color: var(--amber-soft);
       font-size: 14px;
       margin: 0 0 22px;
     }
+    #signInScreen label { color: var(--amber-soft); }
+    #signInScreen input[type=email],
+    #signInScreen input[type=password] {
+      background: rgba(255,255,255,0.08);
+      border-color: rgba(255,255,255,0.18);
+      color: var(--cream);
+    }
+    #signInScreen input::placeholder { color: rgba(248,244,238,0.4); }
+    #signInScreen input:focus { outline-color: var(--amber); border-color: var(--amber); }
     .signin-error {
-      color: var(--danger);
+      color: #FFB3A0;
       font-size: 13px;
       min-height: 18px;
       margin-bottom: 10px;
@@ -380,7 +391,7 @@
       margin-top: 18px;
       text-align: center;
       font-size: 12px;
-      color: var(--ink-soft);
+      color: var(--amber-soft);
     }
 
     /* Sync indicator */
@@ -563,7 +574,7 @@
 
 <!-- Splash screen (briefly shown while Firebase auth state initializes) -->
 <div id="splashScreen">
-  <img class="brand-logo" src="logo.jpg" alt="Southern Wildlife Resources"
+  <img class="brand-logo" src="logo.png" alt="Southern Wildlife Resources"
        onload="this.classList.add('loaded'); this.parentElement.classList.add('has-logo');"
        onerror="this.remove();">
   <div class="paw-mark">
@@ -584,7 +595,7 @@
 <!-- Sign-in screen -->
 <div id="signInScreen" class="hidden">
   <div class="signin-wrap">
-    <img class="brand-logo" src="logo.jpg" alt="SWR"
+    <img class="brand-logo" src="logo.png" alt="SWR"
          onload="this.classList.add('loaded');" onerror="this.remove();">
     <h1>Sign In</h1>
     <p>Each trapper signs in once per device. Firebase keeps the session — you'll stay signed in offline.</p>
@@ -608,7 +619,7 @@
 <div id="app" class="hidden">
   <header id="appHeader">
     <div class="header-left">
-      <img class="brand-logo" src="logo.jpg" alt="SWR"
+      <img class="brand-logo" src="logo.png" alt="SWR"
            onload="this.classList.add('loaded'); this.parentElement.classList.add('has-logo');"
            onerror="this.remove();">
       <div class="paw-mark">
