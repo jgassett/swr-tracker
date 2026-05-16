@@ -234,6 +234,9 @@
     .field-row { display: grid; grid-template-columns: 1fr; gap: 10px; }
     .field-row > .form-group { margin-bottom: 14px; }
     .hint { font-size: 12px; color: var(--ink-soft); margin-top: 4px; }
+    .hint.working { color: var(--amber); font-style: italic; }
+    .hint.success { color: var(--released); font-weight: 500; }
+    .hint.error { color: var(--danger); font-weight: 500; }
 
     .search-bar { position: relative; margin-bottom: 10px; }
     .search-bar input { padding-left: 40px; }
@@ -338,6 +341,26 @@
 
     .conditional { display: none; }
     .conditional.on { display: block; }
+
+    /* Photo capture */
+    .photo-actions { display: flex; gap: 8px; margin: 8px 0; }
+    .photo-actions .map-btn.danger-btn { color: var(--danger); }
+    #photoPreview {
+      max-width: 100%;
+      max-height: 320px;
+      width: auto;
+      border-radius: 12px;
+      display: block;
+      background: var(--cream-deep);
+    }
+    .detail-photo {
+      width: 100%;
+      max-height: 360px;
+      object-fit: cover;
+      border-radius: 12px;
+      margin: 10px 0 12px;
+      display: block;
+    }
 
     .map-section-label {
       font-family: 'Playfair Display', serif;
@@ -997,6 +1020,7 @@
           <label for="f-address">Address of Collection<span class="req">*</span></label>
           <input type="text" id="f-address" placeholder="123 Main St, Lexington" autocomplete="off" required>
           <div class="hint">Auto-fills when you drop a pin below; type manually if needed.</div>
+          <div class="hint" id="addressValidationHint"></div>
         </div>
         <div class="form-group">
           <div class="map-section-label">Trap Location Map</div>
@@ -1078,6 +1102,24 @@
         <div class="form-group conditional" id="cg-excludedNumber">
           <label for="f-excluded-number">Number Excluded / Dispersed<span class="req">*</span></label>
           <input type="number" id="f-excluded-number" min="0" step="1" placeholder="0">
+        </div>
+
+        <h3 class="form-section">Photo</h3>
+        <div class="form-group">
+          <label>Photo<span class="opt">(optional)</span></label>
+          <div id="photoPreviewWrap" class="hidden">
+            <img id="photoPreview" alt="Captured photo">
+            <div class="photo-actions">
+              <button type="button" class="map-btn ghost" id="photoReplaceBtn">Replace</button>
+              <button type="button" class="map-btn ghost danger-btn" id="photoRemoveBtn">Remove</button>
+            </div>
+          </div>
+          <button type="button" class="map-btn" id="photoCaptureBtn">
+            <svg viewBox="0 0 24 24"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg>
+            Take Photo
+          </button>
+          <input type="file" id="photoInput" accept="image/*" capture="environment" hidden>
+          <div class="hint">Camera opens directly on tap. Optional but useful for client situations or evidence.</div>
         </div>
 
         <h3 class="form-section">Notes</h3>
@@ -1233,6 +1275,7 @@
   <h2 id="detailTitle">Record</h2>
   <div class="muted" id="detailSub" style="font-size:13px;"></div>
   <div class="detail-rows" id="detailRows"></div>
+  <img id="detailPhoto" class="detail-photo hidden" alt="Record photo">
   <div class="btn-row">
     <button class="btn btn-ghost" id="detailClose">Close</button>
     <button class="btn btn-primary" id="detailEdit">Edit</button>
@@ -1269,6 +1312,9 @@ import {
   collection, doc, getDoc, getDocs, addDoc, setDoc, deleteDoc,
   query, orderBy, onSnapshot, writeBatch
 } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+import {
+  getStorage, ref as storageRef, uploadBytes, getDownloadURL
+} from "https://www.gstatic.com/firebasejs/10.13.0/firebase-storage.js";
 
 /* =====================================================================
  * Southern Wildlife Tracker
@@ -1290,6 +1336,7 @@ const fbAuth = getAuth(fbApp);
 const fbDb = initializeFirestore(fbApp, {
   localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() })
 });
+const fbStorage = getStorage(fbApp);
 try { await setPersistence(fbAuth, browserLocalPersistence); } catch (e) { /* private mode */ }
 
 let currentUser = null;
@@ -1598,6 +1645,74 @@ function isValidPhone(s) {
   return digits.length === 10 || (digits.length === 11 && digits[0] === '1');
 }
 
+/* ---------- Photo capture ---------- */
+function loadImagePromise(file) {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => { URL.revokeObjectURL(url); resolve(img); };
+    img.onerror = (e) => { URL.revokeObjectURL(url); reject(e); };
+    img.src = url;
+  });
+}
+async function compressImage(file, maxDim = 1600, quality = 0.85) {
+  const img = await loadImagePromise(file);
+  const w = img.naturalWidth, h = img.naturalHeight;
+  const scale = Math.min(maxDim / Math.max(w, h), 1);
+  const newW = Math.round(w * scale), newH = Math.round(h * scale);
+  const canvas = document.createElement('canvas');
+  canvas.width = newW; canvas.height = newH;
+  canvas.getContext('2d').drawImage(img, 0, 0, newW, newH);
+  return new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', quality));
+}
+function showPhotoPreview(url) {
+  $('#photoPreview').src = url;
+  $('#photoPreviewWrap').classList.remove('hidden');
+  $('#photoCaptureBtn').classList.add('hidden');
+}
+function hidePhotoPreview() {
+  $('#photoPreview').src = '';
+  $('#photoPreviewWrap').classList.add('hidden');
+  $('#photoCaptureBtn').classList.remove('hidden');
+}
+async function handlePhotoSelected(e) {
+  const file = e.target.files && e.target.files[0];
+  if (!file) return;
+  try {
+    const blob = await compressImage(file);
+    pendingPhotoBlob = blob;
+    if (pendingPhotoUrl) URL.revokeObjectURL(pendingPhotoUrl);
+    pendingPhotoUrl = URL.createObjectURL(blob);
+    removeExistingPhoto = false;
+    showPhotoPreview(pendingPhotoUrl);
+  } catch (err) {
+    console.error(err);
+    toast('Could not process that image', 'error');
+  }
+  e.target.value = '';
+}
+function handlePhotoRemove() {
+  pendingPhotoBlob = null;
+  if (pendingPhotoUrl) { URL.revokeObjectURL(pendingPhotoUrl); pendingPhotoUrl = null; }
+  removeExistingPhoto = true;  /* signal to drop saved URL on next save */
+  hidePhotoPreview();
+}
+function resetPhotoUI() {
+  pendingPhotoBlob = null;
+  if (pendingPhotoUrl) { URL.revokeObjectURL(pendingPhotoUrl); pendingPhotoUrl = null; }
+  removeExistingPhoto = false;
+  hidePhotoPreview();
+}
+async function uploadPendingPhoto() {
+  if (!pendingPhotoBlob) return null;
+  const photoId = (crypto && crypto.randomUUID ? crypto.randomUUID() : 'p-' + Date.now() + '-' + Math.random().toString(36).slice(2, 9));
+  const path = `records/${photoId}/photo.jpg`;
+  const ref = storageRef(fbStorage, path);
+  await uploadBytes(ref, pendingPhotoBlob, { contentType: 'image/jpeg' });
+  const url = await getDownloadURL(ref);
+  return { path, url };
+}
+
 async function sendRecordEmail(rec) {
   if (typeof emailjs === 'undefined') return;
   try {
@@ -1625,7 +1740,8 @@ async function sendRecordEmail(rec) {
       trap_lat: rec.trapLat == null ? '' : String(rec.trapLat),
       trap_lng: rec.trapLng == null ? '' : String(rec.trapLng),
       release_lat: rec.releaseLat == null ? '' : String(rec.releaseLat),
-      release_lng: rec.releaseLng == null ? '' : String(rec.releaseLng)
+      release_lng: rec.releaseLng == null ? '' : String(rec.releaseLng),
+      photo_url: rec.photoUrl || ''
     };
     await emailjs.send(EMAILJS_CONFIG.serviceId, EMAILJS_CONFIG.templateId, params);
   } catch (err) {
@@ -2064,6 +2180,9 @@ function toggleGroup(id, on) {
 /* ---------- Form lifecycle ---------- */
 let editingId = null;
 let pendingRecord = null;
+let pendingPhotoBlob = null;     /* compressed Blob, ready to upload */
+let pendingPhotoUrl = null;      /* object URL for preview only */
+let removeExistingPhoto = false; /* user tapped Remove on a saved photo */
 
 function resetForm() {
   editingId = null;
@@ -2076,7 +2195,13 @@ function resetForm() {
   $('#f-trap-lng').value = '';
   $('#f-release-lat').value = '';
   $('#f-release-lng').value = '';
-  if ($('#f-address').dataset) delete $('#f-address').dataset.fromMap;
+  if ($('#f-address').dataset) {
+    delete $('#f-address').dataset.fromMap;
+    delete $('#f-address').dataset.lastValidated;
+  }
+  const _addrHint = $('#addressValidationHint');
+  if (_addrHint) { _addrHint.textContent = ''; _addrHint.className = 'hint'; }
+  resetPhotoUI();
   /* Clear any markers on map widgets if they're already initialized. */
   if (trapMapInstance) trapMapInstance.clear();
   if (releaseMapInstance) releaseMapInstance.clear();
@@ -2141,6 +2266,12 @@ function loadIntoForm(rec) {
       if (releaseMapInstance) releaseMapInstance.setLocation(rec.releaseLat, rec.releaseLng, { notify: false });
     }
   }, 250);
+  /* Photo preview from saved URL (no pending blob — replacement creates a new upload) */
+  pendingPhotoBlob = null;
+  pendingPhotoUrl = null;
+  removeExistingPhoto = false;
+  if (rec.photoUrl) showPhotoPreview(rec.photoUrl);
+  else hidePhotoPreview();
   $('#deleteBtn').style.display = editingId ? 'block' : 'none';
   $('#saveBtn').textContent = editingId ? 'Review Changes' : 'Review Record';
   updateConditionals();
@@ -2245,7 +2376,29 @@ async function confirmSave() {
       rec.createdAt = existing.createdAt;
       /* recordNumber is immutable once assigned. Generate if missing for legacy records. */
       rec.recordNumber = existing.recordNumber || generateRecordNumber(rec, cachedRecords);
+      /* Carry over photo if present and no replacement is pending. */
+      if (existing.photoUrl && !pendingPhotoBlob && !removeExistingPhoto) {
+        rec.photoUrl = existing.photoUrl;
+        rec.photoPath = existing.photoPath || null;
+      }
     }
+  }
+  /* Photo upload — if user captured one, push to Storage and stamp the URL. */
+  if (pendingPhotoBlob) {
+    try {
+      const result = await uploadPendingPhoto();
+      if (result) { rec.photoUrl = result.url; rec.photoPath = result.path; }
+    } catch (err) {
+      const cont = await confirmDialog(
+        'Photo upload failed',
+        `Could not upload the photo (${err.code || err.message || 'unknown'}). Save the record without it?`,
+        { okText: 'Save Without Photo' }
+      );
+      if (!cont) return;
+    }
+  } else if (removeExistingPhoto) {
+    rec.photoUrl = null;
+    rec.photoPath = null;
   }
   rec.updatedAt = new Date().toISOString();
   const wasEdit = !!rec.id;
@@ -2485,6 +2638,68 @@ function autoScrollPastMap(targetFieldId) {
     const el = document.getElementById(targetFieldId);
     if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
   }, 250);
+}
+
+async function validateAddressOnBlur() {
+  const addressInput = $('#f-address');
+  const hint = $('#addressValidationHint');
+  if (!hint) return;
+  const addr = addressInput.value.trim();
+  if (!addr) {
+    hint.textContent = '';
+    hint.className = 'hint';
+    return;
+  }
+  /* If the address was auto-filled by a map pin, it's already verified. */
+  if (addressInput.dataset.fromMap === '1') {
+    hint.textContent = '✓ Verified via map pin';
+    hint.className = 'hint success';
+    return;
+  }
+  /* Skip if we've already validated this exact value. */
+  if (addressInput.dataset.lastValidated === addr) return;
+
+  hint.textContent = 'Validating address…';
+  hint.className = 'hint working';
+
+  const lower = addr.toLowerCase();
+  const query = (lower.includes(' ky') || lower.includes('kentucky')) ? addr : addr + ', Kentucky';
+
+  let geo;
+  try { geo = await forwardGeocode(query); }
+  catch (e) {
+    hint.textContent = 'Validator offline — address not checked.';
+    hint.className = 'hint error';
+    return;
+  }
+  if (!geo) {
+    hint.textContent = '⚠ Address not found. Verify the spelling, or drop a pin on the map below.';
+    hint.className = 'hint error';
+    return;
+  }
+  addressInput.dataset.lastValidated = addr;
+  /* Store coords so they flow into the CSV / KDFWR export. */
+  $('#f-trap-lat').value = geo.lat;
+  $('#f-trap-lng').value = geo.lng;
+  const summary = [geo.streetAddress, geo.city, geo.state].filter(Boolean).join(', ');
+  hint.textContent = `✓ Verified: ${summary || geo.formattedAddress}`;
+  hint.className = 'hint success';
+  /* Drop the pin on the map for visual confirmation (only if no pin yet). */
+  if (trapMapInstance && !trapMapInstance.getLocation()) {
+    trapMapInstance.setLocation(geo.lat, geo.lng, { notify: false });
+  }
+  /* Offer to auto-select the county. */
+  if (geo.county) {
+    const match = matchingOptionValue('f-county', geo.county);
+    if (match && $('#f-county').value !== match) {
+      const ok = await confirmDialog(
+        `Detected: ${match} County`,
+        `Address resolved to ${match} County. Use it for County of Collection?`,
+        { okText: 'Yes, use it' }
+      );
+      if (ok) $('#f-county').value = match;
+    }
+  }
 }
 
 async function handleTrapLocationChange(lat, lng, source) {
@@ -2812,6 +3027,14 @@ function openSheet(rec, mode) {
     $('#detailEdit').textContent = 'Edit';
   }
   $('#detailRows').innerHTML = buildDetailRows(rec);
+  const photoEl = $('#detailPhoto');
+  if (rec.photoUrl) {
+    photoEl.src = rec.photoUrl;
+    photoEl.classList.remove('hidden');
+  } else {
+    photoEl.src = '';
+    photoEl.classList.add('hidden');
+  }
   $('#sheetBackdrop').classList.add('open');
   $('#detailSheet').classList.add('open');
   $('#detailSheet').scrollTop = 0;
@@ -2895,7 +3118,7 @@ function fullCSV(records) {
     'Disposal Method','Disposal (specify)','Dispatch Method',
     'Release County','Release County (specify)','Release Lat','Release Lng',
     'Release Date','Excluded Number',
-    'Notes','Created At','Updated At'
+    'Notes','Photo URL','Created At','Updated At'
   ];
   const lines = [csvLine(header)];
   for (const r of records) {
@@ -2910,7 +3133,7 @@ function fullCSV(records) {
       r.releaseLat == null ? '' : r.releaseLat, r.releaseLng == null ? '' : r.releaseLng,
       r.releaseDate,
       r.excludedNumber == null ? '' : r.excludedNumber,
-      r.notes, r.createdAt, r.updatedAt
+      r.notes, r.photoUrl || '', r.createdAt, r.updatedAt
     ]));
   }
   return lines.join('\r\n') + '\r\n';
@@ -3225,6 +3448,28 @@ async function init() {
   $('#f-client-phone').addEventListener('blur', (e) => {
     const v = e.target.value.trim();
     if (v) e.target.value = formatPhone(v);
+  });
+
+  /* Photo capture wiring */
+  $('#photoCaptureBtn').addEventListener('click', () => $('#photoInput').click());
+  $('#photoReplaceBtn').addEventListener('click', () => $('#photoInput').click());
+  $('#photoRemoveBtn').addEventListener('click', handlePhotoRemove);
+  $('#photoInput').addEventListener('change', handlePhotoSelected);
+
+  /* Validate manually-typed address on blur. */
+  $('#f-address').addEventListener('blur', () => {
+    /* User may be tabbing to the next field — let blur settle first. */
+    setTimeout(validateAddressOnBlur, 150);
+  });
+  $('#f-address').addEventListener('input', () => {
+    /* Clear any prior validation note so they know it's pending. */
+    const hint = $('#addressValidationHint');
+    if (hint && hint.className.includes('success')) {
+      hint.textContent = '';
+      hint.className = 'hint';
+    }
+    delete $('#f-address').dataset.lastValidated;
+    delete $('#f-address').dataset.fromMap;
   });
 
   /* Map locate buttons */
