@@ -1,5 +1,5 @@
 /* Southern Wildlife Tracker service worker — cache-first for the app shell. */
-const CACHE = 'swr-tracker-v19';
+const CACHE = 'swr-tracker-v20';
 const SHELL = [
   './',
   './index.html',
@@ -41,7 +41,8 @@ self.addEventListener('fetch', (event) => {
         const isFirebaseSdk = url.host === 'www.gstatic.com' && url.pathname.startsWith('/firebasejs/');
         const isLeaflet = url.host === 'unpkg.com' && url.pathname.startsWith('/leaflet@');
         const isEmailJsCdn = url.host === 'cdn.jsdelivr.net' && url.pathname.includes('@emailjs/browser');
-        if (res.ok && (isAppShellOrigin || isGoogleFonts || isFirebaseSdk || isLeaflet || isEmailJsCdn)) {
+        const isTesseract = url.host === 'cdn.jsdelivr.net' && url.pathname.includes('tesseract');
+        if (res.ok && (isAppShellOrigin || isGoogleFonts || isFirebaseSdk || isLeaflet || isEmailJsCdn || isTesseract)) {
           caches.open(CACHE).then((cache) => cache.put(req, copy));
         }
         return res;

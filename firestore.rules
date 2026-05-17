@@ -3,7 +3,7 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    /* Records — shared by all three trappers. */
+    /* Trap records — shared by all three trappers. */
     match /records/{recordId} {
       allow read:   if request.auth != null;
       allow create: if request.auth != null
@@ -12,7 +12,25 @@ service cloud.firestore {
       allow delete: if request.auth != null;
     }
 
-    /* Org-level settings (business name, permit, etc.). Optional. */
+    /* Pesticide master database — admin manages, all read. */
+    match /pesticides/{pesticideId} {
+      allow read:   if request.auth != null;
+      allow create: if request.auth != null
+                    && request.resource.data.createdByUid == request.auth.uid;
+      allow update: if request.auth != null;
+      allow delete: if request.auth != null;
+    }
+
+    /* Pesticide application records — shared. */
+    match /pesticide_records/{recordId} {
+      allow read:   if request.auth != null;
+      allow create: if request.auth != null
+                    && request.resource.data.createdByUid == request.auth.uid;
+      allow update: if request.auth != null;
+      allow delete: if request.auth != null;
+    }
+
+    /* Org-level settings (business name, permit, applicator certs, etc.). */
     match /org/{docId} {
       allow read:  if request.auth != null;
       allow write: if request.auth != null;

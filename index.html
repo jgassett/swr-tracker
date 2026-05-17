@@ -20,6 +20,7 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
   <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
   <style>
     :root {
       --green: #1E3A2A;
@@ -61,6 +62,115 @@
     .brand-logo.loaded { display: block; }
     .paw-mark { display: flex; align-items: center; justify-content: center; }
     .has-logo .paw-mark { display: none; }
+
+    /* Mode picker (after sign-in) */
+    #modePicker {
+      position: fixed; inset: 0;
+      background: var(--green);
+      color: var(--cream);
+      padding: calc(var(--safe-top) + 24px) 20px calc(var(--safe-bot) + 24px);
+      overflow-y: auto;
+      z-index: 96;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+    }
+    .mode-picker-wrap {
+      max-width: 440px; width: 100%; margin: 0 auto;
+      display: flex; flex-direction: column; align-items: center; gap: 16px;
+    }
+    .mode-picker-wrap .brand-logo {
+      display: none; height: 78px; max-width: 220px; margin-bottom: 8px;
+    }
+    .mode-picker-wrap .brand-logo.loaded { display: block; }
+    .mode-picker-wrap h1 {
+      color: var(--cream); font-size: 22px; text-align: center; margin: 0 0 4px;
+    }
+    .mode-picker-wrap .mode-sub {
+      color: var(--amber-soft); text-align: center; font-size: 13px; margin-bottom: 10px;
+    }
+    .mode-card {
+      width: 100%;
+      background: rgba(255,255,255,0.05);
+      border: 2px solid rgba(196,119,42,0.25);
+      border-radius: 16px;
+      padding: 22px 18px;
+      color: var(--cream);
+      display: flex; align-items: center; gap: 14px;
+      text-align: left;
+      transition: background 0.15s, border-color 0.15s, transform 0.05s;
+    }
+    .mode-card:active { transform: scale(0.98); }
+    .mode-card:hover, .mode-card:focus { background: rgba(196,119,42,0.18); border-color: var(--amber); }
+    .mode-card .icon-circle {
+      width: 56px; height: 56px; border-radius: 50%;
+      background: var(--amber); flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .mode-card svg { width: 30px; height: 30px; stroke: #fff; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+    .mode-card .mode-title { font-family: 'Playfair Display', serif; font-size: 19px; font-weight: 700; color: var(--cream); }
+    .mode-card .mode-desc { font-size: 12px; color: var(--amber-soft); margin-top: 2px; }
+
+    /* Mode toggle in header */
+    .mode-toggle {
+      display: inline-flex;
+      background: rgba(255,255,255,0.08);
+      border: 1px solid rgba(255,255,255,0.18);
+      border-radius: 8px;
+      padding: 2px;
+      gap: 0;
+      cursor: pointer;
+    }
+    .mode-toggle button {
+      background: transparent;
+      border: none;
+      color: rgba(248,244,238,0.6);
+      padding: 5px 8px;
+      font-size: 10px;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      font-weight: 700;
+      border-radius: 6px;
+    }
+    .mode-toggle button.active {
+      background: var(--amber);
+      color: #fff;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+    }
+
+    /* Pesticide CRUD card (admin only) */
+    .pesticide-row {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 10px 0; border-bottom: 1px solid var(--line); gap: 10px;
+    }
+    .pesticide-row:last-child { border-bottom: none; }
+    .pesticide-row .name { font-weight: 600; color: var(--green-deep); }
+    .pesticide-row .meta { font-size: 12px; color: var(--ink-soft); margin-top: 2px; }
+    .pesticide-row .actions { display: flex; gap: 6px; flex-shrink: 0; }
+    .pesticide-row .pill-btn {
+      background: var(--cream-deep); color: var(--green-deep); border: none;
+      padding: 6px 10px; border-radius: 6px; font-size: 12px; font-weight: 600;
+    }
+    .pesticide-row .pill-btn.danger { color: var(--danger); }
+
+    /* Multi-photo OCR scanner */
+    .ocr-photo-row { display: flex; gap: 8px; margin: 8px 0; flex-wrap: wrap; }
+    .ocr-photo-slot {
+      width: 80px; height: 80px;
+      border: 2px dashed var(--line);
+      border-radius: 10px;
+      background: var(--cream-deep);
+      display: flex; align-items: center; justify-content: center;
+      position: relative; overflow: hidden;
+      font-size: 11px; color: var(--ink-soft);
+    }
+    .ocr-photo-slot img { width: 100%; height: 100%; object-fit: cover; }
+    .ocr-photo-slot .clear { position: absolute; top: 2px; right: 2px; background: rgba(0,0,0,0.55); color: #fff; border: none; width: 22px; height: 22px; border-radius: 50%; font-size: 14px; line-height: 1; }
+    .ocr-raw {
+      max-height: 140px; overflow-y: auto;
+      background: var(--cream-deep); border-radius: 8px;
+      padding: 8px 10px; font-family: ui-monospace, monospace; font-size: 11px;
+      color: var(--ink-soft); margin-top: 6px; white-space: pre-wrap;
+    }
+    .auto-filled-flag { color: var(--amber); font-size: 11px; margin-left: 6px; }
 
     /* Splash screen */
     #splashScreen {
@@ -790,6 +900,34 @@
   </div>
 </div>
 
+<!-- Mode picker (after sign-in) -->
+<div id="modePicker" class="hidden">
+  <div class="mode-picker-wrap">
+    <img class="brand-logo" src="logo.png" alt="SWR"
+         onload="this.classList.add('loaded');" onerror="this.remove();">
+    <h1>What are you doing today?</h1>
+    <div class="mode-sub">Pick a job type — you can switch from the header any time.</div>
+    <button type="button" class="mode-card" data-mode="trap">
+      <div class="icon-circle">
+        <svg viewBox="0 0 24 24"><circle cx="6" cy="11" r="2.5"/><circle cx="12" cy="8" r="2.5"/><circle cx="18" cy="11" r="2.5"/><ellipse cx="12" cy="17" rx="5" ry="4"/></svg>
+      </div>
+      <div>
+        <div class="mode-title">Log a Trap</div>
+        <div class="mode-desc">Wildlife capture, release, or euthanasia</div>
+      </div>
+    </button>
+    <button type="button" class="mode-card" data-mode="pesticide">
+      <div class="icon-circle">
+        <svg viewBox="0 0 24 24"><path d="M9 2h6v3l3 3v3l-3 1v9a2 2 0 0 1-2 2h-2a2 2 0 0 1-2-2v-9l-3-1V8l3-3z"/><circle cx="12" cy="14" r="1.5"/></svg>
+      </div>
+      <div>
+        <div class="mode-title">Log a Pesticide</div>
+        <div class="mode-desc">Chemical application record</div>
+      </div>
+    </button>
+  </div>
+</div>
+
 <!-- App -->
 <div id="app" class="hidden">
   <header id="appHeader">
@@ -810,6 +948,10 @@
       </div>
       <div class="titlebox">
         <h1 id="viewTitle">Dashboard</h1>
+        <div class="mode-toggle" id="modeToggle" style="margin-top: 4px;">
+          <button type="button" data-mode="trap" class="active">Trap</button>
+          <button type="button" data-mode="pesticide">Pest</button>
+        </div>
       </div>
     </div>
     <div class="header-right">
@@ -1200,6 +1342,76 @@
         </div>
       </div>
 
+      <div class="card" id="certCard">
+        <h3 style="margin-bottom:10px;">Pesticide Certifications</h3>
+        <div id="certDisplay" class="biz-info">
+          <div class="biz-row"><span class="biz-label">Jon Gassett</span><span class="biz-value mono" id="certJon">—</span></div>
+          <div class="biz-row"><span class="biz-label">Robin Gassett</span><span class="biz-value mono" id="certRobin">—</span></div>
+          <div class="biz-row"><span class="biz-label">Chris Griffith</span><span class="biz-value mono" id="certChris">—</span></div>
+        </div>
+        <div id="certEdit" class="hidden">
+          <p class="muted" style="font-size:13px; margin-bottom:10px;">KY Department of Agriculture pesticide applicator certification numbers. Leave a field blank to mark that applicator as not yet certified (their option will be disabled in the pesticide form).</p>
+          <div class="form-group">
+            <label for="editCertJon">Jon Gassett</label>
+            <input type="text" id="editCertJon" autocomplete="off">
+          </div>
+          <div class="form-group">
+            <label for="editCertRobin">Robin Gassett</label>
+            <input type="text" id="editCertRobin" autocomplete="off">
+          </div>
+          <div class="form-group">
+            <label for="editCertChris">Chris Griffith</label>
+            <input type="text" id="editCertChris" autocomplete="off" placeholder="(not yet certified)">
+          </div>
+          <button class="btn btn-primary" id="saveCertBtn">Save Certifications</button>
+        </div>
+      </div>
+
+      <div class="card hidden" id="pesticideDbCard">
+        <h3 style="margin-bottom:10px;">Pesticide Database</h3>
+        <p class="muted" style="font-size:13px; margin-bottom:14px;">Catalog of products available in the Pesticide Application form. Adds propagate to every device. Admin only.</p>
+        <div id="pesticideList" style="margin-bottom: 14px;"></div>
+        <button class="btn btn-amber" id="addPesticideBtn">+ Add Pesticide</button>
+
+        <div id="pesticideForm" class="hidden" style="margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--line);">
+          <h4 id="pesticideFormTitle" style="font-family: 'Playfair Display', serif; color: var(--green-deep); margin-bottom: 12px;">New Pesticide</h4>
+          <input type="hidden" id="pestEditId">
+          <div class="form-group">
+            <label for="pestName">Brand / Product Name<span class="req">*</span></label>
+            <input type="text" id="pestName" placeholder="e.g. Talstar P">
+          </div>
+          <div class="form-group">
+            <label for="pestActive">Active Ingredient<span class="req">*</span></label>
+            <input type="text" id="pestActive" placeholder="e.g. Bifenthrin">
+          </div>
+          <div class="field-row two">
+            <div class="form-group">
+              <label for="pestEpa">EPA Registration #<span class="req">*</span></label>
+              <input type="text" id="pestEpa" placeholder="e.g. 279-3206">
+            </div>
+            <div class="form-group">
+              <label for="pestConc">Concentration %<span class="req">*</span></label>
+              <input type="number" id="pestConc" step="0.01" min="0" max="100" placeholder="7.9">
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Safety Data Sheet (SDS) PDF</label>
+            <div id="sdsPreview" class="hint"></div>
+            <input type="file" id="pestSdsFile" accept="application/pdf">
+          </div>
+          <div class="form-group">
+            <label>Label PDF</label>
+            <div id="labelPreview" class="hint"></div>
+            <input type="file" id="pestLabelFile" accept="application/pdf">
+          </div>
+          <div class="btn-row" style="margin-top:14px;">
+            <button type="button" class="btn btn-ghost" id="pestCancelBtn">Cancel</button>
+            <button type="button" class="btn btn-primary" id="pestSaveBtn">Save Pesticide</button>
+          </div>
+          <button type="button" class="btn btn-danger" id="pestDeleteBtn" style="margin-top:10px; display:none;">Delete Pesticide</button>
+        </div>
+      </div>
+
       <div class="card" id="reportCard">
         <h3 style="margin-bottom:10px;">Reporting Period</h3>
         <div id="reportDisplay" class="biz-info">
@@ -1341,10 +1553,70 @@ try { await setPersistence(fbAuth, browserLocalPersistence); } catch (e) { /* pr
 
 let currentUser = null;
 let recordsUnsub = null;
+let pesticideRecordsUnsub = null;
+let pesticidesUnsub = null;
 let orgUnsub = null;
 let lastSyncError = null;
 let syncRetryTimer = null;
 let topSpeciesScope = 'all';
+
+/* App mode: 'trap' or 'pesticide'. Set via the mode picker after sign-in
+   or via the always-visible header toggle. */
+let appMode = 'trap';
+
+let cachedPesticideRecords = [];
+let cachedPesticides = [];
+
+const APPLICATOR_CERT_DEFAULTS = {
+  'Jon Gassett': '71707',
+  'Robin Gassett': '71879',
+  'Chris Griffith': ''
+};
+
+const PESTICIDE_PURPOSES = [
+  'Rodent control (rats / mice)',
+  'Termite control',
+  'General insect / spider',
+  'Mosquito control',
+  'Bat colony exclusion treatment',
+  'Bird exclusion / repellent',
+  'Bee / wasp / hornet',
+  'Mole / vole control',
+  'Snake repellent',
+  'Vegetation / herbicide',
+  'Other (specify)'
+];
+
+const PESTICIDE_AREAS = [
+  'Structural interior',
+  'Structural exterior / perimeter',
+  'Crawlspace',
+  'Attic / roof void',
+  'Lawn / turfgrass',
+  'Landscape / ornamental',
+  'Right-of-way / fence line',
+  'Agricultural / farmland',
+  'Drain / sewer / utility',
+  'Commercial building',
+  'Residential property',
+  'Warehouse / storage',
+  'Other (specify)'
+];
+
+const APPLICATION_METHODS = [
+  'UTV sprayer',
+  'Backpack sprayer',
+  'Hand sprayer',
+  'Granule spreader',
+  'Applied to / in baits',
+  'Bait stations',
+  'Tracking powder',
+  'Gas injection',
+  'Other (specify)'
+];
+
+const ADJUVANTS = ['Water', 'Crop Oil', 'Surfactant', 'Other'];
+const AREA_UNITS = ['sq ft', 'acres'];
 
 const TRAPPERS = ['Jon Gassett', 'Robin Gassett', 'Chris Griffith'];
 
@@ -1474,8 +1746,11 @@ let orgSettings = {
   permitHolder: PERMIT_HOLDER,
   permitNumber: PERMIT_NUMBER,
   reportingPeriodStart: null,
-  reportingPeriodEnd: null
+  reportingPeriodEnd: null,
+  applicatorCerts: { ...APPLICATOR_CERT_DEFAULTS }
 };
+
+const PESTICIDE_EMAILJS_TEMPLATE_ID = '';  /* User will provide */
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -1890,9 +2165,38 @@ function showSignInScreen() {
   $('#app').classList.add('hidden');
   setTimeout(() => { try { $('#signInId').focus(); } catch (e) {} }, 120);
 }
+let modeSelected = false;  /* reset every session; mode picker appears after each sign-in */
+
+function showModePicker() {
+  hideSplash();
+  $('#signInScreen').classList.add('hidden');
+  $('#app').classList.add('hidden');
+  $('#modePicker').classList.remove('hidden');
+}
+function setAppMode(mode, opts = {}) {
+  appMode = mode;
+  modeSelected = true;
+  updateModeToggleUI();
+  if (!opts.skipShowApp) {
+    $('#modePicker').classList.add('hidden');
+    $('#app').classList.remove('hidden');
+    setView('dashboard');
+    refreshAll();
+  }
+}
+function updateModeToggleUI() {
+  $$('#modeToggle button').forEach((b) => b.classList.toggle('active', b.dataset.mode === appMode));
+  document.body.classList.toggle('mode-pesticide', appMode === 'pesticide');
+}
+
 function showApp() {
   hideSplash();
   $('#signInScreen').classList.add('hidden');
+  if (!modeSelected) {
+    showModePicker();
+    return;
+  }
+  $('#modePicker').classList.add('hidden');
   $('#app').classList.remove('hidden');
   setView(currentView);
   refreshAll();
@@ -1946,17 +2250,20 @@ function subscribeToOrg() {
   if (orgUnsub) return;
   orgUnsub = onSnapshot(doc(fbDb, 'org', 'swr'), (snap) => {
     if (snap.exists()) {
+      const data = snap.data();
       orgSettings = {
         businessName: BUSINESS_NAME,
         permitHolder: PERMIT_HOLDER,
         permitNumber: PERMIT_NUMBER,
         reportingPeriodStart: null,
         reportingPeriodEnd: null,
-        ...snap.data()
+        ...data,
+        applicatorCerts: { ...APPLICATOR_CERT_DEFAULTS, ...(data.applicatorCerts || {}) }
       };
     }
     renderBusinessCard();
     renderReportingCard();
+    renderCertCard();
     renderDashboard();
   }, (err) => console.error('Org subscription error', err));
 }
@@ -1965,6 +2272,39 @@ function unsubscribeFromOrg() {
 }
 async function saveOrgConfig(updates) {
   await setDoc(doc(fbDb, 'org', 'swr'), { ...orgSettings, ...updates }, { merge: true });
+}
+
+/* ---------- Pesticide master database (admin-managed) ---------- */
+function pesticidesCol() { return collection(fbDb, 'pesticides'); }
+function pesticideRecordsCol() { return collection(fbDb, 'pesticide_records'); }
+
+function subscribeToPesticides() {
+  if (pesticidesUnsub) return;
+  pesticidesUnsub = onSnapshot(query(pesticidesCol(), orderBy('name')), (snap) => {
+    cachedPesticides = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    renderPesticideAdminList();
+    refreshPesticideBrandDropdowns();
+  }, (err) => console.error('Pesticides subscription error', err));
+}
+function unsubscribeFromPesticides() {
+  if (pesticidesUnsub) { pesticidesUnsub(); pesticidesUnsub = null; }
+  cachedPesticides = [];
+}
+
+function subscribeToPesticideRecords() {
+  if (pesticideRecordsUnsub) return;
+  const q = query(pesticideRecordsCol(), orderBy('appliedAt', 'desc'));
+  pesticideRecordsUnsub = onSnapshot(q, { includeMetadataChanges: true }, (snap) => {
+    cachedPesticideRecords = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    if (appMode === 'pesticide' && !$('#app').classList.contains('hidden')) {
+      renderDashboard();
+      renderRecords();
+    }
+  }, (err) => console.error('Pesticide records subscription error', err));
+}
+function unsubscribeFromPesticideRecords() {
+  if (pesticideRecordsUnsub) { pesticideRecordsUnsub(); pesticideRecordsUnsub = null; }
+  cachedPesticideRecords = [];
 }
 
 /* ---------- One-time migration of local records to Firestore ---------- */
@@ -2410,7 +2750,7 @@ async function confirmSave() {
   closeSheet();
   resetForm();
   recordsViewMode = 'list';
-  updateModeToggleUI();
+  updateRecordsViewToggleUI();
   setView('records');
   await refreshAll();
   toast(wasEdit ? 'Record updated' : `Record saved · ${rec.recordNumber}`);
@@ -2805,7 +3145,7 @@ function speciesInitial(name) {
 let recordsViewMode = 'list';
 let singleIndex = 0;
 
-function updateModeToggleUI() {
+function updateRecordsViewToggleUI() {
   $$('.view-mode-toggle button').forEach((b) => b.classList.toggle('active', b.dataset.mode === recordsViewMode));
 }
 
@@ -2851,7 +3191,7 @@ function renderListMode(list) {
     tr.addEventListener('click', () => {
       singleIndex = i;
       recordsViewMode = 'single';
-      updateModeToggleUI();
+      updateRecordsViewToggleUI();
       renderRecords();
     });
     body.appendChild(tr);
@@ -3247,6 +3587,192 @@ async function handleSaveBusiness() {
   }
 }
 
+function renderCertCard() {
+  const certs = (orgSettings && orgSettings.applicatorCerts) || APPLICATOR_CERT_DEFAULTS;
+  const fmt = (v) => v ? v : '(not certified)';
+  $('#certJon').textContent = fmt(certs['Jon Gassett']);
+  $('#certRobin').textContent = fmt(certs['Robin Gassett']);
+  $('#certChris').textContent = fmt(certs['Chris Griffith']);
+  $('#editCertJon').value = certs['Jon Gassett'] || '';
+  $('#editCertRobin').value = certs['Robin Gassett'] || '';
+  $('#editCertChris').value = certs['Chris Griffith'] || '';
+  $('#certDisplay').classList.toggle('hidden', isAdmin());
+  $('#certEdit').classList.toggle('hidden', !isAdmin());
+}
+
+async function handleSaveCerts() {
+  if (!isAdmin()) return;
+  const newCerts = {
+    'Jon Gassett': $('#editCertJon').value.trim(),
+    'Robin Gassett': $('#editCertRobin').value.trim(),
+    'Chris Griffith': $('#editCertChris').value.trim()
+  };
+  const ok = await confirmDialog(
+    'Save certifications?',
+    'These are written to the shared org config and visible to all trappers. Applicators with blank cert numbers will be disabled in the pesticide form. Type CONFIRM to proceed.',
+    { sentinel: 'CONFIRM', okText: 'Save' }
+  );
+  if (!ok) return;
+  try {
+    await saveOrgConfig({ applicatorCerts: newCerts });
+    toast('Certifications saved');
+  } catch (err) {
+    toast(`Save failed: ${err.message || err}`, 'error');
+  }
+}
+
+/* ---------- Pesticide DB admin CRUD ---------- */
+let editingPesticideId = null;
+
+function renderPesticideAdminList() {
+  const root = $('#pesticideList');
+  if (!root) return;
+  if (!cachedPesticides.length) {
+    root.innerHTML = '<div class="empty" style="padding: 18px;"><div class="em-title">No pesticides yet</div><div>Add your common products to populate the application form dropdowns.</div></div>';
+    return;
+  }
+  root.innerHTML = cachedPesticides.map((p) => `
+    <div class="pesticide-row">
+      <div style="min-width: 0; flex: 1;">
+        <div class="name">${escapeHtml(p.name)}</div>
+        <div class="meta">${escapeHtml(p.activeIngredient || '')} · EPA ${escapeHtml(p.epaReg || '')} · ${escapeHtml(String(p.concentration ?? ''))}%</div>
+        ${p.sdsUrl ? `<a href="${escapeHtml(p.sdsUrl)}" target="_blank" rel="noopener" style="font-size: 11px; color: var(--amber); text-decoration: none; margin-right: 8px;">📄 SDS</a>` : ''}
+        ${p.labelUrl ? `<a href="${escapeHtml(p.labelUrl)}" target="_blank" rel="noopener" style="font-size: 11px; color: var(--amber); text-decoration: none;">📋 Label</a>` : ''}
+      </div>
+      <div class="actions">
+        <button class="pill-btn" data-edit="${escapeHtml(p.id)}">Edit</button>
+        <button class="pill-btn danger" data-delete="${escapeHtml(p.id)}">Delete</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+function refreshPesticideBrandDropdowns() {
+  /* No-op for now — populated by the pesticide application form in the next push. */
+}
+
+function openPesticideEditor(pesticide) {
+  editingPesticideId = pesticide ? pesticide.id : null;
+  $('#pestEditId').value = pesticide ? pesticide.id : '';
+  $('#pestName').value = pesticide ? pesticide.name : '';
+  $('#pestActive').value = pesticide ? pesticide.activeIngredient : '';
+  $('#pestEpa').value = pesticide ? pesticide.epaReg : '';
+  $('#pestConc').value = pesticide ? pesticide.concentration : '';
+  const sdsPreview = $('#sdsPreview');
+  if (pesticide && pesticide.sdsUrl) {
+    sdsPreview.innerHTML = `✓ SDS uploaded — <a href="${escapeHtml(pesticide.sdsUrl)}" target="_blank" rel="noopener">view current</a>. Pick a new file to replace.`;
+    sdsPreview.className = 'hint success';
+  } else {
+    sdsPreview.textContent = 'No SDS uploaded yet.';
+    sdsPreview.className = 'hint';
+  }
+  const labelPreview = $('#labelPreview');
+  if (pesticide && pesticide.labelUrl) {
+    labelPreview.innerHTML = `✓ Label uploaded — <a href="${escapeHtml(pesticide.labelUrl)}" target="_blank" rel="noopener">view current</a>. Pick a new file to replace.`;
+    labelPreview.className = 'hint success';
+  } else {
+    labelPreview.textContent = 'No label uploaded yet.';
+    labelPreview.className = 'hint';
+  }
+  $('#pestSdsFile').value = '';
+  $('#pestLabelFile').value = '';
+  $('#pesticideFormTitle').textContent = pesticide ? `Edit: ${pesticide.name}` : 'New Pesticide';
+  $('#pestDeleteBtn').style.display = pesticide ? 'block' : 'none';
+  $('#pesticideForm').classList.remove('hidden');
+  $('#addPesticideBtn').classList.add('hidden');
+}
+
+function closePesticideEditor() {
+  editingPesticideId = null;
+  $('#pesticideForm').classList.add('hidden');
+  $('#addPesticideBtn').classList.remove('hidden');
+}
+
+async function savePesticide() {
+  if (!isAdmin()) return;
+  const name = $('#pestName').value.trim();
+  const activeIngredient = $('#pestActive').value.trim();
+  const epaReg = $('#pestEpa').value.trim();
+  const concentration = parseFloat($('#pestConc').value);
+  if (!name || !activeIngredient || !epaReg || !Number.isFinite(concentration)) {
+    toast('Fill all required fields (name, active ingredient, EPA #, concentration).', 'error');
+    return;
+  }
+  const isEdit = !!editingPesticideId;
+  const existing = isEdit ? cachedPesticides.find((p) => p.id === editingPesticideId) : null;
+
+  const data = {
+    name, activeIngredient, epaReg, concentration,
+    sdsUrl: existing ? (existing.sdsUrl || null) : null,
+    sdsPath: existing ? (existing.sdsPath || null) : null,
+    labelUrl: existing ? (existing.labelUrl || null) : null,
+    labelPath: existing ? (existing.labelPath || null) : null,
+    updatedAt: new Date().toISOString()
+  };
+  if (!isEdit) {
+    data.createdAt = new Date().toISOString();
+    data.createdByUid = currentUser ? currentUser.uid : null;
+    data.createdByEmail = currentUser ? currentUser.email : null;
+  }
+
+  $('#pestSaveBtn').disabled = true;
+  $('#pestSaveBtn').textContent = 'Saving…';
+  try {
+    let pestId;
+    if (isEdit) {
+      pestId = editingPesticideId;
+      await setDoc(doc(fbDb, 'pesticides', pestId), data, { merge: true });
+    } else {
+      const ref = await addDoc(pesticidesCol(), data);
+      pestId = ref.id;
+    }
+    const sdsFile = $('#pestSdsFile').files[0];
+    if (sdsFile) {
+      const path = `pesticides/${pestId}/sds.pdf`;
+      const sref = storageRef(fbStorage, path);
+      await uploadBytes(sref, sdsFile, { contentType: 'application/pdf' });
+      const url = await getDownloadURL(sref);
+      await setDoc(doc(fbDb, 'pesticides', pestId), { sdsUrl: url, sdsPath: path, updatedAt: new Date().toISOString() }, { merge: true });
+    }
+    const labelFile = $('#pestLabelFile').files[0];
+    if (labelFile) {
+      const path = `pesticides/${pestId}/label.pdf`;
+      const sref = storageRef(fbStorage, path);
+      await uploadBytes(sref, labelFile, { contentType: 'application/pdf' });
+      const url = await getDownloadURL(sref);
+      await setDoc(doc(fbDb, 'pesticides', pestId), { labelUrl: url, labelPath: path, updatedAt: new Date().toISOString() }, { merge: true });
+    }
+    closePesticideEditor();
+    toast(isEdit ? `Updated ${name}` : `Added ${name}`);
+  } catch (err) {
+    toast(`Save failed: ${err.message || err}`, 'error');
+  } finally {
+    $('#pestSaveBtn').disabled = false;
+    $('#pestSaveBtn').textContent = 'Save Pesticide';
+  }
+}
+
+async function deletePesticide(id) {
+  if (!isAdmin()) return;
+  const target = id || editingPesticideId;
+  if (!target) return;
+  const p = cachedPesticides.find((x) => x.id === target);
+  if (!p) return;
+  const ok = await confirmDialog(
+    `Delete "${p.name}"?`,
+    `Removes this product from the shared catalog. Existing pesticide application records that reference this product are unaffected — they keep their stored values. Type CONFIRM to proceed.`,
+    { sentinel: 'CONFIRM', okText: 'Delete' }
+  );
+  if (!ok) return;
+  try {
+    await deleteDoc(doc(fbDb, 'pesticides', target));
+    if (editingPesticideId === target) closePesticideEditor();
+    toast(`Deleted ${p.name}`);
+  } catch (err) {
+    toast(`Delete failed: ${err.message || err}`, 'error');
+  }
+}
+
 async function handleSaveReporting() {
   if (!isAdmin()) return;
   const start = $('#editRptStart').value;
@@ -3336,6 +3862,10 @@ async function init() {
     const btn = e.target.closest('button[data-view]');
     if (!btn) return;
     const v = btn.dataset.view;
+    if (v === 'add' && appMode === 'pesticide') {
+      toast('Pesticide application form ships in the next update. Admin can add products via Settings now.', 'error');
+      return;
+    }
     if (v === 'add' && currentView !== 'add' && !pendingRecord) resetForm();
     setView(v);
   });
@@ -3370,7 +3900,7 @@ async function init() {
     if (!btn) return;
     recordsViewMode = btn.dataset.mode;
     if (recordsViewMode === 'single') singleIndex = 0;
-    updateModeToggleUI();
+    updateRecordsViewToggleUI();
     renderRecords();
   });
   $('#prevRec').addEventListener('click', () => {
@@ -3382,7 +3912,7 @@ async function init() {
   });
   $('#singleBack').addEventListener('click', () => {
     recordsViewMode = 'list';
-    updateModeToggleUI();
+    updateRecordsViewToggleUI();
     renderRecords();
   });
   $('#singleEdit').addEventListener('click', async () => {
@@ -3426,6 +3956,39 @@ async function init() {
 
   $('#saveBizBtn').addEventListener('click', handleSaveBusiness);
   $('#saveRptBtn').addEventListener('click', handleSaveReporting);
+  $('#saveCertBtn').addEventListener('click', handleSaveCerts);
+
+  /* Pesticide DB CRUD wiring */
+  $('#addPesticideBtn').addEventListener('click', () => openPesticideEditor(null));
+  $('#pestCancelBtn').addEventListener('click', closePesticideEditor);
+  $('#pestSaveBtn').addEventListener('click', savePesticide);
+  $('#pestDeleteBtn').addEventListener('click', () => deletePesticide());
+  $('#pesticideList').addEventListener('click', (e) => {
+    const editBtn = e.target.closest('[data-edit]');
+    const delBtn = e.target.closest('[data-delete]');
+    if (editBtn) {
+      const p = cachedPesticides.find((x) => x.id === editBtn.dataset.edit);
+      if (p) openPesticideEditor(p);
+    } else if (delBtn) {
+      deletePesticide(delBtn.dataset.delete);
+    }
+  });
+
+  /* Mode picker + header toggle */
+  $('#modePicker').addEventListener('click', (e) => {
+    const btn = e.target.closest('.mode-card');
+    if (!btn) return;
+    setAppMode(btn.dataset.mode);
+  });
+  $('#modeToggle').addEventListener('click', (e) => {
+    const btn = e.target.closest('button[data-mode]');
+    if (!btn) return;
+    appMode = btn.dataset.mode;
+    modeSelected = true;
+    updateModeToggleUI();
+    refreshAll();
+    setView('dashboard');
+  });
 
   $('#topSpeciesScope').addEventListener('click', (e) => {
     const btn = e.target.closest('button[data-scope]');
@@ -3570,17 +4133,25 @@ async function init() {
       $('#accountInfo').innerHTML = `Signed in as <strong>${escapeHtml(user.email)}</strong>${adminFlag}` +
         (trapper ? `<br><span class="muted">Trapper: ${escapeHtml(trapper)}</span>` : '');
       $('#wipeBtn').style.display = isAdmin() ? 'block' : 'none';
+      $('#pesticideDbCard').classList.toggle('hidden', !isAdmin());
       try { await maybeMigrateLocalRecords(); } catch (e) { console.error('Migration error', e); }
       subscribeToRecords();
       subscribeToOrg();
+      subscribeToPesticides();
+      subscribeToPesticideRecords();
       renderBusinessCard();
       renderReportingCard();
+      renderCertCard();
       showApp();
     } else {
       unsubscribeFromRecords();
       unsubscribeFromOrg();
+      unsubscribeFromPesticides();
+      unsubscribeFromPesticideRecords();
+      modeSelected = false;
       $('#accountInfo').textContent = 'Not signed in';
       $('#wipeBtn').style.display = 'none';
+      $('#pesticideDbCard').classList.add('hidden');
       updateSyncIndicator('offline');
       showSignInScreen();
     }
