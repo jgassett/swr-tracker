@@ -1059,7 +1059,7 @@
         <div class="stat">
           <div class="label">SWR · This Period</div>
           <div class="value" id="statTotalSwr">0</div>
-          <div class="sub">all trappers</div>
+          <div class="sub" id="statTotalSwrSub">all trappers</div>
         </div>
         <div class="stat">
           <div class="label">You · This Period</div>
@@ -1068,7 +1068,7 @@
         </div>
       </div>
 
-      <div class="card">
+      <div class="card" id="dashboardMapCard">
         <div class="row" style="margin-bottom: 10px;">
           <h3 style="margin: 0;">Current Location</h3>
           <button type="button" class="map-btn ghost" id="dashLocateBtn" style="background: var(--cream-deep); color: var(--green-deep); border: none; padding: 6px 12px; border-radius: 8px; font-size: 12px; font-weight: 600;">Locate Me</button>
@@ -1393,6 +1393,15 @@
         </div>
 
         <h3 class="form-section">Weather Conditions</h3>
+        <div class="form-group">
+          <div class="map-controls">
+            <button type="button" class="map-btn" id="pa-fetch-weather">
+              <svg viewBox="0 0 24 24"><path d="M6 19a4 4 0 0 1-1-7.9 5 5 0 0 1 9.6-2 4 4 0 0 1 4.4 4.9A4 4 0 0 1 18 19H6z"/></svg>
+              Fetch Local Weather
+            </button>
+          </div>
+          <div class="hint" id="pa-weather-status">Tap to auto-fill from your current location, or enter manually.</div>
+        </div>
         <div class="field-row two">
           <div class="form-group">
             <label for="pa-temp">Temperature (°F)<span class="req">*</span></label>
@@ -1461,6 +1470,7 @@
         <div class="form-group">
           <label for="pa-client-address">Address<span class="req">*</span></label>
           <input type="text" id="pa-client-address" autocomplete="street-address" required>
+          <div class="hint" id="pa-address-status"></div>
         </div>
         <div class="field-row two">
           <div class="form-group">
@@ -1866,6 +1876,7 @@ const PESTICIDE_PURPOSES = [
   'Termite control',
   'General insect / spider',
   'Mosquito control',
+  'Tick / flea lawn treatment',
   'Bat colony exclusion treatment',
   'Bird exclusion / repellent',
   'Bee / wasp / hornet',
@@ -2480,12 +2491,13 @@ function updateModeToggleUI() {
 function showApp() {
   hideSplash();
   $('#signInScreen').classList.add('hidden');
-  if (!modeSelected) {
-    showModePicker();
-    return;
-  }
   $('#modePicker').classList.add('hidden');
   $('#app').classList.remove('hidden');
+  if (!modeSelected) {
+    appMode = 'trap';
+    modeSelected = true;
+    updateModeToggleUI();
+  }
   setView(currentView);
   refreshAll();
 }
@@ -3347,7 +3359,10 @@ async function handleTrapLocationChange(lat, lng, source) {
   try {
     const geo = await reverseGeocode(lat, lng);
     const addressInput = $('#f-address');
-    if (geo.formattedAddress && (!addressInput.value.trim() || addressInput.dataset.fromMap === '1')) {
+    /* On 'locate' (explicit Use-My-Location tap) always overwrite — that's
+       a clear intent. On click/drag, only fill if blank or previously from map. */
+    const force = source === 'locate';
+    if (geo.formattedAddress && (force || !addressInput.value.trim() || addressInput.dataset.fromMap === '1')) {
       addressInput.value = geo.formattedAddress;
       addressInput.dataset.fromMap = '1';
     }
@@ -3546,7 +3561,9 @@ function renderDashboard() {
 
   $('#statTotalSwr').textContent = inP.length;
   $('#statTotalUser').textContent = minePeriod.length;
+  $('#statTotalSwrSub').textContent = 'all trappers';
   $('#statTotalUserSub').textContent = minePeriod.length === 1 ? 'your record' : 'your records';
+  $('#dashboardMapCard').classList.remove('hidden');
 
   /* Top species */
   const scope = topSpeciesScope === 'me' ? minePeriod : inP;
@@ -3614,7 +3631,9 @@ function renderPesticideDashboard() {
 
   $('#statTotalSwr').textContent = inP.length;
   $('#statTotalUser').textContent = mine.length;
+  $('#statTotalSwrSub').textContent = 'all applicators';
   $('#statTotalUserSub').textContent = mine.length === 1 ? 'your application' : 'your applications';
+  $('#dashboardMapCard').classList.add('hidden');
 
   /* Top products (by application count, not weighted) — reuse #topSpeciesList */
   const counts = {};
@@ -4507,6 +4526,18 @@ async function reviewPesticideForm(e) {
     );
     if (!proceed) { $('#pa-client-email').focus(); return; }
   }
+  if (!rec.signsPosted) {
+    const proceed = await confirmDialog(
+      'Signs not posted?',
+      'You marked Signs Posted as No. Many treatments legally require posted signs — confirm signs were genuinely not required for this application.',
+      { okText: 'Confirm — signs not required' }
+    );
+    if (!proceed) {
+      const yesRadio = document.querySelector('input[name="pa-signs"][value="yes"]');
+      if (yesRadio) yesRadio.focus();
+      return;
+    }
+  }
   pendingPesticideRecord = rec;
   openSheet(rec, 'review', 'pesticide');
 }
@@ -4717,6 +4748,68 @@ function openPesticideDetail(id) {
   const r = cachedPesticideRecords.find((x) => x.id === id);
   if (!r) return;
   openSheet(r, 'detail', 'pesticide');
+}
+
+async function fetchPesticideWeather() {
+  const status = $('#pa-weather-status');
+  status.textContent = 'Getting your location…';
+  status.className = 'hint working';
+  let lat, lng;
+  try {
+    const pos = await getCurrentPositionPromise();
+    lat = pos.lat; lng = pos.lng;
+  } catch (err) {
+    status.textContent = err && err.code === 1 ? 'Location permission denied.' : (err.message || 'Could not get location.');
+    status.className = 'hint error';
+    return;
+  }
+  status.textContent = 'Fetching weather…';
+  try {
+    const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&current=temperature_2m,wind_speed_10m,relative_humidity_2m&temperature_unit=fahrenheit&wind_speed_unit=mph`;
+    const res = await fetch(url);
+    if (!res.ok) throw new Error('Weather API failed');
+    const data = await res.json();
+    const c = data && data.current;
+    if (!c) throw new Error('No weather data');
+    $('#pa-temp').value = Math.round(c.temperature_2m);
+    $('#pa-wind').value = Math.round(c.wind_speed_10m);
+    $('#pa-humidity').value = Math.round(c.relative_humidity_2m);
+    status.textContent = `✓ Filled from current location · ${new Date().toLocaleTimeString()}`;
+    status.className = 'hint success';
+  } catch (err) {
+    status.textContent = `Could not fetch weather: ${err.message || err}. Enter manually.`;
+    status.className = 'hint error';
+  }
+}
+
+async function validatePesticideAddressOnBlur() {
+  const input = $('#pa-client-address');
+  const status = $('#pa-address-status');
+  if (!input || !status) return;
+  const addr = input.value.trim();
+  if (!addr) { status.textContent = ''; status.className = 'hint'; return; }
+  if (input.dataset.lastValidated === addr) return;
+  status.textContent = 'Validating address…';
+  status.className = 'hint working';
+  const cityZip = [$('#pa-client-city').value.trim(), $('#pa-client-zip').value.trim()].filter(Boolean).join(' ');
+  const q = `${addr}${cityZip ? ', ' + cityZip : ''}${(addr + cityZip).toLowerCase().includes('ky') ? '' : ', Kentucky'}`;
+  let geo;
+  try { geo = await forwardGeocode(q); }
+  catch (e) {
+    status.textContent = 'Validator offline — address not checked.';
+    status.className = 'hint error';
+    return;
+  }
+  if (!geo) {
+    status.textContent = '⚠ Address not found. Verify spelling, city, and ZIP.';
+    status.className = 'hint error';
+    return;
+  }
+  input.dataset.lastValidated = addr;
+  /* Optionally fill city/zip from geocoder if empty. */
+  if (geo.city && !$('#pa-client-city').value.trim()) $('#pa-client-city').value = geo.city;
+  status.textContent = `✓ Verified: ${[geo.streetAddress, geo.city, geo.state].filter(Boolean).join(', ')}`;
+  status.className = 'hint success';
 }
 
 async function sendPesticideEmail(rec) {
@@ -5038,6 +5131,13 @@ async function init() {
   $('#pa-client-name').addEventListener('blur', (e) => {
     const v = e.target.value.trim();
     if (v) e.target.value = titleCaseName(v);
+  });
+  $('#pa-fetch-weather').addEventListener('click', fetchPesticideWeather);
+  $('#pa-client-address').addEventListener('blur', () => setTimeout(validatePesticideAddressOnBlur, 150));
+  $('#pa-client-address').addEventListener('input', () => {
+    const status = $('#pa-address-status');
+    if (status && status.className.includes('success')) { status.textContent = ''; status.className = 'hint'; }
+    delete $('#pa-client-address').dataset.lastValidated;
   });
   $('#paPhotoCaptureBtn').addEventListener('click', () => $('#paPhotoInput').click());
   $('#paPhotoReplaceBtn').addEventListener('click', () => $('#paPhotoInput').click());
