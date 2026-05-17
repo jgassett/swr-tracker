@@ -465,6 +465,41 @@
     #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
     #toast.error { background: var(--danger); }
 
+    /* Edit modal (full-screen overlay used for admin pesticide form) */
+    #pesticideEditOverlay {
+      position: fixed; inset: 0; background: var(--cream); z-index: 120;
+      display: flex; flex-direction: column;
+    }
+    #pesticideEditOverlay.hidden { display: none !important; }
+    .edit-modal-header {
+      background: var(--green); color: var(--cream);
+      padding: calc(var(--safe-top) + 14px) 18px 14px;
+      display: flex; align-items: center; justify-content: space-between;
+      box-shadow: var(--shadow);
+    }
+    .edit-modal-header h2 { color: var(--cream); font-size: 20px; margin: 0; }
+    .edit-modal-close {
+      background: transparent; border: none; color: var(--cream);
+      font-size: 30px; line-height: 1; padding: 4px 10px;
+    }
+    .edit-modal-body {
+      flex: 1; overflow-y: auto; padding: 18px 18px 8px;
+      -webkit-overflow-scrolling: touch;
+    }
+    .edit-modal-footer {
+      padding: 12px 18px calc(var(--safe-bot) + 14px);
+      background: #fff;
+      border-top: 1px solid var(--line);
+      display: flex; flex-direction: column; gap: 8px;
+    }
+    .edit-modal-footer .btn { width: 100%; }
+    @media (min-width: 600px) {
+      #pesticideEditOverlay { padding: 0; }
+      .edit-modal-body { max-width: 600px; margin: 0 auto; width: 100%; }
+      .edit-modal-footer .btn-row { display: flex; }
+      .edit-modal-footer { max-width: 600px; margin: 0 auto; width: 100%; }
+    }
+
     /* Confirm modal */
     .confirm {
       position: fixed; inset: 0; z-index: 110; display: none;
@@ -1622,8 +1657,8 @@
         <h3 style="margin-bottom:10px;">Business</h3>
         <div id="bizDisplay" class="biz-info">
           <div class="biz-row"><span class="biz-label">Business</span><span class="biz-value" id="bizName">—</span></div>
-          <div class="biz-row"><span class="biz-label">Permit Holder</span><span class="biz-value" id="bizHolder">—</span></div>
-          <div class="biz-row"><span class="biz-label">Permit #</span><span class="biz-value mono" id="bizPermit">—</span></div>
+          <div class="biz-row"><span class="biz-label">NWCO Permit Holder</span><span class="biz-value" id="bizHolder">—</span></div>
+          <div class="biz-row"><span class="biz-label">NWCO Permit #</span><span class="biz-value mono" id="bizPermit">—</span></div>
         </div>
         <div id="bizEdit" class="hidden">
           <div class="form-group">
@@ -1631,11 +1666,11 @@
             <input type="text" id="editBizName">
           </div>
           <div class="form-group">
-            <label for="editBizHolder">Permit Holder</label>
+            <label for="editBizHolder">NWCO Permit Holder</label>
             <input type="text" id="editBizHolder">
           </div>
           <div class="form-group">
-            <label for="editBizPermit">Permit Number</label>
+            <label for="editBizPermit">NWCO Permit Number</label>
             <input type="text" id="editBizPermit">
           </div>
           <button class="btn btn-primary" id="saveBizBtn">Save Business Info</button>
@@ -1643,7 +1678,7 @@
       </div>
 
       <div class="card" id="certCard">
-        <h3 style="margin-bottom:10px;">Pesticide Certifications</h3>
+        <h3 style="margin-bottom:10px;">Pesticide License Number</h3>
         <div id="certDisplay" class="biz-info">
           <div class="biz-row"><span class="biz-label">Jon Gassett</span><span class="biz-value mono" id="certJon">—</span></div>
           <div class="biz-row"><span class="biz-label">Robin Gassett</span><span class="biz-value mono" id="certRobin">—</span></div>
@@ -1672,44 +1707,6 @@
         <p class="muted" style="font-size:13px; margin-bottom:14px;">Catalog of products available in the Pesticide Application form. Adds propagate to every device. Admin only.</p>
         <div id="pesticideList" style="margin-bottom: 14px;"></div>
         <button class="btn btn-amber" id="addPesticideBtn">+ Add Pesticide</button>
-
-        <div id="pesticideForm" class="hidden" style="margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--line);">
-          <h4 id="pesticideFormTitle" style="font-family: 'Playfair Display', serif; color: var(--green-deep); margin-bottom: 12px;">New Pesticide</h4>
-          <input type="hidden" id="pestEditId">
-          <div class="form-group">
-            <label for="pestName">Brand / Product Name<span class="req">*</span></label>
-            <input type="text" id="pestName" placeholder="e.g. Talstar P">
-          </div>
-          <div class="form-group">
-            <label for="pestActive">Active Ingredient<span class="req">*</span></label>
-            <input type="text" id="pestActive" placeholder="e.g. Bifenthrin">
-          </div>
-          <div class="field-row two">
-            <div class="form-group">
-              <label for="pestEpa">EPA Registration #<span class="req">*</span></label>
-              <input type="text" id="pestEpa" placeholder="e.g. 279-3206">
-            </div>
-            <div class="form-group">
-              <label for="pestConc">Concentration %<span class="req">*</span></label>
-              <input type="number" id="pestConc" step="0.01" min="0" max="100" placeholder="7.9">
-            </div>
-          </div>
-          <div class="form-group">
-            <label>Safety Data Sheet (SDS) PDF</label>
-            <div id="sdsPreview" class="hint"></div>
-            <input type="file" id="pestSdsFile" accept="application/pdf">
-          </div>
-          <div class="form-group">
-            <label>Label PDF</label>
-            <div id="labelPreview" class="hint"></div>
-            <input type="file" id="pestLabelFile" accept="application/pdf">
-          </div>
-          <div class="btn-row" style="margin-top:14px;">
-            <button type="button" class="btn btn-ghost" id="pestCancelBtn">Cancel</button>
-            <button type="button" class="btn btn-primary" id="pestSaveBtn">Save Pesticide</button>
-          </div>
-          <button type="button" class="btn btn-danger" id="pestDeleteBtn" style="margin-top:10px; display:none;">Delete Pesticide</button>
-        </div>
       </div>
 
       <div class="card" id="reportCard">
@@ -1750,7 +1747,7 @@
       </div>
 
       <div class="card center muted" style="font-size:12px;">
-        Southern Wildlife Tracker · v1.2<br>
+        Southern Wildlife Tracker · <span id="footerVersion">v1.25</span><br>
         Designed for KDFWR Commercial NWCO compliance.
       </div>
     </section>
@@ -1791,6 +1788,54 @@
   <div class="btn-row">
     <button class="btn btn-ghost" id="detailClose">Close</button>
     <button class="btn btn-primary" id="detailEdit">Edit</button>
+  </div>
+</div>
+
+<!-- Pesticide edit modal (admin only) -->
+<div id="pesticideEditOverlay" class="hidden">
+  <div class="edit-modal-wrap">
+    <header class="edit-modal-header">
+      <h2 id="pesticideFormTitle">New Pesticide</h2>
+      <button type="button" class="edit-modal-close" id="pestCancelBtnHeader" aria-label="Close">&times;</button>
+    </header>
+    <div class="edit-modal-body">
+      <div id="pesticideForm">
+        <input type="hidden" id="pestEditId">
+        <div class="form-group">
+          <label for="pestName">Brand / Product Name<span class="req">*</span></label>
+          <input type="text" id="pestName" placeholder="e.g. Talstar P">
+        </div>
+        <div class="form-group">
+          <label for="pestActive">Active Ingredient<span class="req">*</span></label>
+          <input type="text" id="pestActive" placeholder="e.g. Bifenthrin">
+        </div>
+        <div class="field-row two">
+          <div class="form-group">
+            <label for="pestEpa">EPA Registration #<span class="req">*</span></label>
+            <input type="text" id="pestEpa" placeholder="e.g. 279-3206">
+          </div>
+          <div class="form-group">
+            <label for="pestConc">Concentration %<span class="req">*</span></label>
+            <input type="number" id="pestConc" step="0.01" min="0" max="100" placeholder="7.9">
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Safety Data Sheet (SDS) PDF</label>
+          <div id="sdsPreview" class="hint"></div>
+          <input type="file" id="pestSdsFile" accept="application/pdf">
+        </div>
+        <div class="form-group">
+          <label>Label PDF</label>
+          <div id="labelPreview" class="hint"></div>
+          <input type="file" id="pestLabelFile" accept="application/pdf">
+        </div>
+      </div>
+    </div>
+    <footer class="edit-modal-footer">
+      <button type="button" class="btn btn-ghost" id="pestCancelBtn">Cancel</button>
+      <button type="button" class="btn btn-primary" id="pestSaveBtn">Save Pesticide</button>
+      <button type="button" class="btn btn-danger" id="pestDeleteBtn" style="margin-top:10px; display:none;">Delete Pesticide</button>
+    </footer>
   </div>
 </div>
 
@@ -2052,6 +2097,7 @@ let orgSettings = {
 };
 
 const PESTICIDE_EMAILJS_TEMPLATE_ID = 'template_4aa3u5a';
+const APP_VERSION = 'v1.25';  /* bump in lockstep with the SW cache version */
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -4114,14 +4160,12 @@ function openPesticideEditor(pesticide) {
   $('#pestLabelFile').value = '';
   $('#pesticideFormTitle').textContent = pesticide ? `Edit: ${pesticide.name}` : 'New Pesticide';
   $('#pestDeleteBtn').style.display = pesticide ? 'block' : 'none';
-  $('#pesticideForm').classList.remove('hidden');
-  $('#addPesticideBtn').classList.add('hidden');
+  $('#pesticideEditOverlay').classList.remove('hidden');
 }
 
 function closePesticideEditor() {
   editingPesticideId = null;
-  $('#pesticideForm').classList.add('hidden');
-  $('#addPesticideBtn').classList.remove('hidden');
+  $('#pesticideEditOverlay').classList.add('hidden');
 }
 
 async function savePesticide() {
@@ -4250,6 +4294,7 @@ function buildProductRows() {
         <select id="pa-brand-${i}" data-brand-select="${i}">
           <option value="">— select brand —</option>
         </select>
+        <div class="hint pa-pdf-links" id="pa-pdf-links-${i}" style="display: flex; gap: 12px;"></div>
       </div>
       <div class="form-group conditional" id="cg-pa-brandOther-${i}">
         <label for="pa-brand-other-${i}">Specify brand</label>
@@ -4328,13 +4373,23 @@ function updatePesticideConditionals() {
 function handleBrandSelectChange(i) {
   const sel = document.getElementById(`pa-brand-${i}`);
   if (!sel) return;
+  const linksEl = document.getElementById(`pa-pdf-links-${i}`);
   if (sel.value && sel.value !== '__other__') {
     const opt = sel.selectedOptions[0];
     document.getElementById(`pa-epa-${i}`).value = opt.dataset.epa || '';
     document.getElementById(`pa-conc-${i}`).value = opt.dataset.conc || '';
-  } else if (sel.value === '__other__') {
+    /* Surface SDS + Label PDFs for the applicator. */
+    const p = cachedPesticides.find((x) => x.id === sel.value);
+    if (linksEl && p) {
+      const parts = [];
+      if (p.sdsUrl) parts.push(`<a href="${escapeHtml(p.sdsUrl)}" target="_blank" rel="noopener" style="color: var(--amber); text-decoration: none; font-weight: 600;">📄 View SDS</a>`);
+      if (p.labelUrl) parts.push(`<a href="${escapeHtml(p.labelUrl)}" target="_blank" rel="noopener" style="color: var(--amber); text-decoration: none; font-weight: 600;">📋 View Label</a>`);
+      linksEl.innerHTML = parts.join('');
+    }
+  } else {
     document.getElementById(`pa-epa-${i}`).value = '';
     document.getElementById(`pa-conc-${i}`).value = '';
+    if (linksEl) linksEl.innerHTML = '';
   }
   updatePesticideConditionals();
 }
@@ -5148,6 +5203,7 @@ async function init() {
   /* Pesticide DB CRUD wiring */
   $('#addPesticideBtn').addEventListener('click', () => openPesticideEditor(null));
   $('#pestCancelBtn').addEventListener('click', closePesticideEditor);
+  $('#pestCancelBtnHeader').addEventListener('click', closePesticideEditor);
   $('#pestSaveBtn').addEventListener('click', savePesticide);
   $('#pestDeleteBtn').addEventListener('click', () => deletePesticide());
   $('#pesticideList').addEventListener('click', (e) => {
@@ -5346,7 +5402,8 @@ async function init() {
       const trapper = EMAIL_TO_TRAPPER[user.email.toLowerCase()];
       const adminFlag = isAdmin() ? ' <span class="badge-admin">admin</span>' : '';
       $('#accountInfo').innerHTML = `Signed in as <strong>${escapeHtml(user.email)}</strong>${adminFlag}` +
-        (trapper ? `<br><span class="muted">Trapper: ${escapeHtml(trapper)}</span>` : '');
+        (trapper ? `<br><span class="muted">Trapper: ${escapeHtml(trapper)}</span>` : '') +
+        `<br><span class="muted" style="font-size:12px;">App version: ${escapeHtml(APP_VERSION)}</span>`;
       $('#wipeBtn').style.display = isAdmin() ? 'block' : 'none';
       $('#pesticideDbCard').classList.toggle('hidden', !isAdmin());
       try { await maybeMigrateLocalRecords(); } catch (e) { console.error('Migration error', e); }
@@ -5378,42 +5435,11 @@ async function init() {
   window.addEventListener('offline', () => updateSyncIndicator('offline'));
 
   if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('sw.js').then((reg) => {
-      /* Detect when a new version finishes installing in the background. */
-      reg.addEventListener('updatefound', () => {
-        const newWorker = reg.installing;
-        if (!newWorker) return;
-        newWorker.addEventListener('statechange', () => {
-          if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-            showUpdateBanner(newWorker);
-          }
-        });
-      });
-      /* Poll for updates every 60s while the app is open. */
-      setInterval(() => reg.update().catch(() => {}), 60000);
-    }).catch(() => {});
-
-    /* When the new SW takes control after Update tap, reload once. */
-    let refreshing = false;
-    navigator.serviceWorker.addEventListener('controllerchange', () => {
-      if (refreshing) return;
-      refreshing = true;
-      location.reload();
-    });
-  }
-
-  function showUpdateBanner(newWorker) {
-    if (document.getElementById('updateBanner')) return;
-    const banner = document.createElement('div');
-    banner.id = 'updateBanner';
-    banner.className = 'update-banner';
-    banner.innerHTML = '<span>New version available</span><button type="button">Update</button>';
-    banner.querySelector('button').addEventListener('click', () => {
-      banner.querySelector('button').textContent = 'Updating…';
-      banner.querySelector('button').disabled = true;
-      newWorker.postMessage({ type: 'SKIP_WAITING' });
-    });
-    document.body.appendChild(banner);
+    navigator.serviceWorker.register('sw.js').catch(() => {});
+    /* No banner. Updates propagate via:
+       - Network-first SW: every page load fetches the latest index.html
+       - skipWaiting() in install + clients.claim() in activate: new SW
+         takes over invisibly. The user sees latest content on next nav. */
   }
 
   /* Splash stays visible until the first auth-state callback fires
