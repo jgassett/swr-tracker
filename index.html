@@ -1068,17 +1068,6 @@
         </div>
       </div>
 
-      <div class="card" id="dashboardMapCard">
-        <div class="row" style="margin-bottom: 10px;">
-          <h3 style="margin: 0;">Current Location</h3>
-          <button type="button" class="map-btn ghost" id="dashLocateBtn" style="background: var(--cream-deep); color: var(--green-deep); border: none; padding: 6px 12px; border-radius: 8px; font-size: 12px; font-weight: 600;">Locate Me</button>
-        </div>
-        <div class="map-controls">
-          <button type="button" class="map-btn" id="startRecordFromMap">+ Start Record Here</button>
-        </div>
-        <div id="dashMap" class="location-map dashboard-map"></div>
-        <div class="map-status" id="dashMapStatus"></div>
-      </div>
 
       <div class="section-title-row">
         <div class="section-title" style="margin: 0;">Top Species</div>
@@ -1506,6 +1495,19 @@
               <input type="text" id="pa-treatment-zip" inputmode="numeric" maxlength="10">
             </div>
           </div>
+        </div>
+        <div class="form-group">
+          <input type="hidden" id="pa-site-lat">
+          <input type="hidden" id="pa-site-lng">
+          <div class="map-section-label">Treatment Site Map</div>
+          <div class="map-controls">
+            <button type="button" class="map-btn" id="paLocateBtn">
+              <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>
+              Use My Location
+            </button>
+          </div>
+          <div id="paMap" class="location-map"></div>
+          <div class="map-status" id="paMapStatus">Use My Location, or drop a pin, to capture the treatment site. Auto-fills the address fields above.</div>
         </div>
 
         <h3 class="form-section">Products Applied</h3>
@@ -2723,8 +2725,11 @@ function setView(name) {
       if (!editingPesticideRecordId && !pendingPesticideRecord) resetPesticideRecordForm();
     }
   }
+  /* Pesticide-form map lazy init */
+  if (name === 'add' && appMode === 'pesticide') {
+    setTimeout(ensurePaMap, 80);
+  }
   /* Trap-mode map lazy init */
-  if (name === 'dashboard' && appMode === 'trap') setTimeout(ensureDashMap, 80);
   if (name === 'add' && appMode === 'trap') {
     setTimeout(ensureTrapMap, 80);
     if (RELEASE_DISPOSALS.has($('#f-disposal').value)) setTimeout(ensureReleaseMap, 100);
@@ -3070,10 +3075,9 @@ async function confirmSave() {
 }
 
 /* ---------- Maps + Geocoding ---------- */
-let dashMapInstance = null;
 let trapMapInstance = null;
 let releaseMapInstance = null;
-let pendingTrapPrefill = null;  /* set when user starts a record from dashboard map */
+let paMapInstance = null;
 
 const KY_CENTER = [37.84, -84.27];
 
@@ -3148,15 +3152,12 @@ function ensureReleaseMap() {
   setTimeout(() => releaseMapInstance && releaseMapInstance.invalidate(), 60);
   return releaseMapInstance;
 }
-function ensureDashMap() {
-  if (!dashMapInstance) {
-    dashMapInstance = createLocationMap('dashMap', {
-      onMoved: (lat, lng) => setMapStatus('dashMapStatus',
-        `Pin at (${lat.toFixed(5)}, ${lng.toFixed(5)}). Tap "+ Start Record Here" to begin.`, 'success')
-    });
+function ensurePaMap() {
+  if (!paMapInstance) {
+    paMapInstance = createLocationMap('paMap', { onMoved: handlePesticideLocationChange });
   }
-  setTimeout(() => dashMapInstance && dashMapInstance.invalidate(), 60);
-  return dashMapInstance;
+  setTimeout(() => paMapInstance && paMapInstance.invalidate(), 60);
+  return paMapInstance;
 }
 
 async function getCurrentPositionPromise() {
@@ -3392,6 +3393,50 @@ async function handleTrapLocationChange(lat, lng, source) {
   if (source !== 'drag') autoScrollPastMap('f-county');
 }
 
+async function handlePesticideLocationChange(lat, lng, source) {
+  $('#pa-site-lat').value = lat;
+  $('#pa-site-lng').value = lng;
+  setMapStatus('paMapStatus', 'Looking up address…', 'working');
+  try {
+    const geo = await reverseGeocode(lat, lng);
+    const formatted = geo.formattedAddress || '';
+    const useTreatment = (document.querySelector('input[name="pa-different-site"]:checked') || {}).value === 'yes';
+    const force = source === 'locate';
+    if (useTreatment) {
+      const addr = $('#pa-treatment-address');
+      const city = $('#pa-treatment-city');
+      const zip = $('#pa-treatment-zip');
+      const streetCity = [geo.streetAddress, geo.city].filter(Boolean).join(', ');
+      if (streetCity && (force || !addr.value.trim() || addr.dataset.fromMap === '1')) {
+        addr.value = streetCity || formatted;
+        addr.dataset.fromMap = '1';
+      }
+      if (geo.city && (force || !city.value.trim())) city.value = geo.city;
+      const zipMatch = formatted.match(/\b\d{5}(?:-\d{4})?\b/);
+      if (zipMatch && (force || !zip.value.trim())) zip.value = zipMatch[0];
+    } else {
+      const addr = $('#pa-client-address');
+      const city = $('#pa-client-city');
+      const zip = $('#pa-client-zip');
+      const streetCity = [geo.streetAddress, geo.city].filter(Boolean).join(', ');
+      if (streetCity && (force || !addr.value.trim() || addr.dataset.fromMap === '1')) {
+        addr.value = streetCity || formatted;
+        addr.dataset.fromMap = '1';
+      }
+      if (geo.city && (force || !city.value.trim())) city.value = geo.city;
+      const zipMatch = formatted.match(/\b\d{5}(?:-\d{4})?\b/);
+      if (zipMatch && (force || !zip.value.trim())) zip.value = zipMatch[0];
+    }
+    setMapStatus('paMapStatus',
+      `Located: ${formatted || '(' + lat.toFixed(5) + ', ' + lng.toFixed(5) + ')'} · ${useTreatment ? 'Treatment site' : 'Client address'} fields filled.`,
+      'success');
+  } catch (e) {
+    setMapStatus('paMapStatus',
+      `Coordinates saved (${lat.toFixed(5)}, ${lng.toFixed(5)}). Geocoder offline — fill address fields manually.`,
+      'error');
+  }
+}
+
 async function handleReleaseLocationChange(lat, lng, source) {
   $('#f-release-lat').value = lat;
   $('#f-release-lng').value = lng;
@@ -3563,7 +3608,6 @@ function renderDashboard() {
   $('#statTotalUser').textContent = minePeriod.length;
   $('#statTotalSwrSub').textContent = 'all trappers';
   $('#statTotalUserSub').textContent = minePeriod.length === 1 ? 'your record' : 'your records';
-  $('#dashboardMapCard').classList.remove('hidden');
 
   /* Top species */
   const scope = topSpeciesScope === 'me' ? minePeriod : inP;
@@ -3633,7 +3677,6 @@ function renderPesticideDashboard() {
   $('#statTotalUser').textContent = mine.length;
   $('#statTotalSwrSub').textContent = 'all applicators';
   $('#statTotalUserSub').textContent = mine.length === 1 ? 'your application' : 'your applications';
-  $('#dashboardMapCard').classList.add('hidden');
 
   /* Top products (by application count, not weighted) — reuse #topSpeciesList */
   const counts = {};
@@ -4359,6 +4402,10 @@ function resetPesticideRecordForm() {
   if (noSigns) noSigns.checked = true;
   document.querySelectorAll('#pa-adjuvants input').forEach((cb) => { cb.checked = false; });
   resetPesticidePhotoUI();
+  $('#pa-site-lat').value = '';
+  $('#pa-site-lng').value = '';
+  if (paMapInstance) paMapInstance.clear();
+  setMapStatus('paMapStatus', 'Use My Location, or drop a pin, to capture the treatment site. Auto-fills the address fields above.');
   $('#paDeleteBtn').style.display = 'none';
   $('#paSaveBtn').textContent = 'Review Application';
   updatePesticideConditionals();
@@ -4412,6 +4459,14 @@ function loadPesticideRecordIntoForm(rec) {
   const signsRadio = document.querySelector(`input[name="pa-signs"][value="${rec.signsPosted ? 'yes' : 'no'}"]`);
   if (signsRadio) signsRadio.checked = true;
   $('#pa-notes').value = rec.notes || '';
+  $('#pa-site-lat').value = rec.siteLat != null ? rec.siteLat : '';
+  $('#pa-site-lng').value = rec.siteLng != null ? rec.siteLng : '';
+  if (rec.siteLat != null && rec.siteLng != null) {
+    setTimeout(() => {
+      ensurePaMap();
+      if (paMapInstance) paMapInstance.setLocation(rec.siteLat, rec.siteLng, { notify: false });
+    }, 250);
+  }
   if (rec.photoUrl) showPesticidePhotoPreview(rec.photoUrl);
   $('#paDeleteBtn').style.display = 'block';
   $('#paSaveBtn').textContent = 'Review Changes';
@@ -4475,7 +4530,9 @@ function readPesticideForm() {
     applicationMethod: $('#pa-method').value,
     applicationMethodOther: $('#pa-method-other').value.trim(),
     signsPosted: signs && signs.value === 'yes',
-    notes: $('#pa-notes').value.trim()
+    notes: $('#pa-notes').value.trim(),
+    siteLat: $('#pa-site-lat').value === '' ? null : parseFloat($('#pa-site-lat').value),
+    siteLng: $('#pa-site-lng').value === '' ? null : parseFloat($('#pa-site-lng').value)
   };
   if (editingPesticideRecordId) r.id = editingPesticideRecordId;
   return r;
@@ -5133,6 +5190,10 @@ async function init() {
     if (v) e.target.value = titleCaseName(v);
   });
   $('#pa-fetch-weather').addEventListener('click', fetchPesticideWeather);
+  $('#paLocateBtn').addEventListener('click', () => {
+    ensurePaMap();
+    doLocate((lat, lng) => paMapInstance.setLocation(lat, lng, { source: 'locate' }), 'paMapStatus');
+  });
   $('#pa-client-address').addEventListener('blur', () => setTimeout(validatePesticideAddressOnBlur, 150));
   $('#pa-client-address').addEventListener('input', () => {
     const status = $('#pa-address-status');
@@ -5233,10 +5294,6 @@ async function init() {
     ensureReleaseMap();
     doLocate((lat, lng) => releaseMapInstance.setLocation(lat, lng, { source: 'locate' }), 'releaseMapStatus');
   });
-  $('#dashLocateBtn').addEventListener('click', () => {
-    ensureDashMap();
-    doLocate((lat, lng) => dashMapInstance.setLocation(lat, lng, { source: 'locate' }), 'dashMapStatus');
-  });
 
   /* Find From Address — forward geocode the typed address and move trap pin. */
   $('#trapAddressLookupBtn').addEventListener('click', async () => {
@@ -5249,24 +5306,6 @@ async function init() {
     trapMapInstance.setLocation(geo.lat, geo.lng, { source: 'locate' });
   });
 
-  /* Start Record from Dashboard — capture current pin (or current location) and open Add Record */
-  $('#startRecordFromMap').addEventListener('click', async () => {
-    ensureDashMap();
-    let loc = dashMapInstance.getLocation();
-    if (!loc) {
-      try {
-        const pos = await getCurrentPositionPromise();
-        loc = { lat: pos.lat, lng: pos.lng };
-        dashMapInstance.setLocation(pos.lat, pos.lng);
-      } catch (e) {
-        setMapStatus('dashMapStatus', 'Drop a pin or use Locate Me first.', 'error');
-        return;
-      }
-    }
-    pendingTrapPrefill = { lat: loc.lat, lng: loc.lng };
-    if (currentView === 'add') resetForm();
-    setView('add');
-  });
 
   $('#restoreBtn').addEventListener('click', () => $('#restoreFile').click());
   $('#restoreFile').addEventListener('change', (e) => {
