@@ -1,5 +1,7 @@
-/* Southern Wildlife Tracker service worker — cache-first for the app shell. */
-const CACHE = 'swr-tracker-v20';
+/* Southern Wildlife Tracker service worker.
+ * Network-first for the HTML shell so deploys propagate automatically.
+ * Cache-first for static assets, fonts, and third-party SDK bundles. */
+const CACHE = 'swr-tracker-v21';
 const SHELL = [
   './',
   './index.html',
@@ -24,6 +26,12 @@ self.addEventListener('activate', (event) => {
   );
 });
 
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+  }
+});
+
 self.addEventListener('fetch', (event) => {
   const req = event.request;
   if (req.method !== 'GET') return;
@@ -31,6 +39,23 @@ self.addEventListener('fetch', (event) => {
   const url = new URL(req.url);
   if (url.protocol !== 'http:' && url.protocol !== 'https:') return;
 
+  /* Network-first for HTML navigations so new deploys reach clients fast. */
+  const accept = req.headers.get('accept') || '';
+  const isNav = req.mode === 'navigate' || accept.includes('text/html');
+  if (isNav) {
+    event.respondWith(
+      fetch(req).then((res) => {
+        if (res && res.ok) {
+          const copy = res.clone();
+          caches.open(CACHE).then((cache) => cache.put('./index.html', copy));
+        }
+        return res;
+      }).catch(() => caches.match('./index.html'))
+    );
+    return;
+  }
+
+  /* Cache-first for everything else. */
   event.respondWith(
     caches.match(req).then((cached) => {
       if (cached) return cached;
@@ -46,10 +71,7 @@ self.addEventListener('fetch', (event) => {
           caches.open(CACHE).then((cache) => cache.put(req, copy));
         }
         return res;
-      }).catch(() => {
-        if (req.mode === 'navigate') return caches.match('./index.html');
-        return new Response('', { status: 504, statusText: 'Offline' });
-      });
+      }).catch(() => new Response('', { status: 504, statusText: 'Offline' }));
     })
   );
 });

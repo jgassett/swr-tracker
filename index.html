@@ -415,6 +415,44 @@
       color: var(--green-deep); font-weight: 700;
     }
 
+    /* Update available banner */
+    .update-banner {
+      position: fixed;
+      top: calc(var(--safe-top) + 10px);
+      left: 50%;
+      transform: translateX(-50%);
+      background: var(--amber);
+      color: #fff;
+      padding: 8px 14px;
+      border-radius: 999px;
+      font-size: 13px;
+      font-weight: 600;
+      z-index: 250;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      box-shadow: 0 8px 20px rgba(0,0,0,0.25);
+      animation: bannerSlideIn 0.3s ease-out;
+      max-width: 90vw;
+    }
+    .update-banner button {
+      background: #fff;
+      color: var(--amber);
+      border: none;
+      padding: 6px 14px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      cursor: pointer;
+    }
+    .update-banner button:disabled { opacity: 0.6; }
+    @keyframes bannerSlideIn {
+      from { transform: translateX(-50%) translateY(-30px); opacity: 0; }
+      to { transform: translateX(-50%) translateY(0); opacity: 1; }
+    }
+
     /* Toast */
     #toast {
       position: fixed; left: 50%; transform: translateX(-50%) translateY(20px);
@@ -4163,7 +4201,42 @@ async function init() {
   window.addEventListener('offline', () => updateSyncIndicator('offline'));
 
   if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('sw.js').catch(() => {});
+    navigator.serviceWorker.register('sw.js').then((reg) => {
+      /* Detect when a new version finishes installing in the background. */
+      reg.addEventListener('updatefound', () => {
+        const newWorker = reg.installing;
+        if (!newWorker) return;
+        newWorker.addEventListener('statechange', () => {
+          if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+            showUpdateBanner(newWorker);
+          }
+        });
+      });
+      /* Poll for updates every 60s while the app is open. */
+      setInterval(() => reg.update().catch(() => {}), 60000);
+    }).catch(() => {});
+
+    /* When the new SW takes control after Update tap, reload once. */
+    let refreshing = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (refreshing) return;
+      refreshing = true;
+      location.reload();
+    });
+  }
+
+  function showUpdateBanner(newWorker) {
+    if (document.getElementById('updateBanner')) return;
+    const banner = document.createElement('div');
+    banner.id = 'updateBanner';
+    banner.className = 'update-banner';
+    banner.innerHTML = '<span>New version available</span><button type="button">Update</button>';
+    banner.querySelector('button').addEventListener('click', () => {
+      banner.querySelector('button').textContent = 'Updating…';
+      banner.querySelector('button').disabled = true;
+      newWorker.postMessage({ type: 'SKIP_WAITING' });
+    });
+    document.body.appendChild(banner);
   }
 
   /* Splash stays visible until the first auth-state callback fires
