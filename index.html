@@ -490,6 +490,48 @@
     .conditional { display: none; }
     .conditional.on { display: block; }
 
+    /* Pesticide form */
+    .radio-row, .checkbox-row {
+      display: flex; flex-wrap: wrap; gap: 16px; padding: 6px 0;
+    }
+    .radio-row label, .checkbox-row label {
+      display: inline-flex; align-items: center; gap: 6px;
+      font-weight: 500; color: var(--ink); cursor: pointer;
+      font-size: 15px;
+    }
+    .radio-row input[type=radio], .checkbox-row input[type=checkbox] {
+      width: 18px; height: 18px; margin: 0;
+    }
+    .product-row {
+      background: var(--cream-deep);
+      border-radius: 12px;
+      padding: 14px 12px 4px;
+      margin-bottom: 14px;
+    }
+    .product-row-label {
+      font-family: 'Playfair Display', serif;
+      color: var(--green-deep);
+      font-size: 15px;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+    .applicator-cert-display {
+      background: var(--cream-deep);
+      border-radius: 8px;
+      padding: 8px 10px;
+      font-family: ui-monospace, monospace;
+      font-size: 13px;
+      color: var(--green-deep);
+      font-weight: 600;
+    }
+    .applicator-cert-display:empty::before {
+      content: '— select applicator —';
+      color: var(--ink-soft);
+      font-family: 'Source Sans 3', sans-serif;
+      font-style: italic;
+      font-weight: 400;
+    }
+
     /* Photo capture */
     .photo-actions { display: flex; gap: 8px; margin: 8px 0; }
     .photo-actions .map-btn.danger-btn { color: var(--danger); }
@@ -950,7 +992,7 @@
         <svg viewBox="0 0 24 24"><circle cx="6" cy="11" r="2.5"/><circle cx="12" cy="8" r="2.5"/><circle cx="18" cy="11" r="2.5"/><ellipse cx="12" cy="17" rx="5" ry="4"/></svg>
       </div>
       <div>
-        <div class="mode-title">Log a Trap</div>
+        <div class="mode-title">Trapping Report</div>
         <div class="mode-desc">Wildlife capture, release, or euthanasia</div>
       </div>
     </button>
@@ -959,7 +1001,7 @@
         <svg viewBox="0 0 24 24"><path d="M9 2h6v3l3 3v3l-3 1v9a2 2 0 0 1-2 2h-2a2 2 0 0 1-2-2v-9l-3-1V8l3-3z"/><circle cx="12" cy="14" r="1.5"/></svg>
       </div>
       <div>
-        <div class="mode-title">Log a Pesticide</div>
+        <div class="mode-title">Pesticide Report</div>
         <div class="mode-desc">Chemical application record</div>
       </div>
     </button>
@@ -1313,6 +1355,214 @@
           <button type="submit" class="btn btn-primary" id="saveBtn">Review Record</button>
         </div>
         <button type="button" class="btn btn-danger" id="deleteBtn" style="margin-top:10px; display:none;">Delete Record</button>
+      </form>
+    </section>
+
+    <!-- PESTICIDE RECORDS -->
+    <section id="view-records-pesticide" class="view hidden">
+      <div class="search-bar">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+        <input type="text" id="pestRecSearch" placeholder="Search record #, client, brand…" autocomplete="off">
+      </div>
+      <div class="filter-row">
+        <select id="pestFilterApplicator"><option value="">All applicators</option></select>
+        <select id="pestFilterMethod"><option value="">All methods</option></select>
+      </div>
+      <div class="card" id="pesticideRecordList"></div>
+    </section>
+
+    <!-- ADD PESTICIDE APPLICATION -->
+    <section id="view-add-pesticide" class="view hidden">
+      <form id="pesticideAppForm" novalidate>
+        <input type="hidden" id="pa-id">
+
+        <h3 class="form-section">Applicator</h3>
+        <div class="form-group">
+          <label for="pa-applicator">Applicator<span class="req">*</span></label>
+          <select id="pa-applicator" required>
+            <option value="">— select applicator —</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Certification #</label>
+          <div class="applicator-cert-display" id="pa-cert-display"></div>
+        </div>
+        <div class="form-group">
+          <label for="pa-date">Date / Time of Application<span class="req">*</span></label>
+          <input type="datetime-local" id="pa-date" required>
+        </div>
+
+        <h3 class="form-section">Weather Conditions</h3>
+        <div class="field-row two">
+          <div class="form-group">
+            <label for="pa-temp">Temperature (°F)<span class="req">*</span></label>
+            <input type="number" id="pa-temp" step="1" inputmode="numeric" required>
+          </div>
+          <div class="form-group">
+            <label for="pa-wind">Wind Speed (mph)<span class="req">*</span></label>
+            <input type="number" id="pa-wind" step="1" min="0" inputmode="numeric" required>
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="pa-humidity">Humidity (%)<span class="req">*</span></label>
+          <input type="number" id="pa-humidity" min="0" max="100" inputmode="numeric" required>
+        </div>
+
+        <h3 class="form-section">Job</h3>
+        <div class="form-group">
+          <label for="pa-purpose">Purpose of Application<span class="req">*</span></label>
+          <select id="pa-purpose" required>
+            <option value="">— select purpose —</option>
+          </select>
+        </div>
+        <div class="form-group conditional" id="cg-pa-purposeOther">
+          <label for="pa-purpose-other">Specify purpose<span class="req">*</span></label>
+          <input type="text" id="pa-purpose-other">
+        </div>
+        <div class="field-row two">
+          <div class="form-group">
+            <label for="pa-size">Size of Area<span class="req">*</span></label>
+            <input type="number" id="pa-size" step="0.01" min="0" required>
+          </div>
+          <div class="form-group">
+            <label for="pa-size-unit">Unit<span class="req">*</span></label>
+            <select id="pa-size-unit" required>
+              <option value="sq ft">sq ft</option>
+              <option value="acres">acres</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="pa-area-type">Crop / Commodity / Type of Area<span class="req">*</span></label>
+          <select id="pa-area-type" required>
+            <option value="">— select area type —</option>
+          </select>
+        </div>
+        <div class="form-group conditional" id="cg-pa-areaOther">
+          <label for="pa-area-other">Specify area type<span class="req">*</span></label>
+          <input type="text" id="pa-area-other">
+        </div>
+
+        <h3 class="form-section">Client</h3>
+        <div class="field-row two">
+          <div class="form-group">
+            <label for="pa-client-name">Name<span class="req">*</span></label>
+            <input type="text" id="pa-client-name" autocomplete="name" required>
+          </div>
+          <div class="form-group">
+            <label for="pa-client-phone">Phone<span class="req">*</span></label>
+            <input type="tel" id="pa-client-phone" autocomplete="tel" inputmode="tel" required>
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="pa-client-email">Email<span class="encouraged">(Strongly Encouraged)</span></label>
+          <input type="email" id="pa-client-email" autocomplete="email" inputmode="email">
+        </div>
+        <div class="form-group">
+          <label for="pa-client-address">Address<span class="req">*</span></label>
+          <input type="text" id="pa-client-address" autocomplete="street-address" required>
+        </div>
+        <div class="field-row two">
+          <div class="form-group">
+            <label for="pa-client-city">City<span class="req">*</span></label>
+            <input type="text" id="pa-client-city" autocomplete="address-level2" required>
+          </div>
+          <div class="form-group">
+            <label for="pa-client-zip">ZIP<span class="req">*</span></label>
+            <input type="text" id="pa-client-zip" inputmode="numeric" maxlength="10" autocomplete="postal-code" required>
+          </div>
+        </div>
+
+        <h3 class="form-section">Treatment Site</h3>
+        <div class="form-group">
+          <label>Is treatment site different from client address?<span class="req">*</span></label>
+          <div class="radio-row">
+            <label><input type="radio" name="pa-different-site" value="no" checked> Same as client</label>
+            <label><input type="radio" name="pa-different-site" value="yes"> Different</label>
+          </div>
+        </div>
+        <div class="conditional" id="cg-pa-treatmentSite">
+          <div class="form-group">
+            <label for="pa-treatment-address">Treatment Address<span class="req">*</span></label>
+            <input type="text" id="pa-treatment-address">
+          </div>
+          <div class="field-row two">
+            <div class="form-group">
+              <label for="pa-treatment-city">City<span class="req">*</span></label>
+              <input type="text" id="pa-treatment-city">
+            </div>
+            <div class="form-group">
+              <label for="pa-treatment-zip">ZIP<span class="req">*</span></label>
+              <input type="text" id="pa-treatment-zip" inputmode="numeric" maxlength="10">
+            </div>
+          </div>
+        </div>
+
+        <h3 class="form-section">Products Applied</h3>
+        <p class="muted" style="font-size:13px; margin-bottom:10px;">Picking a brand auto-fills EPA Reg # and Concentration — adjust as needed. Leave a row blank if not used.</p>
+        <!-- Three product rows generated by JS into this container -->
+        <div id="pa-products-container"></div>
+
+        <h3 class="form-section">Application</h3>
+        <div class="form-group">
+          <label for="pa-final-volume">Final Volume After Dilution (gallons)<span class="req">*</span></label>
+          <input type="number" id="pa-final-volume" step="0.01" min="0" required>
+        </div>
+        <div class="form-group">
+          <label>Solvents / Adjuvants Used</label>
+          <div class="checkbox-row" id="pa-adjuvants"></div>
+        </div>
+        <div class="form-group conditional" id="cg-pa-adjOther">
+          <label for="pa-adj-other">Specify other adjuvant<span class="req">*</span></label>
+          <input type="text" id="pa-adj-other">
+        </div>
+        <div class="form-group">
+          <label for="pa-method">Application Method<span class="req">*</span></label>
+          <select id="pa-method" required>
+            <option value="">— select method —</option>
+          </select>
+        </div>
+        <div class="form-group conditional" id="cg-pa-methodOther">
+          <label for="pa-method-other">Specify method<span class="req">*</span></label>
+          <input type="text" id="pa-method-other">
+        </div>
+        <div class="form-group">
+          <label>Signs Posted at Application Site?<span class="req">*</span></label>
+          <div class="radio-row">
+            <label><input type="radio" name="pa-signs" value="yes"> Yes</label>
+            <label><input type="radio" name="pa-signs" value="no" checked> No</label>
+          </div>
+        </div>
+
+        <h3 class="form-section">Photo</h3>
+        <div class="form-group">
+          <label>Photo<span class="opt">(optional)</span></label>
+          <div id="paPhotoPreviewWrap" class="hidden">
+            <img id="paPhotoPreview" alt="Application site photo">
+            <div class="photo-actions">
+              <button type="button" class="map-btn ghost" id="paPhotoReplaceBtn">Replace</button>
+              <button type="button" class="map-btn ghost danger-btn" id="paPhotoRemoveBtn">Remove</button>
+            </div>
+          </div>
+          <button type="button" class="map-btn" id="paPhotoCaptureBtn">
+            <svg viewBox="0 0 24 24"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg>
+            Take Photo
+          </button>
+          <input type="file" id="paPhotoInput" accept="image/*" capture="environment" hidden>
+          <div class="hint">Sign placement, treatment area, product label — anything useful for compliance.</div>
+        </div>
+
+        <h3 class="form-section">Notes</h3>
+        <div class="form-group">
+          <label for="pa-notes">Notes<span class="opt">(optional)</span></label>
+          <textarea id="pa-notes" placeholder="Anything not captured above"></textarea>
+        </div>
+
+        <div class="btn-row" style="margin-top:18px;">
+          <button type="button" class="btn btn-ghost" id="paCancelBtn">Cancel</button>
+          <button type="submit" class="btn btn-primary" id="paSaveBtn">Review Application</button>
+        </div>
+        <button type="button" class="btn btn-danger" id="paDeleteBtn" style="margin-top:10px; display:none;">Delete Application</button>
       </form>
     </section>
 
@@ -1788,7 +2038,7 @@ let orgSettings = {
   applicatorCerts: { ...APPLICATOR_CERT_DEFAULTS }
 };
 
-const PESTICIDE_EMAILJS_TEMPLATE_ID = '';  /* User will provide */
+const PESTICIDE_EMAILJS_TEMPLATE_ID = 'template_4aa3u5a';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -2302,6 +2552,7 @@ function subscribeToOrg() {
     renderBusinessCard();
     renderReportingCard();
     renderCertCard();
+    refreshApplicatorDropdown();
     renderDashboard();
   }, (err) => console.error('Org subscription error', err));
 }
@@ -2437,25 +2688,34 @@ const VIEW_TITLES = {
 
 function setView(name) {
   currentView = name;
-  ['dashboard','records','add','export','settings'].forEach((v) => {
-    $(`#view-${v}`).classList.toggle('hidden', v !== name);
+  /* Hide every view section, then reveal the one matching mode+name. */
+  ['dashboard','records','records-pesticide','add','add-pesticide','export','settings'].forEach((v) => {
+    const el = document.getElementById(`view-${v}`);
+    if (el) el.classList.add('hidden');
   });
+  let actualId = name;
+  if (name === 'records' && appMode === 'pesticide') actualId = 'records-pesticide';
+  if (name === 'add' && appMode === 'pesticide') actualId = 'add-pesticide';
+  const showEl = document.getElementById(`view-${actualId}`);
+  if (showEl) showEl.classList.remove('hidden');
+
   $$('#bottomNav .nav-btn').forEach((b) => b.classList.toggle('active', b.dataset.view === name));
   $('#viewTitle').textContent = VIEW_TITLES[name];
   $('#appMain').scrollTop = 0;
-  /* Hide the + FAB while a record is being created/edited so an accidental
-     tap can't blow away in-progress data. */
   document.body.classList.toggle('in-add', name === 'add');
-  if (name === 'add' && !editingId) {
-    /* fresh form only when not in the middle of an edit */
-    if (!pendingRecord) resetForm();
-  }
-  /* Lazy-init maps when their view becomes visible. */
-  if (name === 'dashboard') setTimeout(ensureDashMap, 80);
+
   if (name === 'add') {
+    if (appMode === 'trap') {
+      if (!editingId && !pendingRecord) resetForm();
+    } else {
+      if (!editingPesticideRecordId && !pendingPesticideRecord) resetPesticideRecordForm();
+    }
+  }
+  /* Trap-mode map lazy init */
+  if (name === 'dashboard' && appMode === 'trap') setTimeout(ensureDashMap, 80);
+  if (name === 'add' && appMode === 'trap') {
     setTimeout(ensureTrapMap, 80);
     if (RELEASE_DISPOSALS.has($('#f-disposal').value)) setTimeout(ensureReleaseMap, 100);
-    /* Apply any dashboard -> "Start Record" prefill */
     if (pendingTrapPrefill) {
       const { lat, lng } = pendingTrapPrefill;
       pendingTrapPrefill = null;
@@ -3269,6 +3529,7 @@ function renderSingleMode(list) {
 
 /* ---------- Dashboard ---------- */
 function renderDashboard() {
+  if (appMode === 'pesticide') return renderPesticideDashboard();
   const period = reportPeriod();
   $('#periodValue').textContent = periodLabel(period);
 
@@ -3333,8 +3594,75 @@ function renderDashboard() {
   }
 }
 
+function renderPesticideDashboard() {
+  const period = reportPeriod();
+  $('#periodValue').textContent = periodLabel(period);
+  const hr = new Date().getHours();
+  const greet = hr < 12 ? 'Good morning' : hr < 18 ? 'Good afternoon' : 'Good evening';
+  const friendlyName = currentUser && EMAIL_TO_TRAPPER[currentUser.email.toLowerCase()]
+    ? EMAIL_TO_TRAPPER[currentUser.email.toLowerCase()].split(' ')[0]
+    : (orgSettings.permitHolder || '').split(' ')[0] || 'there';
+  $('#greetingTitle').textContent = `${greet}, ${friendlyName}.`;
+
+  const inP = cachedPesticideRecords.filter((r) => {
+    if (!r.appliedAt) return false;
+    const d = r.appliedAt.slice(0, 10);
+    return d >= period.start && d <= period.end;
+  });
+  const myEmail = currentUser ? currentUser.email.toLowerCase() : null;
+  const mine = inP.filter((r) => (r.createdByEmail || '').toLowerCase() === myEmail);
+
+  $('#statTotalSwr').textContent = inP.length;
+  $('#statTotalUser').textContent = mine.length;
+  $('#statTotalUserSub').textContent = mine.length === 1 ? 'your application' : 'your applications';
+
+  /* Top products (by application count, not weighted) — reuse #topSpeciesList */
+  const counts = {};
+  const scope = topSpeciesScope === 'me' ? mine : inP;
+  for (const r of scope) {
+    for (const p of (r.products || [])) {
+      const k = brandLabel(p);
+      counts[k] = (counts[k] || 0) + 1;
+    }
+  }
+  const ranked = Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 8);
+  const tsList = $('#topSpeciesList');
+  if (tsList) {
+    if (!ranked.length) {
+      tsList.innerHTML = '<div class="empty" style="padding:18px;"><div class="em-title">No applications yet</div><div>Products will rank here once you log applications.</div></div>';
+    } else {
+      tsList.innerHTML = ranked.map(([name, n]) =>
+        `<div class="species-row"><span class="name">${escapeHtml(name)}</span><span class="count">${n}</span></div>`
+      ).join('');
+    }
+  }
+  /* Recent applications */
+  const recent = cachedPesticideRecords.slice(0, 5);
+  const dashRoot = $('#dashRecent');
+  if (!dashRoot) return;
+  if (!recent.length) {
+    dashRoot.innerHTML = '<div class="empty"><div class="em-title">No applications yet</div><div>Use the <strong style="color:var(--amber);">+</strong> button to add your first.</div></div>';
+    return;
+  }
+  dashRoot.innerHTML = '';
+  for (const r of recent) {
+    const brand = (r.products && r.products[0]) ? brandLabel(r.products[0]) : '(no product)';
+    const div = document.createElement('div');
+    div.className = 'rec';
+    div.innerHTML = `
+      <div class="rec-thumb">PA</div>
+      <div class="rec-body">
+        <div class="rec-title">${escapeHtml(brand)}<span class="rec-tag tag-X">${escapeHtml(r.applicator || '')}</span></div>
+        <div class="rec-meta">${escapeHtml(r.recordNumber || '—')} · ${escapeHtml(fmtPaDateTime(r.appliedAt))} · ${escapeHtml(r.clientName || '')}</div>
+      </div>`;
+    div.onclick = () => openPesticideDetail(r.id);
+    dashRoot.appendChild(div);
+  }
+}
+
 /* ---------- Detail / Review sheet ---------- */
 let sheetMode = 'detail';     /* 'detail' or 'review' */
+let sheetRecordType = 'trap'; /* 'trap' or 'pesticide' */
 let detailRecordId = null;
 
 function buildDetailRows(r) {
@@ -3387,24 +3715,36 @@ function buildDetailRows(r) {
   }).join('');
 }
 
-function openSheet(rec, mode) {
+function openSheet(rec, mode, recordType) {
   sheetMode = mode;
+  sheetRecordType = recordType || 'trap';
   if (mode === 'review') {
     detailRecordId = null;
     $('#reviewBanner').classList.add('on');
-    $('#detailTitle').textContent = editingId ? 'Review Changes' : 'Review New Record';
+    const isEdit = sheetRecordType === 'pesticide'
+      ? !!editingPesticideRecordId
+      : !!editingId;
+    $('#detailTitle').textContent = isEdit ? 'Review Changes' : 'Review New Record';
     $('#detailSub').textContent = 'Verify before saving.';
     $('#detailClose').textContent = 'Back to Edit';
     $('#detailEdit').textContent = 'Confirm & Save';
   } else {
     detailRecordId = rec.id;
     $('#reviewBanner').classList.remove('on');
-    $('#detailTitle').textContent = speciesDisplay(rec) + (rec.animalCount && rec.animalCount > 1 ? ` ×${rec.animalCount}` : '');
-    $('#detailSub').textContent = `${fmtDate(rec.dateCollected)} · ${rec.county} County · ${rec.trapper || ''}`;
+    if (sheetRecordType === 'pesticide') {
+      const brand = (rec.products && rec.products[0]) ? brandLabel(rec.products[0]) : 'Application';
+      $('#detailTitle').textContent = brand;
+      $('#detailSub').textContent = `${fmtPaDateTime(rec.appliedAt)} · ${rec.applicator || ''}`;
+    } else {
+      $('#detailTitle').textContent = speciesDisplay(rec) + (rec.animalCount && rec.animalCount > 1 ? ` ×${rec.animalCount}` : '');
+      $('#detailSub').textContent = `${fmtDate(rec.dateCollected)} · ${rec.county} County · ${rec.trapper || ''}`;
+    }
     $('#detailClose').textContent = 'Close';
     $('#detailEdit').textContent = 'Edit';
   }
-  $('#detailRows').innerHTML = buildDetailRows(rec);
+  $('#detailRows').innerHTML = sheetRecordType === 'pesticide'
+    ? buildPesticideDetailRows(rec)
+    : buildDetailRows(rec);
   const photoEl = $('#detailPhoto');
   if (rec.photoUrl) {
     photoEl.src = rec.photoUrl;
@@ -3685,10 +4025,6 @@ function renderPesticideAdminList() {
   `).join('');
 }
 
-function refreshPesticideBrandDropdowns() {
-  /* No-op for now — populated by the pesticide application form in the next push. */
-}
-
 function openPesticideEditor(pesticide) {
   editingPesticideId = pesticide ? pesticide.id : null;
   $('#pestEditId').value = pesticide ? pesticide.id : '';
@@ -3790,6 +4126,655 @@ async function savePesticide() {
   }
 }
 
+/* ---------- Pesticide application form ---------- */
+let editingPesticideRecordId = null;
+let pendingPesticideRecord = null;
+let pendingPaPhotoBlob = null;
+let pendingPaPhotoUrl = null;
+let removeExistingPaPhoto = false;
+
+function fillPesticideForm() {
+  refreshApplicatorDropdown();
+  fillSelect('pa-purpose', PESTICIDE_PURPOSES, true, '— select purpose —');
+  fillSelect('pa-area-type', PESTICIDE_AREAS, true, '— select area type —');
+  fillSelect('pa-method', APPLICATION_METHODS, true, '— select method —');
+  buildProductRows();
+  buildAdjuvantCheckboxes();
+  refreshPesticideBrandDropdowns();
+  fillPesticideFilters();
+}
+
+function fillPesticideFilters() {
+  fillSelect('pestFilterApplicator', TRAPPERS, true, 'All applicators');
+  fillSelect('pestFilterMethod', APPLICATION_METHODS, true, 'All methods');
+}
+
+function refreshApplicatorDropdown() {
+  const sel = $('#pa-applicator');
+  if (!sel) return;
+  const certs = (orgSettings && orgSettings.applicatorCerts) || APPLICATOR_CERT_DEFAULTS;
+  const current = sel.value;
+  sel.innerHTML = '<option value="">— select applicator —</option>';
+  TRAPPERS.forEach((name) => {
+    const cert = certs[name] || '';
+    const opt = document.createElement('option');
+    opt.value = name;
+    opt.textContent = cert ? name : `${name} (not certified)`;
+    if (!cert) opt.disabled = true;
+    sel.appendChild(opt);
+  });
+  if (current) sel.value = current;
+  updateApplicatorCertDisplay();
+}
+
+function updateApplicatorCertDisplay() {
+  const applicator = $('#pa-applicator').value;
+  const certs = (orgSettings && orgSettings.applicatorCerts) || APPLICATOR_CERT_DEFAULTS;
+  $('#pa-cert-display').textContent = certs[applicator] || '';
+}
+
+function buildProductRows() {
+  const container = $('#pa-products-container');
+  if (!container) return;
+  container.innerHTML = '';
+  for (let i = 1; i <= 3; i++) {
+    const row = document.createElement('div');
+    row.className = 'product-row';
+    row.dataset.row = i;
+    row.innerHTML = `
+      <div class="product-row-label">Product ${i}</div>
+      <div class="form-group">
+        <label for="pa-brand-${i}">Brand</label>
+        <select id="pa-brand-${i}" data-brand-select="${i}">
+          <option value="">— select brand —</option>
+        </select>
+      </div>
+      <div class="form-group conditional" id="cg-pa-brandOther-${i}">
+        <label for="pa-brand-other-${i}">Specify brand</label>
+        <input type="text" id="pa-brand-other-${i}">
+      </div>
+      <div class="field-row two">
+        <div class="form-group">
+          <label for="pa-epa-${i}">EPA Reg #</label>
+          <input type="text" id="pa-epa-${i}" autocomplete="off">
+        </div>
+        <div class="form-group">
+          <label for="pa-conc-${i}">Concentration (%)</label>
+          <input type="number" id="pa-conc-${i}" step="0.01" min="0">
+        </div>
+      </div>
+      <div class="form-group">
+        <label for="pa-volume-${i}">Total Volume Applied (ml)</label>
+        <input type="number" id="pa-volume-${i}" step="0.01" min="0">
+      </div>
+    `;
+    container.appendChild(row);
+  }
+}
+
+function buildAdjuvantCheckboxes() {
+  const container = $('#pa-adjuvants');
+  if (!container) return;
+  container.innerHTML = '';
+  ADJUVANTS.forEach((name) => {
+    const lbl = document.createElement('label');
+    lbl.innerHTML = `<input type="checkbox" data-adj="${escapeHtml(name)}"> ${escapeHtml(name)}`;
+    container.appendChild(lbl);
+  });
+}
+
+function refreshPesticideBrandDropdowns() {
+  for (let i = 1; i <= 3; i++) {
+    const sel = document.getElementById(`pa-brand-${i}`);
+    if (!sel) continue;
+    const current = sel.value;
+    sel.innerHTML = '<option value="">— select brand —</option>';
+    cachedPesticides.forEach((p) => {
+      const opt = document.createElement('option');
+      opt.value = p.id;
+      opt.textContent = p.name;
+      opt.dataset.epa = p.epaReg || '';
+      opt.dataset.conc = p.concentration != null ? p.concentration : '';
+      opt.dataset.name = p.name;
+      sel.appendChild(opt);
+    });
+    const otherOpt = document.createElement('option');
+    otherOpt.value = '__other__';
+    otherOpt.textContent = 'Other (specify)';
+    sel.appendChild(otherOpt);
+    if (current) sel.value = current;
+  }
+}
+
+function updatePesticideConditionals() {
+  const purpose = $('#pa-purpose').value;
+  const area = $('#pa-area-type').value;
+  const method = $('#pa-method').value;
+  toggleGroup('cg-pa-purposeOther', purpose === 'Other (specify)');
+  toggleGroup('cg-pa-areaOther', area === 'Other (specify)');
+  toggleGroup('cg-pa-methodOther', method === 'Other (specify)');
+  const diffSiteVal = document.querySelector('input[name="pa-different-site"]:checked');
+  toggleGroup('cg-pa-treatmentSite', diffSiteVal && diffSiteVal.value === 'yes');
+  for (let i = 1; i <= 3; i++) {
+    const sel = document.getElementById(`pa-brand-${i}`);
+    if (sel) toggleGroup(`cg-pa-brandOther-${i}`, sel.value === '__other__');
+  }
+  const otherChecked = document.querySelector('#pa-adjuvants input[data-adj="Other"]');
+  toggleGroup('cg-pa-adjOther', !!(otherChecked && otherChecked.checked));
+}
+
+function handleBrandSelectChange(i) {
+  const sel = document.getElementById(`pa-brand-${i}`);
+  if (!sel) return;
+  if (sel.value && sel.value !== '__other__') {
+    const opt = sel.selectedOptions[0];
+    document.getElementById(`pa-epa-${i}`).value = opt.dataset.epa || '';
+    document.getElementById(`pa-conc-${i}`).value = opt.dataset.conc || '';
+  } else if (sel.value === '__other__') {
+    document.getElementById(`pa-epa-${i}`).value = '';
+    document.getElementById(`pa-conc-${i}`).value = '';
+  }
+  updatePesticideConditionals();
+}
+
+function nowDateTimeLocal() {
+  const now = new Date();
+  const tz = now.getTimezoneOffset() * 60000;
+  return new Date(now.getTime() - tz).toISOString().slice(0, 16);
+}
+
+function resetPesticidePhotoUI() {
+  pendingPaPhotoBlob = null;
+  if (pendingPaPhotoUrl) { URL.revokeObjectURL(pendingPaPhotoUrl); pendingPaPhotoUrl = null; }
+  removeExistingPaPhoto = false;
+  $('#paPhotoPreview').src = '';
+  $('#paPhotoPreviewWrap').classList.add('hidden');
+  $('#paPhotoCaptureBtn').classList.remove('hidden');
+}
+
+function showPesticidePhotoPreview(url) {
+  $('#paPhotoPreview').src = url;
+  $('#paPhotoPreviewWrap').classList.remove('hidden');
+  $('#paPhotoCaptureBtn').classList.add('hidden');
+}
+
+async function handlePaPhotoSelected(e) {
+  const file = e.target.files && e.target.files[0];
+  if (!file) return;
+  try {
+    const blob = await compressImage(file);
+    pendingPaPhotoBlob = blob;
+    if (pendingPaPhotoUrl) URL.revokeObjectURL(pendingPaPhotoUrl);
+    pendingPaPhotoUrl = URL.createObjectURL(blob);
+    removeExistingPaPhoto = false;
+    showPesticidePhotoPreview(pendingPaPhotoUrl);
+  } catch (err) {
+    toast('Could not process that image', 'error');
+  }
+  e.target.value = '';
+}
+function handlePaPhotoRemove() {
+  pendingPaPhotoBlob = null;
+  if (pendingPaPhotoUrl) { URL.revokeObjectURL(pendingPaPhotoUrl); pendingPaPhotoUrl = null; }
+  removeExistingPaPhoto = true;
+  $('#paPhotoPreview').src = '';
+  $('#paPhotoPreviewWrap').classList.add('hidden');
+  $('#paPhotoCaptureBtn').classList.remove('hidden');
+}
+
+function resetPesticideRecordForm() {
+  editingPesticideRecordId = null;
+  pendingPesticideRecord = null;
+  $('#pesticideAppForm').reset();
+  $('#pa-id').value = '';
+  $('#pa-date').value = nowDateTimeLocal();
+  if (currentUser && currentUser.email && EMAIL_TO_TRAPPER[currentUser.email.toLowerCase()]) {
+    const me = EMAIL_TO_TRAPPER[currentUser.email.toLowerCase()];
+    const certs = (orgSettings && orgSettings.applicatorCerts) || APPLICATOR_CERT_DEFAULTS;
+    if (certs[me]) $('#pa-applicator').value = me;
+    updateApplicatorCertDisplay();
+  }
+  const noDiff = document.querySelector('input[name="pa-different-site"][value="no"]');
+  if (noDiff) noDiff.checked = true;
+  const noSigns = document.querySelector('input[name="pa-signs"][value="no"]');
+  if (noSigns) noSigns.checked = true;
+  document.querySelectorAll('#pa-adjuvants input').forEach((cb) => { cb.checked = false; });
+  resetPesticidePhotoUI();
+  $('#paDeleteBtn').style.display = 'none';
+  $('#paSaveBtn').textContent = 'Review Application';
+  updatePesticideConditionals();
+}
+
+function loadPesticideRecordIntoForm(rec) {
+  resetPesticideRecordForm();
+  editingPesticideRecordId = rec.id;
+  $('#pa-id').value = rec.id;
+  $('#pa-applicator').value = rec.applicator || '';
+  updateApplicatorCertDisplay();
+  $('#pa-date').value = rec.appliedAt || '';
+  $('#pa-temp').value = rec.weatherTemp ?? '';
+  $('#pa-wind').value = rec.weatherWind ?? '';
+  $('#pa-humidity').value = rec.weatherHumidity ?? '';
+  $('#pa-purpose').value = rec.purpose || '';
+  $('#pa-purpose-other').value = rec.purposeOther || '';
+  $('#pa-size').value = rec.areaSize ?? '';
+  $('#pa-size-unit').value = rec.areaUnit || 'sq ft';
+  $('#pa-area-type').value = rec.areaType || '';
+  $('#pa-area-other').value = rec.areaTypeOther || '';
+  $('#pa-client-name').value = rec.clientName || '';
+  $('#pa-client-phone').value = rec.clientPhone || '';
+  $('#pa-client-email').value = rec.clientEmail || '';
+  $('#pa-client-address').value = rec.clientAddress || '';
+  $('#pa-client-city').value = rec.clientCity || '';
+  $('#pa-client-zip').value = rec.clientZip || '';
+  const diffRadio = document.querySelector(`input[name="pa-different-site"][value="${rec.differentTreatmentSite ? 'yes' : 'no'}"]`);
+  if (diffRadio) diffRadio.checked = true;
+  $('#pa-treatment-address').value = rec.treatmentAddress || '';
+  $('#pa-treatment-city').value = rec.treatmentCity || '';
+  $('#pa-treatment-zip').value = rec.treatmentZip || '';
+  (rec.products || []).forEach((p, idx) => {
+    const i = idx + 1;
+    const brandSel = document.getElementById(`pa-brand-${i}`);
+    if (brandSel) brandSel.value = p.brandId || (p.brandOther ? '__other__' : '');
+    const brandOther = document.getElementById(`pa-brand-other-${i}`);
+    if (brandOther) brandOther.value = p.brandOther || '';
+    document.getElementById(`pa-epa-${i}`).value = p.epaReg || '';
+    document.getElementById(`pa-conc-${i}`).value = p.concentration ?? '';
+    document.getElementById(`pa-volume-${i}`).value = p.volumeMl ?? '';
+  });
+  $('#pa-final-volume').value = rec.finalVolumeGallons ?? '';
+  (rec.adjuvants || []).forEach((adj) => {
+    const cb = document.querySelector(`#pa-adjuvants input[data-adj="${adj}"]`);
+    if (cb) cb.checked = true;
+  });
+  $('#pa-adj-other').value = rec.adjuvantOther || '';
+  $('#pa-method').value = rec.applicationMethod || '';
+  $('#pa-method-other').value = rec.applicationMethodOther || '';
+  const signsRadio = document.querySelector(`input[name="pa-signs"][value="${rec.signsPosted ? 'yes' : 'no'}"]`);
+  if (signsRadio) signsRadio.checked = true;
+  $('#pa-notes').value = rec.notes || '';
+  if (rec.photoUrl) showPesticidePhotoPreview(rec.photoUrl);
+  $('#paDeleteBtn').style.display = 'block';
+  $('#paSaveBtn').textContent = 'Review Changes';
+  updatePesticideConditionals();
+}
+
+function readPesticideForm() {
+  const products = [];
+  for (let i = 1; i <= 3; i++) {
+    const brandSel = document.getElementById(`pa-brand-${i}`);
+    const brandValue = brandSel ? brandSel.value : '';
+    const brandOther = (document.getElementById(`pa-brand-other-${i}`).value || '').trim();
+    const epa = (document.getElementById(`pa-epa-${i}`).value || '').trim();
+    const concRaw = document.getElementById(`pa-conc-${i}`).value;
+    const volRaw = document.getElementById(`pa-volume-${i}`).value;
+    if (!brandValue && !brandOther && !epa && !concRaw && !volRaw) continue;
+    let brandId = '', brandName = '';
+    if (brandValue && brandValue !== '__other__') {
+      brandId = brandValue;
+      const p = cachedPesticides.find((x) => x.id === brandValue);
+      if (p) brandName = p.name;
+    }
+    products.push({
+      brandId,
+      brandName,
+      brandOther: brandValue === '__other__' ? brandOther : '',
+      epaReg: epa,
+      concentration: concRaw === '' ? null : parseFloat(concRaw),
+      volumeMl: volRaw === '' ? null : parseFloat(volRaw)
+    });
+  }
+  const adjuvants = Array.from(document.querySelectorAll('#pa-adjuvants input:checked')).map((cb) => cb.dataset.adj);
+  const diffSite = document.querySelector('input[name="pa-different-site"]:checked');
+  const signs = document.querySelector('input[name="pa-signs"]:checked');
+  const r = {
+    applicator: $('#pa-applicator').value,
+    appliedAt: $('#pa-date').value,
+    weatherTemp: $('#pa-temp').value === '' ? null : parseFloat($('#pa-temp').value),
+    weatherWind: $('#pa-wind').value === '' ? null : parseFloat($('#pa-wind').value),
+    weatherHumidity: $('#pa-humidity').value === '' ? null : parseFloat($('#pa-humidity').value),
+    purpose: $('#pa-purpose').value,
+    purposeOther: $('#pa-purpose-other').value.trim(),
+    areaSize: $('#pa-size').value === '' ? null : parseFloat($('#pa-size').value),
+    areaUnit: $('#pa-size-unit').value,
+    areaType: $('#pa-area-type').value,
+    areaTypeOther: $('#pa-area-other').value.trim(),
+    clientName: $('#pa-client-name').value.trim(),
+    clientPhone: $('#pa-client-phone').value.trim(),
+    clientEmail: $('#pa-client-email').value.trim(),
+    clientAddress: $('#pa-client-address').value.trim(),
+    clientCity: $('#pa-client-city').value.trim(),
+    clientZip: $('#pa-client-zip').value.trim(),
+    differentTreatmentSite: diffSite && diffSite.value === 'yes',
+    treatmentAddress: $('#pa-treatment-address').value.trim(),
+    treatmentCity: $('#pa-treatment-city').value.trim(),
+    treatmentZip: $('#pa-treatment-zip').value.trim(),
+    products,
+    finalVolumeGallons: $('#pa-final-volume').value === '' ? null : parseFloat($('#pa-final-volume').value),
+    adjuvants,
+    adjuvantOther: $('#pa-adj-other').value.trim(),
+    applicationMethod: $('#pa-method').value,
+    applicationMethodOther: $('#pa-method-other').value.trim(),
+    signsPosted: signs && signs.value === 'yes',
+    notes: $('#pa-notes').value.trim()
+  };
+  if (editingPesticideRecordId) r.id = editingPesticideRecordId;
+  return r;
+}
+
+function validatePesticideRecord(r) {
+  const errs = [];
+  if (!r.applicator) errs.push('Applicator');
+  if (!r.appliedAt) errs.push('Date / Time');
+  if (r.weatherTemp == null) errs.push('Temperature');
+  if (r.weatherWind == null) errs.push('Wind speed');
+  if (r.weatherHumidity == null) errs.push('Humidity');
+  if (!r.purpose) errs.push('Purpose');
+  if (r.purpose === 'Other (specify)' && !r.purposeOther) errs.push('Specify purpose');
+  if (r.areaSize == null || r.areaSize <= 0) errs.push('Area size');
+  if (!r.areaType) errs.push('Area type');
+  if (r.areaType === 'Other (specify)' && !r.areaTypeOther) errs.push('Specify area');
+  if (!r.clientName) errs.push('Client name');
+  if (!r.clientPhone) errs.push('Phone');
+  else if (!isValidPhone(r.clientPhone)) errs.push('Valid phone');
+  if (r.clientEmail && !EMAIL_RE.test(r.clientEmail)) errs.push('Valid email');
+  if (!r.clientAddress) errs.push('Client address');
+  if (!r.clientCity) errs.push('Client city');
+  if (!r.clientZip) errs.push('Client ZIP');
+  if (r.differentTreatmentSite) {
+    if (!r.treatmentAddress) errs.push('Treatment address');
+    if (!r.treatmentCity) errs.push('Treatment city');
+    if (!r.treatmentZip) errs.push('Treatment ZIP');
+  }
+  if (r.finalVolumeGallons == null || r.finalVolumeGallons < 0) errs.push('Final volume');
+  if (!r.applicationMethod) errs.push('Application method');
+  if (r.applicationMethod === 'Other (specify)' && !r.applicationMethodOther) errs.push('Specify method');
+  if (r.adjuvants.includes('Other') && !r.adjuvantOther) errs.push('Specify adjuvant');
+  if (!r.products.length) errs.push('At least one product');
+  return errs;
+}
+
+async function reviewPesticideForm(e) {
+  e.preventDefault();
+  const rec = readPesticideForm();
+  const errs = validatePesticideRecord(rec);
+  if (errs.length) { toast('Required: ' + errs.join(', '), 'error'); return; }
+  if (!rec.clientEmail) {
+    const proceed = await confirmDialog(
+      'No client email',
+      'Email is strongly encouraged for invoicing. Continue without it?',
+      { okText: 'Continue Without Email' }
+    );
+    if (!proceed) { $('#pa-client-email').focus(); return; }
+  }
+  pendingPesticideRecord = rec;
+  openSheet(rec, 'review', 'pesticide');
+}
+
+function generatePesticideRecordNumber(rec) {
+  const dateStr = rec.appliedAt || new Date().toISOString();
+  const yy = dateStr.slice(2, 4);
+  const fl = trapperInitials(rec.applicator || '');
+  const prefix = `SWR-PA-${yy}-${fl}-`;
+  let max = 0;
+  for (const r of cachedPesticideRecords) {
+    if (!r.recordNumber) continue;
+    if (r.recordNumber.startsWith(prefix)) {
+      const n = parseInt(r.recordNumber.slice(prefix.length), 10);
+      if (Number.isFinite(n) && n > max) max = n;
+    }
+  }
+  return `${prefix}${String(max + 1).padStart(4, '0')}`;
+}
+
+async function confirmSavePesticide() {
+  if (!pendingPesticideRecord) return;
+  const rec = pendingPesticideRecord;
+  const isEdit = !!rec.id;
+  if (!isEdit) {
+    rec.createdAt = new Date().toISOString();
+    rec.recordNumber = generatePesticideRecordNumber(rec);
+  } else {
+    const existing = cachedPesticideRecords.find((x) => x.id === rec.id);
+    if (existing) {
+      rec.createdAt = existing.createdAt;
+      rec.recordNumber = existing.recordNumber || generatePesticideRecordNumber(rec);
+      if (existing.photoUrl && !pendingPaPhotoBlob && !removeExistingPaPhoto) {
+        rec.photoUrl = existing.photoUrl;
+        rec.photoPath = existing.photoPath || null;
+      }
+    }
+  }
+  /* Photo upload (single for now). */
+  if (pendingPaPhotoBlob) {
+    try {
+      const photoId = (crypto && crypto.randomUUID ? crypto.randomUUID() : 'p-' + Date.now());
+      const path = `pesticide_records/${photoId}/photo.jpg`;
+      const ref = storageRef(fbStorage, path);
+      await uploadBytes(ref, pendingPaPhotoBlob, { contentType: 'image/jpeg' });
+      rec.photoUrl = await getDownloadURL(ref);
+      rec.photoPath = path;
+    } catch (err) {
+      const cont = await confirmDialog('Photo upload failed', `Save without photo? (${err.code || err.message || 'unknown'})`, { okText: 'Save Without Photo' });
+      if (!cont) return;
+    }
+  } else if (removeExistingPaPhoto) {
+    rec.photoUrl = null;
+    rec.photoPath = null;
+  }
+  rec.updatedAt = new Date().toISOString();
+  const data = { ...rec };
+  delete data.id;
+  try {
+    let newId;
+    if (isEdit) {
+      await setDoc(doc(fbDb, 'pesticide_records', rec.id), data, { merge: true });
+      newId = rec.id;
+    } else {
+      data.createdByUid = currentUser ? currentUser.uid : null;
+      data.createdByEmail = currentUser ? currentUser.email : null;
+      const ref = await addDoc(pesticideRecordsCol(), data);
+      newId = ref.id;
+      rec.id = newId;
+    }
+    pendingPesticideRecord = null;
+    closeSheet();
+    resetPesticideRecordForm();
+    setView('records');
+    await refreshAll();
+    toast(isEdit ? 'Application updated' : `Saved · ${rec.recordNumber}`);
+    if (!isEdit) sendPesticideEmail(rec);
+  } catch (err) {
+    toast(`Save failed: ${err.message || err}`, 'error');
+  }
+}
+
+async function deletePesticideRecord(id) {
+  const target = id || editingPesticideRecordId;
+  if (!target) return;
+  const ok = await confirmDialog('Delete this application?', 'This cannot be undone.');
+  if (!ok) return;
+  await deleteDoc(doc(fbDb, 'pesticide_records', target));
+  resetPesticideRecordForm();
+  setView('records');
+  toast('Application deleted');
+}
+
+function fmtPaDateTime(s) {
+  if (!s) return '';
+  /* YYYY-MM-DDTHH:MM */
+  const m = String(s).match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);
+  if (!m) return s;
+  const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]), Number(m[4]), Number(m[5]));
+  return d.toLocaleString(undefined, { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
+}
+
+function brandLabel(p) {
+  if (p.brandName) return p.brandName;
+  if (p.brandOther) return p.brandOther;
+  return '(unspecified brand)';
+}
+
+function buildPesticideDetailRows(r) {
+  const rows = [];
+  const push = (k, v) => { if (v != null && v !== '') rows.push([k, v]); };
+  const head = (k) => rows.push(['__head__', k]);
+
+  push('Record #', r.recordNumber);
+  head('Applicator');
+  push('Name', r.applicator);
+  const certs = (orgSettings && orgSettings.applicatorCerts) || APPLICATOR_CERT_DEFAULTS;
+  push('Certification', certs[r.applicator]);
+  push('Applied', fmtPaDateTime(r.appliedAt));
+
+  head('Weather');
+  push('Temp (°F)', r.weatherTemp);
+  push('Wind (mph)', r.weatherWind);
+  push('Humidity (%)', r.weatherHumidity);
+
+  head('Job');
+  push('Purpose', r.purpose === 'Other (specify)' ? r.purposeOther : r.purpose);
+  push('Area', `${r.areaSize} ${r.areaUnit}`);
+  push('Type', r.areaType === 'Other (specify)' ? r.areaTypeOther : r.areaType);
+
+  head('Client');
+  push('Name', r.clientName);
+  push('Phone', r.clientPhone);
+  if (r.clientEmail) push('Email', r.clientEmail);
+  push('Address', `${r.clientAddress}, ${r.clientCity} ${r.clientZip}`);
+
+  if (r.differentTreatmentSite) {
+    head('Treatment Site');
+    push('Address', `${r.treatmentAddress}, ${r.treatmentCity} ${r.treatmentZip}`);
+  }
+
+  (r.products || []).forEach((p, idx) => {
+    head(`Product ${idx + 1}`);
+    push('Brand', brandLabel(p));
+    push('EPA Reg', p.epaReg);
+    if (p.concentration != null) push('Concentration', p.concentration + '%');
+    if (p.volumeMl != null) push('Volume Applied', p.volumeMl + ' ml');
+  });
+
+  head('Application');
+  push('Final Volume', r.finalVolumeGallons + ' gal');
+  const adjList = [...(r.adjuvants || [])].map((a) => a === 'Other' ? `Other: ${r.adjuvantOther || ''}` : a).join(', ');
+  push('Adjuvants', adjList);
+  push('Method', r.applicationMethod === 'Other (specify)' ? r.applicationMethodOther : r.applicationMethod);
+  push('Signs Posted', r.signsPosted ? 'Yes' : 'No');
+
+  if (r.notes) { head('Notes'); push('Notes', r.notes); }
+
+  return rows.map(([k, v]) => {
+    if (k === '__head__') return `<div class="dr group-head"><div class="dk">${escapeHtml(v)}</div></div>`;
+    return `<div class="dr"><div class="dk">${escapeHtml(k)}</div><div class="dv">${escapeHtml(String(v))}</div></div>`;
+  }).join('');
+}
+
+function filteredPesticideRecords() {
+  const q = ($('#pestRecSearch') ? $('#pestRecSearch').value : '').trim().toLowerCase();
+  const fa = $('#pestFilterApplicator') ? $('#pestFilterApplicator').value : '';
+  const fm = $('#pestFilterMethod') ? $('#pestFilterMethod').value : '';
+  return cachedPesticideRecords.filter((r) => {
+    if (fa && r.applicator !== fa) return false;
+    if (fm && r.applicationMethod !== fm) return false;
+    if (q) {
+      const hay = [r.recordNumber, r.applicator, r.clientName, r.clientAddress, r.clientCity,
+        r.purpose, r.areaType, r.applicationMethod, r.notes,
+        ...(r.products || []).flatMap((p) => [brandLabel(p), p.epaReg])
+      ].filter(Boolean).join(' ').toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    return true;
+  });
+}
+
+function renderPesticideRecordsList() {
+  const list = filteredPesticideRecords();
+  const root = $('#pesticideRecordList');
+  if (!root) return;
+  if (!list.length) {
+    root.innerHTML = '<div class="empty"><div class="em-title">No applications yet</div><div>Tap + to log a new pesticide application.</div></div>';
+    return;
+  }
+  root.innerHTML = '';
+  for (const r of list) {
+    const div = document.createElement('div');
+    div.className = 'rec';
+    const brand = (r.products && r.products[0]) ? brandLabel(r.products[0]) : '(no product)';
+    div.innerHTML = `
+      <div class="rec-thumb">PA</div>
+      <div class="rec-body">
+        <div class="rec-title">${escapeHtml(brand)} <span class="rec-tag tag-X">${escapeHtml(r.applicator || '')}</span></div>
+        <div class="rec-meta">${escapeHtml(r.recordNumber || '—')} · ${escapeHtml(fmtPaDateTime(r.appliedAt))} · ${escapeHtml(r.clientName || '')}</div>
+      </div>`;
+    div.onclick = () => openPesticideDetail(r.id);
+    root.appendChild(div);
+  }
+}
+
+function openPesticideDetail(id) {
+  const r = cachedPesticideRecords.find((x) => x.id === id);
+  if (!r) return;
+  openSheet(r, 'detail', 'pesticide');
+}
+
+async function sendPesticideEmail(rec) {
+  if (typeof emailjs === 'undefined' || !PESTICIDE_EMAILJS_TEMPLATE_ID) return;
+  try {
+    const certs = (orgSettings && orgSettings.applicatorCerts) || APPLICATOR_CERT_DEFAULTS;
+    const products = rec.products || [];
+    const productRow = (idx) => {
+      const p = products[idx];
+      return p ? {
+        brand: brandLabel(p),
+        epa: p.epaReg || '',
+        concentration: p.concentration != null ? String(p.concentration) : '',
+        volume: p.volumeMl != null ? String(p.volumeMl) : ''
+      } : { brand: '', epa: '', concentration: '', volume: '' };
+    };
+    const p1 = productRow(0), p2 = productRow(1), p3 = productRow(2);
+    const adjList = [...(rec.adjuvants || [])].map((a) => a === 'Other' ? `Other: ${rec.adjuvantOther || ''}` : a).join(', ');
+    const params = {
+      record_number: rec.recordNumber || '',
+      applied_at: fmtPaDateTime(rec.appliedAt),
+      applicator: rec.applicator || '',
+      cert_number: certs[rec.applicator] || '',
+      purpose: rec.purpose === 'Other (specify)' ? rec.purposeOther : rec.purpose,
+      area_size: rec.areaSize != null ? String(rec.areaSize) : '',
+      area_unit: rec.areaUnit || '',
+      area_type: rec.areaType === 'Other (specify)' ? rec.areaTypeOther : rec.areaType,
+      weather_temp: rec.weatherTemp != null ? String(rec.weatherTemp) : '',
+      weather_wind: rec.weatherWind != null ? String(rec.weatherWind) : '',
+      weather_humidity: rec.weatherHumidity != null ? String(rec.weatherHumidity) : '',
+      client_name: rec.clientName || '',
+      client_phone: rec.clientPhone || '',
+      client_email: rec.clientEmail || '',
+      client_address: rec.clientAddress || '',
+      client_city: rec.clientCity || '',
+      client_zip: rec.clientZip || '',
+      same_treatment_site: rec.differentTreatmentSite ? 'No' : 'Yes',
+      treatment_address: rec.treatmentAddress || '',
+      treatment_city: rec.treatmentCity || '',
+      treatment_zip: rec.treatmentZip || '',
+      product1_brand: p1.brand, product1_epa: p1.epa, product1_concentration: p1.concentration, product1_volume_ml: p1.volume,
+      product2_brand: p2.brand, product2_epa: p2.epa, product2_concentration: p2.concentration, product2_volume_ml: p2.volume,
+      product3_brand: p3.brand, product3_epa: p3.epa, product3_concentration: p3.concentration, product3_volume_ml: p3.volume,
+      final_volume_gallons: rec.finalVolumeGallons != null ? String(rec.finalVolumeGallons) : '',
+      adjuvants: adjList,
+      application_method: rec.applicationMethod === 'Other (specify)' ? rec.applicationMethodOther : rec.applicationMethod,
+      signs_posted: rec.signsPosted ? 'Yes' : 'No',
+      notes: rec.notes || '',
+      created_by_email: rec.createdByEmail || (currentUser ? currentUser.email : ''),
+      created_at: rec.createdAt || new Date().toISOString(),
+      photo_url: rec.photoUrl || ''
+    };
+    await emailjs.send(EMAILJS_CONFIG.serviceId, PESTICIDE_EMAILJS_TEMPLATE_ID, params);
+  } catch (err) {
+    console.error('Pesticide email failed', err);
+  }
+}
+
 async function deletePesticide(id) {
   if (!isAdmin()) return;
   const target = id || editingPesticideId;
@@ -3882,10 +4867,12 @@ async function wipeAll() {
 
 /* ---------- Refresh ---------- */
 async function refreshAll() {
-  /* Records snapshot is maintained by the Firestore subscription;
-     we just re-render here. */
   renderDashboard();
-  renderRecords();
+  if (appMode === 'pesticide') {
+    renderPesticideRecordsList();
+  } else {
+    renderRecords();
+  }
 }
 
 /* ---------- Wiring ---------- */
@@ -3894,17 +4881,17 @@ async function init() {
   await loadSettings();
   fillFilters();
   fillForm();
+  fillPesticideForm();
   fillExportPeriods();
 
   $('#bottomNav').addEventListener('click', (e) => {
     const btn = e.target.closest('button[data-view]');
     if (!btn) return;
     const v = btn.dataset.view;
-    if (v === 'add' && appMode === 'pesticide') {
-      toast('Pesticide application form ships in the next update. Admin can add products via Settings now.', 'error');
-      return;
+    if (v === 'add' && currentView !== 'add') {
+      if (appMode === 'trap' && !pendingRecord) resetForm();
+      if (appMode === 'pesticide' && !pendingPesticideRecord) resetPesticideRecordForm();
     }
-    if (v === 'add' && currentView !== 'add' && !pendingRecord) resetForm();
     setView(v);
   });
 
@@ -3975,16 +4962,28 @@ async function init() {
   });
   $('#detailEdit').addEventListener('click', async () => {
     if (sheetMode === 'review') {
-      await confirmSave();
+      if (sheetRecordType === 'pesticide') {
+        await confirmSavePesticide();
+      } else {
+        await confirmSave();
+      }
       return;
     }
     /* detail mode: open the underlying record into the form for editing */
     if (!detailRecordId) return;
-    const r = await dbGet(detailRecordId);
-    closeSheet();
-    if (!r) return;
-    setView('add');
-    loadIntoForm(r);
+    if (sheetRecordType === 'pesticide') {
+      const r = cachedPesticideRecords.find((x) => x.id === detailRecordId);
+      closeSheet();
+      if (!r) return;
+      setView('add');
+      loadPesticideRecordIntoForm(r);
+    } else {
+      const r = await dbGet(detailRecordId);
+      closeSheet();
+      if (!r) return;
+      setView('add');
+      loadIntoForm(r);
+    }
   });
 
   $('#exportKdfwr').addEventListener('click', exportKdfwr);
@@ -4010,6 +5009,45 @@ async function init() {
     } else if (delBtn) {
       deletePesticide(delBtn.dataset.delete);
     }
+  });
+
+  /* Pesticide application form wiring */
+  $('#pa-applicator').addEventListener('change', updateApplicatorCertDisplay);
+  $('#pesticideAppForm').addEventListener('submit', reviewPesticideForm);
+  $('#paCancelBtn').addEventListener('click', () => {
+    const wasEdit = !!editingPesticideRecordId;
+    resetPesticideRecordForm();
+    setView(wasEdit ? 'records' : 'dashboard');
+  });
+  $('#paDeleteBtn').addEventListener('click', () => deletePesticideRecord());
+  ['pa-purpose','pa-area-type','pa-method'].forEach((id) => {
+    $('#' + id).addEventListener('change', updatePesticideConditionals);
+  });
+  document.querySelectorAll('input[name="pa-different-site"]').forEach((el) => {
+    el.addEventListener('change', updatePesticideConditionals);
+  });
+  $('#pa-products-container').addEventListener('change', (e) => {
+    const sel = e.target.closest('[data-brand-select]');
+    if (sel) handleBrandSelectChange(parseInt(sel.dataset.brandSelect, 10));
+  });
+  $('#pa-adjuvants').addEventListener('change', updatePesticideConditionals);
+  $('#pa-client-phone').addEventListener('blur', (e) => {
+    const v = e.target.value.trim();
+    if (v) e.target.value = formatPhone(v);
+  });
+  $('#pa-client-name').addEventListener('blur', (e) => {
+    const v = e.target.value.trim();
+    if (v) e.target.value = titleCaseName(v);
+  });
+  $('#paPhotoCaptureBtn').addEventListener('click', () => $('#paPhotoInput').click());
+  $('#paPhotoReplaceBtn').addEventListener('click', () => $('#paPhotoInput').click());
+  $('#paPhotoRemoveBtn').addEventListener('click', handlePaPhotoRemove);
+  $('#paPhotoInput').addEventListener('change', handlePaPhotoSelected);
+  ['pestRecSearch','pestFilterApplicator','pestFilterMethod'].forEach((id) => {
+    const el = $('#' + id);
+    if (!el) return;
+    el.addEventListener('input', renderPesticideRecordsList);
+    el.addEventListener('change', renderPesticideRecordsList);
   });
 
   /* Mode picker + header toggle */
