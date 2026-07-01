@@ -951,9 +951,122 @@
       letter-spacing: 0.04em;
     }
 
+    /* ===== Landing page module counts (added on the mode picker) ===== */
+    .mode-card .mode-count {
+      margin-left: auto;
+      text-align: right;
+      flex-shrink: 0;
+    }
+    .mode-card .mode-count .n {
+      font-family: 'Playfair Display', serif;
+      font-size: 26px;
+      font-weight: 700;
+      color: var(--cream);
+      line-height: 1;
+    }
+    .mode-card .mode-count .lbl {
+      display: block;
+      font-size: 10px;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      color: var(--amber-soft);
+      margin-top: 3px;
+    }
+
+    /* ===== Module label in header (replaces the trap/pest toggle) ===== */
+    .module-label {
+      font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase;
+      color: var(--amber-soft); margin-top: 3px; font-weight: 700;
+    }
+
+    /* ===== Dynamic bottom nav ===== */
+    #bottomNav .nav-btn[data-view="menu"] svg { stroke: var(--amber); }
+    #bottomNav .nav-btn[data-view="menu"] { color: var(--amber); }
+
+    /* ===== Multi-entry form button row ===== */
+    .form-actions { display: flex; flex-direction: column; gap: 10px; margin-top: 18px; }
+    .form-actions .submit-row { display: flex; gap: 10px; }
+    .form-actions .submit-row .btn { flex: 1; }
+    .form-actions .btn-cancel { width: 100%; }
+
+    /* ===== Customer autocomplete dropdown ===== */
+    .autocomplete-wrap { position: relative; }
+    .autocomplete-list {
+      position: absolute; left: 0; right: 0; top: calc(100% + 2px);
+      background: #fff; border: 1px solid var(--line); border-radius: 10px;
+      box-shadow: var(--shadow); z-index: 60; max-height: 240px; overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+    .autocomplete-list.hidden { display: none; }
+    .autocomplete-item {
+      padding: 10px 12px; border-bottom: 1px solid var(--line); cursor: pointer;
+    }
+    .autocomplete-item:last-child { border-bottom: none; }
+    .autocomplete-item:active, .autocomplete-item.active { background: var(--cream-deep); }
+    .autocomplete-item .ac-name { font-weight: 600; color: var(--green-deep); font-size: 15px; }
+    .autocomplete-item .ac-sub { font-size: 12px; color: var(--ink-soft); margin-top: 2px; }
+    .autocomplete-item .ac-inactive {
+      display: inline-block; font-size: 10px; font-weight: 700; letter-spacing: 0.04em;
+      text-transform: uppercase; color: var(--ink-soft); background: var(--cream-deep);
+      padding: 1px 6px; border-radius: 4px; margin-left: 6px;
+    }
+    .customer-suggest-banner {
+      background: rgba(196,119,42,0.12); border: 1px solid var(--amber-soft);
+      color: #8a4f17; border-radius: 10px; padding: 10px 12px; margin: 6px 0;
+      font-size: 13px; display: none; align-items: center; gap: 10px; justify-content: space-between;
+    }
+    .customer-suggest-banner.on { display: flex; }
+    .customer-suggest-banner button {
+      background: var(--amber); color: #fff; border: none; border-radius: 8px;
+      padding: 6px 12px; font-size: 12px; font-weight: 700; flex-shrink: 0;
+    }
+
+    /* ===== Customer directory ===== */
+    .customer-row {
+      display: flex; align-items: flex-start; gap: 12px; padding: 12px 0;
+      border-bottom: 1px solid var(--line); cursor: pointer;
+    }
+    .customer-row:last-child { border-bottom: none; }
+    .customer-row .cust-avatar {
+      width: 40px; height: 40px; border-radius: 10px; flex-shrink: 0;
+      background: var(--cream-deep); color: var(--green); font-weight: 700;
+      display: flex; align-items: center; justify-content: center; font-size: 14px;
+    }
+    .customer-row .cust-body { flex: 1; min-width: 0; }
+    .customer-row .cust-name { font-weight: 600; color: var(--green-deep); }
+    .customer-row .cust-meta { font-size: 13px; color: var(--ink-soft); margin-top: 2px; }
+    .status-pill {
+      display: inline-block; padding: 2px 8px; border-radius: 999px;
+      font-size: 11px; font-weight: 700; letter-spacing: 0.02em; margin-left: 6px;
+    }
+    .status-pill.active { background: #DDEAD8; color: var(--released); }
+    .status-pill.inactive { background: var(--cream-deep); color: var(--ink-soft); }
+    .customer-toggle-row {
+      display: flex; align-items: center; justify-content: space-between; gap: 12px;
+      padding: 12px 14px; background: var(--cream-deep); border-radius: 12px; margin-bottom: 14px;
+    }
+    .customer-toggle-row .lbl { font-weight: 600; color: var(--green-deep); }
+    .customer-toggle-row .sub { font-size: 12px; color: var(--ink-soft); margin-top: 2px; }
+    /* iOS-style switch */
+    .switch { position: relative; width: 52px; height: 30px; flex-shrink: 0; }
+    .switch input { opacity: 0; width: 100%; height: 100%; margin: 0; }
+    .switch .track {
+      position: absolute; inset: 0; border-radius: 999px; background: var(--line);
+      transition: background 0.15s; pointer-events: none;
+    }
+    .switch .track::before {
+      content: ''; position: absolute; top: 3px; left: 3px; width: 24px; height: 24px;
+      border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+      transition: transform 0.15s;
+    }
+    .switch input:checked + .track { background: var(--released); }
+    .switch input:checked + .track::before { transform: translateX(22px); }
+    .sync-now-status { font-size: 13px; margin-top: 8px; color: var(--ink-soft); }
+
     /* Wider screens — center the form, two-up rows */
     @media (min-width: 600px) {
-      #view-add, #view-dashboard, #view-records, #view-export, #view-settings {
+      #view-add, #view-dashboard, #view-records, #view-export, #view-settings,
+      #view-customers, #view-add-customer, #view-records-pesticide, #view-add-pesticide {
         max-width: 760px; margin: 0 auto;
       }
       .field-row.two { grid-template-columns: 1fr 1fr; gap: 14px; }
@@ -1021,24 +1134,36 @@
     <img class="brand-logo" src="logo.png" alt="SWR"
          onload="this.classList.add('loaded');" onerror="this.remove();">
     <h1>What are you doing today?</h1>
-    <div class="mode-sub">Pick a job type — you can switch from the header any time.</div>
+    <div class="mode-sub">Pick a module. Return here any time with the ← button.</div>
     <button type="button" class="mode-card" data-mode="trap">
       <div class="icon-circle">
         <svg viewBox="0 0 24 24"><circle cx="6" cy="11" r="2.5"/><circle cx="12" cy="8" r="2.5"/><circle cx="18" cy="11" r="2.5"/><ellipse cx="12" cy="17" rx="5" ry="4"/></svg>
       </div>
       <div>
-        <div class="mode-title">Trapping Report</div>
+        <div class="mode-title">Trapping</div>
         <div class="mode-desc">Wildlife capture, release, or euthanasia</div>
       </div>
+      <div class="mode-count"><span class="n" id="landingTrapCount">0</span><span class="lbl">this period</span></div>
     </button>
     <button type="button" class="mode-card" data-mode="pesticide">
       <div class="icon-circle">
         <svg viewBox="0 0 24 24"><path d="M9 2h6v3l3 3v3l-3 1v9a2 2 0 0 1-2 2h-2a2 2 0 0 1-2-2v-9l-3-1V8l3-3z"/><circle cx="12" cy="14" r="1.5"/></svg>
       </div>
       <div>
-        <div class="mode-title">Pesticide Report</div>
-        <div class="mode-desc">Chemical application record</div>
+        <div class="mode-title">Pesticides</div>
+        <div class="mode-desc">Chemical application records</div>
       </div>
+      <div class="mode-count"><span class="n" id="landingPestCount">0</span><span class="lbl">this period</span></div>
+    </button>
+    <button type="button" class="mode-card" data-mode="customer">
+      <div class="icon-circle">
+        <svg viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+      </div>
+      <div>
+        <div class="mode-title">Customers</div>
+        <div class="mode-desc">Client directory, shared across modules</div>
+      </div>
+      <div class="mode-count"><span class="n" id="landingCustCount">0</span><span class="lbl">active</span></div>
     </button>
   </div>
 </div>
@@ -1063,10 +1188,7 @@
       </div>
       <div class="titlebox">
         <h1 id="viewTitle">Dashboard</h1>
-        <div class="mode-toggle" id="modeToggle" style="margin-top: 4px;">
-          <button type="button" data-mode="trap" class="active">Trap</button>
-          <button type="button" data-mode="pesticide">Pest</button>
-        </div>
+        <div class="module-label" id="moduleLabel">Trapping</div>
       </div>
     </div>
     <div class="header-right">
@@ -1227,7 +1349,10 @@
         <div class="field-row two">
           <div class="form-group">
             <label for="f-client-name">Client Name<span class="req">*</span></label>
-            <input type="text" id="f-client-name" autocomplete="name" required>
+            <div class="autocomplete-wrap">
+              <input type="text" id="f-client-name" autocomplete="off" required>
+              <div class="autocomplete-list hidden" id="f-client-name-ac" data-ac-target="trap"></div>
+            </div>
           </div>
           <div class="form-group">
             <label for="f-client-phone">Phone<span class="req">*</span></label>
@@ -1264,9 +1389,16 @@
         <h3 class="form-section">Trap Location</h3>
         <div class="form-group">
           <label for="f-address">Address of Collection<span class="req">*</span></label>
-          <input type="text" id="f-address" placeholder="123 Main St, Lexington" autocomplete="off" required>
-          <div class="hint">Auto-fills when you drop a pin below; type manually if needed.</div>
+          <div class="autocomplete-wrap">
+            <input type="text" id="f-address" placeholder="123 Main St, Lexington" autocomplete="off" required>
+            <div class="autocomplete-list hidden" id="f-address-ac" data-ac-target="trap"></div>
+          </div>
+          <div class="hint">Start typing to match a saved customer, drop a pin below, or type manually.</div>
           <div class="hint" id="addressValidationHint"></div>
+          <div class="customer-suggest-banner" id="trapCustomerSuggest">
+            <span id="trapCustomerSuggestText"></span>
+            <button type="button" id="trapCustomerSuggestBtn">Use customer</button>
+          </div>
         </div>
         <div class="form-group">
           <div class="map-section-label">Trap Location Map</div>
@@ -1374,9 +1506,12 @@
           <textarea id="f-notes" placeholder="Client situation, animal condition, follow-up details…"></textarea>
         </div>
 
-        <div class="btn-row" style="margin-top:18px;">
-          <button type="button" class="btn btn-ghost" id="cancelBtn">Cancel</button>
-          <button type="submit" class="btn btn-primary" id="saveBtn">Review Record</button>
+        <div class="form-actions">
+          <div class="submit-row">
+            <button type="submit" class="btn btn-ghost" id="saveNewBtn" data-intent="new">Submit &amp; New</button>
+            <button type="submit" class="btn btn-primary" id="saveBtn" data-intent="close">Submit &amp; Close</button>
+          </div>
+          <button type="button" class="btn btn-cancel btn-ghost" id="cancelBtn">Cancel</button>
         </div>
         <button type="button" class="btn btn-danger" id="deleteBtn" style="margin-top:10px; display:none;">Delete Record</button>
       </form>
@@ -1480,7 +1615,10 @@
         <div class="field-row two">
           <div class="form-group">
             <label for="pa-client-name">Name<span class="req">*</span></label>
-            <input type="text" id="pa-client-name" autocomplete="name" required>
+            <div class="autocomplete-wrap">
+              <input type="text" id="pa-client-name" autocomplete="off" required>
+              <div class="autocomplete-list hidden" id="pa-client-name-ac" data-ac-target="pesticide"></div>
+            </div>
           </div>
           <div class="form-group">
             <label for="pa-client-phone">Phone<span class="req">*</span></label>
@@ -1493,8 +1631,15 @@
         </div>
         <div class="form-group">
           <label for="pa-client-address">Address<span class="req">*</span></label>
-          <input type="text" id="pa-client-address" autocomplete="street-address" required>
+          <div class="autocomplete-wrap">
+            <input type="text" id="pa-client-address" autocomplete="off" required>
+            <div class="autocomplete-list hidden" id="pa-client-address-ac" data-ac-target="pesticide"></div>
+          </div>
           <div class="hint" id="pa-address-status"></div>
+          <div class="customer-suggest-banner" id="pestCustomerSuggest">
+            <span id="pestCustomerSuggestText"></span>
+            <button type="button" id="pestCustomerSuggestBtn">Use customer</button>
+          </div>
         </div>
         <div class="field-row two">
           <div class="form-group">
@@ -1605,11 +1750,98 @@
           <textarea id="pa-notes" placeholder="Anything not captured above"></textarea>
         </div>
 
-        <div class="btn-row" style="margin-top:18px;">
-          <button type="button" class="btn btn-ghost" id="paCancelBtn">Cancel</button>
-          <button type="submit" class="btn btn-primary" id="paSaveBtn">Review Application</button>
+        <div class="form-actions">
+          <div class="submit-row">
+            <button type="submit" class="btn btn-ghost" id="paSaveNewBtn" data-intent="new">Submit &amp; New</button>
+            <button type="submit" class="btn btn-primary" id="paSaveBtn" data-intent="close">Submit &amp; Close</button>
+          </div>
+          <button type="button" class="btn btn-cancel btn-ghost" id="paCancelBtn">Cancel</button>
         </div>
         <button type="button" class="btn btn-danger" id="paDeleteBtn" style="margin-top:10px; display:none;">Delete Application</button>
+      </form>
+    </section>
+
+    <!-- CUSTOMERS (module landing + directory) -->
+    <section id="view-customers" class="view hidden">
+      <div class="greeting">
+        <h2 id="custGreetingTitle">Customer Directory</h2>
+        <p class="muted" id="custGreetingSub">Shared across trapping and pesticide records.</p>
+      </div>
+      <div class="search-bar">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+        <input type="text" id="custSearch" placeholder="Search name, address, city, phone…" autocomplete="off">
+      </div>
+      <div class="filter-row">
+        <select id="custFilterStatus">
+          <option value="active">Active only</option>
+          <option value="all">All customers</option>
+          <option value="inactive">Inactive only</option>
+        </select>
+        <select id="custFilterCounty"><option value="">All counties</option></select>
+      </div>
+      <button class="btn btn-amber" id="addCustomerBtn" style="margin-bottom:14px;">+ Add Customer</button>
+      <div class="card" id="customerList"></div>
+    </section>
+
+    <!-- ADD / EDIT CUSTOMER -->
+    <section id="view-add-customer" class="view hidden">
+      <form id="customerForm" novalidate>
+        <input type="hidden" id="c-id">
+
+        <div class="customer-toggle-row">
+          <div>
+            <div class="lbl">Active customer</div>
+            <div class="sub">App-only flag. A future QuickBooks sync never changes this.</div>
+          </div>
+          <label class="switch">
+            <input type="checkbox" id="c-active">
+            <span class="track"></span>
+          </label>
+        </div>
+
+        <h3 class="form-section">Contact</h3>
+        <div class="form-group">
+          <label for="c-name">Name<span class="req">*</span></label>
+          <input type="text" id="c-name" autocomplete="off" required>
+        </div>
+        <div class="field-row two">
+          <div class="form-group">
+            <label for="c-phone">Phone</label>
+            <input type="tel" id="c-phone" inputmode="tel" autocomplete="off">
+          </div>
+          <div class="form-group">
+            <label for="c-email">Email<span class="opt">(optional)</span></label>
+            <input type="email" id="c-email" inputmode="email" autocomplete="off">
+          </div>
+        </div>
+
+        <h3 class="form-section">Address</h3>
+        <div class="form-group">
+          <label for="c-address">Street Address</label>
+          <input type="text" id="c-address" autocomplete="off">
+        </div>
+        <div class="field-row two">
+          <div class="form-group">
+            <label for="c-city">City</label>
+            <input type="text" id="c-city" autocomplete="off">
+          </div>
+          <div class="form-group">
+            <label for="c-county">County</label>
+            <select id="c-county"><option value="">— select county —</option></select>
+          </div>
+        </div>
+
+        <h3 class="form-section">Notes</h3>
+        <div class="form-group">
+          <label for="c-notes">Notes<span class="opt">(optional)</span></label>
+          <textarea id="c-notes" placeholder="Gate codes, dogs on site, billing notes…"></textarea>
+        </div>
+
+        <div class="form-actions">
+          <button type="submit" class="btn btn-primary" id="saveCustomerBtn">Save Customer</button>
+          <button type="button" class="btn btn-cancel btn-ghost" id="cancelCustomerBtn">Cancel</button>
+        </div>
+        <button type="button" class="btn btn-danger" id="deleteCustomerBtn" style="margin-top:10px; display:none;">Delete Customer</button>
       </form>
     </section>
 
@@ -1653,6 +1885,15 @@
 
     <!-- SETTINGS -->
     <section id="view-settings" class="view hidden">
+      <div class="card" id="customerSyncCard">
+        <h3 style="margin-bottom:6px;">Customer Sync</h3>
+        <p class="muted" style="font-size:14px;">One-way sync from QuickBooks into the shared customer directory. Contact details are updated from QuickBooks; the in-app <strong>Active</strong> flag is never changed by the sync.</p>
+        <div class="btn-row" style="margin-top:12px;">
+          <button class="btn btn-ghost" id="syncNowBtn">Sync Now</button>
+        </div>
+        <div class="sync-now-status" id="syncNowStatus"></div>
+      </div>
+
       <div class="card" id="bizCard">
         <h3 style="margin-bottom:10px;">Business</h3>
         <div id="bizDisplay" class="biz-info">
@@ -1747,7 +1988,7 @@
       </div>
 
       <div class="card center muted" style="font-size:12px;">
-        Southern Wildlife Tracker · <span id="footerVersion">v1.25</span><br>
+        Southern Wildlife Tracker · <span id="footerVersion">v1.26</span><br>
         Designed for KDFWR Commercial NWCO compliance.
       </div>
     </section>
@@ -2097,7 +2338,7 @@ let orgSettings = {
 };
 
 const PESTICIDE_EMAILJS_TEMPLATE_ID = 'template_4aa3u5a';
-const APP_VERSION = 'v1.25';  /* bump in lockstep with the SW cache version */
+const APP_VERSION = 'v1.26';  /* bump in lockstep with the SW cache version */
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -2512,18 +2753,78 @@ function showSignInScreen() {
   $('#app').classList.add('hidden');
   setTimeout(() => { try { $('#signInId').focus(); } catch (e) {} }, 120);
 }
-let modeSelected = false;  /* reset every session; mode picker appears after each sign-in */
+let modeSelected = false;
 
-function showModePicker() {
+const MODULE_LABELS = { trap: 'Trapping', pesticide: 'Pesticides', customer: 'Customers' };
+
+/* Bottom-nav layout per module. The main landing page has no bottom nav.
+   `fab: true` renders the raised amber add button (kept from the original
+   design); `menu` returns to the landing page. */
+const NAV_CONFIGS = {
+  trap: [
+    { view: 'menu', label: 'Menu', icon: 'menu' },
+    { view: 'dashboard', label: 'Home', icon: 'home' },
+    { view: 'records', label: 'Records', icon: 'list' },
+    { view: 'add', label: 'Add', icon: 'plus', fab: true },
+    { view: 'export', label: 'Export', icon: 'export' },
+    { view: 'settings', label: 'Settings', icon: 'gear' }
+  ],
+  pesticide: [
+    { view: 'menu', label: 'Menu', icon: 'menu' },
+    { view: 'dashboard', label: 'Home', icon: 'home' },
+    { view: 'records', label: 'Records', icon: 'list' },
+    { view: 'add', label: 'Add', icon: 'plus', fab: true },
+    { view: 'export', label: 'Export', icon: 'export' },
+    { view: 'settings', label: 'Settings', icon: 'gear' }
+  ],
+  customer: [
+    { view: 'menu', label: 'Menu', icon: 'menu' },
+    { view: 'dashboard', label: 'Customers', icon: 'users' },
+    { view: 'add', label: 'Add', icon: 'plus', fab: true },
+    { view: 'settings', label: 'Settings', icon: 'gear' }
+  ]
+};
+
+const NAV_ICONS = {
+  menu: '<path d="m15 18-6-6 6-6"/><path d="M3 12h12"/>',
+  home: '<rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/>',
+  list: '<path d="M3 5h18M3 12h18M3 19h18"/>',
+  plus: '<path d="M12 5v14M5 12h14"/>',
+  export: '<path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/>',
+  gear: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3h.1a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8v.1a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z"/>',
+  users: '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>'
+};
+
+function renderBottomNav() {
+  const nav = $('#bottomNav');
+  if (!nav) return;
+  const items = NAV_CONFIGS[appMode] || NAV_CONFIGS.trap;
+  nav.style.gridTemplateColumns = `repeat(${items.length}, 1fr)`;
+  nav.innerHTML = items.map((it) => {
+    const svg = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${NAV_ICONS[it.icon] || ''}</svg>`;
+    if (it.fab) {
+      return `<button class="nav-fab" data-view="${it.view}" aria-label="${it.label}">` +
+        `<svg viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">${NAV_ICONS.plus}</svg></button>`;
+    }
+    return `<button class="nav-btn" data-view="${it.view}">${svg}<span>${it.label}</span></button>`;
+  }).join('');
+}
+
+function showLanding() {
   hideSplash();
   $('#signInScreen').classList.add('hidden');
   $('#app').classList.add('hidden');
   $('#modePicker').classList.remove('hidden');
+  renderLandingCounts();
 }
+/* Back-compat alias — some call sites still reference the old name. */
+function showModePicker() { showLanding(); }
+
 function setAppMode(mode, opts = {}) {
   appMode = mode;
   modeSelected = true;
-  updateModeToggleUI();
+  updateModuleUI();
+  renderBottomNav();
   if (!opts.skipShowApp) {
     $('#modePicker').classList.add('hidden');
     $('#app').classList.remove('hidden');
@@ -2531,23 +2832,39 @@ function setAppMode(mode, opts = {}) {
     refreshAll();
   }
 }
-function updateModeToggleUI() {
-  $$('#modeToggle button').forEach((b) => b.classList.toggle('active', b.dataset.mode === appMode));
+function updateModuleUI() {
+  const lbl = $('#moduleLabel');
+  if (lbl) lbl.textContent = MODULE_LABELS[appMode] || '';
   document.body.classList.toggle('mode-pesticide', appMode === 'pesticide');
+  document.body.classList.toggle('mode-customer', appMode === 'customer');
 }
+/* No-op kept so any lingering references don't throw. */
+function updateModeToggleUI() { updateModuleUI(); }
 
 function showApp() {
   hideSplash();
   $('#signInScreen').classList.add('hidden');
   $('#modePicker').classList.add('hidden');
   $('#app').classList.remove('hidden');
-  if (!modeSelected) {
-    appMode = 'trap';
-    modeSelected = true;
-    updateModeToggleUI();
-  }
+  updateModuleUI();
+  renderBottomNav();
   setView(currentView);
   refreshAll();
+}
+
+/* Live counts on the three landing-page module cards. */
+function renderLandingCounts() {
+  const period = reportPeriod();
+  const trapN = cachedRecords.filter((r) => inPeriod(r.dateCollected, period)).length;
+  const pestN = cachedPesticideRecords.filter((r) => {
+    if (!r.appliedAt) return false;
+    return inPeriod(r.appliedAt.slice(0, 10), period);
+  }).length;
+  const custN = cachedCustomers.filter((c) => c.active).length;
+  const set = (id, n) => { const el = $('#' + id); if (el) el.textContent = n; };
+  set('landingTrapCount', trapN);
+  set('landingPestCount', pestN);
+  set('landingCustCount', custN);
 }
 
 /* ---------- Sync indicator ---------- */
@@ -2572,7 +2889,8 @@ function subscribeToRecords() {
     const fromCache = snap.metadata.fromCache;
     const pending = snap.metadata.hasPendingWrites;
     updateSyncIndicator(pending ? 'syncing' : fromCache ? 'offline' : 'synced');
-    if (!$('#app').classList.contains('hidden')) {
+    renderLandingCounts();
+    if (!$('#app').classList.contains('hidden') && appMode !== 'customer') {
       renderDashboard();
       renderRecords();
     }
@@ -2645,6 +2963,7 @@ function subscribeToPesticideRecords() {
   const q = query(pesticideRecordsCol(), orderBy('appliedAt', 'desc'));
   pesticideRecordsUnsub = onSnapshot(q, { includeMetadataChanges: true }, (snap) => {
     cachedPesticideRecords = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    renderLandingCounts();
     if (appMode === 'pesticide' && !$('#app').classList.contains('hidden')) {
       renderDashboard();
       renderRecords();
@@ -2654,6 +2973,76 @@ function subscribeToPesticideRecords() {
 function unsubscribeFromPesticideRecords() {
   if (pesticideRecordsUnsub) { pesticideRecordsUnsub(); pesticideRecordsUnsub = null; }
   cachedPesticideRecords = [];
+}
+
+/* ---------- Customer directory (shared CRM) ----------
+   Records live in Firestore. cachedCustomers is populated by an onSnapshot
+   subscription and is the in-memory source of truth the forms/autocomplete
+   query against. Writes go straight to Firestore; the persistent local cache
+   queues them offline and syncs automatically when connectivity returns.
+
+   The `active` field is app-controlled and defaults to false on creation.
+   A future QuickBooks → Firestore sync must update contact fields only and
+   never write `active`. Records carry `qbId`/`source` so that sync can match
+   and dedupe without disturbing manually-created rows. */
+let customersUnsub = null;
+let cachedCustomers = [];
+
+function customersCol() { return collection(fbDb, 'customers'); }
+
+function subscribeToCustomers() {
+  if (customersUnsub) return;
+  const q = query(customersCol(), orderBy('name'));
+  customersUnsub = onSnapshot(q, { includeMetadataChanges: true }, (snap) => {
+    cachedCustomers = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    renderLandingCounts();
+    if (!$('#app').classList.contains('hidden') && appMode === 'customer') {
+      renderCustomerList();
+    }
+  }, (err) => console.error('Customers subscription error', err));
+}
+function unsubscribeFromCustomers() {
+  if (customersUnsub) { customersUnsub(); customersUnsub = null; }
+  cachedCustomers = [];
+}
+
+/* Retry wrapper for one-shot customer writes. Firestore's offline cache
+   already queues writes made while offline, so this only guards transient
+   online failures (flaky signal, brief 5xx) with a couple of quick retries. */
+async function writeWithRetry(fn, attempts = 3) {
+  let lastErr;
+  for (let i = 0; i < attempts; i++) {
+    try { return await fn(); }
+    catch (err) {
+      lastErr = err;
+      /* Permission / not-found errors won't fix themselves — fail fast. */
+      const code = err && err.code || '';
+      if (code === 'permission-denied' || code === 'not-found' || code === 'unauthenticated') throw err;
+      await new Promise((r) => setTimeout(r, 400 * (i + 1)));
+    }
+  }
+  throw lastErr;
+}
+
+async function saveCustomer(customer) {
+  const data = { ...customer };
+  delete data.id;
+  data.updatedAt = new Date().toISOString();
+  if (customer.id) {
+    return writeWithRetry(() => setDoc(doc(fbDb, 'customers', customer.id), data, { merge: true }));
+  }
+  data.active = !!customer.active;
+  data.source = customer.source || 'manual';
+  data.qbId = customer.qbId || null;
+  data.createdAt = new Date().toISOString();
+  data.createdByUid = currentUser ? currentUser.uid : null;
+  data.createdByEmail = currentUser ? currentUser.email : null;
+  const ref = await writeWithRetry(() => addDoc(customersCol(), data));
+  return ref.id;
+}
+async function deleteCustomerDoc(id) {
+  if (!id) return;
+  await writeWithRetry(() => deleteDoc(doc(fbDb, 'customers', id)));
 }
 
 /* ---------- One-time migration of local records to Firestore ---------- */
@@ -2739,37 +3128,55 @@ async function handleSignOut() {
 /* ---------- Navigation ---------- */
 let currentView = 'dashboard';
 const VIEW_TITLES = {
-  dashboard: 'Dashboard',
-  records: 'Records',
-  add: 'Add Record',
-  export: 'Export',
-  settings: 'Settings'
+  trap:      { dashboard: 'Dashboard', records: 'Records', add: 'Add Record', export: 'Export', settings: 'Settings' },
+  pesticide: { dashboard: 'Dashboard', records: 'Records', add: 'Add Application', export: 'Export', settings: 'Settings' },
+  customer:  { dashboard: 'Customers', add: 'Add Customer', settings: 'Settings' }
 };
 
+function backToLanding() {
+  currentView = 'dashboard';
+  showLanding();
+}
+
 function setView(name) {
+  /* The Menu button returns to the main landing page (no bottom nav). */
+  if (name === 'menu') { backToLanding(); return; }
   currentView = name;
   /* Hide every view section, then reveal the one matching mode+name. */
-  ['dashboard','records','records-pesticide','add','add-pesticide','export','settings'].forEach((v) => {
+  ['dashboard','records','records-pesticide','add','add-pesticide',
+   'customers','add-customer','export','settings'].forEach((v) => {
     const el = document.getElementById(`view-${v}`);
     if (el) el.classList.add('hidden');
   });
   let actualId = name;
-  if (name === 'records' && appMode === 'pesticide') actualId = 'records-pesticide';
-  if (name === 'add' && appMode === 'pesticide') actualId = 'add-pesticide';
+  if (appMode === 'pesticide') {
+    if (name === 'records') actualId = 'records-pesticide';
+    if (name === 'add') actualId = 'add-pesticide';
+  } else if (appMode === 'customer') {
+    if (name === 'dashboard') actualId = 'customers';
+    if (name === 'add') actualId = 'add-customer';
+  }
   const showEl = document.getElementById(`view-${actualId}`);
   if (showEl) showEl.classList.remove('hidden');
 
-  $$('#bottomNav .nav-btn').forEach((b) => b.classList.toggle('active', b.dataset.view === name));
-  $('#viewTitle').textContent = VIEW_TITLES[name];
+  $$('#bottomNav .nav-btn, #bottomNav .nav-fab').forEach((b) => b.classList.toggle('active', b.dataset.view === name));
+  const titles = VIEW_TITLES[appMode] || VIEW_TITLES.trap;
+  $('#viewTitle').textContent = titles[name] || '';
   $('#appMain').scrollTop = 0;
   document.body.classList.toggle('in-add', name === 'add');
 
   if (name === 'add') {
     if (appMode === 'trap') {
       if (!editingId && !pendingRecord) resetForm();
-    } else {
+    } else if (appMode === 'pesticide') {
       if (!editingPesticideRecordId && !pendingPesticideRecord) resetPesticideRecordForm();
+    } else if (appMode === 'customer') {
+      if (!editingCustomerId) resetCustomerForm();
     }
+  }
+  if (appMode === 'customer' && name === 'dashboard') {
+    fillCustomerCountyFilter();
+    renderCustomerList();
   }
   /* Pesticide-form map lazy init */
   if (name === 'add' && appMode === 'pesticide') {
@@ -2868,7 +3275,11 @@ function updateConditionals() {
   toggleGroup('cg-disposalOther', SPECIFY_DISPOSALS.has(disposal));
   toggleGroup('cg-dispatch', EUTHANIZE_DISPOSALS.has(disposal));
   toggleGroup('cg-release', RELEASE_DISPOSALS.has(disposal));
-  if (RELEASE_DISPOSALS.has(disposal)) setTimeout(ensureReleaseMap, 80);
+  if (RELEASE_DISPOSALS.has(disposal)) {
+    setTimeout(ensureReleaseMap, 80);
+    /* Default Date of Release to Date Collected until hand-edited (Item 6). */
+    if (!releaseDateDirty) $('#f-release-date').value = $('#f-date').value || todayISO();
+  }
   /* excluded number only for non-bat/bird species — bats/birds use the animal count field */
   toggleGroup('cg-excludedNumber', isExclude && !isBatOrBird(species) && species !== OTHER_ANIMAL && species !== '');
 }
@@ -2884,13 +3295,26 @@ let pendingRecord = null;
 let pendingPhotoBlob = null;     /* compressed Blob, ready to upload */
 let pendingPhotoUrl = null;      /* object URL for preview only */
 let removeExistingPhoto = false; /* user tapped Remove on a saved photo */
+let releaseDateDirty = false;    /* true once the operator hand-edits Date of Release */
+/* Which submit button was pressed on an entry form: 'new' reopens a fresh
+   pre-filled form after saving; 'close' returns to the records list. */
+let submitIntent = 'close';
+/* In-flight save lock. Set synchronously at the top of each confirm-save so a
+   rapid double-tap on "Confirm & Save" can't fire a second addDoc before the
+   first finishes — the cause of duplicated records. */
+let isSaving = false;
 
 function resetForm() {
   editingId = null;
   pendingRecord = null;
+  releaseDateDirty = false;
+  hideTrapCustomerSuggest();
+  hideAutocomplete($('#f-client-name-ac'));
+  hideAutocomplete($('#f-address-ac'));
   $('#recordForm').reset();
   $('#f-id').value = '';
   $('#f-date').value = todayISO();
+  $('#f-release-date').value = todayISO();  /* defaults to Date Collected (Item 6) */
   $('#f-animal-count').value = 1;
   $('#f-trap-lat').value = '';
   $('#f-trap-lng').value = '';
@@ -2913,13 +3337,13 @@ function resetForm() {
     $('#f-trapper').value = EMAIL_TO_TRAPPER[currentUser.email.toLowerCase()];
   }
   $('#deleteBtn').style.display = 'none';
-  $('#saveBtn').textContent = 'Review Record';
   updateConditionals();
 }
 
 function loadIntoForm(rec) {
   editingId = rec.id || null;
   pendingRecord = null;
+  releaseDateDirty = !!rec.releaseDate;  /* keep the saved release date on edit */
   $('#f-id').value = rec.id || '';
   $('#f-date').value = rec.dateCollected || '';
   $('#f-trapper').value = rec.trapper || '';
@@ -2974,7 +3398,6 @@ function loadIntoForm(rec) {
   if (rec.photoUrl) showPhotoPreview(rec.photoUrl);
   else hidePhotoPreview();
   $('#deleteBtn').style.display = editingId ? 'block' : 'none';
-  $('#saveBtn').textContent = editingId ? 'Review Changes' : 'Review Record';
   updateConditionals();
 }
 
@@ -3042,11 +3465,39 @@ function validateRecord(r) {
   return errs;
 }
 
+/* Soft duplicate check for new trap records: same client + species + date +
+   address. Non-blocking — the operator can still save a legitimate second
+   record. Guards against a record being re-entered by hand. */
+function findNearDuplicateRecord(rec) {
+  if (editingId) return null;
+  const norm = (s) => (s || '').trim().toLowerCase();
+  return cachedRecords.find((r) =>
+    norm(r.clientName) === norm(rec.clientName) &&
+    r.species === rec.species &&
+    (r.dateCollected || '') === (rec.dateCollected || '') &&
+    norm(r.address) === norm(rec.address)
+  ) || null;
+}
+
 async function reviewForm(e) {
   e.preventDefault();
+  /* Which submit button was used decides post-save behavior (Item 4).
+     Enter-to-submit (no submitter) defaults to Submit & Close. */
+  submitIntent = (e.submitter && e.submitter.dataset.intent) || 'close';
   const rec = readForm();
   const errs = validateRecord(rec);
   if (errs.length) { toast('Required: ' + errs.join(', '), 'error'); return; }
+
+  /* Warn if a very similar record already exists (likely a duplicate). */
+  const dup = findNearDuplicateRecord(rec);
+  if (dup) {
+    const proceed = await confirmDialog(
+      'Possible duplicate',
+      `A record for ${rec.clientName || 'this client'} · ${speciesDisplay(rec)} on ${fmtShortDate(rec.dateCollected)} already exists (${dup.recordNumber || 'unnumbered'}). Save another anyway?`,
+      { okText: 'Save Anyway' }
+    );
+    if (!proceed) return;
+  }
 
   /* Strongly-encouraged email — warn once if blank, but allow proceeding. */
   if (!rec.clientEmail) {
@@ -3066,7 +3517,11 @@ async function reviewForm(e) {
 }
 
 async function confirmSave() {
+  if (isSaving) return;              /* double-tap guard — prevents duplicate records */
   if (!pendingRecord) return;
+  isSaving = true;
+  setSaveButtonBusy(true);
+  try {
   const rec = pendingRecord;
   if (!rec.id) {
     rec.createdAt = new Date().toISOString();
@@ -3108,22 +3563,60 @@ async function confirmSave() {
      reflects the saved record. Edits keep their existing id. */
   if (!wasEdit && newId) rec.id = newId;
   pendingRecord = null;
+  const intent = submitIntent;
+  const carry = {
+    dateCollected: rec.dateCollected, trapper: rec.trapper,
+    clientName: rec.clientName, clientPhone: rec.clientPhone,
+    clientEmail: rec.clientEmail, clientBusiness: rec.clientBusiness,
+    address: rec.address, county: rec.county
+  };
   closeSheet();
   resetForm();
-  recordsViewMode = 'list';
-  updateRecordsViewToggleUI();
-  setView('records');
-  await refreshAll();
   toast(wasEdit ? 'Record updated' : `Record saved · ${rec.recordNumber}`);
   /* Fire the EmailJS notification on new records only. Fire-and-forget;
      a failed send won't undo the saved record. */
   if (!wasEdit) sendRecordEmail(rec);
+
+  if (intent === 'new') {
+    /* Fresh form (setView('add') resets it), then pre-fill date, trapper,
+       customer, and county from the just-saved record. */
+    setView('add');
+    $('#f-date').value = carry.dateCollected || todayISO();
+    $('#f-trapper').value = carry.trapper || '';
+    $('#f-client-name').value = carry.clientName || '';
+    $('#f-client-phone').value = carry.clientPhone || '';
+    $('#f-client-email').value = carry.clientEmail || '';
+    $('#f-client-business').value = carry.clientBusiness || '';
+    $('#f-address').value = carry.address || '';
+    if (carry.county) selectCountyIfKnown('f-county', carry.county);
+    return;
+  }
+  recordsViewMode = 'list';
+  updateRecordsViewToggleUI();
+  setView('records');
+  await refreshAll();
+  } finally {
+    isSaving = false;
+    setSaveButtonBusy(false);
+  }
+}
+
+/* Disable the review sheet's Confirm & Save button while a save is running,
+   so a second tap does nothing and the operator gets visual feedback. */
+function setSaveButtonBusy(busy) {
+  const btn = $('#detailEdit');
+  if (!btn) return;
+  btn.disabled = !!busy;
+  if (busy) { btn.dataset.prevText = btn.textContent; btn.textContent = 'Saving…'; }
+  else if (btn.dataset.prevText) { btn.textContent = btn.dataset.prevText; delete btn.dataset.prevText; }
 }
 
 /* ---------- Maps + Geocoding ---------- */
 let trapMapInstance = null;
 let releaseMapInstance = null;
 let paMapInstance = null;
+/* Optional {lat,lng} dropped onto the trap map when the add view opens. */
+let pendingTrapPrefill = null;
 
 const KY_CENTER = [37.84, -84.27];
 
@@ -3413,6 +3906,9 @@ async function handleTrapLocationChange(lat, lng, source) {
       addressInput.value = geo.formattedAddress;
       addressInput.dataset.fromMap = '1';
     }
+    /* Suggest a saved customer at this location, if one matches. */
+    const custMatch = findCustomerNearAddress(geo.streetAddress, geo.city);
+    if (custMatch) showTrapCustomerSuggest(custMatch); else hideTrapCustomerSuggest();
     if (geo.county) {
       if (dropdownHasOption('f-county', geo.county)) {
         setMapStatus('trapMapStatus',
@@ -3473,6 +3969,9 @@ async function handlePesticideLocationChange(lat, lng, source) {
       const zipMatch = formatted.match(/\b\d{5}(?:-\d{4})?\b/);
       if (zipMatch && (force || !zip.value.trim())) zip.value = zipMatch[0];
     }
+    /* Suggest a saved customer at this location, if one matches. */
+    const custMatch = findCustomerNearAddress(geo.streetAddress, geo.city);
+    if (custMatch) showPestCustomerSuggest(custMatch); else hidePestCustomerSuggest();
     setMapStatus('paMapStatus',
       `Located: ${formatted || '(' + lat.toFixed(5) + ', ' + lng.toFixed(5) + ')'} · ${useTreatment ? 'Treatment site' : 'Client address'} fields filled.`,
       'success');
@@ -4442,6 +4941,9 @@ function handlePaPhotoRemove() {
 function resetPesticideRecordForm() {
   editingPesticideRecordId = null;
   pendingPesticideRecord = null;
+  hidePestCustomerSuggest();
+  hideAutocomplete($('#pa-client-name-ac'));
+  hideAutocomplete($('#pa-client-address-ac'));
   $('#pesticideAppForm').reset();
   $('#pa-id').value = '';
   $('#pa-date').value = nowDateTimeLocal();
@@ -4462,7 +4964,6 @@ function resetPesticideRecordForm() {
   if (paMapInstance) paMapInstance.clear();
   setMapStatus('paMapStatus', 'Use My Location, or drop a pin, to capture the treatment site. Auto-fills the address fields above.');
   $('#paDeleteBtn').style.display = 'none';
-  $('#paSaveBtn').textContent = 'Review Application';
   updatePesticideConditionals();
 }
 
@@ -4524,7 +5025,6 @@ function loadPesticideRecordIntoForm(rec) {
   }
   if (rec.photoUrl) showPesticidePhotoPreview(rec.photoUrl);
   $('#paDeleteBtn').style.display = 'block';
-  $('#paSaveBtn').textContent = 'Review Changes';
   updatePesticideConditionals();
 }
 
@@ -4627,6 +5127,7 @@ function validatePesticideRecord(r) {
 
 async function reviewPesticideForm(e) {
   e.preventDefault();
+  submitIntent = (e.submitter && e.submitter.dataset.intent) || 'close';
   const rec = readPesticideForm();
   const errs = validatePesticideRecord(rec);
   if (errs.length) { toast('Required: ' + errs.join(', '), 'error'); return; }
@@ -4671,7 +5172,11 @@ function generatePesticideRecordNumber(rec) {
 }
 
 async function confirmSavePesticide() {
+  if (isSaving) return;              /* double-tap guard — prevents duplicate records */
   if (!pendingPesticideRecord) return;
+  isSaving = true;
+  setSaveButtonBusy(true);
+  try {
   const rec = pendingPesticideRecord;
   const isEdit = !!rec.id;
   if (!isEdit) {
@@ -4721,14 +5226,40 @@ async function confirmSavePesticide() {
       rec.id = newId;
     }
     pendingPesticideRecord = null;
+    const intent = submitIntent;
+    const carry = {
+      appliedAt: rec.appliedAt, applicator: rec.applicator,
+      clientName: rec.clientName, clientPhone: rec.clientPhone,
+      clientEmail: rec.clientEmail, clientAddress: rec.clientAddress,
+      clientCity: rec.clientCity, clientZip: rec.clientZip
+    };
     closeSheet();
     resetPesticideRecordForm();
-    setView('records');
-    await refreshAll();
     toast(isEdit ? 'Application updated' : `Saved · ${rec.recordNumber}`);
     if (!isEdit) sendPesticideEmail(rec);
+
+    if (intent === 'new') {
+      /* Fresh form, pre-filled with date, applicator, and customer. */
+      setView('add');
+      $('#pa-date').value = carry.appliedAt || nowDateTimeLocal();
+      $('#pa-applicator').value = carry.applicator || '';
+      updateApplicatorCertDisplay();
+      $('#pa-client-name').value = carry.clientName || '';
+      $('#pa-client-phone').value = carry.clientPhone || '';
+      $('#pa-client-email').value = carry.clientEmail || '';
+      $('#pa-client-address').value = carry.clientAddress || '';
+      $('#pa-client-city').value = carry.clientCity || '';
+      $('#pa-client-zip').value = carry.clientZip || '';
+      return;
+    }
+    setView('records');
+    await refreshAll();
   } catch (err) {
     toast(`Save failed: ${err.message || err}`, 'error');
+  }
+  } finally {
+    isSaving = false;
+    setSaveButtonBusy(false);
   }
 }
 
@@ -5072,12 +5603,312 @@ async function wipeAll() {
 
 /* ---------- Refresh ---------- */
 async function refreshAll() {
+  if (appMode === 'customer') {
+    renderCustomerList();
+    return;
+  }
   renderDashboard();
   if (appMode === 'pesticide') {
     renderPesticideRecordsList();
   } else {
     renderRecords();
   }
+}
+
+/* =====================================================================
+ * Customer directory (CRM)
+ * ===================================================================== */
+let editingCustomerId = null;
+
+function fillCustomerCountyFilter() {
+  fillSelect('custFilterCounty', ALL_KY_COUNTIES, true, 'All counties');
+}
+
+function customerInitials(name) {
+  const parts = (name || '').trim().split(/\s+/).filter(Boolean);
+  if (!parts.length) return '?';
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
+
+function filteredCustomers() {
+  const q = ($('#custSearch').value || '').trim().toLowerCase();
+  const status = $('#custFilterStatus').value;
+  const county = $('#custFilterCounty').value;
+  return cachedCustomers.filter((c) => {
+    if (status === 'active' && !c.active) return false;
+    if (status === 'inactive' && c.active) return false;
+    if (county && c.county !== county) return false;
+    if (q) {
+      const hay = [c.name, c.address, c.city, c.county, c.phone, c.email, c.notes]
+        .filter(Boolean).join(' ').toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    return true;
+  });
+}
+
+function renderCustomerList() {
+  const list = filteredCustomers();
+  const active = cachedCustomers.filter((c) => c.active).length;
+  const sub = $('#custGreetingSub');
+  if (sub) sub.textContent = `${active} active · ${cachedCustomers.length} total · shared across modules.`;
+  const root = $('#customerList');
+  if (!root) return;
+  if (!cachedCustomers.length) {
+    root.innerHTML = `<div class="empty"><div class="em-title">No customers yet</div>
+      <div>Tap <strong style="color:var(--amber);">+ Add Customer</strong> to create one, or use Sync Now in Settings once QuickBooks is connected.</div></div>`;
+    return;
+  }
+  if (!list.length) {
+    root.innerHTML = `<div class="empty"><div class="em-title">No matches</div><div>Adjust your search or filters.</div></div>`;
+    return;
+  }
+  root.innerHTML = '';
+  for (const c of list) {
+    const div = document.createElement('div');
+    div.className = 'customer-row';
+    const addr = [c.address, c.city, c.county && `${c.county} Co.`].filter(Boolean).join(' · ');
+    const pill = c.active ? '<span class="status-pill active">Active</span>' : '<span class="status-pill inactive">Inactive</span>';
+    div.innerHTML = `
+      <div class="cust-avatar">${escapeHtml(customerInitials(c.name))}</div>
+      <div class="cust-body">
+        <div class="cust-name">${escapeHtml(c.name || '(no name)')}${pill}</div>
+        <div class="cust-meta">${escapeHtml(addr || 'No address on file')}</div>
+        ${c.phone ? `<div class="cust-meta">${escapeHtml(c.phone)}</div>` : ''}
+      </div>`;
+    div.onclick = () => { editCustomer(c.id); };
+    root.appendChild(div);
+  }
+}
+
+function resetCustomerForm() {
+  editingCustomerId = null;
+  $('#customerForm').reset();
+  $('#c-id').value = '';
+  $('#c-active').checked = false;
+  fillGroupedSelect('c-county', COUNTY_GROUPS, '— select county —');
+  $('#deleteCustomerBtn').style.display = 'none';
+  $('#saveCustomerBtn').textContent = 'Save Customer';
+}
+
+function loadCustomerIntoForm(c) {
+  resetCustomerForm();
+  editingCustomerId = c.id;
+  $('#c-id').value = c.id;
+  $('#c-active').checked = !!c.active;
+  $('#c-name').value = c.name || '';
+  $('#c-phone').value = c.phone || '';
+  $('#c-email').value = c.email || '';
+  $('#c-address').value = c.address || '';
+  $('#c-city').value = c.city || '';
+  $('#c-county').value = c.county || '';
+  $('#c-notes').value = c.notes || '';
+  $('#deleteCustomerBtn').style.display = 'block';
+  $('#saveCustomerBtn').textContent = 'Save Changes';
+}
+
+function editCustomer(id) {
+  const c = cachedCustomers.find((x) => x.id === id);
+  if (!c) return;
+  setView('add');
+  loadCustomerIntoForm(c);
+}
+
+function readCustomerForm() {
+  const c = {
+    name: $('#c-name').value.trim(),
+    phone: $('#c-phone').value.trim(),
+    email: $('#c-email').value.trim(),
+    address: $('#c-address').value.trim(),
+    city: $('#c-city').value.trim(),
+    county: $('#c-county').value,
+    notes: $('#c-notes').value.trim(),
+    active: $('#c-active').checked
+  };
+  if (editingCustomerId) c.id = editingCustomerId;
+  return c;
+}
+
+async function handleSaveCustomer(e) {
+  e.preventDefault();
+  if (isSaving) return;              /* double-submit guard — prevents duplicate customers */
+  const c = readCustomerForm();
+  if (!c.name) { toast('Customer name is required', 'error'); $('#c-name').focus(); return; }
+  if (c.email && !EMAIL_RE.test(c.email)) { toast('Enter a valid email or leave it blank', 'error'); return; }
+  if (c.phone) c.phone = formatPhone(c.phone);
+  c.name = titleCaseName(c.name);
+  const btn = $('#saveCustomerBtn');
+  btn.disabled = true;
+  isSaving = true;
+  try {
+    const wasEdit = !!c.id;
+    await saveCustomer(c);
+    resetCustomerForm();
+    setView('dashboard');
+    await refreshAll();
+    toast(wasEdit ? 'Customer updated' : 'Customer added');
+  } catch (err) {
+    toast(`Save failed: ${err.code || err.message || err}`, 'error');
+  } finally {
+    btn.disabled = false;
+    isSaving = false;
+  }
+}
+
+async function handleDeleteCustomer() {
+  if (!editingCustomerId) return;
+  const c = cachedCustomers.find((x) => x.id === editingCustomerId);
+  const ok = await confirmDialog('Delete this customer?',
+    `${c ? c.name : 'This customer'} will be removed from the directory. Existing trapping/pesticide records are not affected. This cannot be undone.`);
+  if (!ok) return;
+  try {
+    await deleteCustomerDoc(editingCustomerId);
+    resetCustomerForm();
+    setView('dashboard');
+    await refreshAll();
+    toast('Customer deleted');
+  } catch (err) {
+    toast(`Delete failed: ${err.code || err.message || err}`, 'error');
+  }
+}
+
+/* ---------- "Sync Now" (QuickBooks → Firestore, not yet connected) ----------
+   The deployed app is a static PWA with no backend, so the QuickBooks OAuth
+   flow and the scheduled daily sync require a server component that isn't
+   provisioned yet. This button is wired and the data model is sync-ready
+   (qbId / source / an app-only `active` flag); it reports status until the
+   backend connector is stood up. */
+function handleSyncNow() {
+  const status = $('#syncNowStatus');
+  if (status) {
+    status.innerHTML = 'QuickBooks isn’t connected yet. The customer directory is sync-ready — ' +
+      'once the QuickBooks connector is provisioned, this button and the nightly job will import customers here. ' +
+      'For now, add customers manually with <strong>+ Add Customer</strong>.';
+    status.style.color = 'var(--amber)';
+  }
+  toast('QuickBooks sync not connected yet');
+}
+
+/* =====================================================================
+ * Customer autocomplete on the trapping + pesticide forms
+ * ===================================================================== */
+function customerMatches(term, limit = 6) {
+  const q = (term || '').trim().toLowerCase();
+  if (q.length < 2) return [];
+  const scored = [];
+  for (const c of cachedCustomers) {
+    const name = (c.name || '').toLowerCase();
+    const addr = (c.address || '').toLowerCase();
+    const city = (c.city || '').toLowerCase();
+    const hay = [name, addr, city, (c.phone || '').toLowerCase()].join(' ');
+    if (!hay.includes(q)) continue;
+    /* Rank: name/address prefix beats a mid-string hit; active beats inactive. */
+    let score = 0;
+    if (name.startsWith(q) || addr.startsWith(q)) score += 3;
+    if (c.active) score += 1;
+    scored.push({ c, score });
+  }
+  scored.sort((a, b) => b.score - a.score || (a.c.name || '').localeCompare(b.c.name || ''));
+  return scored.slice(0, limit).map((s) => s.c);
+}
+
+function renderAutocomplete(listEl, matches, onPick) {
+  if (!listEl) return;
+  if (!matches.length) { listEl.classList.add('hidden'); listEl.innerHTML = ''; return; }
+  listEl.innerHTML = matches.map((c, i) => {
+    const addr = [c.address, c.city, c.county && `${c.county} Co.`].filter(Boolean).join(' · ');
+    const inactive = c.active ? '' : '<span class="ac-inactive">inactive</span>';
+    return `<div class="autocomplete-item" data-cust-id="${escapeHtml(c.id)}">
+      <div class="ac-name">${escapeHtml(c.name || '(no name)')}${inactive}</div>
+      <div class="ac-sub">${escapeHtml(addr || 'No address')}${c.phone ? ' · ' + escapeHtml(c.phone) : ''}</div>
+    </div>`;
+  }).join('');
+  listEl.classList.remove('hidden');
+  listEl._onPick = onPick;
+}
+
+function hideAutocomplete(listEl) {
+  if (listEl) { listEl.classList.add('hidden'); listEl.innerHTML = ''; }
+}
+
+/* Fill trapping-form fields from a chosen customer. */
+function applyCustomerToTrapForm(c) {
+  if (c.name) $('#f-client-name').value = c.name;
+  if (c.phone) $('#f-client-phone').value = c.phone;
+  if (c.email) $('#f-client-email').value = c.email;
+  const fullAddr = [c.address, c.city].filter(Boolean).join(', ');
+  if (fullAddr) {
+    const a = $('#f-address');
+    a.value = fullAddr;
+    delete a.dataset.fromMap;
+    delete a.dataset.lastValidated;
+  }
+  if (c.county) selectCountyIfKnown('f-county', c.county);
+  const hint = $('#addressValidationHint');
+  if (hint) { hint.textContent = `✓ Customer on file: ${c.name}`; hint.className = 'hint success'; }
+  hideTrapCustomerSuggest();
+}
+
+/* Fill pesticide-form client fields from a chosen customer. */
+function applyCustomerToPesticideForm(c) {
+  if (c.name) $('#pa-client-name').value = c.name;
+  if (c.phone) $('#pa-client-phone').value = c.phone;
+  if (c.email) $('#pa-client-email').value = c.email;
+  if (c.address) {
+    const a = $('#pa-client-address');
+    a.value = c.address;
+    delete a.dataset.fromMap;
+    delete a.dataset.lastValidated;
+  }
+  if (c.city) $('#pa-client-city').value = c.city;
+  const status = $('#pa-address-status');
+  if (status) { status.textContent = `✓ Customer on file: ${c.name}`; status.className = 'hint success'; }
+  hidePestCustomerSuggest();
+}
+
+/* ---- Use-My-Location → suggest a matching customer ---- */
+let trapSuggestedCustomer = null;
+let pestSuggestedCustomer = null;
+
+function findCustomerNearAddress(streetAddress, city) {
+  const street = (streetAddress || '').trim().toLowerCase();
+  const town = (city || '').trim().toLowerCase();
+  if (!street) return null;
+  /* Match on the leading house-number + street token, plus city when known. */
+  const streetKey = street.replace(/,.*$/, '').trim();
+  for (const c of cachedCustomers) {
+    const cAddr = (c.address || '').toLowerCase().replace(/,.*$/, '').trim();
+    if (!cAddr) continue;
+    const cityOk = !town || !c.city || c.city.toLowerCase() === town;
+    if (cityOk && (cAddr === streetKey || cAddr.includes(streetKey) || streetKey.includes(cAddr))) {
+      return c;
+    }
+  }
+  return null;
+}
+
+function showTrapCustomerSuggest(c) {
+  trapSuggestedCustomer = c;
+  const banner = $('#trapCustomerSuggest');
+  $('#trapCustomerSuggestText').textContent = `Matches saved customer: ${c.name}`;
+  banner.classList.add('on');
+}
+function hideTrapCustomerSuggest() {
+  trapSuggestedCustomer = null;
+  const banner = $('#trapCustomerSuggest');
+  if (banner) banner.classList.remove('on');
+}
+function showPestCustomerSuggest(c) {
+  pestSuggestedCustomer = c;
+  const banner = $('#pestCustomerSuggest');
+  $('#pestCustomerSuggestText').textContent = `Matches saved customer: ${c.name}`;
+  banner.classList.add('on');
+}
+function hidePestCustomerSuggest() {
+  pestSuggestedCustomer = null;
+  const banner = $('#pestCustomerSuggest');
+  if (banner) banner.classList.remove('on');
 }
 
 /* ---------- Wiring ---------- */
@@ -5268,19 +6099,11 @@ async function init() {
   });
 
   /* Mode picker + header toggle */
+  /* Landing page — tapping a module card enters that module. */
   $('#modePicker').addEventListener('click', (e) => {
     const btn = e.target.closest('.mode-card');
     if (!btn) return;
     setAppMode(btn.dataset.mode);
-  });
-  $('#modeToggle').addEventListener('click', (e) => {
-    const btn = e.target.closest('button[data-mode]');
-    if (!btn) return;
-    appMode = btn.dataset.mode;
-    modeSelected = true;
-    updateModeToggleUI();
-    refreshAll();
-    setView('dashboard');
   });
 
   $('#topSpeciesScope').addEventListener('click', (e) => {
@@ -5371,6 +6194,65 @@ async function init() {
   });
   $('#wipeBtn').addEventListener('click', wipeAll);
 
+  /* ---- Customer directory wiring ---- */
+  fillCustomerCountyFilter();
+  $('#addCustomerBtn').addEventListener('click', () => { resetCustomerForm(); setView('add'); });
+  $('#customerForm').addEventListener('submit', handleSaveCustomer);
+  $('#cancelCustomerBtn').addEventListener('click', () => { resetCustomerForm(); setView('dashboard'); });
+  $('#deleteCustomerBtn').addEventListener('click', handleDeleteCustomer);
+  ['custSearch','custFilterStatus','custFilterCounty'].forEach((id) => {
+    const el = $('#' + id);
+    if (!el) return;
+    el.addEventListener('input', renderCustomerList);
+    el.addEventListener('change', renderCustomerList);
+  });
+  $('#c-phone').addEventListener('blur', (e) => { const v = e.target.value.trim(); if (v) e.target.value = formatPhone(v); });
+  $('#c-name').addEventListener('blur', (e) => { const v = e.target.value.trim(); if (v) e.target.value = titleCaseName(v); });
+  $('#syncNowBtn').addEventListener('click', handleSyncNow);
+
+  /* ---- Customer autocomplete on trapping + pesticide forms ---- */
+  function wireAutocomplete(inputId, listId, applyFn) {
+    const input = $('#' + inputId);
+    const listEl = $('#' + listId);
+    if (!input || !listEl) return;
+    input.addEventListener('input', () => {
+      renderAutocomplete(listEl, customerMatches(input.value), applyFn);
+    });
+    input.addEventListener('focus', () => {
+      if (input.value.trim().length >= 2) {
+        renderAutocomplete(listEl, customerMatches(input.value), applyFn);
+      }
+    });
+    /* Delay hide so a tap on an item registers before blur closes the list. */
+    input.addEventListener('blur', () => setTimeout(() => hideAutocomplete(listEl), 180));
+    listEl.addEventListener('mousedown', (e) => {
+      /* mousedown fires before blur — prevents the list closing first. */
+      const item = e.target.closest('[data-cust-id]');
+      if (!item) return;
+      e.preventDefault();
+      const c = cachedCustomers.find((x) => x.id === item.dataset.custId);
+      if (c && listEl._onPick) listEl._onPick(c);
+      hideAutocomplete(listEl);
+    });
+  }
+  wireAutocomplete('f-client-name', 'f-client-name-ac', applyCustomerToTrapForm);
+  wireAutocomplete('f-address', 'f-address-ac', applyCustomerToTrapForm);
+  wireAutocomplete('pa-client-name', 'pa-client-name-ac', applyCustomerToPesticideForm);
+  wireAutocomplete('pa-client-address', 'pa-client-address-ac', applyCustomerToPesticideForm);
+
+  $('#trapCustomerSuggestBtn').addEventListener('click', () => {
+    if (trapSuggestedCustomer) applyCustomerToTrapForm(trapSuggestedCustomer);
+  });
+  $('#pestCustomerSuggestBtn').addEventListener('click', () => {
+    if (pestSuggestedCustomer) applyCustomerToPesticideForm(pestSuggestedCustomer);
+  });
+
+  /* Track manual edits to Date of Release so the auto-default stops (Item 6). */
+  $('#f-release-date').addEventListener('input', () => { releaseDateDirty = true; });
+  $('#f-date').addEventListener('change', () => {
+    if (!releaseDateDirty) $('#f-release-date').value = $('#f-date').value;
+  });
+
   $('#f-date').value = todayISO();
   const p = reportPeriod();
   $('#rangeStart').value = p.start;
@@ -5411,15 +6293,18 @@ async function init() {
       subscribeToOrg();
       subscribeToPesticides();
       subscribeToPesticideRecords();
+      subscribeToCustomers();
       renderBusinessCard();
       renderReportingCard();
       renderCertCard();
-      showApp();
+      /* Route to the three-module landing page after sign-in (Item 7). */
+      showLanding();
     } else {
       unsubscribeFromRecords();
       unsubscribeFromOrg();
       unsubscribeFromPesticides();
       unsubscribeFromPesticideRecords();
+      unsubscribeFromCustomers();
       modeSelected = false;
       $('#accountInfo').textContent = 'Not signed in';
       $('#wipeBtn').style.display = 'none';
