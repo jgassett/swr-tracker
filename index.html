@@ -1988,7 +1988,7 @@
       </div>
 
       <div class="card center muted" style="font-size:12px;">
-        Southern Wildlife Tracker · <span id="footerVersion">v1.26</span><br>
+        Southern Wildlife Tracker · <span id="footerVersion">v1.27</span><br>
         Designed for KDFWR Commercial NWCO compliance.
       </div>
     </section>
@@ -2338,7 +2338,7 @@ let orgSettings = {
 };
 
 const PESTICIDE_EMAILJS_TEMPLATE_ID = 'template_4aa3u5a';
-const APP_VERSION = 'v1.26';  /* bump in lockstep with the SW cache version */
+const APP_VERSION = 'v1.27';  /* bump in lockstep with the SW cache version */
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -5977,7 +5977,8 @@ async function init() {
     renderRecords();
   });
   $('#singleEdit').addEventListener('click', async () => {
-    const id = parseInt($('#singleEdit').dataset.id, 10);
+    /* Firestore doc IDs are strings — parseInt would turn them into NaN. */
+    const id = $('#singleEdit').dataset.id;
     if (!id) return;
     const r = await dbGet(id);
     if (!r) return;
