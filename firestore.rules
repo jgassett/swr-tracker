@@ -30,6 +30,18 @@ service cloud.firestore {
       allow delete: if request.auth != null;
     }
 
+    /* Customer directory — shared CRM across trapping + pesticide modules.
+       Created manually in-app now; a future QuickBooks → Firestore sync will
+       write here too. The app-controlled `active` flag is never touched by
+       that sync. Same auth pattern as the other shared collections. */
+    match /customers/{customerId} {
+      allow read:   if request.auth != null;
+      allow create: if request.auth != null
+                    && request.resource.data.createdByUid == request.auth.uid;
+      allow update: if request.auth != null;
+      allow delete: if request.auth != null;
+    }
+
     /* Org-level settings (business name, permit, applicator certs, etc.). */
     match /org/{docId} {
       allow read:  if request.auth != null;
