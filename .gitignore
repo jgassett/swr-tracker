@@ -4,3 +4,10 @@ Thumbs.db
 *.swo
 .vscode/
 .idea/
+
+# Never commit Firebase service-account keys or local deps
+serviceAccountKey.json
+*serviceAccount*.json
+*-firebase-adminsdk-*.json
+node_modules/
+admin-tools/node_modules/

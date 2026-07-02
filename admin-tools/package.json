@@ -1,0 +1,13 @@
+{
+  "name": "swr-tracker-admin-tools",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Local admin utilities for the SWR Tracker Firebase project (not deployed).",
+  "scripts": {
+    "reset-pin": "node reset-pin.mjs"
+  },
+  "dependencies": {
+    "firebase-admin": "^12.7.0"
+  }
+}
