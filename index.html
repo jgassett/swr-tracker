@@ -1053,6 +1053,27 @@
     }
     .status-pill.active { background: #DDEAD8; color: var(--released); }
     .status-pill.inactive { background: var(--cream-deep); color: var(--ink-soft); }
+    /* Estimate statuses (Pricing Constructor) */
+    .status-pill.draft { background: var(--cream-deep); color: var(--ink-soft); }
+    .status-pill.pending { background: #FBEED0; color: #8a6d1f; }
+    .status-pill.pushed { background: #DDEAD8; color: var(--released); }
+    .status-pill.rejected { background: #F6DADA; color: var(--danger); }
+    /* Pricing module */
+    .est-row { display: flex; align-items: center; gap: 12px; padding: 12px 4px; border-bottom: 1px solid var(--rule, #e2e8e2); cursor: pointer; }
+    .est-row:last-child { border-bottom: none; }
+    .est-row .est-body { flex: 1; min-width: 0; }
+    .est-row .est-no { font-weight: 600; color: var(--green-deep); }
+    .est-row .est-meta { font-size: 13px; color: var(--ink-soft); margin-top: 2px; }
+    .est-row .est-amt { font-weight: 700; color: var(--green-deep); white-space: nowrap; }
+    .line-item-row { display: flex; align-items: flex-start; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--rule, #e2e8e2); }
+    .line-item-row .li-body { flex: 1; min-width: 0; }
+    .line-item-row .li-desc { font-size: 14px; color: var(--ink); }
+    .line-item-row .li-sub { font-size: 12px; color: var(--ink-soft); margin-top: 2px; }
+    .line-item-row .li-total { font-weight: 600; white-space: nowrap; }
+    .line-item-row .li-del { background: none; border: none; color: var(--danger); font-size: 18px; line-height: 1; cursor: pointer; padding: 2px 6px; }
+    .est-grand { display: flex; justify-content: space-between; align-items: center; margin-top: 12px; padding-top: 12px; border-top: 2px solid var(--green-deep); font-size: 18px; font-weight: 700; color: var(--green-deep); }
+    .est-detail-line { display: flex; justify-content: space-between; padding: 6px 0; font-size: 14px; border-bottom: 1px solid var(--rule, #e2e8e2); }
+    .est-detail-line .d-sub { color: var(--ink-soft); font-size: 12px; }
     .customer-toggle-row {
       display: flex; align-items: center; justify-content: space-between; gap: 12px;
       padding: 12px 14px; background: var(--cream-deep); border-radius: 12px; margin-bottom: 14px;
@@ -1180,6 +1201,16 @@
         <div class="mode-desc">Client directory, shared across modules</div>
       </div>
       <div class="mode-count"><span class="n" id="landingCustCount">0</span><span class="lbl">active</span></div>
+    </button>
+    <button type="button" class="mode-card" data-mode="pricing">
+      <div class="icon-circle">
+        <svg viewBox="0 0 24 24"><path d="M4 4h16v4H4z"/><path d="M4 12h10"/><path d="M4 16h10"/><path d="M4 20h7"/><path d="M18 13v7"/><path d="M15 16l3-3 3 3"/></svg>
+      </div>
+      <div>
+        <div class="mode-title">Pricing</div>
+        <div class="mode-desc">Build job estimates, push to QuickBooks</div>
+      </div>
+      <div class="mode-count"><span class="n" id="landingEstCount">0</span><span class="lbl">this month</span></div>
     </button>
   </div>
 </div>
@@ -1859,6 +1890,77 @@
         </div>
         <button type="button" class="btn btn-danger" id="deleteCustomerBtn" style="margin-top:10px; display:none;">Delete Customer</button>
       </form>
+    </section>
+
+    <!-- PRICING: estimates list -->
+    <section id="view-pricing" class="view hidden">
+      <div class="greeting">
+        <h2>Estimates</h2>
+        <p class="muted">Build job estimates; approved quotes push to QuickBooks.</p>
+      </div>
+      <div class="filter-row">
+        <select id="estFilterStatus">
+          <option value="all">All statuses</option>
+          <option value="Draft">Draft</option>
+          <option value="Pending Approval">Pending approval</option>
+          <option value="Pushed to QB">Pushed to QB</option>
+          <option value="Rejected">Rejected</option>
+        </select>
+      </div>
+      <button class="btn btn-amber" id="newEstimateBtn" style="margin-bottom:14px;">+ New Estimate</button>
+      <div class="card" id="estimatesList"></div>
+    </section>
+
+    <!-- PRICING: estimate builder -->
+    <section id="view-estimate-builder" class="view hidden">
+      <input type="hidden" id="est-id">
+      <h3 class="form-section">Customer</h3>
+      <div class="form-group" style="position:relative;">
+        <label for="est-customer">Customer<span class="req">*</span></label>
+        <input type="text" id="est-customer" autocomplete="off" placeholder="Search name, address, city…">
+        <div class="autocomplete-list hidden" id="est-customer-ac"></div>
+        <div class="hint" id="est-customer-hint"></div>
+      </div>
+
+      <h3 class="form-section">Line Items</h3>
+      <div id="estLineItems" class="card" style="margin-bottom:0;"></div>
+      <div class="est-grand"><span>Grand Total</span><span id="estGrandTotal">$0.00</span></div>
+
+      <h3 class="form-section">Add Line Item</h3>
+      <div class="form-group">
+        <label for="li-category">Category</label>
+        <select id="li-category">
+          <option value="">— select category —</option>
+          <option>Standard Trap &amp; Remove</option>
+          <option>Maintenance Trapping</option>
+          <option>Squirrel Exclusion</option>
+          <option>Bat and Bird Exclusion / Removal</option>
+          <option>Sentinel Camera Monitoring</option>
+          <option>Repair Work</option>
+          <option>Carcass Removal</option>
+        </select>
+      </div>
+      <div id="li-dynamic-fields"></div>
+      <div class="hint" id="li-preview"></div>
+      <button type="button" class="btn btn-ghost" id="addLineItemBtn" disabled style="margin-bottom:6px;">Add to Estimate</button>
+
+      <h3 class="form-section">Notes</h3>
+      <div class="form-group">
+        <textarea id="est-notes" placeholder="Estimate notes (optional)"></textarea>
+      </div>
+
+      <div class="form-actions">
+        <div class="submit-row">
+          <button type="button" class="btn btn-ghost" id="saveDraftBtn">Save as Draft</button>
+          <button type="button" class="btn btn-primary" id="submitEstimateBtn">Submit for Approval</button>
+        </div>
+        <button type="button" class="btn btn-cancel btn-ghost" id="cancelEstimateBtn">Cancel</button>
+      </div>
+    </section>
+
+    <!-- PRICING: estimate detail -->
+    <section id="view-estimate-detail" class="view hidden">
+      <div id="estimateDetail"></div>
     </section>
 
     <!-- EXPORT -->
@@ -2778,7 +2880,7 @@ function showSignInScreen() {
 }
 let modeSelected = false;
 
-const MODULE_LABELS = { trap: 'Trapping', pesticide: 'Pesticides', customer: 'Customers' };
+const MODULE_LABELS = { trap: 'Trapping', pesticide: 'Pesticides', customer: 'Customers', pricing: 'Pricing' };
 
 /* Bottom-nav layout per module. The main landing page has no bottom nav.
    `fab: true` renders the raised amber add button (kept from the original
@@ -2804,6 +2906,12 @@ const NAV_CONFIGS = {
     { view: 'menu', label: 'Menu', icon: 'menu' },
     { view: 'dashboard', label: 'Customers', icon: 'users' },
     { view: 'add', label: 'Add', icon: 'plus', fab: true },
+    { view: 'settings', label: 'Settings', icon: 'gear' }
+  ],
+  pricing: [
+    { view: 'menu', label: 'Menu', icon: 'menu' },
+    { view: 'dashboard', label: 'Estimates', icon: 'list' },
+    { view: 'add', label: 'New', icon: 'plus', fab: true },
     { view: 'settings', label: 'Settings', icon: 'gear' }
   ]
 };
@@ -2884,10 +2992,13 @@ function renderLandingCounts() {
     return inPeriod(r.appliedAt.slice(0, 10), period);
   }).length;
   const custN = cachedCustomers.filter((c) => c.active).length;
+  const ym = new Date().toISOString().slice(0, 7); // YYYY-MM
+  const estN = cachedEstimates.filter((e) => (e.createdAt || '').slice(0, 7) === ym).length;
   const set = (id, n) => { const el = $('#' + id); if (el) el.textContent = n; };
   set('landingTrapCount', trapN);
   set('landingPestCount', pestN);
   set('landingCustCount', custN);
+  set('landingEstCount', estN);
 }
 
 /* ---------- Sync indicator ---------- */
@@ -3027,6 +3138,492 @@ function subscribeToCustomers() {
 function unsubscribeFromCustomers() {
   if (customersUnsub) { customersUnsub(); customersUnsub = null; }
   cachedCustomers = [];
+}
+
+/* =====================================================================
+ * Pricing Constructor (Phase 2) — build estimates, push to QBO as quotes
+ * ---------------------------------------------------------------------
+ * The price list below is the single source of truth for all math and is
+ * also seeded into the `priceList` Firestore collection for reference.
+ * Estimates flow: Draft → (submit) Pending Approval → (admin) Approve →
+ * qbPushEstimate Cloud Function pushes to QBO + we notify the operator.
+ * ===================================================================== */
+const TRAP_REMOVE_SPECIES = {
+  'Raccoon':        { setup: 150, perAnimal: 100 },
+  'Opossum':        { setup: 150, perAnimal: 100 },
+  'Groundhog':      { setup: 150, perAnimal: 100 },
+  'Skunk':          { setup: 150, perAnimal: 150 },
+  'Weasel':         { setup: 150, perAnimal: 150 },
+  'Mink':           { setup: 150, perAnimal: 150 },
+  'Snake':          { setup: 150, perAnimal: 150 },
+  'Red Fox':        { setup: 150, perAnimal: 150 },
+  'Gray Fox':       { setup: 150, perAnimal: 150 },
+  'Tree Squirrel':  { setup: 150, perAnimal: 150 },
+  'Flying Squirrel':{ setup: 150, perAnimal: 150 },
+  'Bobcat':         { setup: 100, perAnimal: 250 },
+  'Coyote':         { setup: 100, perAnimal: 250 },
+  'Beaver':         { setup: 100, perAnimal: 250 },
+  'River Otter':    { setup: 100, perAnimal: 250 }
+};
+const MAINTENANCE_SPECIES = {
+  'Mole': 500, 'Raccoon': 500, 'Muskrat': 500,
+  'River Otter': 600, 'Beaver': 600, 'Coyote': 800
+};
+const SQUIRREL_EXCLUSION = {
+  'Small (under 4 hrs)': { flat: 400 },
+  'Medium (4–8 hrs)':    { flat: 800 },
+  'Large (8 hrs)':       { flat: 1500 },
+  'Multi-day':           { perDay: 1500 }
+};
+const BAT_BIRD = {
+  'Single bat or bird':            { flat: 250 },
+  'Small exclusion (under 4 hrs)': { flat: 750 },
+  'Medium exclusion (4–8 hrs)':    { flat: 1500 },
+  'Large / multi-day':             { perDay: 1500 }
+};
+const REPAIR_WORK = {
+  'Small (under 4 hrs)':    { flat: 300 },
+  'Medium (4–8 hrs)':       { flat: 600 },
+  'Large (8 hrs)':          { flat: 1500 },
+  'Extensive / multi-day':  { perDay: 1500 }
+};
+const CARCASS_REMOVAL = {
+  'Small (birds, squirrels, mice, rats, moles)': 150,
+  'Medium (coyote, fox, beaver, otter, fawn, geese)': 250,
+  'Large (75 lbs or larger)': 400
+};
+const CAMERA_MONTHLY = 250;
+
+/* EmailJS template for the "estimate approved" notification to the operator.
+   Create a template in the EmailJS dashboard (recipient = {{to_email}}) and
+   paste its id here; until then the in-app status update still fires. */
+const ESTIMATE_EMAILJS_TEMPLATE_ID = '';
+
+let cachedEstimates = [];
+let estimatesUnsub = null;
+let editingEstimateId = null;   // set while editing an existing Draft
+let currentEstimateId = null;   // estimate open in the detail view
+let builderLines = [];          // line items being assembled
+let builderCustomer = null;     // { id, name, qbId }
+let pendingLine = null;         // the line currently configured in "Add Line Item"
+let priceListSeedChecked = false;
+
+function estimatesCol() { return collection(fbDb, 'estimates'); }
+function priceListCol() { return collection(fbDb, 'priceList'); }
+function fmtUSD(n) {
+  return '$' + (Number(n) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+function estStatusClass(s) {
+  if (s === 'Pending Approval') return 'pending';
+  if (s === 'Pushed to QB') return 'pushed';
+  if (s === 'Rejected') return 'rejected';
+  return 'draft';
+}
+
+function subscribeToEstimates() {
+  if (estimatesUnsub) return;
+  const q = query(estimatesCol(), orderBy('createdAt', 'desc'));
+  estimatesUnsub = onSnapshot(q, { includeMetadataChanges: true }, (snap) => {
+    cachedEstimates = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    renderLandingCounts();
+    if (!$('#app').classList.contains('hidden') && appMode === 'pricing') {
+      if (!$('#view-pricing').classList.contains('hidden')) renderEstimatesList();
+      if (currentEstimateId && !$('#view-estimate-detail').classList.contains('hidden')) {
+        renderEstimateDetail(currentEstimateId);
+      }
+    }
+  }, (err) => console.error('Estimates subscription error', err));
+}
+function unsubscribeFromEstimates() {
+  if (estimatesUnsub) { estimatesUnsub(); estimatesUnsub = null; }
+  cachedEstimates = [];
+}
+
+function generateEstimateNumber() {
+  const year = new Date().getFullYear();
+  const prefix = `SWR-${year}-`;
+  let max = 0;
+  for (const e of cachedEstimates) {
+    if (e.estimateNumber && e.estimateNumber.startsWith(prefix)) {
+      const n = parseInt(e.estimateNumber.slice(prefix.length), 10);
+      if (Number.isFinite(n) && n > max) max = n;
+    }
+  }
+  return `${prefix}${String(max + 1).padStart(3, '0')}`;
+}
+
+/* ---- Builder ---- */
+function resetEstimateBuilder() {
+  editingEstimateId = null;
+  builderLines = [];
+  builderCustomer = null;
+  pendingLine = null;
+  const setVal = (id, v) => { const el = $('#' + id); if (el) el.value = v; };
+  setVal('est-id', ''); setVal('est-customer', ''); setVal('est-notes', ''); setVal('li-category', '');
+  const hint = $('#est-customer-hint'); if (hint) { hint.textContent = ''; hint.className = 'hint'; }
+  const dyn = $('#li-dynamic-fields'); if (dyn) dyn.innerHTML = '';
+  const prev = $('#li-preview'); if (prev) prev.textContent = '';
+  const addBtn = $('#addLineItemBtn'); if (addBtn) addBtn.disabled = true;
+  renderBuilderLines();
+}
+
+function applyEstimateCustomer(c) {
+  builderCustomer = { id: c.id, name: c.name || '', qbId: c.qbId || null };
+  $('#est-customer').value = c.name || '';
+  const hint = $('#est-customer-hint');
+  if (hint) {
+    if (c.qbId) { hint.textContent = `✓ ${c.name} — linked to QuickBooks`; hint.className = 'hint success'; }
+    else { hint.textContent = `⚠ ${c.name} isn’t linked to QuickBooks yet — you can save/submit, but it can’t be pushed until it exists in QBO.`; hint.className = 'hint'; }
+  }
+  hideAutocomplete($('#est-customer-ac'));
+}
+
+function renderBuilderLines() {
+  const el = $('#estLineItems');
+  if (!el) return;
+  if (!builderLines.length) {
+    el.innerHTML = '<div style="padding:14px;color:var(--ink-soft);">No line items yet. Add one below.</div>';
+  } else {
+    el.innerHTML = builderLines.map((li, i) => `
+      <div class="line-item-row">
+        <div class="li-body">
+          <div class="li-desc">${escapeHtml([li.category, li.species, li.description].filter(Boolean).join(' – '))}</div>
+          <div class="li-sub">${escapeHtml(String(li.quantity))} ${escapeHtml(li.unit)} × ${fmtUSD(li.unitPrice)}</div>
+        </div>
+        <div class="li-total">${fmtUSD(li.lineTotal)}</div>
+        <button type="button" class="li-del" data-li-index="${i}" aria-label="Remove">×</button>
+      </div>`).join('');
+  }
+  const grand = builderLines.reduce((s, li) => s + (Number(li.lineTotal) || 0), 0);
+  const gt = $('#estGrandTotal'); if (gt) gt.textContent = fmtUSD(grand);
+}
+
+function renderCategoryFields() {
+  const cat = $('#li-category').value;
+  const box = $('#li-dynamic-fields');
+  if (!box) return;
+  const sel = (id, label, opts) =>
+    `<div class="form-group"><label for="${id}">${label}</label><select id="${id}"><option value="">— select —</option>` +
+    opts.map((o) => `<option>${escapeHtml(o)}</option>`).join('') + '</select></div>';
+  const num = (id, label) =>
+    `<div class="form-group"><label for="${id}">${label}</label><input type="number" id="${id}" inputmode="numeric" min="1" step="1" value="1"></div>`;
+  let html = '';
+  if (cat === 'Standard Trap & Remove') html = sel('li-species', 'Species', Object.keys(TRAP_REMOVE_SPECIES)) + num('li-qty', 'Number of animals');
+  else if (cat === 'Maintenance Trapping') html = sel('li-species', 'Species', Object.keys(MAINTENANCE_SPECIES)) + num('li-weeks', 'Number of weeks');
+  else if (cat === 'Squirrel Exclusion') html = sel('li-size', 'Job size', Object.keys(SQUIRREL_EXCLUSION));
+  else if (cat === 'Bat and Bird Exclusion / Removal') html = sel('li-size', 'Service type', Object.keys(BAT_BIRD));
+  else if (cat === 'Sentinel Camera Monitoring') html = num('li-months', 'Number of months');
+  else if (cat === 'Repair Work') html = sel('li-size', 'Job size', Object.keys(REPAIR_WORK));
+  else if (cat === 'Carcass Removal') html = sel('li-size', 'Size', Object.keys(CARCASS_REMOVAL)) + num('li-qty', 'Quantity');
+  box.innerHTML = html;
+  recalcPendingLine();
+}
+
+function recalcPendingLine() {
+  const cat = $('#li-category').value;
+  const preview = $('#li-preview');
+  const addBtn = $('#addLineItemBtn');
+  pendingLine = null;
+  const fail = (msg) => { if (preview) preview.textContent = msg || ''; if (addBtn) addBtn.disabled = true; };
+  const ok = (line) => {
+    pendingLine = line;
+    if (preview) preview.textContent = `${line.quantity} ${line.unit} × ${fmtUSD(line.unitPrice)} = ${fmtUSD(line.lineTotal)}`;
+    if (addBtn) addBtn.disabled = false;
+  };
+  const getNum = (id) => { const el = $('#' + id); const n = el ? parseInt(el.value, 10) : NaN; return Number.isFinite(n) && n > 0 ? n : 0; };
+  const getSel = (id) => { const el = $('#' + id); return el ? el.value : ''; };
+
+  if (cat === 'Standard Trap & Remove') {
+    const sp = getSel('li-species'), qty = getNum('li-qty');
+    if (!sp || !qty) return fail('Select a species and number of animals.');
+    const p = TRAP_REMOVE_SPECIES[sp];
+    return ok({ category: cat, species: sp, description: 'Trap & remove (per animal)', quantity: qty, unit: 'each', unitPrice: p.perAnimal, lineTotal: p.perAnimal * qty, setupFee: p.setup });
+  }
+  if (cat === 'Maintenance Trapping') {
+    const sp = getSel('li-species'), wk = getNum('li-weeks');
+    if (!sp || !wk) return fail('Select a species and number of weeks.');
+    const rate = MAINTENANCE_SPECIES[sp];
+    return ok({ category: cat, species: sp, description: 'Maintenance trapping', quantity: wk, unit: 'week', unitPrice: rate, lineTotal: rate * wk });
+  }
+  if (cat === 'Squirrel Exclusion' || cat === 'Repair Work' || cat === 'Bat and Bird Exclusion / Removal') {
+    const table = cat === 'Squirrel Exclusion' ? SQUIRREL_EXCLUSION : cat === 'Repair Work' ? REPAIR_WORK : BAT_BIRD;
+    const size = getSel('li-size');
+    if (!size) return fail('Select an option.');
+    const entry = table[size];
+    if (entry.perDay) {
+      if (!$('#li-days')) {
+        $('#li-dynamic-fields').insertAdjacentHTML('beforeend',
+          '<div class="form-group"><label for="li-days">Number of days</label><input type="number" id="li-days" inputmode="numeric" min="1" step="1" value="1"></div>');
+      }
+      const days = getNum('li-days');
+      if (!days) return fail('Enter number of days.');
+      return ok({ category: cat, species: '', description: size, quantity: days, unit: 'day', unitPrice: entry.perDay, lineTotal: entry.perDay * days });
+    }
+    const daysEl = $('#li-days'); if (daysEl && daysEl.closest('.form-group')) daysEl.closest('.form-group').remove();
+    return ok({ category: cat, species: '', description: size, quantity: 1, unit: 'each', unitPrice: entry.flat, lineTotal: entry.flat });
+  }
+  if (cat === 'Sentinel Camera Monitoring') {
+    const mo = getNum('li-months');
+    if (!mo) return fail('Enter number of months.');
+    return ok({ category: cat, species: '', description: 'Camera setup & monitoring', quantity: mo, unit: 'month', unitPrice: CAMERA_MONTHLY, lineTotal: CAMERA_MONTHLY * mo });
+  }
+  if (cat === 'Carcass Removal') {
+    const size = getSel('li-size'), qty = getNum('li-qty');
+    if (!size || !qty) return fail('Select a size and quantity.');
+    const price = CARCASS_REMOVAL[size];
+    return ok({ category: cat, species: '', description: size, quantity: qty, unit: 'each', unitPrice: price, lineTotal: price * qty });
+  }
+  return fail('');
+}
+
+function addLineItem() {
+  if (!pendingLine) return;
+  const line = pendingLine;
+  /* Standard Trap & Remove: auto-add a one-time setup fee line if none yet. */
+  if (line.category === 'Standard Trap & Remove') {
+    const hasSetup = builderLines.some((li) => li.category === 'Standard Trap & Remove' && li.isSetup);
+    if (!hasSetup && line.setupFee) {
+      builderLines.push({ category: 'Standard Trap & Remove', species: line.species, description: 'Setup fee', quantity: 1, unit: 'each', unitPrice: line.setupFee, lineTotal: line.setupFee, isSetup: true });
+    }
+  }
+  builderLines.push({ category: line.category, species: line.species || '', description: line.description, quantity: line.quantity, unit: line.unit, unitPrice: line.unitPrice, lineTotal: line.lineTotal });
+  $('#li-category').value = '';
+  $('#li-dynamic-fields').innerHTML = '';
+  $('#li-preview').textContent = '';
+  $('#addLineItemBtn').disabled = true;
+  pendingLine = null;
+  renderBuilderLines();
+}
+
+function removeLineItem(i) {
+  builderLines.splice(i, 1);
+  renderBuilderLines();
+}
+
+async function saveEstimate(status) {
+  if (!builderCustomer || !builderCustomer.id) throw new Error('Select a customer first.');
+  if (!builderLines.length) throw new Error('Add at least one line item.');
+  const grand = builderLines.reduce((s, li) => s + (Number(li.lineTotal) || 0), 0);
+  const now = new Date().toISOString();
+  const notes = ($('#est-notes').value || '').trim();
+  if (editingEstimateId) {
+    await writeWithRetry(() => setDoc(doc(fbDb, 'estimates', editingEstimateId), {
+      customerId: builderCustomer.id, customerName: builderCustomer.name,
+      lineItems: builderLines, subtotal: grand, grandTotal: grand, notes, status, updatedAt: now
+    }, { merge: true }));
+  } else {
+    const operator = (currentUser && (EMAIL_TO_TRAPPER[currentUser.email] || currentUser.email)) || '';
+    await writeWithRetry(() => addDoc(estimatesCol(), {
+      estimateNumber: generateEstimateNumber(),
+      customerId: builderCustomer.id, customerName: builderCustomer.name,
+      createdBy: operator, createdByUid: currentUser ? currentUser.uid : null,
+      createdByEmail: currentUser ? currentUser.email : null,
+      createdAt: now, updatedAt: now, status,
+      lineItems: builderLines, subtotal: grand, grandTotal: grand, notes, qbEstimateId: null
+    }));
+  }
+}
+
+async function handleSaveEstimate(status) {
+  const btns = ['saveDraftBtn', 'submitEstimateBtn'];
+  btns.forEach((b) => { const el = $('#' + b); if (el) el.disabled = true; });
+  try {
+    await saveEstimate(status);
+    toast(status === 'Draft' ? 'Draft saved' : 'Submitted for approval');
+    resetEstimateBuilder();
+    setView('dashboard');
+  } catch (err) {
+    toast((err && err.message) || 'Save failed', 'error');
+  } finally {
+    btns.forEach((b) => { const el = $('#' + b); if (el) el.disabled = false; });
+  }
+}
+
+function renderEstimatesList() {
+  const el = $('#estimatesList');
+  if (!el) return;
+  const filterEl = $('#estFilterStatus');
+  const filter = filterEl ? filterEl.value : 'all';
+  let list = cachedEstimates.slice();
+  if (filter !== 'all') list = list.filter((e) => e.status === filter);
+  if (!list.length) {
+    el.innerHTML = '<div style="padding:16px;color:var(--ink-soft);">No estimates yet. Tap <strong>+ New Estimate</strong> to build one.</div>';
+    return;
+  }
+  el.innerHTML = list.map((e) => `
+    <div class="est-row" data-est-open="${escapeHtml(e.id)}">
+      <div class="est-body">
+        <div class="est-no">${escapeHtml(e.estimateNumber || '—')}</div>
+        <div class="est-meta">${escapeHtml(e.customerName || '')} · ${escapeHtml((e.createdAt || '').slice(0, 10))}</div>
+        <div style="margin-top:4px;"><span class="status-pill ${estStatusClass(e.status)}">${escapeHtml(e.status || '')}</span></div>
+      </div>
+      <div class="est-amt">${fmtUSD(e.grandTotal)}</div>
+    </div>`).join('');
+}
+
+function showEstimateDetail(id) {
+  currentEstimateId = id;
+  $$('.view').forEach((el) => el.classList.add('hidden'));
+  const d = $('#view-estimate-detail'); if (d) d.classList.remove('hidden');
+  $('#viewTitle').textContent = 'Estimate';
+  const main = $('#appMain'); if (main) main.scrollTop = 0;
+  renderEstimateDetail(id);
+}
+
+function renderEstimateDetail(id) {
+  const e = cachedEstimates.find((x) => x.id === id);
+  const box = $('#estimateDetail');
+  if (!box) return;
+  if (!e) { box.innerHTML = '<div class="card">Estimate not found.</div>'; return; }
+  const admin = isAdmin();
+  const lines = (e.lineItems || []).map((li) => `
+    <div class="est-detail-line">
+      <div><div>${escapeHtml([li.category, li.species, li.description].filter(Boolean).join(' – '))}</div>
+      <div class="d-sub">${escapeHtml(String(li.quantity))} ${escapeHtml(li.unit)} × ${fmtUSD(li.unitPrice)}</div></div>
+      <div>${fmtUSD(li.lineTotal)}</div>
+    </div>`).join('');
+  let actions = '';
+  if (e.status === 'Draft') {
+    actions += `<button class="btn btn-primary" data-est-action="edit" data-id="${escapeHtml(e.id)}">Edit</button>`;
+    actions += `<button class="btn btn-ghost" data-est-action="submit" data-id="${escapeHtml(e.id)}">Submit for Approval</button>`;
+    actions += `<button class="btn btn-danger" data-est-action="delete" data-id="${escapeHtml(e.id)}" style="margin-top:10px;">Delete Draft</button>`;
+  } else if (e.status === 'Pending Approval') {
+    if (admin) {
+      actions += `<button class="btn btn-primary" data-est-action="approve" data-id="${escapeHtml(e.id)}">Approve &amp; Push to QuickBooks</button>`;
+      actions += `<button class="btn btn-ghost" data-est-action="reject" data-id="${escapeHtml(e.id)}">Reject (back to Draft)</button>`;
+    } else {
+      actions += '<div class="hint">Waiting on admin approval.</div>';
+    }
+  } else if (e.status === 'Pushed to QB') {
+    actions += `<div class="hint success">Pushed to QuickBooks${e.qbEstimateId ? ' (QB #' + escapeHtml(String(e.qbEstimateId)) + ')' : ''}.</div>`;
+  }
+  if (e.pushError && admin) {
+    actions += `<div class="hint" style="color:var(--amber);margin-top:8px;">Last push failed: ${escapeHtml(e.pushError)}</div>`;
+  }
+  box.innerHTML = `
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;">
+        <h3 style="margin:0;">${escapeHtml(e.estimateNumber || 'Estimate')}</h3>
+        <span class="status-pill ${estStatusClass(e.status)}">${escapeHtml(e.status || '')}</span>
+      </div>
+      <div class="muted" style="margin-top:6px;">${escapeHtml(e.customerName || '')}</div>
+      <div class="muted" style="font-size:13px;">By ${escapeHtml(e.createdBy || '')} · ${escapeHtml((e.createdAt || '').slice(0, 10))}</div>
+    </div>
+    <div class="card">
+      ${lines || '<div class="muted">No line items.</div>'}
+      <div class="est-grand"><span>Grand Total</span><span>${fmtUSD(e.grandTotal)}</span></div>
+    </div>
+    ${e.notes ? `<div class="card"><h3 style="margin-top:0;">Notes</h3><div>${escapeHtml(e.notes)}</div></div>` : ''}
+    ${e.rejectionNote ? `<div class="card"><h3 style="margin-top:0;color:var(--danger);">Rejection note</h3><div>${escapeHtml(e.rejectionNote)}</div></div>` : ''}
+    <div class="form-actions">${actions}<button class="btn btn-cancel btn-ghost" data-est-action="back">Back to Estimates</button></div>`;
+}
+
+function editEstimate(id) {
+  const e = cachedEstimates.find((x) => x.id === id);
+  if (!e || e.status !== 'Draft') return;
+  editingEstimateId = id;
+  builderLines = (e.lineItems || []).map((li) => ({ ...li }));
+  const c = cachedCustomers.find((x) => x.id === e.customerId);
+  builderCustomer = { id: e.customerId, name: e.customerName || '', qbId: c ? (c.qbId || null) : null };
+  $('#est-id').value = id;
+  $('#est-customer').value = e.customerName || '';
+  $('#est-notes').value = e.notes || '';
+  const hint = $('#est-customer-hint');
+  if (hint) {
+    hint.textContent = builderCustomer.qbId ? `✓ ${e.customerName} — linked to QuickBooks` : `⚠ ${e.customerName} isn’t linked to QuickBooks yet.`;
+    hint.className = builderCustomer.qbId ? 'hint success' : 'hint';
+  }
+  $('#li-category').value = '';
+  $('#li-dynamic-fields').innerHTML = '';
+  $('#li-preview').textContent = '';
+  $('#addLineItemBtn').disabled = true;
+  renderBuilderLines();
+  setView('add');
+}
+
+async function submitEstimateForApproval(id) {
+  await writeWithRetry(() => setDoc(doc(fbDb, 'estimates', id), { status: 'Pending Approval', updatedAt: new Date().toISOString() }, { merge: true }));
+  toast('Submitted for approval');
+}
+
+async function deleteEstimateDraft(id) {
+  const e = cachedEstimates.find((x) => x.id === id);
+  if (!e || e.status !== 'Draft') { toast('Only Draft estimates can be deleted', 'error'); return; }
+  if (!confirm('Delete this draft estimate? This cannot be undone.')) return;
+  await writeWithRetry(() => deleteDoc(doc(fbDb, 'estimates', id)));
+  toast('Draft deleted');
+  currentEstimateId = null;
+  setView('dashboard');
+}
+
+async function rejectEstimate(id) {
+  const note = (prompt('Reason for rejection (optional):') || '').trim();
+  await writeWithRetry(() => setDoc(doc(fbDb, 'estimates', id), { status: 'Draft', rejectionNote: note, updatedAt: new Date().toISOString() }, { merge: true }));
+  toast('Estimate sent back to Draft');
+}
+
+async function approveAndPushEstimate(id) {
+  const e = cachedEstimates.find((x) => x.id === id);
+  if (!e) return;
+  toast('Pushing to QuickBooks…');
+  try {
+    const call = httpsCallable(fbFunctions, 'qbPushEstimate');
+    const res = await call({ estimateId: id });
+    const r = (res && res.data) || {};
+    toast('Approved — pushed to QuickBooks');
+    sendEstimateApprovedEmail(e, r);
+  } catch (err) {
+    const code = (err && err.code) || '';
+    let msg = (err && err.message) || 'Push failed';
+    if (code === 'functions/permission-denied') msg = 'Only an administrator can approve estimates.';
+    else if (code === 'functions/failed-precondition') msg = msg; // already descriptive (not connected / no qbId)
+    toast('Push failed: ' + msg, 'error');
+  }
+}
+
+function sendEstimateApprovedEmail(e, pushResult) {
+  if (typeof emailjs === 'undefined' || !ESTIMATE_EMAILJS_TEMPLATE_ID) return; // no-op until a template id is set
+  const toEmail = e.createdByEmail || '';
+  if (!toEmail) return;
+  try {
+    emailjs.send(EMAILJS_CONFIG.serviceId, ESTIMATE_EMAILJS_TEMPLATE_ID, {
+      to_email: toEmail,
+      operator_name: e.createdBy || '',
+      estimate_number: e.estimateNumber || '',
+      customer_name: e.customerName || '',
+      grand_total: fmtUSD(e.grandTotal),
+      qb_estimate_id: (pushResult && pushResult.qbEstimateId) || '',
+      status: 'Approved & pushed to QuickBooks'
+    });
+  } catch (err) {
+    console.error('Estimate approval email failed:', err);
+  }
+}
+
+/* Seed the priceList reference collection once (admin only, if empty). */
+async function seedPriceListIfNeeded() {
+  if (priceListSeedChecked || !isAdmin() || !currentUser) return;
+  priceListSeedChecked = true;
+  try {
+    const snap = await getDocs(query(priceListCol()));
+    if (!snap.empty) return;
+    const uid = currentUser.uid;
+    const now = new Date().toISOString();
+    const docs = [];
+    for (const [species, p] of Object.entries(TRAP_REMOVE_SPECIES)) docs.push({ category: 'Standard Trap & Remove', species, setupFee: p.setup, perAnimal: p.perAnimal });
+    for (const [species, rate] of Object.entries(MAINTENANCE_SPECIES)) docs.push({ category: 'Maintenance Trapping', species, perWeek: rate });
+    for (const [size, v] of Object.entries(SQUIRREL_EXCLUSION)) docs.push({ category: 'Squirrel Exclusion', size, ...v });
+    for (const [size, v] of Object.entries(BAT_BIRD)) docs.push({ category: 'Bat and Bird Exclusion / Removal', size, ...v });
+    for (const [size, v] of Object.entries(REPAIR_WORK)) docs.push({ category: 'Repair Work', size, ...v });
+    for (const [size, flat] of Object.entries(CARCASS_REMOVAL)) docs.push({ category: 'Carcass Removal', size, flat });
+    docs.push({ category: 'Sentinel Camera Monitoring', perMonth: CAMERA_MONTHLY });
+    const batch = writeBatch(fbDb);
+    for (const d of docs) batch.set(doc(priceListCol()), { ...d, createdByUid: uid, createdAt: now });
+    await batch.commit();
+    console.log('Seeded priceList with', docs.length, 'items');
+  } catch (err) {
+    console.error('priceList seed failed', err);
+  }
 }
 
 /* Retry wrapper for one-shot customer writes. Firestore's offline cache
@@ -3188,7 +3785,8 @@ let currentView = 'dashboard';
 const VIEW_TITLES = {
   trap:      { dashboard: 'Dashboard', records: 'Records', add: 'Add Record', export: 'Export', settings: 'Settings' },
   pesticide: { dashboard: 'Dashboard', records: 'Records', add: 'Add Application', export: 'Export', settings: 'Settings' },
-  customer:  { dashboard: 'Customers', add: 'Add Customer', settings: 'Settings' }
+  customer:  { dashboard: 'Customers', add: 'Add Customer', settings: 'Settings' },
+  pricing:   { dashboard: 'Estimates', add: 'New Estimate', settings: 'Settings' }
 };
 
 function backToLanding() {
@@ -3202,7 +3800,8 @@ function setView(name) {
   currentView = name;
   /* Hide every view section, then reveal the one matching mode+name. */
   ['dashboard','records','records-pesticide','add','add-pesticide',
-   'customers','add-customer','export','settings'].forEach((v) => {
+   'customers','add-customer','pricing','estimate-builder','estimate-detail',
+   'export','settings'].forEach((v) => {
     const el = document.getElementById(`view-${v}`);
     if (el) el.classList.add('hidden');
   });
@@ -3213,6 +3812,9 @@ function setView(name) {
   } else if (appMode === 'customer') {
     if (name === 'dashboard') actualId = 'customers';
     if (name === 'add') actualId = 'add-customer';
+  } else if (appMode === 'pricing') {
+    if (name === 'dashboard') actualId = 'pricing';
+    if (name === 'add') actualId = 'estimate-builder';
   }
   const showEl = document.getElementById(`view-${actualId}`);
   if (showEl) showEl.classList.remove('hidden');
@@ -3230,11 +3832,17 @@ function setView(name) {
       if (!editingPesticideRecordId && !pendingPesticideRecord) resetPesticideRecordForm();
     } else if (appMode === 'customer') {
       if (!editingCustomerId) resetCustomerForm();
+    } else if (appMode === 'pricing') {
+      if (!editingEstimateId) resetEstimateBuilder();
     }
   }
   if (appMode === 'customer' && name === 'dashboard') {
     fillCustomerCountyFilter();
     renderCustomerList();
+  }
+  if (appMode === 'pricing' && name === 'dashboard') {
+    seedPriceListIfNeeded();
+    renderEstimatesList();
   }
   /* Pesticide-form map lazy init */
   if (name === 'add' && appMode === 'pesticide') {
@@ -6318,6 +6926,38 @@ async function init() {
   wireAutocomplete('pa-client-name', 'pa-client-name-ac', applyCustomerToPesticideForm);
   wireAutocomplete('pa-client-address', 'pa-client-address-ac', applyCustomerToPesticideForm);
 
+  /* ---- Pricing Constructor wiring ---- */
+  wireAutocomplete('est-customer', 'est-customer-ac', applyEstimateCustomer);
+  $('#newEstimateBtn').addEventListener('click', () => { resetEstimateBuilder(); setView('add'); });
+  $('#estFilterStatus').addEventListener('change', renderEstimatesList);
+  $('#li-category').addEventListener('change', renderCategoryFields);
+  $('#li-dynamic-fields').addEventListener('input', recalcPendingLine);
+  $('#li-dynamic-fields').addEventListener('change', recalcPendingLine);
+  $('#addLineItemBtn').addEventListener('click', addLineItem);
+  $('#estLineItems').addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-li-index]');
+    if (btn) removeLineItem(parseInt(btn.dataset.liIndex, 10));
+  });
+  $('#saveDraftBtn').addEventListener('click', () => handleSaveEstimate('Draft'));
+  $('#submitEstimateBtn').addEventListener('click', () => handleSaveEstimate('Pending Approval'));
+  $('#cancelEstimateBtn').addEventListener('click', () => { resetEstimateBuilder(); setView('dashboard'); });
+  $('#estimatesList').addEventListener('click', (e) => {
+    const row = e.target.closest('[data-est-open]');
+    if (row) showEstimateDetail(row.dataset.estOpen);
+  });
+  $('#estimateDetail').addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-est-action]');
+    if (!btn) return;
+    const action = btn.dataset.estAction;
+    const id = btn.dataset.id;
+    if (action === 'back') { currentEstimateId = null; setView('dashboard'); }
+    else if (action === 'edit') editEstimate(id);
+    else if (action === 'submit') submitEstimateForApproval(id);
+    else if (action === 'delete') deleteEstimateDraft(id);
+    else if (action === 'approve') approveAndPushEstimate(id);
+    else if (action === 'reject') rejectEstimate(id);
+  });
+
   $('#trapCustomerSuggestBtn').addEventListener('click', () => {
     if (trapSuggestedCustomer) applyCustomerToTrapForm(trapSuggestedCustomer);
   });
@@ -6373,6 +7013,7 @@ async function init() {
       subscribeToPesticides();
       subscribeToPesticideRecords();
       subscribeToCustomers();
+      subscribeToEstimates();
       renderBusinessCard();
       renderReportingCard();
       renderCertCard();
@@ -6384,6 +7025,7 @@ async function init() {
       unsubscribeFromPesticides();
       unsubscribeFromPesticideRecords();
       unsubscribeFromCustomers();
+      unsubscribeFromEstimates();
       modeSelected = false;
       $('#accountInfo').textContent = 'Not signed in';
       $('#wipeBtn').style.display = 'none';

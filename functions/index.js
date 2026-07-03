@@ -50,6 +50,14 @@ const TOKEN_DOC = db.doc('integrations/quickbooks');
 const STATE_DOC = db.doc('integrations/oauthState');
 const SECRETS = ['QBO_CLIENT_ID', 'QBO_CLIENT_SECRET'];
 
+/* Only these accounts may approve + push estimates to QuickBooks. Mirrors
+ * ADMIN_EMAILS in the app. */
+const ADMIN_EMAILS = ['jon@southern-wildlife.com'];
+
+/* All SWR estimate lines map to a single generic QuickBooks Product/Service;
+ * the human-readable category/species/detail goes in each line's Description. */
+const SERVICE_ITEM_NAME = 'Wildlife Services';
+
 /* ---------- Small helpers ---------- */
 function basicAuthHeader() {
   const id = process.env.QBO_CLIENT_ID;
@@ -190,6 +198,53 @@ function contactFieldsFromQbo(c) {
     if (addr.City) out.city = addr.City;
   }
   return out;
+}
+
+/* POST a resource to the QuickBooks API (create). */
+async function qboPost(realmId, accessToken, resource, body) {
+  const url = `${API_BASE}/v3/company/${realmId}/${resource}?minorversion=${MINOR_VERSION}`;
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+      'Accept': 'application/json'
+    },
+    body: JSON.stringify(body)
+  });
+  const text = await res.text();
+  if (!res.ok) throw new Error(`QBO ${resource} POST ${res.status}: ${text}`);
+  return JSON.parse(text);
+}
+
+/* Return the QuickBooks Item Id for the generic service item, creating it once
+ * if needed. The Id is cached on the token doc to avoid a lookup per push. */
+async function ensureServiceItemId(realmId, accessToken) {
+  const snap = await TOKEN_DOC.get();
+  const cached = snap.exists ? snap.data().serviceItemId : null;
+  if (cached) return cached;
+
+  const found = await qboQuery(realmId, accessToken,
+    `SELECT Id, Name FROM Item WHERE Name = '${SERVICE_ITEM_NAME}'`);
+  let item = found.QueryResponse && found.QueryResponse.Item && found.QueryResponse.Item[0];
+
+  if (!item) {
+    const acctData = await qboQuery(realmId, accessToken,
+      `SELECT Id, Name FROM Account WHERE AccountType = 'Income' MAXRESULTS 1`);
+    const acct = acctData.QueryResponse && acctData.QueryResponse.Account && acctData.QueryResponse.Account[0];
+    if (!acct) {
+      throw new Error(`No income account found to auto-create the "${SERVICE_ITEM_NAME}" item — ` +
+        `create a Product/Service named "${SERVICE_ITEM_NAME}" in QuickBooks and retry.`);
+    }
+    const created = await qboPost(realmId, accessToken, 'item', {
+      Name: SERVICE_ITEM_NAME,
+      Type: 'Service',
+      IncomeAccountRef: { value: acct.Id }
+    });
+    item = created.Item;
+  }
+  await TOKEN_DOC.set({ serviceItemId: item.Id }, { merge: true });
+  return item.Id;
 }
 
 /* ---------- The sync ----------
@@ -364,6 +419,95 @@ exports.qbSyncNow = functions
         needsConnect ? 'failed-precondition' : 'internal',
         err.message || 'Sync failed'
       );
+    }
+  });
+
+/* Approve + push a single estimate to QuickBooks as an Estimate (quote).
+ * Admin-only. Reuses getValidAccessToken() (refresh + rotation). The customer
+ * is linked by the qbId already stored on the Firestore customer record. */
+exports.qbPushEstimate = functions
+  .region(REGION)
+  .runWith({ secrets: SECRETS, timeoutSeconds: 120, memory: '256MB' })
+  .https.onCall(async (data, context) => {
+    if (!context.auth) {
+      throw new functions.https.HttpsError('unauthenticated', 'Sign in required.');
+    }
+    const email = ((context.auth.token && context.auth.token.email) || '').toLowerCase();
+    if (!ADMIN_EMAILS.includes(email)) {
+      throw new functions.https.HttpsError('permission-denied',
+        'Only an administrator can approve and push estimates.');
+    }
+    const estimateId = data && data.estimateId;
+    if (!estimateId) {
+      throw new functions.https.HttpsError('invalid-argument', 'estimateId is required.');
+    }
+
+    const estRef = db.doc(`estimates/${estimateId}`);
+    const estSnap = await estRef.get();
+    if (!estSnap.exists) throw new functions.https.HttpsError('not-found', 'Estimate not found.');
+    const est = estSnap.data();
+
+    if (!est.customerId) {
+      throw new functions.https.HttpsError('failed-precondition', 'Estimate has no customer.');
+    }
+    const custSnap = await db.doc(`customers/${est.customerId}`).get();
+    const qbId = custSnap.exists ? custSnap.get('qbId') : null;
+    if (!qbId) {
+      throw new functions.https.HttpsError('failed-precondition',
+        'This customer isn’t linked to QuickBooks yet (no qbId). Make sure the customer ' +
+        'exists in QuickBooks / run a customer sync, then retry.');
+    }
+
+    let accessToken, realmId;
+    try {
+      ({ accessToken, realmId } = await getValidAccessToken());
+    } catch (err) {
+      throw new functions.https.HttpsError('failed-precondition',
+        err.message || 'QuickBooks not connected.');
+    }
+
+    try {
+      const itemId = await ensureServiceItemId(realmId, accessToken);
+      const lines = (est.lineItems || []).map((li) => ({
+        DetailType: 'SalesItemLineDetail',
+        Amount: Number(li.lineTotal) || 0,
+        Description: [li.category, li.species, li.description].filter(Boolean).join(' – '),
+        SalesItemLineDetail: {
+          ItemRef: { value: itemId },
+          Qty: Number(li.quantity) || 1,
+          UnitPrice: Number(li.unitPrice) || 0
+        }
+      }));
+      if (!lines.length) throw new Error('Estimate has no line items.');
+
+      const payload = { CustomerRef: { value: String(qbId) }, Line: lines };
+      if (est.estimateNumber) payload.DocNumber = est.estimateNumber;
+
+      const result = await qboPost(realmId, accessToken, 'estimate', payload);
+      const qbEstimateId = (result.Estimate && result.Estimate.Id) || null;
+
+      await estRef.set({
+        status: 'Pushed to QB',
+        qbEstimateId,
+        pushedAt: new Date().toISOString(),
+        pushedByEmail: email,
+        updatedAt: new Date().toISOString(),
+        pushError: admin.firestore.FieldValue.delete()
+      }, { merge: true });
+
+      return {
+        qbEstimateId,
+        docNumber: est.estimateNumber || null,
+        customerName: est.customerName || null,
+        createdByEmail: est.createdByEmail || null
+      };
+    } catch (err) {
+      console.error('Estimate push failed', err);
+      await estRef.set({
+        pushError: String(err.message).slice(0, 500),
+        updatedAt: new Date().toISOString()
+      }, { merge: true });
+      throw new functions.https.HttpsError('internal', err.message || 'QuickBooks estimate push failed.');
     }
   });
 
