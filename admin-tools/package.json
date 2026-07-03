@@ -5,7 +5,8 @@
   "type": "module",
   "description": "Local admin utilities for the SWR Tracker Firebase project (not deployed).",
   "scripts": {
-    "reset-pin": "node reset-pin.mjs"
+    "reset-pin": "node reset-pin.mjs",
+    "purge-qb-sandbox": "node purge-qb-sandbox.mjs"
   },
   "dependencies": {
     "firebase-admin": "^12.7.0"

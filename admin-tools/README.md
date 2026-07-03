@@ -49,6 +49,27 @@ node reset-pin.mjs jon@southern-wildlife.com 481920
 On success it prints the account UID and confirms the reset. Then sign in on the
 device with that Employee ID and the new PIN.
 
+## `purge-qb-sandbox.mjs` — delete QuickBooks-synced customers
+
+Removes every `customers` doc with `source == 'quickbooks'`. Use it to clear
+Intuit's **sandbox demo customers** before switching the connector to your
+production QuickBooks company. Manually-created customers are never touched.
+
+> **Run this BEFORE connecting to production.** The sync tags every imported
+> row `source:'quickbooks'`, so once real production customers have been synced,
+> this script would delete those too.
+
+Uses the same `serviceAccountKey.json` setup as `reset-pin.mjs` (see above).
+
+**Safe by default — it does a dry run unless you pass `--confirm`:**
+```
+node purge-qb-sandbox.mjs            # dry run: lists what it would delete, changes nothing
+node purge-qb-sandbox.mjs --confirm  # actually delete
+```
+
+The dry run prints each record (name, qbId, doc id) and flags any marked
+ACTIVE. Review that list, then re-run with `--confirm` to delete.
+
 ### When you're done
 
 Delete the key so it isn't sitting on disk:
