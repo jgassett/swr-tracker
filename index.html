@@ -1915,10 +1915,12 @@
     <section id="view-estimate-builder" class="view hidden">
       <input type="hidden" id="est-id">
       <h3 class="form-section">Customer</h3>
-      <div class="form-group" style="position:relative;">
+      <div class="form-group">
         <label for="est-customer">Customer<span class="req">*</span></label>
-        <input type="text" id="est-customer" autocomplete="off" placeholder="Search name, address, city…">
-        <div class="autocomplete-list hidden" id="est-customer-ac"></div>
+        <div class="autocomplete-wrap">
+          <input type="text" id="est-customer" autocomplete="off" placeholder="Search name, address, city…">
+          <div class="autocomplete-list hidden" id="est-customer-ac"></div>
+        </div>
         <div class="hint" id="est-customer-hint"></div>
       </div>
 
