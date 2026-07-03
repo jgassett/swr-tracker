@@ -1903,8 +1903,9 @@
     <section id="view-settings" class="view hidden">
       <div class="card" id="customerSyncCard">
         <h3 style="margin-bottom:6px;">Customer Sync</h3>
-        <p class="muted" style="font-size:14px;">One-way sync from QuickBooks into the shared customer directory. Contact details are updated from QuickBooks; the in-app <strong>Active</strong> flag is never changed by the sync.</p>
+        <p class="muted" style="font-size:14px;">One-way sync from QuickBooks into the shared customer directory. Contact details are updated from QuickBooks; the in-app <strong>Active</strong> flag is never changed by the sync. <strong>Connect QuickBooks</strong> once to authorize; after that the list syncs automatically every day and on demand via <strong>Sync Now</strong>.</p>
         <div class="btn-row" style="margin-top:12px;">
+          <a class="btn btn-primary" id="qbConnectBtn" href="https://us-central1-swr-tracker-54dfd.cloudfunctions.net/qbConnect" target="_blank" rel="noopener">Connect QuickBooks</a>
           <button class="btn btn-ghost" id="syncNowBtn">Sync Now</button>
         </div>
         <div class="sync-now-status" id="syncNowStatus"></div>
@@ -2130,6 +2131,9 @@ import {
 import {
   getStorage, ref as storageRef, uploadBytes, getDownloadURL
 } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-storage.js";
+import {
+  getFunctions, httpsCallable
+} from "https://www.gstatic.com/firebasejs/10.13.0/firebase-functions.js";
 
 /* =====================================================================
  * Southern Wildlife Tracker
@@ -2152,6 +2156,8 @@ const fbDb = initializeFirestore(fbApp, {
   localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() })
 });
 const fbStorage = getStorage(fbApp);
+/* Default region (us-central1) matches the gen-1 QuickBooks functions. */
+const fbFunctions = getFunctions(fbApp);
 try { await setPersistence(fbAuth, browserLocalPersistence); } catch (e) { /* private mode */ }
 
 let currentUser = null;
@@ -5825,21 +5831,40 @@ async function handleDeleteCustomer() {
   }
 }
 
-/* ---------- "Sync Now" (QuickBooks → Firestore, not yet connected) ----------
-   The deployed app is a static PWA with no backend, so the QuickBooks OAuth
-   flow and the scheduled daily sync require a server component that isn't
-   provisioned yet. This button is wired and the data model is sync-ready
-   (qbId / source / an app-only `active` flag); it reports status until the
-   backend connector is stood up. */
-function handleSyncNow() {
+/* ---------- "Sync Now" (QuickBooks → Firestore) ----------
+   Calls the qbSyncNow callable, which runs the same one-way sync as the
+   daily scheduled job. The client never sees the OAuth tokens — they live
+   server-side in Firestore (integrations/quickbooks), unreadable by clients. */
+async function handleSyncNow() {
   const status = $('#syncNowStatus');
-  if (status) {
-    status.innerHTML = 'QuickBooks isn’t connected yet. The customer directory is sync-ready — ' +
-      'once the QuickBooks connector is provisioned, this button and the nightly job will import customers here. ' +
-      'For now, add customers manually with <strong>+ Add Customer</strong>.';
-    status.style.color = 'var(--amber)';
+  const btn = $('#syncNowBtn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Syncing…'; }
+  if (status) { status.style.color = 'var(--ink-soft)'; status.textContent = 'Contacting QuickBooks…'; }
+  try {
+    const call = httpsCallable(fbFunctions, 'qbSyncNow');
+    const res = await call();
+    const r = (res && res.data) || {};
+    if (status) {
+      status.style.color = 'var(--green-deep)';
+      status.innerHTML = `✓ Synced ${r.fetched ?? 0} QuickBooks customer${r.fetched === 1 ? '' : 's'} — ` +
+        `<strong>${r.created ?? 0}</strong> added, <strong>${r.updated ?? 0}</strong> updated.`;
+    }
+    toast('QuickBooks sync complete');
+  } catch (err) {
+    const code = (err && err.code) || '';
+    let msg;
+    if (code === 'functions/unauthenticated') {
+      msg = 'Please sign in again, then retry.';
+    } else if (code === 'functions/failed-precondition') {
+      msg = 'QuickBooks isn’t connected yet. Tap “Connect QuickBooks” above to authorize, then try again.';
+    } else {
+      msg = 'Sync failed: ' + ((err && err.message) || 'unknown error');
+    }
+    if (status) { status.style.color = 'var(--amber)'; status.textContent = msg; }
+    toast('QuickBooks sync failed', 'error');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Sync Now'; }
   }
-  toast('QuickBooks sync not connected yet');
 }
 
 /* =====================================================================
