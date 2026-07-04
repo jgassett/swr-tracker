@@ -1074,6 +1074,8 @@
     .est-grand { display: flex; justify-content: space-between; align-items: center; margin-top: 12px; padding-top: 12px; border-top: 2px solid var(--green-deep); font-size: 18px; font-weight: 700; color: var(--green-deep); }
     .est-detail-line { display: flex; justify-content: space-between; padding: 6px 0; font-size: 14px; border-bottom: 1px solid var(--rule, #e2e8e2); }
     .est-detail-line .d-sub { color: var(--ink-soft); font-size: 12px; }
+    .cust-active-toggle { flex-shrink: 0; align-self: center; border: 1px solid var(--line); background: #fff; color: var(--ink-soft); border-radius: 999px; padding: 6px 14px; font-size: 12px; font-weight: 700; cursor: pointer; white-space: nowrap; }
+    .cust-active-toggle.on { background: #DDEAD8; color: var(--released); border-color: #cfe3c7; }
     .customer-toggle-row {
       display: flex; align-items: center; justify-content: space-between; gap: 12px;
       padding: 12px 14px; background: var(--cream-deep); border-radius: 12px; margin-bottom: 14px;
@@ -1918,7 +1920,7 @@
       <div class="form-group">
         <label for="est-customer">Customer<span class="req">*</span></label>
         <div class="autocomplete-wrap">
-          <input type="text" id="est-customer" autocomplete="off" placeholder="Search name, address, city…">
+          <input type="text" id="est-customer" autocomplete="off" placeholder="Tap to pick an active customer, or type to search all…">
           <div class="autocomplete-list hidden" id="est-customer-ac"></div>
         </div>
         <div class="hint" id="est-customer-hint"></div>
@@ -2465,7 +2467,7 @@ let orgSettings = {
 };
 
 const PESTICIDE_EMAILJS_TEMPLATE_ID = 'template_4aa3u5a';
-const APP_VERSION = 'v1.29';  /* bump in lockstep with the SW cache version */
+const APP_VERSION = 'v1.30';  /* bump in lockstep with the SW cache version */
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -3269,6 +3271,17 @@ function resetEstimateBuilder() {
   renderBuilderLines();
 }
 
+/* Estimator customer options: empty/short input → all ACTIVE customers
+   (quick-pick dropdown); 2+ chars → search the entire directory. */
+function estimateCustomerOptions(term) {
+  const q = (term || '').trim().toLowerCase();
+  if (q.length < 2) {
+    return cachedCustomers.filter((c) => c.active)
+      .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+  }
+  return customerMatches(term, 25);
+}
+
 function applyEstimateCustomer(c) {
   builderCustomer = { id: c.id, name: c.name || '', qbId: c.qbId || null };
   $('#est-customer').value = c.name || '';
@@ -3665,6 +3678,18 @@ async function saveCustomer(customer) {
 async function deleteCustomerDoc(id) {
   if (!id) return;
   await writeWithRetry(() => deleteDoc(doc(fbDb, 'customers', id)));
+}
+
+/* Flip a customer's app-controlled `active` flag straight from the list.
+   Writes only `active` (+ updatedAt); the onSnapshot re-renders the row. */
+async function toggleCustomerActive(c) {
+  const next = !c.active;
+  try {
+    await writeWithRetry(() => setDoc(doc(fbDb, 'customers', c.id), { active: next, updatedAt: new Date().toISOString() }, { merge: true }));
+    toast(`${c.name || 'Customer'} marked ${next ? 'active' : 'inactive'}`);
+  } catch (err) {
+    toast('Could not update: ' + ((err && err.message) || 'error'), 'error');
+  }
 }
 
 /* ---------- One-time migration of local records to Firestore ---------- */
@@ -6337,15 +6362,17 @@ function renderCustomerList() {
     const div = document.createElement('div');
     div.className = 'customer-row';
     const addr = [c.address, c.city, c.county && `${c.county} Co.`].filter(Boolean).join(' · ');
-    const pill = c.active ? '<span class="status-pill active">Active</span>' : '<span class="status-pill inactive">Inactive</span>';
     div.innerHTML = `
       <div class="cust-avatar">${escapeHtml(customerInitials(c.name))}</div>
       <div class="cust-body">
-        <div class="cust-name">${escapeHtml(c.name || '(no name)')}${pill}</div>
+        <div class="cust-name">${escapeHtml(c.name || '(no name)')}</div>
         <div class="cust-meta">${escapeHtml(addr || 'No address on file')}</div>
         ${c.phone ? `<div class="cust-meta">${escapeHtml(c.phone)}</div>` : ''}
-      </div>`;
+      </div>
+      <button type="button" class="cust-active-toggle ${c.active ? 'on' : ''}" aria-label="Toggle active">${c.active ? 'Active' : 'Inactive'}</button>`;
     div.onclick = () => { editCustomer(c.id); };
+    const tog = div.querySelector('.cust-active-toggle');
+    if (tog) tog.addEventListener('click', (e) => { e.stopPropagation(); toggleCustomerActive(c); });
     root.appendChild(div);
   }
 }
@@ -6929,7 +6956,25 @@ async function init() {
   wireAutocomplete('pa-client-address', 'pa-client-address-ac', applyCustomerToPesticideForm);
 
   /* ---- Pricing Constructor wiring ---- */
-  wireAutocomplete('est-customer', 'est-customer-ac', applyEstimateCustomer);
+  /* Estimator customer picker: tapping the field shows active customers;
+     typing searches the entire directory (active + inactive). */
+  (function () {
+    const input = $('#est-customer');
+    const listEl = $('#est-customer-ac');
+    if (!input || !listEl) return;
+    const show = () => renderAutocomplete(listEl, estimateCustomerOptions(input.value), applyEstimateCustomer);
+    input.addEventListener('input', show);
+    input.addEventListener('focus', show);
+    input.addEventListener('blur', () => setTimeout(() => hideAutocomplete(listEl), 180));
+    listEl.addEventListener('mousedown', (e) => {
+      const item = e.target.closest('[data-cust-id]');
+      if (!item) return;
+      e.preventDefault();
+      const c = cachedCustomers.find((x) => x.id === item.dataset.custId);
+      if (c && listEl._onPick) listEl._onPick(c);
+      hideAutocomplete(listEl);
+    });
+  })();
   $('#newEstimateBtn').addEventListener('click', () => { resetEstimateBuilder(); setView('add'); });
   $('#estFilterStatus').addEventListener('change', renderEstimatesList);
   $('#li-category').addEventListener('change', renderCategoryFields);
