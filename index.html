@@ -1095,6 +1095,9 @@
     .cam-photo-grid a { display: block; }
     .cam-photo-grid img { width: 100%; aspect-ratio: 1 / 1; object-fit: cover; border-radius: 8px; background: var(--cream-deep); }
     .cam-photo-cap { font-size: 10px; color: var(--ink-soft); margin-top: 2px; text-align: center; }
+    .camera-alert-banner { display: block; width: 100%; text-align: left; border: none; cursor: pointer; margin: 0 0 14px; padding: 12px 14px; border-radius: 10px; font-size: 14px; font-weight: 600; background: #FBEED0; color: #8a6d1f; }
+    .camera-alert-banner.urgent { background: #F6DADA; color: var(--danger); }
+    .camera-alert-banner.hidden { display: none; }
     .customer-toggle-row {
       display: flex; align-items: center; justify-content: space-between; gap: 12px;
       padding: 12px 14px; background: var(--cream-deep); border-radius: 12px; margin-bottom: 14px;
@@ -1193,6 +1196,7 @@
          onload="this.classList.add('loaded');" onerror="this.remove();">
     <h1>What are you doing today?</h1>
     <div class="mode-sub">Pick a module. Return here any time with the ← button.</div>
+    <button type="button" id="cameraAlertBanner" class="camera-alert-banner hidden"></button>
     <button type="button" class="mode-card" data-mode="trap">
       <div class="icon-circle">
         <svg viewBox="0 0 24 24"><circle cx="6" cy="11" r="2.5"/><circle cx="12" cy="8" r="2.5"/><circle cx="18" cy="11" r="2.5"/><ellipse cx="12" cy="17" rx="5" ry="4"/></svg>
@@ -2527,7 +2531,7 @@ let orgSettings = {
 };
 
 const PESTICIDE_EMAILJS_TEMPLATE_ID = 'template_4aa3u5a';
-const APP_VERSION = 'v1.38';  /* bump in lockstep with the SW cache version */
+const APP_VERSION = 'v1.39';  /* bump in lockstep with the SW cache version */
 /* Single source of truth: keep the footer label in sync with APP_VERSION so
    the two version displays can't drift apart again. */
 { const _fv = document.getElementById('footerVersion'); if (_fv) _fv.textContent = APP_VERSION; }
@@ -3067,12 +3071,23 @@ function renderLandingCounts() {
   const ym = new Date().toISOString().slice(0, 7); // YYYY-MM
   const estN = cachedEstimates.filter((e) => (e.createdAt || '').slice(0, 7) === ym).length;
   const alertN = cachedCameraHealth.filter((h) => { const s = deviceStatusLive(h); return s === 'red' || s === 'yellow'; }).length;
+  const redN = cachedCameraHealth.filter((h) => deviceStatusLive(h) === 'red').length;
   const set = (id, n) => { const el = $('#' + id); if (el) el.textContent = n; };
   set('landingTrapCount', trapN);
   set('landingPestCount', pestN);
   set('landingCustCount', custN);
   set('landingEstCount', estN);
   set('landingFieldCount', alertN);
+  const banner = $('#cameraAlertBanner');
+  if (banner) {
+    if (alertN > 0) {
+      banner.textContent = `⚠ ${alertN} camera${alertN === 1 ? '' : 's'} not showing green — tap to review`;
+      banner.classList.remove('hidden');
+      banner.classList.toggle('urgent', redN > 0);
+    } else {
+      banner.classList.add('hidden');
+    }
+  }
 }
 
 /* ---------- Sync indicator ---------- */
@@ -3867,7 +3882,7 @@ function renderFieldDashboard() {
       <span class="cam-dot ${g.status}"></span>
       <div class="fr-body">
         <div class="fr-name">${label}</div>
-        <div class="fr-meta">${nCam} Camera Health · ${nPh} photo${nPh === 1 ? '' : 's'}</div>
+        <div class="fr-meta">${nPh} photo${nPh === 1 ? '' : 's'}</div>
       </div>
       <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="var(--ink-soft)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
     </div>`;
@@ -7345,6 +7360,10 @@ async function init() {
   });
 
   /* ---- Field Information wiring ---- */
+  $('#cameraAlertBanner').addEventListener('click', () => {
+    const f = $('#fieldFilter'); if (f) f.value = 'alerts';
+    setAppMode('field');
+  });
   $('#fieldSyncBtn').addEventListener('click', handleFieldSync);
   $('#fieldFilter').addEventListener('change', renderFieldDashboard);
   $('#fieldList').addEventListener('click', (e) => {
