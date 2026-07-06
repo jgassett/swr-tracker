@@ -582,20 +582,27 @@ async function graphMarkRead(token, id) {
   });
 }
 
-/* Build a subject-key → customer map from ACTIVE customers only. Keys that
- * collide across multiple active customers are dropped (ambiguous → unassigned). */
-async function activeCustomerKeyMap() {
-  const snap = await db.collection('customers').where('active', '==', true).get();
-  const map = new Map();
-  const ambiguous = new Set();
+/* Build a camera-key → customer lookup. An explicit `cameraId` on a customer
+ * wins (exact, any customer); otherwise fall back to a unique name-derived key
+ * among ACTIVE customers. Ambiguous name-keys are dropped (→ unassigned). */
+async function customerKeyMap() {
+  const snap = await db.collection('customers').get();
+  const byCam = new Map();
+  const byName = new Map();
+  const nameAmbiguous = new Set();
   snap.forEach((d) => {
-    const key = cb.customerKeyFor(d.get('name'));
-    if (!key) return;
-    if (map.has(key)) ambiguous.add(key);
-    else map.set(key, { id: d.id, name: d.get('name') });
+    const cam = (d.get('cameraId') || '').trim().toUpperCase();
+    if (cam) byCam.set(cam, { id: d.id, name: d.get('name') || '' });
+    if (d.get('active')) {
+      const key = cb.customerKeyFor(d.get('name'));
+      if (key) {
+        if (byName.has(key)) nameAmbiguous.add(key);
+        else byName.set(key, { id: d.id, name: d.get('name') || '' });
+      }
+    }
   });
-  ambiguous.forEach((k) => map.delete(k));
-  return map;
+  nameAmbiguous.forEach((k) => byName.delete(k));
+  return { get: (k) => byCam.get(k) || byName.get(k) || null };
 }
 
 async function handlePhotoMessage(token, m, keyMap) {
@@ -681,7 +688,7 @@ async function ingestMailbox() {
     `&$select=id,subject,from,receivedDateTime,hasAttachments&$orderby=receivedDateTime desc`);
   const msgs = data.value || [];
   let photos = 0, reports = 0, unassigned = 0, skipped = 0;
-  const keyMap = msgs.length ? await activeCustomerKeyMap() : new Map();
+  const keyMap = msgs.length ? await customerKeyMap() : { get: () => null };
   for (const m of msgs) {
     const sender = ((m.from && m.from.emailAddress && m.from.emailAddress.address) || '').toLowerCase();
     try {

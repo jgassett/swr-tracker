@@ -1909,6 +1909,13 @@
           </div>
         </div>
 
+        <h3 class="form-section">Trap Camera</h3>
+        <div class="form-group">
+          <label for="c-cameraId">Camera ID<span class="opt">(optional)</span></label>
+          <input type="text" id="c-cameraId" autocomplete="off" placeholder="e.g. WILSONR">
+          <div class="hint">The camera's email subject key (last name + first initial, no spaces). Set this to link that camera's photos &amp; health to this customer.</div>
+        </div>
+
         <h3 class="form-section">Notes</h3>
         <div class="form-group">
           <label for="c-notes">Notes<span class="opt">(optional)</span></label>
@@ -2520,7 +2527,7 @@ let orgSettings = {
 };
 
 const PESTICIDE_EMAILJS_TEMPLATE_ID = 'template_4aa3u5a';
-const APP_VERSION = 'v1.33';  /* bump in lockstep with the SW cache version */
+const APP_VERSION = 'v1.34';  /* bump in lockstep with the SW cache version */
 /* Single source of truth: keep the footer label in sync with APP_VERSION so
    the two version displays can't drift apart again. */
 { const _fv = document.getElementById('footerVersion'); if (_fv) _fv.textContent = APP_VERSION; }
@@ -3727,6 +3734,33 @@ function worstOf(statuses) {
   return 'none';
 }
 
+/* Derive a camera key (LASTNAME+FIRSTINITIAL) from a customer name — mirrors
+   the server-side customerKeyFor so front-end live-matching agrees with ingest. */
+function custCameraKey(name) {
+  if (!name) return null;
+  const clean = name.replace(/[^A-Za-z, ]/g, ' ').replace(/\s+/g, ' ').trim();
+  if (!clean) return null;
+  if (clean.includes(',')) {
+    const [last, first] = clean.split(',').map((s) => s.trim());
+    if (last) return (last + (first ? first[0] : '')).toUpperCase().replace(/\s/g, '');
+  }
+  const toks = clean.split(' ').filter(Boolean);
+  if (toks.length >= 2) return (toks[toks.length - 1] + toks[0][0]).toUpperCase();
+  return clean.toUpperCase().replace(/\s/g, '');
+}
+
+/* Resolve a camera key to a customer live from the current directory:
+   explicit cameraId match wins; otherwise a unique active name-key match. */
+function resolveCustomerForKey(key) {
+  if (!key) return null;
+  const K = key.toUpperCase();
+  const byId = cachedCustomers.find((c) => (c.cameraId || '').trim().toUpperCase() === K);
+  if (byId) return { id: byId.id, name: byId.name || '' };
+  const byName = cachedCustomers.filter((c) => c.active && custCameraKey(c.name) === K);
+  if (byName.length === 1) return { id: byName[0].id, name: byName[0].name || '' };
+  return null;
+}
+
 function subscribeToFieldData() {
   if (!cameraHealthUnsub) {
     cameraHealthUnsub = onSnapshot(cameraHealthCol(), (snap) => {
@@ -3777,6 +3811,12 @@ function fieldGroups() {
   for (const g of arr) {
     g.status = worstOf(g.devices.map((d) => d.status));
     g.photos.sort((a, b) => (b.receivedAt || '').localeCompare(a.receivedAt || ''));
+    /* Live-link to the current directory even if this group was ingested before
+       the customer was activated / its Camera ID was set. */
+    if (!g.customerId) {
+      const r = resolveCustomerForKey(g.key);
+      if (r) { g.customerId = r.id; g.name = r.name; }
+    }
   }
   arr.sort((a, b) => (STATUS_RANK[a.status] - STATUS_RANK[b.status]) || (a.name || a.key).localeCompare(b.name || b.key));
   return arr;
@@ -3868,14 +3908,18 @@ function renderFieldDetail(key) {
 }
 
 async function assignFieldPhotos(key, customer) {
-  const photos = cachedCameraPhotos.filter((p) => (p.customerKey || '(unknown)') === key && !p.customerId);
-  if (!photos.length) { toast('No unassigned photos here', 'error'); return; }
   try {
+    /* Persist the link on the customer (Camera ID) so this camera's current AND
+       future photos + health resolve to them automatically. */
+    await writeWithRetry(() => setDoc(doc(fbDb, 'customers', customer.id),
+      { cameraId: key, updatedAt: new Date().toISOString() }, { merge: true }));
+    /* Also stamp any already-ingested unassigned photos for this key. */
+    const photos = cachedCameraPhotos.filter((p) => (p.customerKey || '(unknown)') === key && !p.customerId);
     for (const p of photos) {
       await writeWithRetry(() => setDoc(doc(fbDb, 'cameraPhotos', p.id),
         { customerId: customer.id, customerName: customer.name || '', assigned: true, updatedAt: new Date().toISOString() }, { merge: true }));
     }
-    toast(`Assigned ${photos.length} photo${photos.length === 1 ? '' : 's'} to ${customer.name}`);
+    toast(`Linked ${key} → ${customer.name}`);
   } catch (err) {
     toast('Assign failed: ' + ((err && err.message) || 'error'), 'error');
   }
@@ -6669,6 +6713,7 @@ function loadCustomerIntoForm(c) {
   $('#c-city').value = c.city || '';
   $('#c-county').value = c.county || '';
   $('#c-notes').value = c.notes || '';
+  $('#c-cameraId').value = c.cameraId || '';
   $('#deleteCustomerBtn').style.display = 'block';
   $('#saveCustomerBtn').textContent = 'Save Changes';
 }
@@ -6689,6 +6734,7 @@ function readCustomerForm() {
     city: $('#c-city').value.trim(),
     county: $('#c-county').value,
     notes: $('#c-notes').value.trim(),
+    cameraId: $('#c-cameraId').value.trim().toUpperCase().replace(/\s+/g, ''),
     active: $('#c-active').checked
   };
   if (editingCustomerId) c.id = editingCustomerId;
