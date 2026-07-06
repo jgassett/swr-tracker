@@ -58,6 +58,14 @@ const ADMIN_EMAILS = ['jon@southern-wildlife.com'];
  * the human-readable category/species/detail goes in each line's Description. */
 const SERVICE_ITEM_NAME = 'Wildlife Services';
 
+/* ---- Field Information (Cuddeback CuddeLink) ingestion ---- */
+const cb = require('./cuddeback-parse');
+const MS_SECRETS = ['MS_TENANT_ID', 'MS_CLIENT_ID', 'MS_CLIENT_SECRET'];
+const PHOTOS_MAILBOX = 'photos@southern-wildlife.com';
+const REPORT_TZ = 'America/New_York';
+const CL_IMG_SENDER = 'images.cuddelink.com';
+const CL_REPORT_SENDER = 'reports.cuddelink.com';
+
 /* ---------- Small helpers ---------- */
 function basicAuthHeader() {
   const id = process.env.QBO_CLIENT_ID;
@@ -525,4 +533,199 @@ exports.qbDailySync = functions
       console.error('Daily QBO sync failed', err);
     }
     return null;
+  });
+
+/* =====================================================================
+ * Field Information — Cuddeback photo + report ingestion (Microsoft Graph)
+ * ---------------------------------------------------------------------
+ * Polls the photos@ shared mailbox with an app-only Graph token. Photo
+ * emails (images.cuddelink.com) → JPEG to Firebase Storage + a cameraPhotos
+ * doc matched to the active customer by subject key. Report emails
+ * (reports.cuddelink.com) → parse the attached HTML → cameraHealth docs.
+ * ===================================================================== */
+async function graphToken() {
+  const res = await fetch(`https://login.microsoftonline.com/${process.env.MS_TENANT_ID}/oauth2/v2.0/token`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      client_id: process.env.MS_CLIENT_ID,
+      client_secret: process.env.MS_CLIENT_SECRET,
+      scope: 'https://graph.microsoft.com/.default',
+      grant_type: 'client_credentials'
+    }).toString()
+  });
+  const text = await res.text();
+  if (!res.ok) throw new Error(`Graph token ${res.status}: ${text}`);
+  return JSON.parse(text).access_token;
+}
+async function graphGet(token, path) {
+  const res = await fetch(`https://graph.microsoft.com/v1.0${path}`, {
+    headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' }
+  });
+  const text = await res.text();
+  if (!res.ok) throw new Error(`Graph GET ${res.status}: ${text}`);
+  return JSON.parse(text);
+}
+async function graphGetBytes(token, path) {
+  const res = await fetch(`https://graph.microsoft.com/v1.0${path}`, { headers: { Authorization: `Bearer ${token}` } });
+  if (!res.ok) throw new Error(`Graph bytes GET ${res.status}: ${await res.text()}`);
+  return Buffer.from(await res.arrayBuffer());
+}
+async function graphMarkRead(token, id) {
+  await fetch(`https://graph.microsoft.com/v1.0/users/${PHOTOS_MAILBOX}/messages/${id}`, {
+    method: 'PATCH',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ isRead: true })
+  });
+}
+
+/* Build a subject-key → customer map from ACTIVE customers only. Keys that
+ * collide across multiple active customers are dropped (ambiguous → unassigned). */
+async function activeCustomerKeyMap() {
+  const snap = await db.collection('customers').where('active', '==', true).get();
+  const map = new Map();
+  const ambiguous = new Set();
+  snap.forEach((d) => {
+    const key = cb.customerKeyFor(d.get('name'));
+    if (!key) return;
+    if (map.has(key)) ambiguous.add(key);
+    else map.set(key, { id: d.id, name: d.get('name') });
+  });
+  ambiguous.forEach((k) => map.delete(k));
+  return map;
+}
+
+async function handlePhotoMessage(token, m, keyMap) {
+  const key = cb.subjectKey(m.subject);
+  const match = key ? keyMap.get(key) : null;
+  const atts = await graphGet(token, `/users/${PHOTOS_MAILBOX}/messages/${m.id}/attachments?$select=id,name,contentType,isInline`);
+  const bucket = admin.storage().bucket();
+  let photos = 0;
+  for (const a of (atts.value || [])) {
+    if (a.isInline || !/^image\//i.test(a.contentType || '')) continue;
+    const buf = await graphGetBytes(token, `/users/${PHOTOS_MAILBOX}/messages/${m.id}/attachments/${a.id}/$value`);
+    const dlToken = crypto.randomUUID();
+    const safeName = (a.name || 'photo.jpg').replace(/[^\w.\-]/g, '_');
+    const path = `cameraPhotos/${key || 'unassigned'}/${m.id}_${safeName}`;
+    await bucket.file(path).save(buf, {
+      resumable: false,
+      metadata: { contentType: a.contentType || 'image/jpeg', metadata: { firebaseStorageDownloadTokens: dlToken } }
+    });
+    const url = `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/${encodeURIComponent(path)}?alt=media&token=${dlToken}`;
+    await db.collection('cameraPhotos').add({
+      customerKey: key || null,
+      customerId: match ? match.id : null,
+      customerName: match ? match.name : null,
+      assigned: !!match,
+      subject: m.subject || '',
+      receivedAt: m.receivedDateTime || new Date().toISOString(),
+      storagePath: path,
+      url,
+      source: 'cuddelink',
+      createdByUid: null,
+      createdByEmail: 'cuddelink-ingest',
+      createdAt: new Date().toISOString()
+    });
+    photos++;
+  }
+  return { photos, unassigned: !match };
+}
+
+async function handleReportMessage(token, m, keyMap) {
+  const atts = await graphGet(token, `/users/${PHOTOS_MAILBOX}/messages/${m.id}/attachments?$select=id,name,contentType,isInline`);
+  const htmlAtt = (atts.value || []).find((a) => /html/i.test(a.contentType || '') || /\.html?$/i.test(a.name || ''));
+  if (!htmlAtt) throw new Error('report message has no HTML attachment');
+  const buf = await graphGetBytes(token, `/users/${PHOTOS_MAILBOX}/messages/${m.id}/attachments/${htmlAtt.id}/$value`);
+  const parsed = cb.parseReportHtml(buf.toString('utf8'));
+  if (!parsed || !parsed.network) throw new Error('could not parse report HTML');
+
+  const today = cb.todayMDY(REPORT_TZ);
+  const match = keyMap.get(parsed.network) || null;
+  const nowIso = new Date().toISOString();
+  const batch = db.batch();
+  for (const d of parsed.devices) {
+    const status = cb.deviceStatus(d, parsed.reportDate, today);
+    batch.set(db.doc(`cameraHealth/${parsed.network}__${d.cameraNumber}`), {
+      customerKey: parsed.network,
+      customerId: match ? match.id : null,
+      customerName: match ? match.name : null,
+      cameraNumber: d.cameraNumber,
+      cameraName: d.cameraName,
+      mode: d.mode,
+      reportDate: parsed.reportDate,
+      battery: d.battery,
+      batteryOk: !/low/i.test(d.battery || ''),
+      sdFreeSpace: d.sdFreeSpace,
+      sdFreeGB: d.sdFreeGB,
+      photoQueue: d.photoQueue,
+      fwVersion: d.fwVersion,
+      clVersion: d.clVersion,
+      deficiencies: cb.deviceDeficiencies(d),
+      status,
+      dateCurrent: parsed.reportDate === today,
+      updatedAt: nowIso
+    }, { merge: true });
+  }
+  await batch.commit();
+  return { devices: parsed.devices.length };
+}
+
+/* Poll the mailbox: process unread photo + report messages, mark them read. */
+async function ingestMailbox() {
+  const token = await graphToken();
+  const data = await graphGet(token,
+    `/users/${PHOTOS_MAILBOX}/messages?$filter=isRead eq false&$top=25` +
+    `&$select=id,subject,from,receivedDateTime,hasAttachments&$orderby=receivedDateTime desc`);
+  const msgs = data.value || [];
+  let photos = 0, reports = 0, unassigned = 0, skipped = 0;
+  const keyMap = msgs.length ? await activeCustomerKeyMap() : new Map();
+  for (const m of msgs) {
+    const sender = ((m.from && m.from.emailAddress && m.from.emailAddress.address) || '').toLowerCase();
+    try {
+      if (sender.includes(CL_IMG_SENDER)) {
+        const r = await handlePhotoMessage(token, m, keyMap);
+        photos += r.photos;
+        if (r.unassigned) unassigned++;
+      } else if (sender.includes(CL_REPORT_SENDER)) {
+        await handleReportMessage(token, m, keyMap);
+        reports++;
+      } else {
+        skipped++;
+      }
+      await graphMarkRead(token, m.id);
+    } catch (err) {
+      console.error('Ingest failed for message', m.id, err.message); // leave unread → retried next run
+    }
+  }
+  return { processed: msgs.length, photos, reports, unassigned, skipped, at: new Date().toISOString() };
+}
+
+/* Scheduled poll every 15 minutes. */
+exports.cuddebackIngest = functions
+  .region(REGION)
+  .runWith({ secrets: MS_SECRETS, timeoutSeconds: 300, memory: '512MB' })
+  .pubsub.schedule('every 15 minutes')
+  .timeZone(REPORT_TZ)
+  .onRun(async () => {
+    try {
+      const r = await ingestMailbox();
+      console.log('Cuddeback ingest complete', r);
+    } catch (err) {
+      console.error('Cuddeback ingest failed', err);
+    }
+    return null;
+  });
+
+/* Manual "Sync Now" for the Field Information module (authenticated). */
+exports.fieldSyncNow = functions
+  .region(REGION)
+  .runWith({ secrets: MS_SECRETS, timeoutSeconds: 300, memory: '512MB' })
+  .https.onCall(async (data, context) => {
+    if (!context.auth) throw new functions.https.HttpsError('unauthenticated', 'Sign in required.');
+    try {
+      return await ingestMailbox();
+    } catch (err) {
+      console.error('Field sync failed', err);
+      throw new functions.https.HttpsError('internal', err.message || 'Field sync failed');
+    }
   });
