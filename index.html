@@ -2520,7 +2520,7 @@ let orgSettings = {
 };
 
 const PESTICIDE_EMAILJS_TEMPLATE_ID = 'template_4aa3u5a';
-const APP_VERSION = 'v1.31';  /* bump in lockstep with the SW cache version */
+const APP_VERSION = 'v1.32';  /* bump in lockstep with the SW cache version */
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -3712,6 +3712,8 @@ let cameraHealthUnsub = null;
 let cameraPhotosUnsub = null;
 let currentFieldKey = null;
 const STATUS_RANK = { red: 0, yellow: 1, green: 2, none: 3 };
+/* Resolved Storage download URLs, keyed by storagePath (avoids re-resolving on re-render). */
+const photoUrlCache = new Map();
 
 function cameraHealthCol() { return collection(fbDb, 'cameraHealth'); }
 function cameraPhotosCol() { return collection(fbDb, 'cameraPhotos'); }
@@ -3831,7 +3833,7 @@ function renderFieldDetail(key) {
   }).join('') : '<div class="muted">No camera report yet.</div>';
 
   const photos = g.photos.length ? `<div class="cam-photo-grid">${g.photos.slice(0, 60).map((p) => `
-    <div><a href="${escapeHtml(p.url)}" target="_blank" rel="noopener"><img loading="lazy" src="${escapeHtml(p.url)}" alt="camera photo"></a>
+    <div><a class="cam-photo-a" data-path="${escapeHtml(p.storagePath || '')}" target="_blank" rel="noopener"><img loading="lazy" class="cam-img" data-path="${escapeHtml(p.storagePath || '')}" alt="camera photo"></a>
     <div class="cam-photo-cap">${escapeHtml((p.receivedAt || '').slice(5, 16).replace('T', ' '))}</div></div>`).join('')}</div>`
     : '<div class="muted">No photos yet.</div>';
 
@@ -3848,6 +3850,18 @@ function renderFieldDetail(key) {
     <div class="card"><h3 style="margin-top:0;">Camera health</h3>${health}</div>
     <div class="card"><h3 style="margin-top:0;">Photos (${g.photos.length})</h3>${photos}</div>
     <div class="form-actions"><button class="btn btn-cancel btn-ghost" id="fieldBackBtn">Back to Field Info</button></div>`;
+
+  /* Resolve each photo through the Firebase Storage SDK (getDownloadURL) rather
+     than a hand-built token URL, then set the <img> src and the tile's link. */
+  box.querySelectorAll('img.cam-img[data-path]').forEach((img) => {
+    const path = img.dataset.path;
+    if (!path) return;
+    const apply = (u) => { img.src = u; const a = img.closest('a.cam-photo-a'); if (a) a.href = u; };
+    if (photoUrlCache.has(path)) { apply(photoUrlCache.get(path)); return; }
+    getDownloadURL(storageRef(fbStorage, path))
+      .then((u) => { photoUrlCache.set(path, u); apply(u); })
+      .catch(() => { const tile = img.closest('div'); if (tile) tile.style.opacity = '0.35'; img.alt = 'unavailable'; });
+  });
 }
 
 async function assignFieldPhotos(key, customer) {
