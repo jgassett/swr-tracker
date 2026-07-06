@@ -2527,7 +2527,7 @@ let orgSettings = {
 };
 
 const PESTICIDE_EMAILJS_TEMPLATE_ID = 'template_4aa3u5a';
-const APP_VERSION = 'v1.36';  /* bump in lockstep with the SW cache version */
+const APP_VERSION = 'v1.37';  /* bump in lockstep with the SW cache version */
 /* Single source of truth: keep the footer label in sync with APP_VERSION so
    the two version displays can't drift apart again. */
 { const _fv = document.getElementById('footerVersion'); if (_fv) _fv.textContent = APP_VERSION; }
@@ -3341,9 +3341,10 @@ function resetEstimateBuilder() {
   renderBuilderLines();
 }
 
-/* Estimator customer options: empty/short input → all ACTIVE customers
-   (quick-pick dropdown); 2+ chars → search the entire directory. */
-function estimateCustomerOptions(term) {
+/* Shared customer-picker options (used by every module's picker): empty/short
+   input → all ACTIVE customers as a quick-pick dropdown; 2+ chars → search the
+   entire directory (so inactive or brand-new customers are still findable). */
+function customerPickerOptions(term) {
   const q = (term || '').trim().toLowerCase();
   if (q.length < 2) {
     return cachedCustomers.filter((c) => c.active)
@@ -7273,14 +7274,9 @@ async function init() {
     const input = $('#' + inputId);
     const listEl = $('#' + listId);
     if (!input || !listEl) return;
-    input.addEventListener('input', () => {
-      renderAutocomplete(listEl, customerMatches(input.value), applyFn);
-    });
-    input.addEventListener('focus', () => {
-      if (input.value.trim().length >= 2) {
-        renderAutocomplete(listEl, customerMatches(input.value), applyFn);
-      }
-    });
+    const showList = () => renderAutocomplete(listEl, customerPickerOptions(input.value), applyFn);
+    input.addEventListener('input', showList);
+    input.addEventListener('focus', showList); /* focus with empty field → active customers */
     /* Delay hide so a tap on an item registers before blur closes the list. */
     input.addEventListener('blur', () => setTimeout(() => hideAutocomplete(listEl), 180));
     listEl.addEventListener('mousedown', (e) => {
@@ -7305,7 +7301,7 @@ async function init() {
     const input = $('#est-customer');
     const listEl = $('#est-customer-ac');
     if (!input || !listEl) return;
-    const show = () => renderAutocomplete(listEl, estimateCustomerOptions(input.value), applyEstimateCustomer);
+    const show = () => renderAutocomplete(listEl, customerPickerOptions(input.value), applyEstimateCustomer);
     input.addEventListener('input', show);
     input.addEventListener('focus', show);
     input.addEventListener('blur', () => setTimeout(() => hideAutocomplete(listEl), 180));
@@ -7358,12 +7354,17 @@ async function init() {
   $('#fieldDetail').addEventListener('click', (e) => {
     if (e.target.closest('#fieldBackBtn')) { currentFieldKey = null; setView('dashboard'); return; }
     if (e.target.closest('#fieldAssignBtn')) {
-      const i = $('#field-assign-cust'); if (i) { i.classList.remove('hidden'); i.focus(); }
+      const i = $('#field-assign-cust');
+      if (i) {
+        i.classList.remove('hidden');
+        i.focus();
+        renderAutocomplete($('#field-assign-ac'), customerPickerOptions(''), (c) => assignFieldPhotos(currentFieldKey, c));
+      }
     }
   });
   $('#fieldDetail').addEventListener('input', (e) => {
     if (e.target.id === 'field-assign-cust') {
-      renderAutocomplete($('#field-assign-ac'), customerMatches(e.target.value), (c) => assignFieldPhotos(currentFieldKey, c));
+      renderAutocomplete($('#field-assign-ac'), customerPickerOptions(e.target.value), (c) => assignFieldPhotos(currentFieldKey, c));
     }
   });
   $('#fieldDetail').addEventListener('mousedown', (e) => {
