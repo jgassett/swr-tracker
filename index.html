@@ -1238,7 +1238,7 @@
         <svg viewBox="0 0 24 24"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
       </div>
       <div>
-        <div class="mode-title">Camera Health</div>
+        <div class="mode-title">Cameras</div>
         <div class="mode-desc">Camera photos &amp; health by customer</div>
       </div>
       <div class="mode-count"><span class="n" id="landingFieldCount">0</span><span class="lbl">alerts</span></div>
@@ -2006,7 +2006,7 @@
     <!-- FIELD INFO: dashboard -->
     <section id="view-field" class="view hidden">
       <div class="greeting">
-        <h2>Camera Health</h2>
+        <h2>Cameras</h2>
         <p class="muted">Camera health &amp; photos by customer, pulled from the trap cameras.</p>
       </div>
       <div class="btn-row" style="margin-bottom:10px;">
@@ -2527,7 +2527,7 @@ let orgSettings = {
 };
 
 const PESTICIDE_EMAILJS_TEMPLATE_ID = 'template_4aa3u5a';
-const APP_VERSION = 'v1.35';  /* bump in lockstep with the SW cache version */
+const APP_VERSION = 'v1.36';  /* bump in lockstep with the SW cache version */
 /* Single source of truth: keep the footer label in sync with APP_VERSION so
    the two version displays can't drift apart again. */
 { const _fv = document.getElementById('footerVersion'); if (_fv) _fv.textContent = APP_VERSION; }
@@ -2947,7 +2947,7 @@ function showSignInScreen() {
 }
 let modeSelected = false;
 
-const MODULE_LABELS = { trap: 'Trapping', pesticide: 'Pesticides', customer: 'Customers', pricing: 'Pricing', field: 'Camera Health' };
+const MODULE_LABELS = { trap: 'Trapping', pesticide: 'Pesticides', customer: 'Customers', pricing: 'Pricing', field: 'Cameras' };
 
 /* Bottom-nav layout per module. The main landing page has no bottom nav.
    `fab: true` renders the raised amber add button (kept from the original
@@ -3917,9 +3917,9 @@ function renderFieldDetail(key) {
       ${g.customerId ? '' : '<div class="muted" style="margin-top:6px;">Not linked to a customer — the camera key didn’t match an active customer.</div>'}
       ${assign}
     </div>
-    <div class="card"><h3 style="margin-top:0;">Camera health</h3>${health}</div>
+    <div class="card"><h3 style="margin-top:0;">Camera Health</h3>${health}</div>
     <div class="card"><h3 style="margin-top:0;">Photos (${g.photos.length})</h3>${photos}</div>
-    <div class="form-actions"><button class="btn btn-cancel btn-ghost" id="fieldBackBtn">Back to Camera Health</button></div>`;
+    <div class="form-actions"><button class="btn btn-cancel btn-ghost" id="fieldBackBtn">Back to Cameras</button></div>`;
 
   /* Resolve each photo through the Firebase Storage SDK (getDownloadURL) rather
      than a hand-built token URL, then set the <img> src and the tile's link. */
@@ -4149,7 +4149,7 @@ const VIEW_TITLES = {
   pesticide: { dashboard: 'Dashboard', records: 'Records', add: 'Add Application', export: 'Export', settings: 'Settings' },
   customer:  { dashboard: 'Customers', add: 'Add Customer', settings: 'Settings' },
   pricing:   { dashboard: 'Estimates', add: 'New Estimate', settings: 'Settings' },
-  field:     { dashboard: 'Camera Health' }
+  field:     { dashboard: 'Cameras' }
 };
 
 function backToLanding() {
