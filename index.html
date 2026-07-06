@@ -1238,7 +1238,7 @@
         <svg viewBox="0 0 24 24"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
       </div>
       <div>
-        <div class="mode-title">Field Info</div>
+        <div class="mode-title">Camera Health</div>
         <div class="mode-desc">Camera photos &amp; health by customer</div>
       </div>
       <div class="mode-count"><span class="n" id="landingFieldCount">0</span><span class="lbl">alerts</span></div>
@@ -2006,7 +2006,7 @@
     <!-- FIELD INFO: dashboard -->
     <section id="view-field" class="view hidden">
       <div class="greeting">
-        <h2>Field Info</h2>
+        <h2>Camera Health</h2>
         <p class="muted">Camera health &amp; photos by customer, pulled from the trap cameras.</p>
       </div>
       <div class="btn-row" style="margin-bottom:10px;">
@@ -2527,7 +2527,7 @@ let orgSettings = {
 };
 
 const PESTICIDE_EMAILJS_TEMPLATE_ID = 'template_4aa3u5a';
-const APP_VERSION = 'v1.34';  /* bump in lockstep with the SW cache version */
+const APP_VERSION = 'v1.35';  /* bump in lockstep with the SW cache version */
 /* Single source of truth: keep the footer label in sync with APP_VERSION so
    the two version displays can't drift apart again. */
 { const _fv = document.getElementById('footerVersion'); if (_fv) _fv.textContent = APP_VERSION; }
@@ -2947,7 +2947,7 @@ function showSignInScreen() {
 }
 let modeSelected = false;
 
-const MODULE_LABELS = { trap: 'Trapping', pesticide: 'Pesticides', customer: 'Customers', pricing: 'Pricing', field: 'Field Info' };
+const MODULE_LABELS = { trap: 'Trapping', pesticide: 'Pesticides', customer: 'Customers', pricing: 'Pricing', field: 'Camera Health' };
 
 /* Bottom-nav layout per module. The main landing page has no bottom nav.
    `fab: true` renders the raised amber add button (kept from the original
@@ -3066,7 +3066,7 @@ function renderLandingCounts() {
   const custN = cachedCustomers.filter((c) => c.active).length;
   const ym = new Date().toISOString().slice(0, 7); // YYYY-MM
   const estN = cachedEstimates.filter((e) => (e.createdAt || '').slice(0, 7) === ym).length;
-  const alertN = cachedCameraHealth.filter((h) => h.status === 'red' || h.status === 'yellow').length;
+  const alertN = cachedCameraHealth.filter((h) => { const s = deviceStatusLive(h); return s === 'red' || s === 'yellow'; }).length;
   const set = (id, n) => { const el = $('#' + id); if (el) el.textContent = n; };
   set('landingTrapCount', trapN);
   set('landingPestCount', pestN);
@@ -3761,6 +3761,33 @@ function resolveCustomerForKey(key) {
   return null;
 }
 
+/* Recompute a device's health status live, so it self-corrects daily and
+   tolerates camera clock skew (a report dated up to a day in the future, or
+   yesterday, still counts as "current"). */
+function deviceIsCurrent(reportDate) {
+  if (!reportDate) return false;
+  const p = String(reportDate).split('/');
+  if (p.length !== 3) return false;
+  const rd = new Date(+p[2], +p[0] - 1, +p[1]);
+  if (isNaN(rd)) return false;
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const diffDays = Math.round((rd - today) / 86400000);
+  return diffDays >= -1; // reported yesterday/today (or future via clock skew) = current
+}
+function deviceDefsLive(d) {
+  const defs = [];
+  if (/low/i.test(d.battery || '')) defs.push('battery');
+  if (d.sdFreeGB != null && d.sdFreeGB < 4) defs.push('sd');
+  if (Number.isFinite(d.photoQueue) && d.photoQueue > 5) defs.push('queue');
+  return defs;
+}
+function deviceStatusLive(d) {
+  if (!deviceIsCurrent(d.reportDate)) return 'red';
+  const n = deviceDefsLive(d).length;
+  return n === 0 ? 'green' : n === 1 ? 'yellow' : 'red';
+}
+
 function subscribeToFieldData() {
   if (!cameraHealthUnsub) {
     cameraHealthUnsub = onSnapshot(cameraHealthCol(), (snap) => {
@@ -3809,7 +3836,7 @@ function fieldGroups() {
   }
   const arr = [...groups.values()];
   for (const g of arr) {
-    g.status = worstOf(g.devices.map((d) => d.status));
+    g.status = worstOf(g.devices.map((d) => deviceStatusLive(d)));
     g.photos.sort((a, b) => (b.receivedAt || '').localeCompare(a.receivedAt || ''));
     /* Live-link to the current directory even if this group was ingested before
        the customer was activated / its Camera ID was set. */
@@ -3863,11 +3890,11 @@ function renderFieldDetail(key) {
   const title = g.name ? escapeHtml(g.name) : escapeHtml(g.key);
 
   const health = g.devices.length ? g.devices.map((d) => {
-    const defs = d.deficiencies || [];
+    const defs = deviceDefsLive(d);
     const bad = (f) => defs.includes(f) ? ' bad' : '';
-    const stale = !d.dateCurrent;
+    const stale = !deviceIsCurrent(d.reportDate);
     return `<div class="cam-health-row">
-      <span class="cam-dot ${d.status}"></span>
+      <span class="cam-dot ${deviceStatusLive(d)}"></span>
       <div class="chr-body">
         <div class="chr-name">${escapeHtml(d.cameraName || '')} <span style="color:var(--ink-soft);font-weight:400;">#${escapeHtml(d.cameraNumber || '')}</span></div>
         <div class="chr-meta"><span class="${stale ? 'bad' : ''}">Report ${escapeHtml(d.reportDate || '—')}${stale ? ' (not current)' : ''}</span> · <span class="${bad('battery')}">Battery ${escapeHtml(d.battery || '—')}</span> · <span class="${bad('sd')}">SD ${escapeHtml(d.sdFreeSpace || '—')}</span> · <span class="${bad('queue')}">Queue ${d.photoQueue == null ? '—' : d.photoQueue}</span></div>
@@ -3892,7 +3919,7 @@ function renderFieldDetail(key) {
     </div>
     <div class="card"><h3 style="margin-top:0;">Camera health</h3>${health}</div>
     <div class="card"><h3 style="margin-top:0;">Photos (${g.photos.length})</h3>${photos}</div>
-    <div class="form-actions"><button class="btn btn-cancel btn-ghost" id="fieldBackBtn">Back to Field Info</button></div>`;
+    <div class="form-actions"><button class="btn btn-cancel btn-ghost" id="fieldBackBtn">Back to Camera Health</button></div>`;
 
   /* Resolve each photo through the Firebase Storage SDK (getDownloadURL) rather
      than a hand-built token URL, then set the <img> src and the tile's link. */
@@ -4122,7 +4149,7 @@ const VIEW_TITLES = {
   pesticide: { dashboard: 'Dashboard', records: 'Records', add: 'Add Application', export: 'Export', settings: 'Settings' },
   customer:  { dashboard: 'Customers', add: 'Add Customer', settings: 'Settings' },
   pricing:   { dashboard: 'Estimates', add: 'New Estimate', settings: 'Settings' },
-  field:     { dashboard: 'Field Info' }
+  field:     { dashboard: 'Camera Health' }
 };
 
 function backToLanding() {
