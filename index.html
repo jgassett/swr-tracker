@@ -2527,7 +2527,7 @@ let orgSettings = {
 };
 
 const PESTICIDE_EMAILJS_TEMPLATE_ID = 'template_4aa3u5a';
-const APP_VERSION = 'v1.37';  /* bump in lockstep with the SW cache version */
+const APP_VERSION = 'v1.38';  /* bump in lockstep with the SW cache version */
 /* Single source of truth: keep the footer label in sync with APP_VERSION so
    the two version displays can't drift apart again. */
 { const _fv = document.getElementById('footerVersion'); if (_fv) _fv.textContent = APP_VERSION; }
@@ -3867,7 +3867,7 @@ function renderFieldDashboard() {
       <span class="cam-dot ${g.status}"></span>
       <div class="fr-body">
         <div class="fr-name">${label}</div>
-        <div class="fr-meta">${nCam} camera${nCam === 1 ? '' : 's'} · ${nPh} photo${nPh === 1 ? '' : 's'}</div>
+        <div class="fr-meta">${nCam} Camera Health · ${nPh} photo${nPh === 1 ? '' : 's'}</div>
       </div>
       <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="var(--ink-soft)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
     </div>`;
