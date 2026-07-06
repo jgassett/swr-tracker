@@ -35,7 +35,7 @@ const REGION = 'us-central1';
  * OAuth connect against your production keys) when going live. The OAuth
  * authorize/token endpoints are identical across environments; only the
  * Accounting API base URL differs. */
-const QBO_ENV = 'sandbox';
+const QBO_ENV = 'production';
 const API_BASE = QBO_ENV === 'production'
   ? 'https://quickbooks.api.intuit.com'
   : 'https://sandbox-quickbooks.api.intuit.com';
@@ -370,7 +370,10 @@ exports.qbCallback = functions
       const rec = tokenRecordFromResponse(json, {
         realmId: String(realmId),
         env: QBO_ENV,
-        connectedAt: new Date().toISOString()
+        connectedAt: new Date().toISOString(),
+        /* Clear the cached generic-item id so it re-resolves for the newly
+           connected company (e.g. switching sandbox → production). */
+        serviceItemId: admin.firestore.FieldValue.delete()
       });
       await TOKEN_DOC.set(rec, { merge: true });
       return res.status(200).send(htmlPage('QuickBooks connected ✔',
