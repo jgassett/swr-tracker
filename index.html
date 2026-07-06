@@ -1076,6 +1076,25 @@
     .est-detail-line .d-sub { color: var(--ink-soft); font-size: 12px; }
     .cust-active-toggle { flex-shrink: 0; align-self: center; border: 1px solid var(--line); background: #fff; color: var(--ink-soft); border-radius: 999px; padding: 6px 14px; font-size: 12px; font-weight: 700; cursor: pointer; white-space: nowrap; }
     .cust-active-toggle.on { background: #DDEAD8; color: var(--released); border-color: #cfe3c7; }
+    /* Field Information module */
+    .cam-dot { width: 13px; height: 13px; border-radius: 50%; flex-shrink: 0; display: inline-block; }
+    .cam-dot.green { background: #2e9e5b; } .cam-dot.yellow { background: #e0a800; }
+    .cam-dot.red { background: var(--danger); } .cam-dot.none { background: #bbb; }
+    .field-row { display: flex; align-items: center; gap: 12px; padding: 13px 4px; border-bottom: 1px solid var(--rule, #e2e8e2); cursor: pointer; }
+    .field-row:last-child { border-bottom: none; }
+    .field-row .fr-body { flex: 1; min-width: 0; }
+    .field-row .fr-name { font-weight: 600; color: var(--green-deep); }
+    .field-row .fr-name .unlinked { font-size: 10px; font-weight: 700; text-transform: uppercase; color: var(--amber); background: rgba(196,119,42,0.12); padding: 1px 6px; border-radius: 4px; margin-left: 6px; }
+    .field-row .fr-meta { font-size: 13px; color: var(--ink-soft); margin-top: 2px; }
+    .cam-health-row { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--rule, #e2e8e2); }
+    .cam-health-row .chr-body { flex: 1; min-width: 0; }
+    .cam-health-row .chr-name { font-weight: 600; }
+    .cam-health-row .chr-meta { font-size: 12px; color: var(--ink-soft); margin-top: 2px; }
+    .cam-health-row .chr-meta .bad { color: var(--danger); font-weight: 600; }
+    .cam-photo-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 8px; }
+    .cam-photo-grid a { display: block; }
+    .cam-photo-grid img { width: 100%; aspect-ratio: 1 / 1; object-fit: cover; border-radius: 8px; background: var(--cream-deep); }
+    .cam-photo-cap { font-size: 10px; color: var(--ink-soft); margin-top: 2px; text-align: center; }
     .customer-toggle-row {
       display: flex; align-items: center; justify-content: space-between; gap: 12px;
       padding: 12px 14px; background: var(--cream-deep); border-radius: 12px; margin-bottom: 14px;
@@ -1213,6 +1232,16 @@
         <div class="mode-desc">Build job estimates, push to QuickBooks</div>
       </div>
       <div class="mode-count"><span class="n" id="landingEstCount">0</span><span class="lbl">this month</span></div>
+    </button>
+    <button type="button" class="mode-card" data-mode="field">
+      <div class="icon-circle">
+        <svg viewBox="0 0 24 24"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+      </div>
+      <div>
+        <div class="mode-title">Field Info</div>
+        <div class="mode-desc">Camera photos &amp; health by customer</div>
+      </div>
+      <div class="mode-count"><span class="n" id="landingFieldCount">0</span><span class="lbl">alerts</span></div>
     </button>
   </div>
 </div>
@@ -1967,6 +1996,30 @@
       <div id="estimateDetail"></div>
     </section>
 
+    <!-- FIELD INFO: dashboard -->
+    <section id="view-field" class="view hidden">
+      <div class="greeting">
+        <h2>Field Info</h2>
+        <p class="muted">Camera health &amp; photos by customer, pulled from the trap cameras.</p>
+      </div>
+      <div class="btn-row" style="margin-bottom:10px;">
+        <button class="btn btn-ghost" id="fieldSyncBtn">Sync Now</button>
+      </div>
+      <div class="sync-now-status" id="fieldSyncStatus"></div>
+      <div class="filter-row">
+        <select id="fieldFilter">
+          <option value="all">All cameras</option>
+          <option value="alerts">Alerts only (red / yellow)</option>
+        </select>
+      </div>
+      <div class="card" id="fieldList"></div>
+    </section>
+
+    <!-- FIELD INFO: customer detail -->
+    <section id="view-field-detail" class="view hidden">
+      <div id="fieldDetail"></div>
+    </section>
+
     <!-- EXPORT -->
     <section id="view-export" class="view hidden">
       <div class="card">
@@ -2467,7 +2520,7 @@ let orgSettings = {
 };
 
 const PESTICIDE_EMAILJS_TEMPLATE_ID = 'template_4aa3u5a';
-const APP_VERSION = 'v1.30';  /* bump in lockstep with the SW cache version */
+const APP_VERSION = 'v1.31';  /* bump in lockstep with the SW cache version */
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -2884,7 +2937,7 @@ function showSignInScreen() {
 }
 let modeSelected = false;
 
-const MODULE_LABELS = { trap: 'Trapping', pesticide: 'Pesticides', customer: 'Customers', pricing: 'Pricing' };
+const MODULE_LABELS = { trap: 'Trapping', pesticide: 'Pesticides', customer: 'Customers', pricing: 'Pricing', field: 'Field Info' };
 
 /* Bottom-nav layout per module. The main landing page has no bottom nav.
    `fab: true` renders the raised amber add button (kept from the original
@@ -2917,6 +2970,10 @@ const NAV_CONFIGS = {
     { view: 'dashboard', label: 'Estimates', icon: 'list' },
     { view: 'add', label: 'New', icon: 'plus', fab: true },
     { view: 'settings', label: 'Settings', icon: 'gear' }
+  ],
+  field: [
+    { view: 'menu', label: 'Menu', icon: 'menu' },
+    { view: 'dashboard', label: 'Cameras', icon: 'camera' }
   ]
 };
 
@@ -2927,7 +2984,8 @@ const NAV_ICONS = {
   plus: '<path d="M12 5v14M5 12h14"/>',
   export: '<path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/>',
   gear: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3h.1a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8v.1a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z"/>',
-  users: '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>'
+  users: '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
+  camera: '<path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/>'
 };
 
 function renderBottomNav() {
@@ -2998,11 +3056,13 @@ function renderLandingCounts() {
   const custN = cachedCustomers.filter((c) => c.active).length;
   const ym = new Date().toISOString().slice(0, 7); // YYYY-MM
   const estN = cachedEstimates.filter((e) => (e.createdAt || '').slice(0, 7) === ym).length;
+  const alertN = cachedCameraHealth.filter((h) => h.status === 'red' || h.status === 'yellow').length;
   const set = (id, n) => { const el = $('#' + id); if (el) el.textContent = n; };
   set('landingTrapCount', trapN);
   set('landingPestCount', pestN);
   set('landingCustCount', custN);
   set('landingEstCount', estN);
+  set('landingFieldCount', alertN);
 }
 
 /* ---------- Sync indicator ---------- */
@@ -3641,6 +3701,193 @@ async function seedPriceListIfNeeded() {
   }
 }
 
+/* =====================================================================
+ * Field Information (Phase 3) — camera photos + health by customer
+ * Reads cameraPhotos / cameraHealth (written server-side by the Cuddeback
+ * ingestion function). Sync Now calls the fieldSyncNow callable.
+ * ===================================================================== */
+let cachedCameraHealth = [];
+let cachedCameraPhotos = [];
+let cameraHealthUnsub = null;
+let cameraPhotosUnsub = null;
+let currentFieldKey = null;
+const STATUS_RANK = { red: 0, yellow: 1, green: 2, none: 3 };
+
+function cameraHealthCol() { return collection(fbDb, 'cameraHealth'); }
+function cameraPhotosCol() { return collection(fbDb, 'cameraPhotos'); }
+function worstOf(statuses) {
+  if (statuses.includes('red')) return 'red';
+  if (statuses.includes('yellow')) return 'yellow';
+  if (statuses.includes('green')) return 'green';
+  return 'none';
+}
+
+function subscribeToFieldData() {
+  if (!cameraHealthUnsub) {
+    cameraHealthUnsub = onSnapshot(cameraHealthCol(), (snap) => {
+      cachedCameraHealth = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      renderLandingCounts();
+      if (!$('#app').classList.contains('hidden') && appMode === 'field') refreshFieldViews();
+    }, (err) => console.error('cameraHealth subscription error', err));
+  }
+  if (!cameraPhotosUnsub) {
+    cameraPhotosUnsub = onSnapshot(query(cameraPhotosCol(), orderBy('receivedAt', 'desc')), (snap) => {
+      cachedCameraPhotos = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      if (!$('#app').classList.contains('hidden') && appMode === 'field') refreshFieldViews();
+    }, (err) => console.error('cameraPhotos subscription error', err));
+  }
+}
+function unsubscribeFromFieldData() {
+  if (cameraHealthUnsub) { cameraHealthUnsub(); cameraHealthUnsub = null; }
+  if (cameraPhotosUnsub) { cameraPhotosUnsub(); cameraPhotosUnsub = null; }
+  cachedCameraHealth = [];
+  cachedCameraPhotos = [];
+}
+function refreshFieldViews() {
+  if (!$('#view-field').classList.contains('hidden')) renderFieldDashboard();
+  if (currentFieldKey && !$('#view-field-detail').classList.contains('hidden')) renderFieldDetail(currentFieldKey);
+}
+
+/* Group health + photos by camera key (network / subject key). */
+function fieldGroups() {
+  const groups = new Map();
+  const get = (key) => {
+    const k = key || '(unknown)';
+    if (!groups.has(k)) groups.set(k, { key: k, name: null, customerId: null, devices: [], photos: [] });
+    return groups.get(k);
+  };
+  for (const h of cachedCameraHealth) {
+    const g = get(h.customerKey);
+    g.devices.push(h);
+    if (!g.name && h.customerName) g.name = h.customerName;
+    if (!g.customerId && h.customerId) g.customerId = h.customerId;
+  }
+  for (const p of cachedCameraPhotos) {
+    const g = get(p.customerKey);
+    g.photos.push(p);
+    if (!g.name && p.customerName) g.name = p.customerName;
+    if (!g.customerId && p.customerId) g.customerId = p.customerId;
+  }
+  const arr = [...groups.values()];
+  for (const g of arr) {
+    g.status = worstOf(g.devices.map((d) => d.status));
+    g.photos.sort((a, b) => (b.receivedAt || '').localeCompare(a.receivedAt || ''));
+  }
+  arr.sort((a, b) => (STATUS_RANK[a.status] - STATUS_RANK[b.status]) || (a.name || a.key).localeCompare(b.name || b.key));
+  return arr;
+}
+
+function renderFieldDashboard() {
+  const root = $('#fieldList');
+  if (!root) return;
+  const filter = ($('#fieldFilter') && $('#fieldFilter').value) || 'all';
+  let groups = fieldGroups();
+  if (filter === 'alerts') groups = groups.filter((g) => g.status === 'red' || g.status === 'yellow');
+  if (!groups.length) {
+    root.innerHTML = '<div style="padding:16px;color:var(--ink-soft);">No camera data yet. Photos and daily reports populate automatically as they arrive; tap <strong>Sync Now</strong> to pull the latest.</div>';
+    return;
+  }
+  root.innerHTML = groups.map((g) => {
+    const label = g.name ? escapeHtml(g.name) : `${escapeHtml(g.key)}<span class="unlinked">unlinked</span>`;
+    const nCam = g.devices.length, nPh = g.photos.length;
+    return `<div class="field-row" data-field-key="${escapeHtml(g.key)}">
+      <span class="cam-dot ${g.status}"></span>
+      <div class="fr-body">
+        <div class="fr-name">${label}</div>
+        <div class="fr-meta">${nCam} camera${nCam === 1 ? '' : 's'} · ${nPh} photo${nPh === 1 ? '' : 's'}</div>
+      </div>
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="var(--ink-soft)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+    </div>`;
+  }).join('');
+}
+
+function showFieldDetail(key) {
+  currentFieldKey = key;
+  $$('.view').forEach((el) => el.classList.add('hidden'));
+  const d = $('#view-field-detail'); if (d) d.classList.remove('hidden');
+  $('#viewTitle').textContent = 'Camera Detail';
+  const main = $('#appMain'); if (main) main.scrollTop = 0;
+  renderFieldDetail(key);
+}
+
+function renderFieldDetail(key) {
+  const box = $('#fieldDetail');
+  if (!box) return;
+  const g = fieldGroups().find((x) => x.key === key);
+  if (!g) { box.innerHTML = '<div class="card">No data for this camera.</div>'; return; }
+  const title = g.name ? escapeHtml(g.name) : escapeHtml(g.key);
+
+  const health = g.devices.length ? g.devices.map((d) => {
+    const defs = d.deficiencies || [];
+    const bad = (f) => defs.includes(f) ? ' bad' : '';
+    const stale = !d.dateCurrent;
+    return `<div class="cam-health-row">
+      <span class="cam-dot ${d.status}"></span>
+      <div class="chr-body">
+        <div class="chr-name">${escapeHtml(d.cameraName || '')} <span style="color:var(--ink-soft);font-weight:400;">#${escapeHtml(d.cameraNumber || '')}</span></div>
+        <div class="chr-meta"><span class="${stale ? 'bad' : ''}">Report ${escapeHtml(d.reportDate || '—')}${stale ? ' (not current)' : ''}</span> · <span class="${bad('battery')}">Battery ${escapeHtml(d.battery || '—')}</span> · <span class="${bad('sd')}">SD ${escapeHtml(d.sdFreeSpace || '—')}</span> · <span class="${bad('queue')}">Queue ${d.photoQueue == null ? '—' : d.photoQueue}</span></div>
+      </div>
+    </div>`;
+  }).join('') : '<div class="muted">No camera report yet.</div>';
+
+  const photos = g.photos.length ? `<div class="cam-photo-grid">${g.photos.slice(0, 60).map((p) => `
+    <div><a href="${escapeHtml(p.url)}" target="_blank" rel="noopener"><img loading="lazy" src="${escapeHtml(p.url)}" alt="camera photo"></a>
+    <div class="cam-photo-cap">${escapeHtml((p.receivedAt || '').slice(5, 16).replace('T', ' '))}</div></div>`).join('')}</div>`
+    : '<div class="muted">No photos yet.</div>';
+
+  const assign = g.customerId ? '' :
+    `<div class="btn-row" style="margin-top:10px;"><button class="btn btn-amber" id="fieldAssignBtn">Assign these photos to a customer</button></div>
+     <div class="autocomplete-wrap" style="margin-top:8px;"><input type="text" id="field-assign-cust" class="hidden" autocomplete="off" placeholder="Search customer…"><div class="autocomplete-list hidden" id="field-assign-ac"></div></div>`;
+
+  box.innerHTML = `
+    <div class="card">
+      <div style="display:flex;align-items:center;gap:10px;"><span class="cam-dot ${g.status}"></span><h3 style="margin:0;">${title}</h3></div>
+      ${g.customerId ? '' : '<div class="muted" style="margin-top:6px;">Not linked to a customer — the camera key didn’t match an active customer.</div>'}
+      ${assign}
+    </div>
+    <div class="card"><h3 style="margin-top:0;">Camera health</h3>${health}</div>
+    <div class="card"><h3 style="margin-top:0;">Photos (${g.photos.length})</h3>${photos}</div>
+    <div class="form-actions"><button class="btn btn-cancel btn-ghost" id="fieldBackBtn">Back to Field Info</button></div>`;
+}
+
+async function assignFieldPhotos(key, customer) {
+  const photos = cachedCameraPhotos.filter((p) => (p.customerKey || '(unknown)') === key && !p.customerId);
+  if (!photos.length) { toast('No unassigned photos here', 'error'); return; }
+  try {
+    for (const p of photos) {
+      await writeWithRetry(() => setDoc(doc(fbDb, 'cameraPhotos', p.id),
+        { customerId: customer.id, customerName: customer.name || '', assigned: true, updatedAt: new Date().toISOString() }, { merge: true }));
+    }
+    toast(`Assigned ${photos.length} photo${photos.length === 1 ? '' : 's'} to ${customer.name}`);
+  } catch (err) {
+    toast('Assign failed: ' + ((err && err.message) || 'error'), 'error');
+  }
+}
+
+async function handleFieldSync() {
+  const btn = $('#fieldSyncBtn'), status = $('#fieldSyncStatus');
+  if (btn) { btn.disabled = true; btn.textContent = 'Syncing…'; }
+  if (status) { status.style.color = 'var(--ink-soft)'; status.textContent = 'Checking the mailbox…'; }
+  try {
+    const res = await httpsCallable(fbFunctions, 'fieldSyncNow')();
+    const r = (res && res.data) || {};
+    if (status) {
+      status.style.color = 'var(--green-deep)';
+      status.innerHTML = `✓ Processed ${r.processed ?? 0} email${r.processed === 1 ? '' : 's'} — ` +
+        `<strong>${r.photos ?? 0}</strong> photo${r.photos === 1 ? '' : 's'}, <strong>${r.reports ?? 0}</strong> report${r.reports === 1 ? '' : 's'}` +
+        `${r.unassigned ? `, ${r.unassigned} unassigned` : ''}.`;
+    }
+    toast('Field sync complete');
+  } catch (err) {
+    const code = (err && err.code) || '';
+    const msg = code === 'functions/unauthenticated' ? 'Please sign in again.' : ('Sync failed: ' + ((err && err.message) || 'error'));
+    if (status) { status.style.color = 'var(--amber)'; status.textContent = msg; }
+    toast('Field sync failed', 'error');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Sync Now'; }
+  }
+}
+
 /* Retry wrapper for one-shot customer writes. Firestore's offline cache
    already queues writes made while offline, so this only guards transient
    online failures (flaky signal, brief 5xx) with a couple of quick retries. */
@@ -3813,7 +4060,8 @@ const VIEW_TITLES = {
   trap:      { dashboard: 'Dashboard', records: 'Records', add: 'Add Record', export: 'Export', settings: 'Settings' },
   pesticide: { dashboard: 'Dashboard', records: 'Records', add: 'Add Application', export: 'Export', settings: 'Settings' },
   customer:  { dashboard: 'Customers', add: 'Add Customer', settings: 'Settings' },
-  pricing:   { dashboard: 'Estimates', add: 'New Estimate', settings: 'Settings' }
+  pricing:   { dashboard: 'Estimates', add: 'New Estimate', settings: 'Settings' },
+  field:     { dashboard: 'Field Info' }
 };
 
 function backToLanding() {
@@ -3828,7 +4076,7 @@ function setView(name) {
   /* Hide every view section, then reveal the one matching mode+name. */
   ['dashboard','records','records-pesticide','add','add-pesticide',
    'customers','add-customer','pricing','estimate-builder','estimate-detail',
-   'export','settings'].forEach((v) => {
+   'field','field-detail','export','settings'].forEach((v) => {
     const el = document.getElementById(`view-${v}`);
     if (el) el.classList.add('hidden');
   });
@@ -3842,6 +4090,8 @@ function setView(name) {
   } else if (appMode === 'pricing') {
     if (name === 'dashboard') actualId = 'pricing';
     if (name === 'add') actualId = 'estimate-builder';
+  } else if (appMode === 'field') {
+    if (name === 'dashboard') actualId = 'field';
   }
   const showEl = document.getElementById(`view-${actualId}`);
   if (showEl) showEl.classList.remove('hidden');
@@ -3870,6 +4120,9 @@ function setView(name) {
   if (appMode === 'pricing' && name === 'dashboard') {
     seedPriceListIfNeeded();
     renderEstimatesList();
+  }
+  if (appMode === 'field' && name === 'dashboard') {
+    renderFieldDashboard();
   }
   /* Pesticide-form map lazy init */
   if (name === 'add' && appMode === 'pesticide') {
@@ -7005,6 +7258,34 @@ async function init() {
     else if (action === 'reject') rejectEstimate(id);
   });
 
+  /* ---- Field Information wiring ---- */
+  $('#fieldSyncBtn').addEventListener('click', handleFieldSync);
+  $('#fieldFilter').addEventListener('change', renderFieldDashboard);
+  $('#fieldList').addEventListener('click', (e) => {
+    const row = e.target.closest('[data-field-key]');
+    if (row) showFieldDetail(row.dataset.fieldKey);
+  });
+  $('#fieldDetail').addEventListener('click', (e) => {
+    if (e.target.closest('#fieldBackBtn')) { currentFieldKey = null; setView('dashboard'); return; }
+    if (e.target.closest('#fieldAssignBtn')) {
+      const i = $('#field-assign-cust'); if (i) { i.classList.remove('hidden'); i.focus(); }
+    }
+  });
+  $('#fieldDetail').addEventListener('input', (e) => {
+    if (e.target.id === 'field-assign-cust') {
+      renderAutocomplete($('#field-assign-ac'), customerMatches(e.target.value), (c) => assignFieldPhotos(currentFieldKey, c));
+    }
+  });
+  $('#fieldDetail').addEventListener('mousedown', (e) => {
+    const item = e.target.closest('#field-assign-ac [data-cust-id]');
+    if (!item) return;
+    e.preventDefault();
+    const list = $('#field-assign-ac');
+    const c = cachedCustomers.find((x) => x.id === item.dataset.custId);
+    if (c && list && list._onPick) list._onPick(c);
+    hideAutocomplete(list);
+  });
+
   $('#trapCustomerSuggestBtn').addEventListener('click', () => {
     if (trapSuggestedCustomer) applyCustomerToTrapForm(trapSuggestedCustomer);
   });
@@ -7061,6 +7342,7 @@ async function init() {
       subscribeToPesticideRecords();
       subscribeToCustomers();
       subscribeToEstimates();
+      subscribeToFieldData();
       renderBusinessCard();
       renderReportingCard();
       renderCertCard();
@@ -7073,6 +7355,7 @@ async function init() {
       unsubscribeFromPesticideRecords();
       unsubscribeFromCustomers();
       unsubscribeFromEstimates();
+      unsubscribeFromFieldData();
       modeSelected = false;
       $('#accountInfo').textContent = 'Not signed in';
       $('#wipeBtn').style.display = 'none';
