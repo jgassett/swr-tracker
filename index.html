@@ -2743,7 +2743,7 @@ let orgSettings = {
 };
 
 const PESTICIDE_EMAILJS_TEMPLATE_ID = 'template_4aa3u5a';
-const APP_VERSION = 'v1.50';  /* bump in lockstep with the SW cache version */
+const APP_VERSION = 'v1.51';  /* bump in lockstep with the SW cache version */
 /* Single source of truth: keep the footer label in sync with APP_VERSION so
    the two version displays can't drift apart again. */
 { const _fv = document.getElementById('footerVersion'); if (_fv) _fv.textContent = APP_VERSION; }
@@ -3918,6 +3918,7 @@ function renderEstimateDetail(id) {
     } else {
       actions += '<div class="hint">Waiting on admin approval.</div>';
     }
+    actions += `<button class="btn btn-danger" data-est-action="delete" data-id="${escapeHtml(e.id)}" style="margin-top:10px;">Delete Estimate</button>`;
   } else if (e.status === 'Rejected') {
     actions += `<button class="btn btn-primary" data-est-action="edit" data-id="${escapeHtml(e.id)}">Edit &amp; Resubmit</button>`;
     actions += `<button class="btn btn-danger" data-est-action="delete" data-id="${escapeHtml(e.id)}" style="margin-top:10px;">Delete Estimate</button>`;
@@ -3981,7 +3982,8 @@ async function submitEstimateForApproval(id) {
 
 async function deleteEstimateDraft(id) {
   const e = cachedEstimates.find((x) => x.id === id);
-  if (!e || (e.status !== 'Draft' && e.status !== 'Rejected')) { toast('Only Draft or Rejected estimates can be deleted', 'error'); return; }
+  const deletable = ['Draft', 'Pending Approval', 'Rejected'];
+  if (!e || !deletable.includes(e.status)) { toast('Estimates already pushed to QuickBooks can’t be deleted here', 'error'); return; }
   if (!confirm('Delete this estimate? This cannot be undone.')) return;
   await writeWithRetry(() => deleteDoc(doc(fbDb, 'estimates', id)));
   toast('Estimate deleted');
