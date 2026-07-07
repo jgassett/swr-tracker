@@ -1466,6 +1466,12 @@
         <input type="hidden" id="f-release-lat">
         <input type="hidden" id="f-release-lng">
 
+        <div class="form-group" id="f-job-group">
+          <label for="f-job">Linked job<span class="opt">(optional)</span></label>
+          <select id="f-job"><option value="">— not linked to a scheduled job —</option></select>
+          <div class="hint">Tie this record to a scheduled job. Picking one fills in the client.</div>
+        </div>
+
         <h3 class="form-section">Job Details</h3>
         <div class="field-row two">
           <div class="form-group">
@@ -1669,6 +1675,12 @@
     <section id="view-add-pesticide" class="view hidden">
       <form id="pesticideAppForm" novalidate>
         <input type="hidden" id="pa-id">
+
+        <div class="form-group" id="pa-job-group">
+          <label for="pa-job">Linked job<span class="opt">(optional)</span></label>
+          <select id="pa-job"><option value="">— not linked to a scheduled job —</option></select>
+          <div class="hint">Tie this application to a scheduled job. Picking one fills in the client.</div>
+        </div>
 
         <h3 class="form-section">Applicator</h3>
         <div class="form-group">
@@ -2720,7 +2732,7 @@ let orgSettings = {
 };
 
 const PESTICIDE_EMAILJS_TEMPLATE_ID = 'template_4aa3u5a';
-const APP_VERSION = 'v1.48';  /* bump in lockstep with the SW cache version */
+const APP_VERSION = 'v1.49';  /* bump in lockstep with the SW cache version */
 /* Single source of truth: keep the footer label in sync with APP_VERSION so
    the two version displays can't drift apart again. */
 { const _fv = document.getElementById('footerVersion'); if (_fv) _fv.textContent = APP_VERSION; }
@@ -4723,6 +4735,16 @@ function resetForm() {
     $('#f-trapper').value = EMAIL_TO_TRAPPER[currentUser.email.toLowerCase()];
   }
   $('#deleteBtn').style.display = 'none';
+  /* Linked-job picker: apply a pending link from "Log Trapping", else clear. */
+  populateJobSelect('f-job', pendingWorkLogJobId || '');
+  if (pendingWorkLogJobId) {
+    const j = cachedJobs.find((x) => x.id === pendingWorkLogJobId);
+    pendingWorkLogJobId = null;
+    if (j && j.customerId) {
+      const c = cachedCustomers.find((cc) => cc.id === j.customerId);
+      if (c) applyCustomerToTrapForm(c);
+    }
+  }
   updateConditionals();
 }
 
@@ -4784,6 +4806,7 @@ function loadIntoForm(rec) {
   if (rec.photoUrl) showPhotoPreview(rec.photoUrl);
   else hidePhotoPreview();
   $('#deleteBtn').style.display = editingId ? 'block' : 'none';
+  populateJobSelect('f-job', rec.jobId || '');
   updateConditionals();
 }
 
@@ -4819,6 +4842,13 @@ function readForm() {
   } else {
     r.animalCount = 1;
   }
+  /* Linked scheduled job (optional). */
+  const jobId = ($('#f-job') && $('#f-job').value) || '';
+  const linkedJob = jobId ? cachedJobs.find((x) => x.id === jobId) : null;
+  r.jobId = jobId || null;
+  r.jobTitle = linkedJob ? (linkedJob.title || '') : '';
+  r.customerId = linkedJob ? (linkedJob.customerId || null) : null;
+  r.customerName = linkedJob ? (linkedJob.customerName || '') : '';
   if (editingId) r.id = editingId;
   return r;
 }
@@ -6350,6 +6380,16 @@ function resetPesticideRecordForm() {
   if (paMapInstance) paMapInstance.clear();
   setMapStatus('paMapStatus', 'Use My Location, or drop a pin, to capture the treatment site. Auto-fills the address fields above.');
   $('#paDeleteBtn').style.display = 'none';
+  /* Linked-job picker: apply a pending link from "Log Pesticide", else clear. */
+  populateJobSelect('pa-job', pendingWorkLogJobId || '');
+  if (pendingWorkLogJobId) {
+    const j = cachedJobs.find((x) => x.id === pendingWorkLogJobId);
+    pendingWorkLogJobId = null;
+    if (j && j.customerId) {
+      const c = cachedCustomers.find((cc) => cc.id === j.customerId);
+      if (c) applyCustomerToPesticideForm(c);
+    }
+  }
   updatePesticideConditionals();
 }
 
@@ -6411,6 +6451,7 @@ function loadPesticideRecordIntoForm(rec) {
   }
   if (rec.photoUrl) showPesticidePhotoPreview(rec.photoUrl);
   $('#paDeleteBtn').style.display = 'block';
+  populateJobSelect('pa-job', rec.jobId || '');
   updatePesticideConditionals();
 }
 
@@ -6475,6 +6516,13 @@ function readPesticideForm() {
     siteLat: $('#pa-site-lat').value === '' ? null : parseFloat($('#pa-site-lat').value),
     siteLng: $('#pa-site-lng').value === '' ? null : parseFloat($('#pa-site-lng').value)
   };
+  /* Linked scheduled job (optional). */
+  const jobId = ($('#pa-job') && $('#pa-job').value) || '';
+  const linkedJob = jobId ? cachedJobs.find((x) => x.id === jobId) : null;
+  r.jobId = jobId || null;
+  r.jobTitle = linkedJob ? (linkedJob.title || '') : '';
+  r.customerId = linkedJob ? (linkedJob.customerId || null) : null;
+  r.customerName = linkedJob ? (linkedJob.customerName || '') : '';
   if (editingPesticideRecordId) r.id = editingPesticideRecordId;
   return r;
 }
@@ -7349,10 +7397,18 @@ function renderJobDetail(id) {
     ? `${longDate(j.date)} · ${fmtTime12(j.startTime)}–${fmtTime12(hhmm(se.end))}`
     : (j.date || 'No date');
   const detail = (label, val) => val ? `<div style="margin-top:8px;"><span class="muted" style="font-size:12px;text-transform:uppercase;letter-spacing:.04em;">${label}</span><div>${escapeHtml(val)}</div></div>` : '';
-  let actions = `<button class="btn btn-primary" data-job-action="edit" data-id="${escapeHtml(j.id)}">Edit</button>`;
+  let actions = `<button class="btn btn-amber" data-job-action="log-trap" data-id="${escapeHtml(j.id)}">Log Trapping</button>`;
+  actions += `<button class="btn btn-amber" data-job-action="log-pesticide" data-id="${escapeHtml(j.id)}">Log Pesticide</button>`;
+  actions += `<button class="btn btn-ghost" data-job-action="edit" data-id="${escapeHtml(j.id)}">Edit</button>`;
   if (j.status !== 'Completed') actions += `<button class="btn btn-ghost" data-job-action="complete" data-id="${escapeHtml(j.id)}">Mark Completed</button>`;
   if (j.status !== 'Cancelled') actions += `<button class="btn btn-ghost" data-job-action="cancel" data-id="${escapeHtml(j.id)}">Cancel Job</button>`;
   actions += `<button class="btn btn-danger" data-job-action="delete" data-id="${escapeHtml(j.id)}" style="margin-top:10px;">Delete</button>`;
+  const logs = linkedLogsForJob(id);
+  const logsCard = logs.length ? `
+    <div class="card">
+      <h3 style="margin:0 0 6px;">Work logged</h3>
+      ${logs.map((l) => `<div class="job-sub" style="padding:6px 0;border-bottom:1px solid var(--rule,#eef1ee);"><strong>${escapeHtml(l.type)}</strong> · ${escapeHtml(l.num || '—')}${l.sub ? ' · ' + escapeHtml(l.sub) : ''}${l.date ? ' · ' + escapeHtml(l.date) : ''}</div>`).join('')}
+    </div>` : '';
   box.innerHTML = `
     <div class="card">
       <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;">
@@ -7369,7 +7425,49 @@ function renderJobDetail(id) {
       ${detail('Notes', j.notes)}
       ${detail('Created by', j.createdByEmail)}
     </div>
+    ${logsCard}
     <div class="form-actions">${actions}<button class="btn btn-cancel btn-ghost" data-job-action="back">Back to Calendar</button></div>`;
+}
+
+/* Trap + pesticide records logged against a given job. */
+function linkedLogsForJob(jobId) {
+  const trap = cachedRecords.filter((r) => r.jobId === jobId).map((r) => ({
+    type: 'Trapping', num: r.recordNumber, sub: speciesDisplay(r), date: r.dateCollected || ''
+  }));
+  const pest = cachedPesticideRecords.filter((r) => r.jobId === jobId).map((r) => ({
+    type: 'Pesticide', num: r.recordNumber, sub: r.purpose || '', date: (r.appliedAt || '').slice(0, 10)
+  }));
+  return [...trap, ...pest];
+}
+
+/* "Log Trapping / Log Pesticide" from a job — switch to that module's add form
+   with the job pre-linked and the customer prefilled (applied in resetForm). */
+let pendingWorkLogJobId = null;
+function startWorkLog(jobId, kind) {
+  pendingWorkLogJobId = jobId;
+  currentJobId = null;
+  /* Clear any stale edit state so setView('add') runs a fresh reset (which
+     applies the pending job link + customer prefill). */
+  editingId = null; pendingRecord = null;
+  editingPesticideRecordId = null; pendingPesticideRecord = null;
+  setAppMode(kind);        /* 'trap' or 'pesticide' */
+  setView('add');
+}
+
+/* Fill the "Linked job" pickers (trap & pesticide forms), most recent first. */
+function populateJobSelect(selectId, selectedId) {
+  const sel = document.getElementById(selectId);
+  if (!sel) return;
+  const jobs = cachedJobs.filter((j) => j.status !== 'Cancelled')
+    .sort((a, b) => ((b.date || '') + (b.startTime || '')).localeCompare((a.date || '') + (a.startTime || '')));
+  sel.innerHTML = '<option value="">— not linked to a scheduled job —</option>';
+  for (const j of jobs) {
+    const o = document.createElement('option');
+    o.value = j.id;
+    o.textContent = [j.date, j.title, j.customerName].filter(Boolean).join(' · ') || j.id;
+    sel.appendChild(o);
+  }
+  sel.value = selectedId || '';
 }
 
 async function setJobStatus(id, status) {
@@ -8068,6 +8166,19 @@ async function init() {
   wireAutocomplete('pa-client-address', 'pa-client-address-ac', applyCustomerToPesticideForm);
   wireAutocomplete('j-customer', 'j-customer-ac', applyJobCustomer);
 
+  /* Linked-job pickers on the trap & pesticide forms — selecting a job fills
+     in that job's customer. */
+  const fJob = $('#f-job');
+  if (fJob) fJob.addEventListener('change', () => {
+    const j = cachedJobs.find((x) => x.id === fJob.value);
+    if (j && j.customerId) { const c = cachedCustomers.find((cc) => cc.id === j.customerId); if (c) applyCustomerToTrapForm(c); }
+  });
+  const paJob = $('#pa-job');
+  if (paJob) paJob.addEventListener('change', () => {
+    const j = cachedJobs.find((x) => x.id === paJob.value);
+    if (j && j.customerId) { const c = cachedCustomers.find((cc) => cc.id === j.customerId); if (c) applyCustomerToPesticideForm(c); }
+  });
+
   /* ---- Pricing Constructor wiring ---- */
   /* Estimator customer picker: tapping the field shows active customers;
      typing searches the entire directory (active + inactive). */
@@ -8161,6 +8272,8 @@ async function init() {
     else if (action === 'complete') setJobStatus(id, 'Completed');
     else if (action === 'cancel') setJobStatus(id, 'Cancelled');
     else if (action === 'delete') deleteJob(id);
+    else if (action === 'log-trap') startWorkLog(id, 'trap');
+    else if (action === 'log-pesticide') startWorkLog(id, 'pesticide');
   });
 
   /* ---- Field Information wiring ---- */

@@ -1,7 +1,7 @@
 /* Southern Wildlife Tracker service worker.
  * Network-first for the HTML shell so deploys propagate automatically.
  * Cache-first for static assets, fonts, and third-party SDK bundles. */
-const CACHE = 'swr-tracker-v48';
+const CACHE = 'swr-tracker-v49';
 const SHELL = [
   './',
   './index.html',
