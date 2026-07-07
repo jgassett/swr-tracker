@@ -114,10 +114,13 @@ service cloud.firestore {
     }
 
     /* Camera health snapshots (per device), written server-side from the daily
-       report; clients read only. */
+       report. Clients may only DELETE a row — used by "Delete Photos From App"
+       to clear a retired camera; the ingest recreates rows if that camera
+       reports again. */
     match /cameraHealth/{deviceId} {
-      allow read:  if request.auth != null;
-      allow write: if false;
+      allow read:   if request.auth != null;
+      allow create, update: if false;
+      allow delete: if request.auth != null;
     }
 
     /* Web-push device tokens. Clients register/remove their own; only the

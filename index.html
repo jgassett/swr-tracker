@@ -2822,7 +2822,7 @@ let orgSettings = {
 };
 
 const PESTICIDE_EMAILJS_TEMPLATE_ID = 'template_4aa3u5a';
-const APP_VERSION = 'v1.56';  /* bump in lockstep with the SW cache version */
+const APP_VERSION = 'v1.57';  /* bump in lockstep with the SW cache version */
 /* Single source of truth: keep the footer label in sync with APP_VERSION so
    the two version displays can't drift apart again. */
 { const _fv = document.getElementById('footerVersion'); if (_fv) _fv.textContent = APP_VERSION; }
@@ -4509,6 +4509,7 @@ function fieldGroups() {
     if (!g.customerId && h.customerId) g.customerId = h.customerId;
   }
   for (const p of cachedCameraPhotos) {
+    if (p.archived) continue;   /* cleared from the app; file persists in Storage */
     const g = get(p.customerKey);
     g.photos.push(p);
     if (!g.name && p.customerName) g.name = p.customerName;
@@ -4599,7 +4600,10 @@ function renderFieldDetail(key) {
     </div>
     <div class="card"><h3 style="margin-top:0;">Camera Health</h3>${health}</div>
     <div class="card"><h3 style="margin-top:0;">Photos (${g.photos.length})</h3>${photos}</div>
-    <div class="form-actions"><button class="btn btn-cancel btn-ghost" id="fieldBackBtn">Back to Cameras</button></div>`;
+    <div class="form-actions">
+      <button class="btn btn-danger" id="fieldClearBtn">Delete Photos From App</button>
+      <button class="btn btn-cancel btn-ghost" id="fieldBackBtn">Back to Cameras</button>
+    </div>`;
 
   /* Resolve each photo through the Firebase Storage SDK (getDownloadURL) rather
      than a hand-built token URL, then set the <img> src and the tile's link. */
@@ -4633,6 +4637,41 @@ async function assignFieldPhotos(key, customer) {
     toast(`Linked ${key} → ${customer.name}`);
   } catch (err) {
     toast('Assign failed: ' + ((err && err.message) || 'error'), 'error');
+  }
+}
+
+/* "Delete Photos From App" — clears a finished job's camera group without
+   touching cloud storage. Photos are ARCHIVED (hidden from the app; the files
+   stay in Storage until the retention job deletes them) and the group's
+   cameraHealth rows are deleted (the ingest recreates them automatically if
+   the camera reports under this key again). Available to every operator. */
+async function clearFieldGroup(key) {
+  if (!key) return;
+  const g = fieldGroups().find((x) => x.key === key);
+  if (!g) return;
+  const nP = g.photos.length, nD = g.devices.length;
+  const ok = await confirmDialog(
+    `Delete ${g.name || g.key} photos?`,
+    `Removes ${nP} photo${nP === 1 ? '' : 's'} and ${nD} camera health row${nD === 1 ? '' : 's'} from the app. ` +
+    `Photo files stay in cloud storage until the retention window deletes them, and health rows return ` +
+    `automatically if this camera reports again. This can't be undone in the app.`,
+    { okText: 'Delete From App' }
+  );
+  if (!ok) return;
+  try {
+    const now = new Date().toISOString();
+    for (const p of g.photos) {
+      await writeWithRetry(() => setDoc(doc(fbDb, 'cameraPhotos', p.id),
+        { archived: true, archivedAt: now, archivedBy: currentUser ? currentUser.email : null }, { merge: true }));
+    }
+    for (const d of g.devices) {
+      await writeWithRetry(() => deleteDoc(doc(fbDb, 'cameraHealth', d.id)));
+    }
+    toast(`${g.name || g.key} cleared from the app`);
+    currentFieldKey = null;
+    setView('dashboard');
+  } catch (err) {
+    toast('Clear failed: ' + ((err && err.message) || 'error'), 'error');
   }
 }
 
@@ -8834,6 +8873,7 @@ async function init() {
   });
   $('#fieldDetail').addEventListener('click', (e) => {
     if (e.target.closest('#fieldBackBtn')) { currentFieldKey = null; setView('dashboard'); return; }
+    if (e.target.closest('#fieldClearBtn')) { clearFieldGroup(currentFieldKey); return; }
     if (e.target.closest('#fieldAssignBtn')) {
       const i = $('#field-assign-cust');
       if (i) {
