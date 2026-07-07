@@ -117,7 +117,14 @@
     .mode-grid .mode-card .mode-desc { display: none; }
     .mode-grid .mode-card .mode-count { margin-left: 0; text-align: center; }
     .mode-grid .mode-card .mode-count .n { font-size: 20px; }
-    .landing-sync { display: flex; justify-content: flex-end; margin-bottom: 6px; }
+    .landing-sync { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+    .landing-gear { background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.18); color: var(--cream, #f6f1e7); width: 38px; height: 38px; border-radius: 10px; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; }
+    .landing-gear svg { width: 20px; height: 20px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+    .settings-group { font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-soft); margin: 20px 4px 8px; }
+    .settings-group.first { margin-top: 4px; }
+    .conn-status { font-size: 13px; font-weight: 600; margin-top: 4px; }
+    .conn-status.ok { color: var(--green-deep); }
+    .conn-status.off { color: var(--ink-soft); }
 
     /* Mode toggle in header */
     .mode-toggle {
@@ -1232,7 +1239,12 @@
 <!-- Mode picker (after sign-in) -->
 <div id="modePicker" class="hidden">
   <div class="mode-picker-wrap">
-    <div class="landing-sync"><button type="button" class="sync-indicator" id="syncIndicatorLanding" data-state="offline" title="Sync status"><span class="dot"></span><span class="label">Offline</span></button></div>
+    <div class="landing-sync">
+      <button type="button" class="landing-gear" id="landingSettingsBtn" title="Settings" aria-label="Settings">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3h.1a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8v.1a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z"/></svg>
+      </button>
+      <button type="button" class="sync-indicator" id="syncIndicatorLanding" data-state="offline" title="Sync status"><span class="dot"></span><span class="label">Offline</span></button>
+    </div>
     <img class="brand-logo" src="logo.png" alt="SWR"
          onload="this.classList.add('loaded');" onerror="this.remove();">
     <h1>What are you doing today?</h1>
@@ -2242,9 +2254,12 @@
 
     <!-- SETTINGS -->
     <section id="view-settings" class="view hidden">
+      <div class="settings-group first">Connections</div>
+
       <div class="card" id="customerSyncCard">
-        <h3 style="margin-bottom:6px;">Customer Sync</h3>
-        <p class="muted" style="font-size:14px;">One-way sync from QuickBooks into the shared customer directory. Contact details are updated from QuickBooks; the in-app <strong>Active</strong> flag is never changed by the sync. <strong>Connect QuickBooks</strong> once to authorize; after that the list syncs automatically every day and on demand via <strong>Sync Now</strong>.</p>
+        <h3 style="margin-bottom:6px;">QuickBooks</h3>
+        <div class="conn-status" id="qbConnStatus"></div>
+        <p class="muted" style="font-size:14px;">One-way sync from QuickBooks into the shared customer directory. Contact details are updated from QuickBooks; the in-app <strong>Active</strong> flag is never changed by the sync. <strong>Connect</strong> once to authorize; after that the list syncs automatically every day, on app open, and on demand via <strong>Sync Now</strong>.</p>
         <div class="btn-row" style="margin-top:12px;">
           <a class="btn btn-primary" id="qbConnectBtn" href="https://us-central1-swr-tracker-54dfd.cloudfunctions.net/qbConnect" target="_blank" rel="noopener">Connect QuickBooks</a>
           <button class="btn btn-ghost" id="syncNowBtn">Sync Now</button>
@@ -2254,7 +2269,8 @@
 
       <div class="card" id="notificationsCard">
         <h3 style="margin-bottom:6px;">Notifications</h3>
-        <p class="muted" style="font-size:14px;">Get a push notification on this device for things like new job assignments. Tap <strong>Enable</strong> once per device and allow notifications when prompted.</p>
+        <div class="conn-status" id="pushConnStatus"></div>
+        <p class="muted" style="font-size:14px;">Push notifications on this device for things like new job assignments. Tap <strong>Enable</strong> once per device and allow notifications when prompted — after that it stays on automatically.</p>
         <div class="btn-row" style="margin-top:12px;">
           <button class="btn btn-primary" id="enablePushBtn">Enable on this device</button>
           <button class="btn btn-ghost" id="pushTestBtn" style="display:none;">Send test</button>
@@ -2271,6 +2287,8 @@
         </div>
         <div class="hint" id="photoRetentionHint"></div>
       </div>
+
+      <div class="settings-group">Business</div>
 
       <div class="card" id="bizCard">
         <h3 style="margin-bottom:10px;">Business</h3>
@@ -2321,13 +2339,6 @@
         </div>
       </div>
 
-      <div class="card hidden" id="pesticideDbCard">
-        <h3 style="margin-bottom:10px;">Pesticide Database</h3>
-        <p class="muted" style="font-size:13px; margin-bottom:14px;">Catalog of products available in the Pesticide Application form. Adds propagate to every device. Admin only.</p>
-        <div id="pesticideList" style="margin-bottom: 14px;"></div>
-        <button class="btn btn-amber" id="addPesticideBtn">+ Add Pesticide</button>
-      </div>
-
       <div class="card" id="reportCard">
         <h3 style="margin-bottom:10px;">Reporting Period</h3>
         <div id="reportDisplay" class="biz-info">
@@ -2351,10 +2362,13 @@
         </div>
       </div>
 
-      <div class="card">
-        <h3 style="margin-bottom:10px;">Account</h3>
-        <div id="accountInfo" class="muted" style="font-size:13px; margin-bottom: 12px;">Not signed in</div>
-        <button class="btn btn-ghost" id="signOutBtn">Sign Out</button>
+      <div class="settings-group">Admin &amp; Data</div>
+
+      <div class="card hidden" id="pesticideDbCard">
+        <h3 style="margin-bottom:10px;">Pesticide Database</h3>
+        <p class="muted" style="font-size:13px; margin-bottom:14px;">Catalog of products available in the Pesticide Application form. Adds propagate to every device. Admin only.</p>
+        <div id="pesticideList" style="margin-bottom: 14px;"></div>
+        <button class="btn btn-amber" id="addPesticideBtn">+ Add Pesticide</button>
       </div>
 
       <div class="card">
@@ -2363,6 +2377,12 @@
         <input type="file" id="restoreFile" accept="application/json" style="display:none">
         <div style="height:10px"></div>
         <button class="btn btn-danger" id="wipeBtn">Clear All Records</button>
+      </div>
+
+      <div class="card">
+        <h3 style="margin-bottom:10px;">Account</h3>
+        <div id="accountInfo" class="muted" style="font-size:13px; margin-bottom: 12px;">Not signed in</div>
+        <button class="btn btn-ghost" id="signOutBtn">Sign Out</button>
       </div>
 
       <div class="card center muted" style="font-size:12px;">
@@ -2747,7 +2767,7 @@ let orgSettings = {
 };
 
 const PESTICIDE_EMAILJS_TEMPLATE_ID = 'template_4aa3u5a';
-const APP_VERSION = 'v1.52';  /* bump in lockstep with the SW cache version */
+const APP_VERSION = 'v1.53';  /* bump in lockstep with the SW cache version */
 /* Single source of truth: keep the footer label in sync with APP_VERSION so
    the two version displays can't drift apart again. */
 { const _fv = document.getElementById('footerVersion'); if (_fv) _fv.textContent = APP_VERSION; }
@@ -3282,6 +3302,43 @@ function showApp() {
   refreshAll();
 }
 
+/* Open the shared Settings screen straight from the home page. Uses the current
+   (or default) module context so the bottom nav still works; Menu returns here. */
+function openSettings() {
+  if (!appMode) appMode = 'trap';
+  modeSelected = true;
+  hideSplash();
+  $('#signInScreen').classList.add('hidden');
+  $('#modePicker').classList.add('hidden');
+  $('#app').classList.remove('hidden');
+  updateModuleUI();
+  renderBottomNav();
+  setView('settings');
+}
+
+/* Persistent connection/notification status shown on the Settings screen so the
+   setup buttons read as one-time actions, not chores. */
+function renderSettingsStatus() {
+  const qb = $('#qbConnStatus');
+  if (qb) {
+    const connected = cachedCustomers.some((c) => c.qbId);
+    qb.textContent = connected ? '✓ Connected — customers sync automatically' : 'Not connected yet — tap Connect QuickBooks below.';
+    qb.className = 'conn-status ' + (connected ? 'ok' : 'off');
+    const btn = $('#qbConnectBtn');
+    if (btn) btn.textContent = connected ? 'Reconnect QuickBooks' : 'Connect QuickBooks';
+  }
+  const pc = $('#pushConnStatus');
+  if (pc) {
+    const granted = ('Notification' in window) && Notification.permission === 'granted';
+    pc.textContent = granted ? '✓ Enabled on this device' : 'Not enabled on this device';
+    pc.className = 'conn-status ' + (granted ? 'ok' : 'off');
+    const testBtn = $('#pushTestBtn');
+    if (testBtn) testBtn.style.display = granted ? '' : 'none';
+    const enableBtn = $('#enablePushBtn');
+    if (enableBtn) enableBtn.textContent = granted ? 'Re-enable on this device' : 'Enable on this device';
+  }
+}
+
 /* Live counts on the three landing-page module cards. */
 function renderLandingCounts() {
   const period = reportPeriod();
@@ -3568,6 +3625,7 @@ function subscribeToCustomers() {
     if (!$('#app').classList.contains('hidden') && appMode === 'customer') {
       renderCustomerList();
     }
+    if (!$('#view-settings').classList.contains('hidden')) renderSettingsStatus();
   }, (err) => console.error('Customers subscription error', err));
 }
 function unsubscribeFromCustomers() {
@@ -4613,6 +4671,7 @@ function setView(name) {
   if (appMode === 'schedule' && name === 'dashboard') {
     renderSchedule();
   }
+  if (name === 'settings') renderSettingsStatus();
   /* Pesticide-form map lazy init */
   if (name === 'add' && appMode === 'pesticide') {
     setTimeout(ensurePaMap, 80);
@@ -8069,6 +8128,7 @@ async function init() {
     if (!btn) return;
     setAppMode(btn.dataset.mode);
   });
+  $('#landingSettingsBtn').addEventListener('click', openSettings);
 
   $('#topSpeciesScope').addEventListener('click', (e) => {
     const btn = e.target.closest('button[data-scope]');
