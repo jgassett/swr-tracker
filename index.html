@@ -846,6 +846,8 @@
     .sync-indicator[data-state="syncing"] .label { color: var(--amber-soft); }
     .sync-indicator[data-state="offline"] .dot { background: #888; }
     .sync-indicator[data-state="offline"] .label { color: #999; }
+    .sync-indicator[data-state="queued"] .dot { background: var(--amber); }
+    .sync-indicator[data-state="queued"] .label { color: var(--amber-soft); }
     .sync-indicator[data-state="error"] .dot { background: var(--danger); }
     .sync-indicator[data-state="error"] .label { color: #E08070; }
     @keyframes swrPulse {
@@ -2867,12 +2869,12 @@ async function dbPut(record) {
   delete data.id;
   if (record.id) {
     /* update existing — preserve createdByUid/Email if absent */
-    await setDoc(doc(fbDb, 'records', record.id), data, { merge: true });
+    await writeWithRetry(() => setDoc(doc(fbDb, 'records', record.id), data, { merge: true }));
     return record.id;
   }
   data.createdByUid = currentUser ? currentUser.uid : null;
   data.createdByEmail = currentUser ? currentUser.email : null;
-  const ref = await addDoc(recordsCol(), data);
+  const ref = await writeWithRetry(() => addDoc(recordsCol(), data));
   return ref.id;
 }
 async function dbDelete(id) {
@@ -3528,10 +3530,26 @@ function renderLandingCounts() {
 }
 
 /* ---------- Sync indicator ---------- */
+/* M4: track pending (unacknowledged) local writes per collection so the
+   indicator can distinguish "queued offline" from "synced". Each onSnapshot
+   handler stamps its collection's hasPendingWrites flag and re-derives. */
+const pendingWritesByCol = { records: false, customers: false, estimates: false, jobs: false };
+let recordsFromCache = false;
+function anyQueuedWrites() { return Object.values(pendingWritesByCol).some(Boolean); }
+function deriveSyncState() {
+  const queued = anyQueuedWrites();
+  if (!navigator.onLine) return queued ? 'queued' : 'offline';
+  if (lastSyncError) return 'error';
+  if (queued) return 'syncing';
+  return recordsFromCache ? 'offline' : 'synced';
+}
 function updateSyncIndicator(state) {
-  /* state: synced | syncing | offline | error. Updates both the in-app header
-     indicator and the one on the landing page. */
-  const text = state === 'synced' ? 'Synced' : state === 'syncing' ? 'Syncing' : state === 'offline' ? 'Offline' : 'Sync error';
+  /* state: synced | syncing | queued | offline | error. Updates both the in-app
+     header indicator and the one on the landing page. */
+  const text = state === 'synced' ? 'Synced'
+    : state === 'syncing' ? 'Syncing'
+    : state === 'queued' ? 'Queued — will sync when connected'
+    : state === 'offline' ? 'Offline' : 'Sync error';
   ['#syncIndicator', '#syncIndicatorLanding'].forEach((sel) => {
     const el = $(sel);
     if (!el) return;
@@ -3641,9 +3659,9 @@ function subscribeToRecords() {
   recordsUnsub = onSnapshot(q, { includeMetadataChanges: true }, (snap) => {
     cachedRecords = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
     lastSyncError = null;
-    const fromCache = snap.metadata.fromCache;
-    const pending = snap.metadata.hasPendingWrites;
-    updateSyncIndicator(pending ? 'syncing' : fromCache ? 'offline' : 'synced');
+    recordsFromCache = snap.metadata.fromCache;
+    pendingWritesByCol.records = snap.metadata.hasPendingWrites;
+    updateSyncIndicator(deriveSyncState());
     renderLandingCounts();
     if (!$('#app').classList.contains('hidden') && appMode !== 'customer') {
       renderDashboard();
@@ -3664,6 +3682,8 @@ function subscribeToRecords() {
 function unsubscribeFromRecords() {
   if (recordsUnsub) { recordsUnsub(); recordsUnsub = null; }
   cachedRecords = [];
+  pendingWritesByCol.records = false;
+  recordsFromCache = false;
 }
 
 /* ---------- Org config (shared business + reporting period) ---------- */
@@ -3781,6 +3801,8 @@ function subscribeToCustomers() {
   const q = query(customersCol(), orderBy('name'));
   customersUnsub = onSnapshot(q, { includeMetadataChanges: true }, (snap) => {
     cachedCustomers = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    pendingWritesByCol.customers = snap.metadata.hasPendingWrites;
+    updateSyncIndicator(deriveSyncState());
     renderLandingCounts();
     if (!$('#app').classList.contains('hidden') && appMode === 'customer') {
       renderCustomerList();
@@ -3797,6 +3819,7 @@ function subscribeToCustomers() {
 function unsubscribeFromCustomers() {
   if (customersUnsub) { customersUnsub(); customersUnsub = null; }
   cachedCustomers = [];
+  pendingWritesByCol.customers = false;
 }
 
 /* =====================================================================
@@ -3886,6 +3909,8 @@ function subscribeToEstimates() {
   const q = query(estimatesCol(), orderBy('createdAt', 'desc'));
   estimatesUnsub = onSnapshot(q, { includeMetadataChanges: true }, (snap) => {
     cachedEstimates = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    pendingWritesByCol.estimates = snap.metadata.hasPendingWrites;
+    updateSyncIndicator(deriveSyncState());
     renderLandingCounts();
     if (!$('#app').classList.contains('hidden') && appMode === 'pricing') {
       if (!$('#view-pricing').classList.contains('hidden')) renderEstimatesList();
@@ -3904,6 +3929,7 @@ function subscribeToEstimates() {
 function unsubscribeFromEstimates() {
   if (estimatesUnsub) { estimatesUnsub(); estimatesUnsub = null; }
   cachedEstimates = [];
+  pendingWritesByCol.estimates = false;
 }
 
 function generateEstimateNumber() {
@@ -4148,10 +4174,8 @@ function renderEstimatesList() {
 
 function showEstimateDetail(id) {
   currentEstimateId = id;
-  $$('.view').forEach((el) => el.classList.add('hidden'));
-  const d = $('#view-estimate-detail'); if (d) d.classList.remove('hidden');
-  $('#viewTitle').textContent = 'Estimate';
-  const main = $('#appMain'); if (main) main.scrollTop = 0;
+  /* Route through setView so the bottom-nav active state stays correct (L6). */
+  setView('estimate-detail');
   renderEstimateDetail(id);
 }
 
@@ -4159,7 +4183,11 @@ function renderEstimateDetail(id) {
   const e = cachedEstimates.find((x) => x.id === id);
   const box = $('#estimateDetail');
   if (!box) return;
-  if (!e) { box.innerHTML = '<div class="card">Estimate not found.</div>'; return; }
+  if (!e) {
+    box.innerHTML = '<div class="card">Estimate not found.</div>' +
+      '<div class="form-actions"><button class="btn btn-cancel btn-ghost" data-est-action="back">Back to Estimates</button></div>';
+    return;
+  }
   const admin = isAdmin();
   const lines = (e.lineItems || []).map((li) => `
     <div class="est-detail-line">
@@ -4735,7 +4763,14 @@ async function handleSignIn(e) {
   e.preventDefault();
   const idRaw = $('#signInId').value.trim().toUpperCase();
   const pin = $('#signInPin').value;
-  if (!idRaw || !pin) return;
+  if (!idRaw || !pin) {
+    const msg = !idRaw && !pin ? 'Enter your Employee ID and PIN.'
+      : !idRaw ? 'Enter your Employee ID.'
+      : 'Enter your PIN.';
+    $('#signInError').textContent = msg;
+    toast(msg, 'error');
+    return;
+  }
   $('#signInError').textContent = '';
   const email = EMPLOYEE_ID_TO_EMAIL[idRaw];
   if (!email) {
@@ -4802,7 +4837,12 @@ async function handleForgotPin() {
 async function handleSignOut() {
   const ok = await confirmDialog('Sign out?', 'You’ll need your Employee ID and PIN to sign back in on this device. Records already saved stay in the cloud and sync again once you sign in.');
   if (!ok) return;
-  await fbSignOut(fbAuth);
+  try {
+    await fbSignOut(fbAuth);
+  } catch (err) {
+    console.error('Sign out failed', err);
+    toast('Sign out failed: ' + ((err && err.message) || 'error'), 'error');
+  }
 }
 
 /* ---------- Navigation ---------- */
@@ -4811,7 +4851,7 @@ const VIEW_TITLES = {
   trap:      { dashboard: 'Dashboard', records: 'Records', add: 'Add Record', export: 'Export', settings: 'Settings' },
   pesticide: { dashboard: 'Dashboard', records: 'Records', add: 'Add Application', export: 'Export', settings: 'Settings' },
   customer:  { dashboard: 'Customers', add: 'Add Customer', settings: 'Settings' },
-  pricing:   { dashboard: 'Estimates', add: 'New Estimate', settings: 'Settings' },
+  pricing:   { dashboard: 'Estimates', add: 'New Estimate', 'estimate-detail': 'Estimate', settings: 'Settings' },
   field:     { dashboard: 'Cameras' },
   schedule:  { dashboard: 'Calendar', add: 'New Job' },
   settings:  { dashboard: 'Settings' }
@@ -4855,7 +4895,9 @@ function setView(name) {
   const showEl = document.getElementById(`view-${actualId}`);
   if (showEl) showEl.classList.remove('hidden');
 
-  $$('#bottomNav .nav-btn, #bottomNav .nav-fab').forEach((b) => b.classList.toggle('active', b.dataset.view === name));
+  /* Detail views highlight their parent list tab in the bottom nav. */
+  const navView = name === 'estimate-detail' ? 'dashboard' : name;
+  $$('#bottomNav .nav-btn, #bottomNav .nav-fab').forEach((b) => b.classList.toggle('active', b.dataset.view === navView));
   const titles = VIEW_TITLES[appMode] || VIEW_TITLES.trap;
   $('#viewTitle').textContent = titles[name] || '';
   $('#appMain').scrollTop = 0;
@@ -5177,6 +5219,7 @@ function validateRecord(r) {
   if (!r.species) errs.push('Species');
   if (SPECIFY_SPECIES.has(r.species) && !r.speciesOther) errs.push('Specify species');
   if (needsAnimalCount(r.species) && (!r.animalCount || r.animalCount < 1)) errs.push('Number of animals');
+  else if (needsAnimalCount(r.species) && r.animalCount > 50) errs.push('Number of animals can’t exceed 50 per record');
   if (!r.county) errs.push('County');
   if (!r.address) errs.push('Address');
   if (!r.captureMethod) errs.push('Capture method');
@@ -5190,6 +5233,8 @@ function validateRecord(r) {
   }
   if (EXCLUDE_DISPOSALS.has(r.disposalMethod) && !isBatOrBird(r.species) && r.species !== OTHER_ANIMAL) {
     if (r.excludedNumber == null || r.excludedNumber < 0) errs.push('Number excluded');
+    else if (Math.floor(r.excludedNumber) !== r.excludedNumber) errs.push('Number excluded must be a whole number');
+    else if (r.excludedNumber > 999) errs.push('Number excluded can’t exceed 999');
   }
   /* M12: date sanity — no future collection date; release not before collection. */
   if (r.dateCollected && r.dateCollected > todayISO()) errs.push('Collection date can’t be in the future');
@@ -6115,7 +6160,7 @@ function openSheet(rec, mode, recordType) {
       $('#detailSub').textContent = `${fmtPaDateTime(rec.appliedAt)} · ${rec.applicator || ''}`;
     } else {
       $('#detailTitle').textContent = speciesDisplay(rec) + (rec.animalCount && rec.animalCount > 1 ? ` ×${rec.animalCount}` : '');
-      $('#detailSub').textContent = `${fmtDate(rec.dateCollected)} · ${rec.county} County · ${rec.trapper || ''}`;
+      $('#detailSub').textContent = `${fmtDate(rec.dateCollected)} · ${countyDisplay(rec)} County · ${rec.trapper || ''}`;
     }
     $('#detailClose').textContent = 'Close';
     $('#detailEdit').textContent = 'Edit';
@@ -6504,7 +6549,7 @@ async function savePesticide() {
     }
 
     /* Both uploads (if any) succeeded — now write the product doc. */
-    await setDoc(doc(fbDb, 'pesticides', pestId), data, { merge: true });
+    await writeWithRetry(() => setDoc(doc(fbDb, 'pesticides', pestId), data, { merge: true }));
     closePesticideEditor();
     toast(isEdit ? `Updated ${name}` : `Added ${name}`);
   } catch (err) {
@@ -6791,7 +6836,19 @@ function loadPesticideRecordIntoForm(rec) {
   (rec.products || []).forEach((p, idx) => {
     const i = idx + 1;
     const brandSel = document.getElementById(`pa-brand-${i}`);
-    if (brandSel) brandSel.value = p.brandId || (p.brandOther ? '__other__' : '');
+    if (brandSel) {
+      /* M8: the stored brand was deleted from the catalog — inject a disabled
+         option so the original association stays visible instead of silently
+         reverting to unspecified. */
+      if (p.brandId && !cachedPesticides.some((x) => x.id === p.brandId)) {
+        const gone = document.createElement('option');
+        gone.value = p.brandId;
+        gone.disabled = true;
+        gone.textContent = `[deleted product] — ${p.brandName || p.brandId}`;
+        brandSel.appendChild(gone);
+      }
+      brandSel.value = p.brandId || (p.brandOther ? '__other__' : '');
+    }
     const brandOther = document.getElementById(`pa-brand-other-${i}`);
     if (brandOther) brandOther.value = p.brandOther || '';
     document.getElementById(`pa-epa-${i}`).value = p.epaReg || '';
@@ -6922,7 +6979,7 @@ function validatePesticideRecord(r) {
     if (!r.treatmentCity) errs.push('Treatment city');
     if (!r.treatmentZip) errs.push('Treatment ZIP');
   }
-  if (r.finalVolumeGallons == null || r.finalVolumeGallons < 0) errs.push('Final volume');
+  if (r.finalVolumeGallons == null || r.finalVolumeGallons <= 0) errs.push('Final volume must be greater than 0 gallons');
   if (!r.applicationMethod) errs.push('Application method');
   if (r.applicationMethod === 'Other (specify)' && !r.applicationMethodOther) errs.push('Specify method');
   if (r.adjuvants.includes('Other') && !r.adjuvantOther) errs.push('Specify adjuvant');
@@ -7053,7 +7110,7 @@ async function confirmSavePesticide() {
       data.createdByUid = currentUser ? currentUser.uid : null;
       data.createdByEmail = currentUser ? currentUser.email : null;
     }
-    setDoc(doc(fbDb, 'pesticide_records', rec.id), data, { merge: true }).catch((err) => {
+    writeWithRetry(() => setDoc(doc(fbDb, 'pesticide_records', rec.id), data, { merge: true })).catch((err) => {
       console.error('Pesticide record write failed', err);
       toast('A saved application failed to sync: ' + ((err && err.message) || 'error'), 'error');
     });
@@ -7502,6 +7559,8 @@ function subscribeToJobs() {
   const qy = query(jobsCol(), orderBy('date', 'asc'));
   jobsUnsub = onSnapshot(qy, { includeMetadataChanges: true }, (snap) => {
     cachedJobs = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    pendingWritesByCol.jobs = snap.metadata.hasPendingWrites;
+    updateSyncIndicator(deriveSyncState());
     /* Foreground in-app notice for jobs newly assigned to me. */
     if (seenJobIds === null) {
       seenJobIds = new Set(cachedJobs.map((j) => j.id));
@@ -7533,6 +7592,7 @@ function unsubscribeFromJobs() {
   if (jobsUnsub) { jobsUnsub(); jobsUnsub = null; }
   cachedJobs = [];
   seenJobIds = null;
+  pendingWritesByCol.jobs = false;
 }
 
 /* ---- Calendar / agenda rendering ---- */
@@ -7807,7 +7867,11 @@ function renderJobDetail(id) {
   const j = cachedJobs.find((x) => x.id === id);
   const box = $('#jobDetail');
   if (!box) return;
-  if (!j) { box.innerHTML = '<div class="card">Job not found.</div>'; return; }
+  if (!j) {
+    box.innerHTML = '<div class="card">Job not found.</div>' +
+      '<div class="form-actions"><button class="btn btn-cancel btn-ghost" data-job-action="back">Back to Calendar</button></div>';
+    return;
+  }
   const se = jobStartEnd(j);
   const when = se
     ? `${longDate(j.date)} · ${fmtTime12(j.startTime)}–${fmtTime12(hhmm(se.end))}`
@@ -8055,6 +8119,8 @@ async function handleSaveCustomer(e) {
   const c = readCustomerForm();
   if (!c.name) { toast('Customer name is required', 'error'); $('#c-name').focus(); return; }
   if (c.email && !EMAIL_RE.test(c.email)) { toast('Enter a valid email or leave it blank', 'error'); return; }
+  if (c.phone && !isValidPhone(c.phone)) { toast('Phone must be 10 digits or left blank', 'error'); $('#c-phone').focus(); return; }
+  if (c.zip && !/^\d{5}$/.test(c.zip)) { toast('ZIP must be 5 digits or left blank', 'error'); $('#c-zip').focus(); return; }
   if (c.phone) c.phone = formatPhone(c.phone);
   c.name = titleCaseName(c.name);
   const btn = $('#saveCustomerBtn');
@@ -8778,6 +8844,8 @@ async function init() {
       const code = lastSyncError.code ? `[${lastSyncError.code}] ` : '';
       const msg = lastSyncError.message || String(lastSyncError);
       toast(`Sync error — ${code}${msg}`, 'error');
+    } else if (state === 'queued') {
+      toast('Offline — changes are queued locally and will sync when connection returns.');
     } else if (state === 'offline') {
       toast(currentUser
         ? 'Offline — records cached locally, will sync when connection returns.'
@@ -8840,7 +8908,7 @@ async function init() {
   window.addEventListener('online', () => {
     if (currentUser) { updateSyncIndicator('syncing'); flushPendingPhotos(); }
   });
-  window.addEventListener('offline', () => updateSyncIndicator('offline'));
+  window.addEventListener('offline', () => updateSyncIndicator(deriveSyncState()));
 
   /* Re-opening a PWA usually resumes (no full reload) — refresh + update-check. */
   document.addEventListener('visibilitychange', () => {
