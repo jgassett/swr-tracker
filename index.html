@@ -108,6 +108,16 @@
     .mode-card svg { width: 30px; height: 30px; stroke: #fff; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
     .mode-card .mode-title { font-family: 'Playfair Display', serif; font-size: 19px; font-weight: 700; color: var(--cream); }
     .mode-card .mode-desc { font-size: 12px; color: var(--amber-soft); margin-top: 2px; }
+    /* Compact icon grid for the mode picker (fits more modules per screen) */
+    .mode-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-top: 4px; }
+    .mode-grid .mode-card { flex-direction: column; align-items: center; text-align: center; gap: 8px; padding: 16px 10px; }
+    .mode-grid .mode-card .icon-circle { width: 46px; height: 46px; }
+    .mode-grid .mode-card svg { width: 24px; height: 24px; }
+    .mode-grid .mode-card .mode-title { font-size: 15px; }
+    .mode-grid .mode-card .mode-desc { display: none; }
+    .mode-grid .mode-card .mode-count { margin-left: 0; text-align: center; }
+    .mode-grid .mode-card .mode-count .n { font-size: 20px; }
+    .landing-sync { display: flex; justify-content: flex-end; margin-bottom: 6px; }
 
     /* Mode toggle in header */
     .mode-toggle {
@@ -1192,11 +1202,13 @@
 <!-- Mode picker (after sign-in) -->
 <div id="modePicker" class="hidden">
   <div class="mode-picker-wrap">
+    <div class="landing-sync"><button type="button" class="sync-indicator" id="syncIndicatorLanding" data-state="offline" title="Sync status"><span class="dot"></span><span class="label">Offline</span></button></div>
     <img class="brand-logo" src="logo.png" alt="SWR"
          onload="this.classList.add('loaded');" onerror="this.remove();">
     <h1>What are you doing today?</h1>
     <div class="mode-sub">Pick a module. Return here any time with the ← button.</div>
     <button type="button" id="cameraAlertBanner" class="camera-alert-banner hidden"></button>
+    <div class="mode-grid">
     <button type="button" class="mode-card" data-mode="trap">
       <div class="icon-circle">
         <svg viewBox="0 0 24 24"><circle cx="6" cy="11" r="2.5"/><circle cx="12" cy="8" r="2.5"/><circle cx="18" cy="11" r="2.5"/><ellipse cx="12" cy="17" rx="5" ry="4"/></svg>
@@ -1247,6 +1259,7 @@
       </div>
       <div class="mode-count"><span class="n" id="landingFieldCount">0</span><span class="lbl">alerts</span></div>
     </button>
+    </div>
   </div>
 </div>
 
@@ -2531,7 +2544,7 @@ let orgSettings = {
 };
 
 const PESTICIDE_EMAILJS_TEMPLATE_ID = 'template_4aa3u5a';
-const APP_VERSION = 'v1.39';  /* bump in lockstep with the SW cache version */
+const APP_VERSION = 'v1.40';  /* bump in lockstep with the SW cache version */
 /* Single source of truth: keep the footer label in sync with APP_VERSION so
    the two version displays can't drift apart again. */
 { const _fv = document.getElementById('footerVersion'); if (_fv) _fv.textContent = APP_VERSION; }
@@ -3092,14 +3105,16 @@ function renderLandingCounts() {
 
 /* ---------- Sync indicator ---------- */
 function updateSyncIndicator(state) {
-  /* state: synced | syncing | offline | error */
-  const el = $('#syncIndicator');
-  if (!el) return;
-  el.dataset.state = state;
-  const label = el.querySelector('.label');
-  if (label) {
-    label.textContent = state === 'synced' ? 'Synced' : state === 'syncing' ? 'Syncing' : state === 'offline' ? 'Offline' : 'Sync error';
-  }
+  /* state: synced | syncing | offline | error. Updates both the in-app header
+     indicator and the one on the landing page. */
+  const text = state === 'synced' ? 'Synced' : state === 'syncing' ? 'Syncing' : state === 'offline' ? 'Offline' : 'Sync error';
+  ['#syncIndicator', '#syncIndicatorLanding'].forEach((sel) => {
+    const el = $(sel);
+    if (!el) return;
+    el.dataset.state = state;
+    const label = el.querySelector('.label');
+    if (label) label.textContent = text;
+  });
 }
 
 /* ---------- Firestore subscription ---------- */
