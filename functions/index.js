@@ -464,7 +464,7 @@ exports.qbPushEstimate = functions
         const snap = await tx.get(estRef);
         if (!snap.exists) throw new functions.https.HttpsError('not-found', 'Estimate not found.');
         const e = snap.data();
-        if (e.qbEstimateId) {
+        if (e.qbEstimateId || e.qbEstimateIdRecovery) {
           throw new functions.https.HttpsError('failed-precondition', 'This estimate has already been pushed to QuickBooks.');
         }
         const inFlight = e.qbPushInProgress ? Date.parse(e.qbPushInProgress) : 0;
@@ -522,6 +522,13 @@ exports.qbPushEstimate = functions
       const result = await qboPost(realmId, accessToken, 'estimate', payload);
       const qbEstimateId = (result.Estimate && result.Estimate.Id) || null;
 
+      /* C2 recovery: persist the QBO id BEFORE the full status write. If that
+         write then fails, the id isn't lost and a retry won't create a duplicate
+         — the transaction above also checks qbEstimateIdRecovery. */
+      if (qbEstimateId) {
+        await estRef.set({ qbEstimateIdRecovery: qbEstimateId, updatedAt: new Date().toISOString() }, { merge: true });
+      }
+
       await estRef.set({
         status: 'Pushed to QB',
         qbEstimateId,
@@ -529,6 +536,7 @@ exports.qbPushEstimate = functions
         pushedByEmail: email,
         updatedAt: new Date().toISOString(),
         ...clearLock(),
+        qbEstimateIdRecovery: admin.firestore.FieldValue.delete(),
         pushError: admin.firestore.FieldValue.delete()
       }, { merge: true });
 
@@ -577,7 +585,7 @@ exports.qbConvertToInvoice = functions
         const snap = await tx.get(estRef);
         if (!snap.exists) throw new functions.https.HttpsError('not-found', 'Estimate not found.');
         const e = snap.data();
-        if (e.qbInvoiceId) {
+        if (e.qbInvoiceId || e.qbInvoiceIdRecovery) {
           throw new functions.https.HttpsError('failed-precondition', 'This estimate has already been invoiced.');
         }
         const inFlight = e.qbInvoiceInProgress ? Date.parse(e.qbInvoiceInProgress) : 0;
@@ -634,6 +642,13 @@ exports.qbConvertToInvoice = functions
       const qbInvoiceId = (result.Invoice && result.Invoice.Id) || null;
       const qbInvoiceNumber = (result.Invoice && result.Invoice.DocNumber) || null;
 
+      /* C2 recovery: persist the QBO id BEFORE the full status write, so a
+         failure of that write can't cause a duplicate on retry (the transaction
+         above also checks qbInvoiceIdRecovery). */
+      if (qbInvoiceId) {
+        await estRef.set({ qbInvoiceIdRecovery: qbInvoiceId, updatedAt: new Date().toISOString() }, { merge: true });
+      }
+
       await estRef.set({
         status: 'Invoiced',
         qbInvoiceId,
@@ -642,6 +657,7 @@ exports.qbConvertToInvoice = functions
         invoicedByEmail: email,
         updatedAt: new Date().toISOString(),
         ...clearLock(),
+        qbInvoiceIdRecovery: admin.firestore.FieldValue.delete(),
         invoiceError: admin.firestore.FieldValue.delete()
       }, { merge: true });
 
