@@ -195,7 +195,10 @@ function contactFieldsFromQbo(c) {
   const name = c.DisplayName || c.CompanyName ||
     [c.GivenName, c.FamilyName].filter(Boolean).join(' ').trim();
   if (name) out.name = name;
-  const phone = c.PrimaryPhone && c.PrimaryPhone.FreeFormNumber;
+  /* QBO can hold the number in any of these; take the first present. */
+  const phone = (c.PrimaryPhone && c.PrimaryPhone.FreeFormNumber) ||
+    (c.Mobile && c.Mobile.FreeFormNumber) ||
+    (c.AlternatePhone && c.AlternatePhone.FreeFormNumber);
   if (phone) out.phone = phone;
   const email = c.PrimaryEmailAddr && c.PrimaryEmailAddr.Address;
   if (email) out.email = email;
@@ -204,6 +207,7 @@ function contactFieldsFromQbo(c) {
     const line = [addr.Line1, addr.Line2].filter(Boolean).join(' ').trim();
     if (line) out.address = line;
     if (addr.City) out.city = addr.City;
+    if (addr.PostalCode) out.zip = String(addr.PostalCode).trim();
   }
   return out;
 }
@@ -549,10 +553,11 @@ exports.qbCreateCustomer = functions
     const payload = { DisplayName: c.name };
     if (c.email) payload.PrimaryEmailAddr = { Address: c.email };
     if (c.phone) payload.PrimaryPhone = { FreeFormNumber: c.phone };
-    if (c.address || c.city) {
+    if (c.address || c.city || c.zip) {
       payload.BillAddr = {};
       if (c.address) payload.BillAddr.Line1 = c.address;
       if (c.city) payload.BillAddr.City = c.city;
+      if (c.zip) payload.BillAddr.PostalCode = c.zip;
     }
     try {
       const result = await qboPost(realmId, accessToken, 'customer', payload);

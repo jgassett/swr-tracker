@@ -1921,9 +1921,13 @@
             <input type="text" id="c-city" autocomplete="off">
           </div>
           <div class="form-group">
-            <label for="c-county">County</label>
-            <select id="c-county"><option value="">— select county —</option></select>
+            <label for="c-zip">ZIP</label>
+            <input type="text" id="c-zip" inputmode="numeric" maxlength="10" autocomplete="postal-code">
           </div>
+        </div>
+        <div class="form-group">
+          <label for="c-county">County</label>
+          <select id="c-county"><option value="">— select county —</option></select>
         </div>
 
         <h3 class="form-section">Trap Camera</h3>
@@ -2585,7 +2589,7 @@ let orgSettings = {
 };
 
 const PESTICIDE_EMAILJS_TEMPLATE_ID = 'template_4aa3u5a';
-const APP_VERSION = 'v1.44';  /* bump in lockstep with the SW cache version */
+const APP_VERSION = 'v1.45';  /* bump in lockstep with the SW cache version */
 /* Single source of truth: keep the footer label in sync with APP_VERSION so
    the two version displays can't drift apart again. */
 { const _fv = document.getElementById('footerVersion'); if (_fv) _fv.textContent = APP_VERSION; }
@@ -3195,6 +3199,42 @@ async function sendTestNotification() {
   }
 }
 
+/* Persistent notifications: once a device has granted permission, silently
+   refresh its push token on every launch so the user never has to tap
+   "Enable" again (FCM tokens rotate). No prompts, no toasts. */
+async function autoEnablePushIfGranted() {
+  try {
+    if (!('Notification' in window) || !fbMessaging || !VAPID_KEY) return;
+    if (Notification.permission !== 'granted') return;
+    const reg = await navigator.serviceWorker.register('./firebase-messaging-sw.js', { scope: './firebase-cloud-messaging-push-scope' });
+    const token = await getToken(fbMessaging, { vapidKey: VAPID_KEY, serviceWorkerRegistration: reg });
+    if (!token) return;
+    await writeWithRetry(() => setDoc(doc(fbDb, 'pushTokens', token), {
+      token,
+      uid: currentUser ? currentUser.uid : null,
+      email: currentUser ? currentUser.email : null,
+      name: currentUser ? (EMAIL_TO_TRAPPER[currentUser.email] || currentUser.email) : null,
+      updatedAt: new Date().toISOString()
+    }, { merge: true }));
+    const status = $('#pushStatus');
+    if (status) { status.textContent = '✓ Notifications enabled on this device.'; status.style.color = 'var(--green-deep)'; }
+    const testBtn = $('#pushTestBtn'); if (testBtn) testBtn.style.display = '';
+  } catch (err) { console.warn('auto push refresh failed', err); }
+}
+
+/* Persistent sync: pull QuickBooks customers and camera photos automatically on
+   launch and whenever the app is re-opened, so the user never has to tap "Sync
+   Now" manually. Throttled so rapid re-opens don't hammer the backend. */
+let lastAutoSyncAt = 0;
+async function autoSyncOnOpen(force) {
+  if (!currentUser || !navigator.onLine) return;
+  const now = Date.now();
+  if (!force && now - lastAutoSyncAt < 10 * 60 * 1000) return;   /* at most once / 10 min */
+  lastAutoSyncAt = now;
+  try { await handleSyncNow(); } catch (e) { /* inline status only */ }
+  try { await handleFieldSync(); } catch (e) { /* inline status only */ }
+}
+
 /* ---------- Firestore subscription ---------- */
 function subscribeToRecords() {
   if (recordsUnsub) return;
@@ -3705,10 +3745,13 @@ function renderEstimateDetail(id) {
   } else if (e.status === 'Pending Approval') {
     if (admin) {
       actions += `<button class="btn btn-primary" data-est-action="approve" data-id="${escapeHtml(e.id)}">Approve &amp; Push to QuickBooks</button>`;
-      actions += `<button class="btn btn-ghost" data-est-action="reject" data-id="${escapeHtml(e.id)}">Reject (back to Draft)</button>`;
+      actions += `<button class="btn btn-ghost" data-est-action="reject" data-id="${escapeHtml(e.id)}">Reject</button>`;
     } else {
       actions += '<div class="hint">Waiting on admin approval.</div>';
     }
+  } else if (e.status === 'Rejected') {
+    actions += `<button class="btn btn-primary" data-est-action="edit" data-id="${escapeHtml(e.id)}">Edit &amp; Resubmit</button>`;
+    actions += `<button class="btn btn-danger" data-est-action="delete" data-id="${escapeHtml(e.id)}" style="margin-top:10px;">Delete Estimate</button>`;
   } else if (e.status === 'Pushed to QB') {
     actions += `<div class="hint success">Pushed to QuickBooks${e.qbEstimateId ? ' (QB #' + escapeHtml(String(e.qbEstimateId)) + ')' : ''}.</div>`;
   }
@@ -3735,7 +3778,7 @@ function renderEstimateDetail(id) {
 
 function editEstimate(id) {
   const e = cachedEstimates.find((x) => x.id === id);
-  if (!e || e.status !== 'Draft') return;
+  if (!e || (e.status !== 'Draft' && e.status !== 'Rejected')) return;
   editingEstimateId = id;
   builderLines = (e.lineItems || []).map((li) => ({ ...li }));
   const c = cachedCustomers.find((x) => x.id === e.customerId);
@@ -3763,18 +3806,18 @@ async function submitEstimateForApproval(id) {
 
 async function deleteEstimateDraft(id) {
   const e = cachedEstimates.find((x) => x.id === id);
-  if (!e || e.status !== 'Draft') { toast('Only Draft estimates can be deleted', 'error'); return; }
-  if (!confirm('Delete this draft estimate? This cannot be undone.')) return;
+  if (!e || (e.status !== 'Draft' && e.status !== 'Rejected')) { toast('Only Draft or Rejected estimates can be deleted', 'error'); return; }
+  if (!confirm('Delete this estimate? This cannot be undone.')) return;
   await writeWithRetry(() => deleteDoc(doc(fbDb, 'estimates', id)));
-  toast('Draft deleted');
+  toast('Estimate deleted');
   currentEstimateId = null;
   setView('dashboard');
 }
 
 async function rejectEstimate(id) {
   const note = (prompt('Reason for rejection (optional):') || '').trim();
-  await writeWithRetry(() => setDoc(doc(fbDb, 'estimates', id), { status: 'Draft', rejectionNote: note, updatedAt: new Date().toISOString() }, { merge: true }));
-  toast('Estimate sent back to Draft');
+  await writeWithRetry(() => setDoc(doc(fbDb, 'estimates', id), { status: 'Rejected', rejectionNote: note, updatedAt: new Date().toISOString() }, { merge: true }));
+  toast('Estimate rejected');
 }
 
 async function approveAndPushEstimate(id) {
@@ -6868,6 +6911,7 @@ function loadCustomerIntoForm(c) {
   $('#c-email').value = c.email || '';
   $('#c-address').value = c.address || '';
   $('#c-city').value = c.city || '';
+  $('#c-zip').value = c.zip || '';
   $('#c-county').value = c.county || '';
   $('#c-notes').value = c.notes || '';
   $('#c-cameraId').value = c.cameraId || '';
@@ -6889,6 +6933,7 @@ function readCustomerForm() {
     email: $('#c-email').value.trim(),
     address: $('#c-address').value.trim(),
     city: $('#c-city').value.trim(),
+    zip: $('#c-zip').value.trim(),
     county: $('#c-county').value,
     notes: $('#c-notes').value.trim(),
     cameraId: $('#c-cameraId').value.trim().toUpperCase().replace(/\s+/g, ''),
@@ -7060,6 +7105,7 @@ function applyCustomerToPesticideForm(c) {
     delete a.dataset.lastValidated;
   }
   if (c.city) $('#pa-client-city').value = c.city;
+  if (c.zip) $('#pa-client-zip').value = c.zip;
   const status = $('#pa-address-status');
   if (status) { status.textContent = `✓ Customer on file: ${c.name}`; status.className = 'hint success'; }
   hidePestCustomerSuggest();
@@ -7591,6 +7637,9 @@ async function init() {
       renderCertCard();
       /* Route to the three-module landing page after sign-in (Item 7). */
       showLanding();
+      /* Persistent notifications + sync — no manual re-tapping each launch. */
+      autoEnablePushIfGranted();
+      autoSyncOnOpen(true);
     } else {
       unsubscribeFromRecords();
       unsubscribeFromOrg();
@@ -7612,6 +7661,11 @@ async function init() {
     if (currentUser) updateSyncIndicator('syncing');
   });
   window.addEventListener('offline', () => updateSyncIndicator('offline'));
+
+  /* Re-opening a PWA usually resumes (no full reload) — refresh on return. */
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && currentUser) autoSyncOnOpen(false);
+  });
 
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('sw.js').catch(() => {});
