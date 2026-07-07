@@ -621,6 +621,35 @@ exports.sendTestPush = functions
     }
   });
 
+/* Notify a job's assignees (web push) that they've been scheduled. Reads the
+ * job doc server-side so a client can't spam arbitrary push messages — it may
+ * only trigger notifications for the assignees recorded on a real job. */
+exports.notifyJobAssignment = functions
+  .region(REGION)
+  .runWith({ memory: '256MB' })
+  .https.onCall(async (data, context) => {
+    if (!context.auth) throw new functions.https.HttpsError('unauthenticated', 'Sign in required.');
+    const jobId = data && data.jobId;
+    if (!jobId) throw new functions.https.HttpsError('invalid-argument', 'jobId is required.');
+    const snap = await db.collection('jobs').doc(String(jobId)).get();
+    if (!snap.exists) throw new functions.https.HttpsError('not-found', 'Job not found.');
+    const job = snap.data() || {};
+    const emails = Array.isArray(job.assignees) ? job.assignees.filter(Boolean) : [];
+    if (!emails.length) return { sent: 0 };
+    const when = [job.date, job.startTime].filter(Boolean).join(' ');
+    const body = [job.title || 'New job', job.customerName, when].filter(Boolean).join(' · ');
+    try {
+      return await sendPushToEmails(emails, {
+        title: 'New job assigned',
+        body,
+        url: './'
+      });
+    } catch (err) {
+      console.error('notifyJobAssignment failed', err);
+      throw new functions.https.HttpsError('internal', err.message || 'Push send failed');
+    }
+  });
+
 /* Daily cleanup: delete camera photos older than the in-app retention setting
  * (org/swr.photoRetentionDays, 1–30, default 30) — both the Storage file and
  * the Firestore record. */

@@ -54,6 +54,17 @@ service cloud.firestore {
       allow delete: if request.auth != null;
     }
 
+    /* Job schedule (Phase 4). Shared across the crew like the other
+       collections; assignees are notified server-side (notifyJobAssignment,
+       Admin SDK) which also reads jobs to build the push payload. */
+    match /jobs/{jobId} {
+      allow read:   if request.auth != null;
+      allow create: if request.auth != null
+                    && request.resource.data.createdByUid == request.auth.uid;
+      allow update: if request.auth != null;
+      allow delete: if request.auth != null;
+    }
+
     /* Seeded price-list reference (read by all; seeded in-app). */
     match /priceList/{itemId} {
       allow read:   if request.auth != null;

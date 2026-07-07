@@ -1130,6 +1130,35 @@
     .switch input:checked + .track::before { transform: translateX(22px); }
     .sync-now-status { font-size: 13px; margin-top: 8px; color: var(--ink-soft); }
 
+    /* ---- Job Scheduling module ---- */
+    .status-pill.scheduled { background: #FBEED0; color: #8a6d1f; }
+    .status-pill.completed { background: #DDEAD8; color: var(--released); }
+    .status-pill.cancelled { background: var(--cream-deep); color: var(--ink-soft); }
+    .sched-toggle { display: inline-flex; border: 1px solid var(--rule, #e2e8e2); border-radius: 10px; overflow: hidden; }
+    .sched-toggle button { padding: 7px 16px; background: var(--cream, #fff); border: none; font-size: 14px; color: var(--ink-soft); cursor: pointer; }
+    .sched-toggle button.active { background: var(--amber); color: #fff; }
+    .cal-head { display: flex; align-items: center; justify-content: space-between; margin: 10px 0; }
+    .cal-head .cal-title { font-family: 'Playfair Display', serif; font-size: 18px; font-weight: 700; }
+    .cal-nav { background: none; border: 1px solid var(--rule, #e2e8e2); border-radius: 8px; width: 34px; height: 34px; font-size: 18px; cursor: pointer; color: var(--ink); }
+    .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; }
+    .cal-dow { text-align: center; font-size: 11px; color: var(--ink-soft); padding: 4px 0; font-weight: 600; }
+    .cal-cell { min-height: 52px; border: 1px solid var(--rule, #eef1ee); border-radius: 7px; padding: 3px; font-size: 12px; cursor: pointer; background: var(--cream, #fff); position: relative; }
+    .cal-cell.other { opacity: 0.35; }
+    .cal-cell.today { border-color: var(--amber); }
+    .cal-cell .cal-daynum { font-weight: 600; }
+    .cal-cell .cal-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--amber); margin: 1px 1px 0 0; }
+    .cal-cell .cal-more { font-size: 10px; color: var(--ink-soft); }
+    .agenda-day { margin-top: 14px; }
+    .agenda-day h4 { font-size: 13px; color: var(--ink-soft); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 6px; }
+    .job-row { display: flex; align-items: center; gap: 12px; padding: 11px 4px; border-bottom: 1px solid var(--rule, #e2e8e2); cursor: pointer; }
+    .job-row .job-time { font-variant-numeric: tabular-nums; font-weight: 600; min-width: 66px; }
+    .job-row .job-body { flex: 1; min-width: 0; }
+    .job-row .job-sub { font-size: 12px; color: var(--ink-soft); }
+    .assignee-grid { display: grid; grid-template-columns: 1fr; gap: 6px; }
+    .assignee-grid label { display: flex; align-items: center; gap: 9px; padding: 9px 11px; border: 1px solid var(--rule, #e2e8e2); border-radius: 9px; cursor: pointer; font-size: 15px; }
+    .assignee-grid input { width: 18px; height: 18px; }
+    .conflict-warn { background: #FBEED0; border: 1px solid #e6c667; color: #8a6d1f; border-radius: 9px; padding: 10px 12px; font-size: 13px; margin-top: 10px; }
+
     /* Wider screens — center the form, two-up rows */
     @media (min-width: 600px) {
       #view-add, #view-dashboard, #view-records, #view-export, #view-settings,
@@ -1258,6 +1287,16 @@
         <div class="mode-desc">Camera photos &amp; health by customer</div>
       </div>
       <div class="mode-count"><span class="n" id="landingFieldCount">0</span><span class="lbl">alerts</span></div>
+    </button>
+    <button type="button" class="mode-card" data-mode="schedule">
+      <div class="icon-circle">
+        <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+      </div>
+      <div>
+        <div class="mode-title">Schedule</div>
+        <div class="mode-desc">Assign &amp; calendar jobs for your crew</div>
+      </div>
+      <div class="mode-count"><span class="n" id="landingScheduleCount">0</span><span class="lbl">upcoming</span></div>
     </button>
     </div>
   </div>
@@ -2048,6 +2087,96 @@
       <div id="fieldDetail"></div>
     </section>
 
+    <!-- SCHEDULE: calendar / agenda -->
+    <section id="view-schedule" class="view hidden">
+      <div class="greeting">
+        <h2>Schedule</h2>
+        <p class="muted">Assign jobs to your crew and keep them off each other's toes.</p>
+      </div>
+      <button class="btn btn-amber" id="newJobBtn" style="margin-bottom:12px;">+ New Job</button>
+      <div style="display:flex;justify-content:center;margin-bottom:8px;">
+        <div class="sched-toggle" id="schedViewToggle">
+          <button type="button" data-sched-view="month" class="active">Month</button>
+          <button type="button" data-sched-view="agenda">Agenda</button>
+        </div>
+      </div>
+      <div id="calendarWrap"></div>
+      <div id="agendaWrap" class="hidden"></div>
+    </section>
+
+    <!-- SCHEDULE: job builder -->
+    <section id="view-add-schedule" class="view hidden">
+      <form id="jobForm" autocomplete="off" novalidate>
+        <input type="hidden" id="j-id">
+        <h3 class="form-section">Job</h3>
+        <div class="form-group">
+          <label for="j-title">Title<span class="req">*</span></label>
+          <input type="text" id="j-title" placeholder="e.g. Raccoon trap setup" required>
+        </div>
+        <div class="form-group">
+          <label for="j-customer">Customer</label>
+          <div class="autocomplete-wrap">
+            <input type="text" id="j-customer" placeholder="Search customers…" autocomplete="off">
+            <div class="autocomplete-list hidden" id="j-customer-ac"></div>
+          </div>
+          <div class="hint" id="j-customer-hint"></div>
+        </div>
+        <div class="form-group">
+          <label for="j-estimate">Linked estimate<span class="opt">(optional)</span></label>
+          <select id="j-estimate"><option value="">— none —</option></select>
+        </div>
+        <div class="form-group">
+          <label for="j-pesticides">Pesticides<span class="opt">(optional)</span></label>
+          <select id="j-pesticides" multiple size="4"></select>
+          <div class="hint">Tap to select one or more products for this job.</div>
+        </div>
+
+        <h3 class="form-section">When</h3>
+        <div class="field-row two">
+          <div class="form-group">
+            <label for="j-date">Date<span class="req">*</span></label>
+            <input type="date" id="j-date" required>
+          </div>
+          <div class="form-group">
+            <label for="j-start">Start time<span class="req">*</span></label>
+            <input type="time" id="j-start" required>
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="j-duration">Estimated duration</label>
+          <select id="j-duration">
+            <option value="30">30 minutes</option>
+            <option value="60" selected>1 hour</option>
+            <option value="90">1.5 hours</option>
+            <option value="120">2 hours</option>
+            <option value="180">3 hours</option>
+            <option value="240">4 hours</option>
+            <option value="360">6 hours</option>
+            <option value="480">8 hours (full day)</option>
+          </select>
+        </div>
+        <div id="jobConflictWarn"></div>
+
+        <h3 class="form-section">Assign to<span class="req">*</span></h3>
+        <div class="assignee-grid" id="j-assignees"></div>
+
+        <h3 class="form-section">Notes</h3>
+        <div class="form-group">
+          <textarea id="j-notes" placeholder="Access details, equipment, reminders…"></textarea>
+        </div>
+
+        <div class="form-actions">
+          <button type="submit" class="btn btn-primary" id="saveJobBtn">Save Job</button>
+          <button type="button" class="btn btn-cancel btn-ghost" id="cancelJobBtn">Cancel</button>
+        </div>
+      </form>
+    </section>
+
+    <!-- SCHEDULE: job detail -->
+    <section id="view-schedule-detail" class="view hidden">
+      <div id="jobDetail"></div>
+    </section>
+
     <!-- EXPORT -->
     <section id="view-export" class="view hidden">
       <div class="card">
@@ -2589,7 +2718,7 @@ let orgSettings = {
 };
 
 const PESTICIDE_EMAILJS_TEMPLATE_ID = 'template_4aa3u5a';
-const APP_VERSION = 'v1.45';  /* bump in lockstep with the SW cache version */
+const APP_VERSION = 'v1.46';  /* bump in lockstep with the SW cache version */
 /* Single source of truth: keep the footer label in sync with APP_VERSION so
    the two version displays can't drift apart again. */
 { const _fv = document.getElementById('footerVersion'); if (_fv) _fv.textContent = APP_VERSION; }
@@ -3009,7 +3138,7 @@ function showSignInScreen() {
 }
 let modeSelected = false;
 
-const MODULE_LABELS = { trap: 'Trapping', pesticide: 'Pesticides', customer: 'Customers', pricing: 'Pricing', field: 'Cameras' };
+const MODULE_LABELS = { trap: 'Trapping', pesticide: 'Pesticides', customer: 'Customers', pricing: 'Pricing', field: 'Cameras', schedule: 'Schedule' };
 
 /* Bottom-nav layout per module. The main landing page has no bottom nav.
    `fab: true` renders the raised amber add button (kept from the original
@@ -3046,6 +3175,12 @@ const NAV_CONFIGS = {
   field: [
     { view: 'menu', label: 'Menu', icon: 'menu' },
     { view: 'dashboard', label: 'Cameras', icon: 'camera' }
+  ],
+  schedule: [
+    { view: 'menu', label: 'Menu', icon: 'menu' },
+    { view: 'dashboard', label: 'Calendar', icon: 'calendar' },
+    { view: 'add', label: 'New', icon: 'plus', fab: true },
+    { view: 'settings', label: 'Settings', icon: 'gear' }
   ]
 };
 
@@ -3057,7 +3192,8 @@ const NAV_ICONS = {
   export: '<path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/>',
   gear: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3h.1a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8v.1a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z"/>',
   users: '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
-  camera: '<path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/>'
+  camera: '<path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/>',
+  calendar: '<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>'
 };
 
 function renderBottomNav() {
@@ -3130,12 +3266,19 @@ function renderLandingCounts() {
   const estN = cachedEstimates.filter((e) => (e.createdAt || '').slice(0, 7) === ym).length;
   const alertN = cachedCameraHealth.filter((h) => { const s = deviceStatusLive(h); return s === 'red' || s === 'yellow'; }).length;
   const redN = cachedCameraHealth.filter((h) => deviceStatusLive(h) === 'red').length;
+  const nowMs = Date.now();
+  const upcomingN = cachedJobs.filter((j) => {
+    if (j.status && j.status !== 'Scheduled') return false;
+    const se = jobStartEnd(j);
+    return se && se.end.getTime() >= nowMs;
+  }).length;
   const set = (id, n) => { const el = $('#' + id); if (el) el.textContent = n; };
   set('landingTrapCount', trapN);
   set('landingPestCount', pestN);
   set('landingCustCount', custN);
   set('landingEstCount', estN);
   set('landingFieldCount', alertN);
+  set('landingScheduleCount', upcomingN);
   const banner = $('#cameraAlertBanner');
   if (banner) {
     if (alertN > 0) {
@@ -4322,7 +4465,8 @@ const VIEW_TITLES = {
   pesticide: { dashboard: 'Dashboard', records: 'Records', add: 'Add Application', export: 'Export', settings: 'Settings' },
   customer:  { dashboard: 'Customers', add: 'Add Customer', settings: 'Settings' },
   pricing:   { dashboard: 'Estimates', add: 'New Estimate', settings: 'Settings' },
-  field:     { dashboard: 'Cameras' }
+  field:     { dashboard: 'Cameras' },
+  schedule:  { dashboard: 'Calendar', add: 'New Job', settings: 'Settings' }
 };
 
 function backToLanding() {
@@ -4337,7 +4481,8 @@ function setView(name) {
   /* Hide every view section, then reveal the one matching mode+name. */
   ['dashboard','records','records-pesticide','add','add-pesticide',
    'customers','add-customer','pricing','estimate-builder','estimate-detail',
-   'field','field-detail','export','settings'].forEach((v) => {
+   'field','field-detail','schedule','add-schedule','schedule-detail',
+   'export','settings'].forEach((v) => {
     const el = document.getElementById(`view-${v}`);
     if (el) el.classList.add('hidden');
   });
@@ -4353,6 +4498,9 @@ function setView(name) {
     if (name === 'add') actualId = 'estimate-builder';
   } else if (appMode === 'field') {
     if (name === 'dashboard') actualId = 'field';
+  } else if (appMode === 'schedule') {
+    if (name === 'dashboard') actualId = 'schedule';
+    if (name === 'add') actualId = 'add-schedule';
   }
   const showEl = document.getElementById(`view-${actualId}`);
   if (showEl) showEl.classList.remove('hidden');
@@ -4372,6 +4520,8 @@ function setView(name) {
       if (!editingCustomerId) resetCustomerForm();
     } else if (appMode === 'pricing') {
       if (!editingEstimateId) resetEstimateBuilder();
+    } else if (appMode === 'schedule') {
+      if (!editingJobId) resetJobForm();
     }
   }
   if (appMode === 'customer' && name === 'dashboard') {
@@ -4384,6 +4534,9 @@ function setView(name) {
   }
   if (appMode === 'field' && name === 'dashboard') {
     renderFieldDashboard();
+  }
+  if (appMode === 'schedule' && name === 'dashboard') {
+    renderSchedule();
   }
   /* Pesticide-form map lazy init */
   if (name === 'add' && appMode === 'pesticide') {
@@ -6809,9 +6962,406 @@ async function wipeAll() {
 }
 
 /* ---------- Refresh ---------- */
+/* =====================================================================
+ * Job Scheduling (Phase 4) — assign jobs to the crew, calendar + conflicts
+ * ---------------------------------------------------------------------
+ * Jobs live in the `jobs` collection. Each has a customer, optional linked
+ * estimate + pesticides, a date/start-time/duration, one or more assignees
+ * (app users), and a status. Assignees get a web-push notification via the
+ * notifyJobAssignment callable; anyone with the app open also gets an in-app
+ * toast when a job is newly assigned to them. Double-booking = any two active
+ * jobs whose time windows overlap.
+ * ===================================================================== */
+let cachedJobs = [];
+let jobsUnsub = null;
+let editingJobId = null;
+let currentJobId = null;
+let jobFormCustomer = null;
+let schedView = 'month';          /* 'month' | 'agenda' */
+let calCursor = null;             /* { y, m } month being viewed */
+let selectedCalDate = null;
+let seenJobIds = null;            /* tracks jobs known at load, for assignment toasts */
+
+function jobsCol() { return collection(fbDb, 'jobs'); }
+
+/* A job's [start, end) as local Date objects (from date + startTime + duration). */
+function jobStartEnd(j) {
+  if (!j || !j.date || !j.startTime) return null;
+  const start = new Date(`${j.date}T${j.startTime}`);
+  if (isNaN(start.getTime())) return null;
+  const mins = Number(j.durationMins) || 60;
+  return { start, end: new Date(start.getTime() + mins * 60000) };
+}
+function jobsOverlap(a, b) {
+  const A = jobStartEnd(a), B = jobStartEnd(b);
+  if (!A || !B) return false;
+  return A.start < B.end && B.start < A.end;
+}
+function jobStatusClass(s) {
+  if (s === 'Completed') return 'completed';
+  if (s === 'Cancelled') return 'cancelled';
+  return 'scheduled';
+}
+function assignableUsers() {
+  return Object.keys(EMAIL_TO_TRAPPER).map((email) => ({ email, name: EMAIL_TO_TRAPPER[email] }));
+}
+function fmtTime12(t) {
+  if (!t) return '';
+  const [h, mn] = t.split(':').map(Number);
+  const ap = h >= 12 ? 'p' : 'a';
+  const h12 = ((h + 11) % 12) + 1;
+  return `${h12}:${String(mn).padStart(2, '0')}${ap}`;
+}
+function hhmm(d) { return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; }
+function dateKey(d) { return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; }
+function longDate(dateStr) {
+  return new Date(`${dateStr}T00:00`).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+}
+
+function subscribeToJobs() {
+  if (jobsUnsub) return;
+  const qy = query(jobsCol(), orderBy('date', 'asc'));
+  jobsUnsub = onSnapshot(qy, { includeMetadataChanges: true }, (snap) => {
+    cachedJobs = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    /* Foreground in-app notice for jobs newly assigned to me. */
+    if (seenJobIds === null) {
+      seenJobIds = new Set(cachedJobs.map((j) => j.id));
+    } else if (currentUser) {
+      const me = currentUser.email;
+      for (const j of cachedJobs) {
+        if (seenJobIds.has(j.id)) continue;
+        seenJobIds.add(j.id);
+        if (!snap.metadata.hasPendingWrites && Array.isArray(j.assignees) && j.assignees.includes(me)) {
+          toast(`New job assigned: ${j.title || 'Untitled'}`);
+        }
+      }
+    }
+    renderLandingCounts();
+    if (!$('#app').classList.contains('hidden') && appMode === 'schedule') {
+      if (!$('#view-schedule').classList.contains('hidden')) renderSchedule();
+      if (currentJobId && !$('#view-schedule-detail').classList.contains('hidden')) renderJobDetail(currentJobId);
+    }
+  }, (err) => console.error('Jobs subscription error', err));
+}
+function unsubscribeFromJobs() {
+  if (jobsUnsub) { jobsUnsub(); jobsUnsub = null; }
+  cachedJobs = [];
+  seenJobIds = null;
+}
+
+/* ---- Calendar / agenda rendering ---- */
+function renderSchedule() {
+  $$('#schedViewToggle button').forEach((b) => b.classList.toggle('active', b.dataset.schedView === schedView));
+  const cal = $('#calendarWrap'), ag = $('#agendaWrap');
+  if (cal) cal.classList.toggle('hidden', schedView !== 'month');
+  if (ag) ag.classList.toggle('hidden', schedView !== 'agenda');
+  if (schedView === 'month') renderCalendarMonth();
+  else renderAgenda();
+}
+
+function jobsOnDate(dateStr) {
+  return cachedJobs.filter((j) => j.date === dateStr && j.status !== 'Cancelled')
+    .sort((a, b) => (a.startTime || '').localeCompare(b.startTime || ''));
+}
+
+function jobRowHtml(j) {
+  const who = (j.assigneeNames || []).join(', ');
+  const sub = [j.customerName, who].filter(Boolean).join(' · ');
+  return `<div class="job-row" data-job-open="${escapeHtml(j.id)}">
+    <div class="job-time">${escapeHtml(fmtTime12(j.startTime))}</div>
+    <div class="job-body"><div>${escapeHtml(j.title || 'Untitled')}</div>
+    <div class="job-sub">${escapeHtml(sub)}</div></div>
+    <span class="status-pill ${jobStatusClass(j.status)}">${escapeHtml(j.status || 'Scheduled')}</span>
+  </div>`;
+}
+
+function renderCalendarMonth() {
+  const wrap = $('#calendarWrap');
+  if (!wrap) return;
+  if (!calCursor) { const n = new Date(); calCursor = { y: n.getFullYear(), m: n.getMonth() }; }
+  const { y, m } = calCursor;
+  const first = new Date(y, m, 1);
+  const monthName = first.toLocaleString('en-US', { month: 'long', year: 'numeric' });
+  const startDow = first.getDay();
+  const daysInMonth = new Date(y, m + 1, 0).getDate();
+  const todayKey = dateKey(new Date());
+  const dow = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map((d) => `<div class="cal-dow">${d}</div>`).join('');
+  let cells = '';
+  const prevDays = new Date(y, m, 0).getDate();
+  for (let i = startDow - 1; i >= 0; i--) cells += `<div class="cal-cell other"><div class="cal-daynum">${prevDays - i}</div></div>`;
+  for (let d = 1; d <= daysInMonth; d++) {
+    const key = `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+    const dayJobs = jobsOnDate(key);
+    const dots = dayJobs.slice(0, 4).map(() => '<span class="cal-dot"></span>').join('');
+    const more = dayJobs.length > 4 ? `<div class="cal-more">+${dayJobs.length - 4}</div>` : '';
+    cells += `<div class="cal-cell${key === todayKey ? ' today' : ''}" data-cal-date="${key}"><div class="cal-daynum">${d}</div>${dots}${more}</div>`;
+  }
+  const trail = (7 - ((startDow + daysInMonth) % 7)) % 7;
+  for (let i = 1; i <= trail; i++) cells += `<div class="cal-cell other"><div class="cal-daynum">${i}</div></div>`;
+  wrap.innerHTML = `
+    <div class="cal-head">
+      <button class="cal-nav" data-cal-nav="-1" aria-label="Previous month">‹</button>
+      <div class="cal-title">${escapeHtml(monthName)}</div>
+      <button class="cal-nav" data-cal-nav="1" aria-label="Next month">›</button>
+    </div>
+    <div class="cal-grid">${dow}${cells}</div>
+    <div id="calDayList" style="margin-top:14px;"></div>`;
+  const sel = (selectedCalDate && selectedCalDate.startsWith(`${y}-${String(m + 1).padStart(2, '0')}`)) ? selectedCalDate : todayKey;
+  renderCalDayList(sel);
+}
+
+function renderCalDayList(dateStr) {
+  selectedCalDate = dateStr;
+  const el = $('#calDayList');
+  if (!el) return;
+  $$('#calendarWrap .cal-cell').forEach((c) => c.style.background = c.dataset.calDate === dateStr ? 'rgba(196,119,42,0.12)' : '');
+  const jobs = jobsOnDate(dateStr);
+  const rows = jobs.length ? jobs.map(jobRowHtml).join('') : '<div class="muted" style="padding:10px 4px;">No jobs scheduled.</div>';
+  el.innerHTML = `<h4 style="font-size:13px;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px;">${escapeHtml(longDate(dateStr))}</h4>${rows}`;
+}
+
+function renderAgenda() {
+  const wrap = $('#agendaWrap');
+  if (!wrap) return;
+  const todayKey = dateKey(new Date());
+  const upcoming = cachedJobs.filter((j) => j.status !== 'Cancelled' && (j.date || '') >= todayKey)
+    .sort((a, b) => ((a.date || '') + (a.startTime || '')).localeCompare((b.date || '') + (b.startTime || '')));
+  if (!upcoming.length) { wrap.innerHTML = '<div class="muted" style="padding:16px;">No upcoming jobs. Tap <strong>+ New Job</strong> to schedule one.</div>'; return; }
+  const byDay = new Map();
+  for (const j of upcoming) { if (!byDay.has(j.date)) byDay.set(j.date, []); byDay.get(j.date).push(j); }
+  let html = '';
+  for (const [date, jobs] of byDay) html += `<div class="agenda-day"><h4>${escapeHtml(longDate(date))}</h4>${jobs.map(jobRowHtml).join('')}</div>`;
+  wrap.innerHTML = html;
+}
+
+/* ---- Job builder ---- */
+function resetJobForm() {
+  editingJobId = null;
+  jobFormCustomer = null;
+  const f = $('#jobForm'); if (f) f.reset();
+  $('#j-id').value = '';
+  const hint = $('#j-customer-hint'); if (hint) { hint.textContent = ''; hint.className = 'hint'; }
+  $('#jobConflictWarn').innerHTML = '';
+  $('#j-duration').value = '60';
+  populateJobEstimates(null);
+  populateJobPesticides([]);
+  renderAssigneeChecks([]);
+  const btn = $('#saveJobBtn'); if (btn) btn.textContent = 'Save Job';
+}
+
+function applyJobCustomer(c) {
+  jobFormCustomer = { id: c.id, name: c.name || '' };
+  $('#j-customer').value = c.name || '';
+  const hint = $('#j-customer-hint');
+  if (hint) { hint.textContent = `✓ ${c.name}`; hint.className = 'hint success'; }
+  populateJobEstimates(c.id);
+  hideAutocomplete($('#j-customer-ac'));
+}
+
+function populateJobEstimates(customerId) {
+  const sel = $('#j-estimate');
+  if (!sel) return;
+  const cur = sel.value;
+  sel.innerHTML = '<option value="">— none —</option>';
+  const list = cachedEstimates.filter((e) => !customerId || e.customerId === customerId);
+  for (const e of list) {
+    const o = document.createElement('option');
+    o.value = e.id;
+    o.textContent = `${e.estimateNumber || 'Estimate'} · ${fmtUSD(e.grandTotal)}`;
+    sel.appendChild(o);
+  }
+  if (cur && list.some((e) => e.id === cur)) sel.value = cur;
+}
+
+function populateJobPesticides(selectedIds) {
+  const sel = $('#j-pesticides');
+  if (!sel) return;
+  const want = new Set(selectedIds || []);
+  sel.innerHTML = '';
+  for (const p of cachedPesticides) {
+    const o = document.createElement('option');
+    o.value = p.id;
+    o.textContent = p.name;
+    if (want.has(p.id)) o.selected = true;
+    sel.appendChild(o);
+  }
+}
+
+function renderAssigneeChecks(selectedEmails) {
+  const box = $('#j-assignees');
+  if (!box) return;
+  const sel = new Set(selectedEmails || []);
+  box.innerHTML = assignableUsers().map((u) =>
+    `<label><input type="checkbox" value="${escapeHtml(u.email)}"${sel.has(u.email) ? ' checked' : ''}> ${escapeHtml(u.name)}</label>`
+  ).join('');
+}
+function selectedAssignees() { return $$('#j-assignees input:checked').map((i) => i.value); }
+
+function currentJobDraft() {
+  return {
+    id: editingJobId,
+    date: $('#j-date').value,
+    startTime: $('#j-start').value,
+    durationMins: parseInt($('#j-duration').value, 10) || 60
+  };
+}
+function checkJobConflicts() {
+  const box = $('#jobConflictWarn');
+  if (!box) return [];
+  const draft = currentJobDraft();
+  if (!draft.date || !draft.startTime) { box.innerHTML = ''; return []; }
+  const conflicts = cachedJobs.filter((j) => j.id !== editingJobId && j.status !== 'Cancelled' && jobsOverlap(draft, j));
+  if (conflicts.length) {
+    const list = conflicts.map((c) => {
+      const who = (c.assigneeNames && c.assigneeNames.length) ? ' · ' + c.assigneeNames.join(', ') : '';
+      return `${escapeHtml(c.title || 'Untitled')} (${escapeHtml(fmtTime12(c.startTime))}${escapeHtml(who)})`;
+    }).join('; ');
+    box.innerHTML = `<div class="conflict-warn">⚠ Overlaps ${conflicts.length} scheduled job${conflicts.length > 1 ? 's' : ''}: ${list}</div>`;
+  } else box.innerHTML = '';
+  return conflicts;
+}
+
+async function handleSaveJob(e) {
+  e.preventDefault();
+  const title = $('#j-title').value.trim();
+  const date = $('#j-date').value;
+  const startTime = $('#j-start').value;
+  const durationMins = parseInt($('#j-duration').value, 10) || 60;
+  const assignees = selectedAssignees();
+  if (!title) { toast('Job title is required', 'error'); $('#j-title').focus(); return; }
+  if (!date || !startTime) { toast('Date and start time are required', 'error'); return; }
+  if (!assignees.length) { toast('Assign at least one person', 'error'); return; }
+  const conflicts = checkJobConflicts();
+  if (conflicts.length && !confirm(`This job overlaps ${conflicts.length} other scheduled job${conflicts.length > 1 ? 's' : ''}. Schedule it anyway?`)) return;
+
+  const btn = $('#saveJobBtn'); btn.disabled = true;
+  try {
+    const nameByEmail = Object.fromEntries(assignableUsers().map((u) => [u.email, u.name]));
+    const pestSel = $$('#j-pesticides option:checked');
+    const estId = $('#j-estimate').value;
+    const est = cachedEstimates.find((x) => x.id === estId);
+    const data = {
+      title,
+      customerId: jobFormCustomer ? jobFormCustomer.id : null,
+      customerName: jobFormCustomer ? jobFormCustomer.name : '',
+      estimateId: estId || null,
+      estimateNumber: est ? (est.estimateNumber || '') : '',
+      pesticideIds: pestSel.map((o) => o.value),
+      pesticideNames: pestSel.map((o) => o.textContent),
+      date, startTime, durationMins,
+      assignees,
+      assigneeNames: assignees.map((em) => nameByEmail[em] || em),
+      status: 'Scheduled',
+      notes: $('#j-notes').value.trim(),
+      updatedAt: new Date().toISOString()
+    };
+    let jobId = editingJobId;
+    if (editingJobId) {
+      await writeWithRetry(() => setDoc(doc(fbDb, 'jobs', editingJobId), data, { merge: true }));
+    } else {
+      data.createdByUid = currentUser ? currentUser.uid : null;
+      data.createdByEmail = currentUser ? currentUser.email : null;
+      data.createdAt = new Date().toISOString();
+      const ref = await writeWithRetry(() => addDoc(jobsCol(), data));
+      jobId = ref.id;
+    }
+    const wasEdit = !!editingJobId;
+    toast(wasEdit ? 'Job updated' : 'Job scheduled');
+    /* Notify assignees via push (fire-and-forget). */
+    if (jobId) httpsCallable(fbFunctions, 'notifyJobAssignment')({ jobId }).catch((err) => console.warn('job notify failed', err));
+    resetJobForm();
+    setView('dashboard');
+  } catch (err) {
+    toast((err && err.message) || 'Save failed', 'error');
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function editJob(id) {
+  const j = cachedJobs.find((x) => x.id === id);
+  if (!j) return;
+  editingJobId = id;              /* set before setView so it doesn't reset the form */
+  setView('add');
+  $('#j-id').value = id;
+  $('#j-title').value = j.title || '';
+  jobFormCustomer = j.customerId ? { id: j.customerId, name: j.customerName || '' } : null;
+  $('#j-customer').value = j.customerName || '';
+  const hint = $('#j-customer-hint');
+  if (hint) { hint.textContent = j.customerName ? `✓ ${j.customerName}` : ''; hint.className = j.customerName ? 'hint success' : 'hint'; }
+  populateJobEstimates(j.customerId);
+  $('#j-estimate').value = j.estimateId || '';
+  populateJobPesticides(j.pesticideIds || []);
+  $('#j-date').value = j.date || '';
+  $('#j-start').value = j.startTime || '';
+  $('#j-duration').value = String(j.durationMins || 60);
+  renderAssigneeChecks(j.assignees || []);
+  $('#j-notes').value = j.notes || '';
+  $('#saveJobBtn').textContent = 'Save Changes';
+  checkJobConflicts();
+}
+
+function openJob(id) {
+  currentJobId = id;
+  $$('.view').forEach((el) => el.classList.add('hidden'));
+  const d = $('#view-schedule-detail'); if (d) d.classList.remove('hidden');
+  $('#viewTitle').textContent = 'Job';
+  const main = $('#appMain'); if (main) main.scrollTop = 0;
+  renderJobDetail(id);
+}
+
+function renderJobDetail(id) {
+  const j = cachedJobs.find((x) => x.id === id);
+  const box = $('#jobDetail');
+  if (!box) return;
+  if (!j) { box.innerHTML = '<div class="card">Job not found.</div>'; return; }
+  const se = jobStartEnd(j);
+  const when = se
+    ? `${longDate(j.date)} · ${fmtTime12(j.startTime)}–${fmtTime12(hhmm(se.end))}`
+    : (j.date || 'No date');
+  const detail = (label, val) => val ? `<div style="margin-top:8px;"><span class="muted" style="font-size:12px;text-transform:uppercase;letter-spacing:.04em;">${label}</span><div>${escapeHtml(val)}</div></div>` : '';
+  let actions = `<button class="btn btn-primary" data-job-action="edit" data-id="${escapeHtml(j.id)}">Edit</button>`;
+  if (j.status !== 'Completed') actions += `<button class="btn btn-ghost" data-job-action="complete" data-id="${escapeHtml(j.id)}">Mark Completed</button>`;
+  if (j.status !== 'Cancelled') actions += `<button class="btn btn-ghost" data-job-action="cancel" data-id="${escapeHtml(j.id)}">Cancel Job</button>`;
+  actions += `<button class="btn btn-danger" data-job-action="delete" data-id="${escapeHtml(j.id)}" style="margin-top:10px;">Delete</button>`;
+  box.innerHTML = `
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;">
+        <h3 style="margin:0;">${escapeHtml(j.title || 'Untitled')}</h3>
+        <span class="status-pill ${jobStatusClass(j.status)}">${escapeHtml(j.status || 'Scheduled')}</span>
+      </div>
+      <div class="muted" style="margin-top:6px;">${escapeHtml(when)}</div>
+    </div>
+    <div class="card">
+      ${detail('Customer', j.customerName)}
+      ${detail('Assigned to', (j.assigneeNames || []).join(', '))}
+      ${detail('Linked estimate', j.estimateNumber)}
+      ${detail('Pesticides', (j.pesticideNames || []).join(', '))}
+      ${detail('Notes', j.notes)}
+      ${detail('Created by', j.createdByEmail)}
+    </div>
+    <div class="form-actions">${actions}<button class="btn btn-cancel btn-ghost" data-job-action="back">Back to Calendar</button></div>`;
+}
+
+async function setJobStatus(id, status) {
+  await writeWithRetry(() => setDoc(doc(fbDb, 'jobs', id), { status, updatedAt: new Date().toISOString() }, { merge: true }));
+  toast(`Job ${status.toLowerCase()}`);
+}
+async function deleteJob(id) {
+  if (!confirm('Delete this job? This cannot be undone.')) return;
+  await writeWithRetry(() => deleteDoc(doc(fbDb, 'jobs', id)));
+  toast('Job deleted');
+  currentJobId = null;
+  setView('dashboard');
+}
+
 async function refreshAll() {
   if (appMode === 'customer') {
     renderCustomerList();
+    return;
+  }
+  if (appMode === 'schedule') {
+    renderSchedule();
     return;
   }
   renderDashboard();
@@ -7487,6 +8037,7 @@ async function init() {
   wireAutocomplete('f-address', 'f-address-ac', applyCustomerToTrapForm);
   wireAutocomplete('pa-client-name', 'pa-client-name-ac', applyCustomerToPesticideForm);
   wireAutocomplete('pa-client-address', 'pa-client-address-ac', applyCustomerToPesticideForm);
+  wireAutocomplete('j-customer', 'j-customer-ac', applyJobCustomer);
 
   /* ---- Pricing Constructor wiring ---- */
   /* Estimator customer picker: tapping the field shows active customers;
@@ -7536,6 +8087,50 @@ async function init() {
     else if (action === 'delete') deleteEstimateDraft(id);
     else if (action === 'approve') approveAndPushEstimate(id);
     else if (action === 'reject') rejectEstimate(id);
+  });
+
+  /* ---- Job Scheduling wiring ---- */
+  $('#newJobBtn').addEventListener('click', () => { resetJobForm(); setView('add'); });
+  $('#cancelJobBtn').addEventListener('click', () => { resetJobForm(); setView('dashboard'); });
+  $('#jobForm').addEventListener('submit', handleSaveJob);
+  ['j-date', 'j-start', 'j-duration'].forEach((id) => {
+    const el = $('#' + id); if (el) el.addEventListener('change', checkJobConflicts);
+  });
+  $('#schedViewToggle').addEventListener('click', (e) => {
+    const b = e.target.closest('button[data-sched-view]');
+    if (!b) return;
+    schedView = b.dataset.schedView;
+    renderSchedule();
+  });
+  $('#calendarWrap').addEventListener('click', (e) => {
+    const nav = e.target.closest('[data-cal-nav]');
+    if (nav) {
+      if (!calCursor) { const n = new Date(); calCursor = { y: n.getFullYear(), m: n.getMonth() }; }
+      let mm = calCursor.m + parseInt(nav.dataset.calNav, 10);
+      let yy = calCursor.y;
+      if (mm < 0) { mm = 11; yy--; } else if (mm > 11) { mm = 0; yy++; }
+      calCursor = { y: yy, m: mm };
+      renderCalendarMonth();
+      return;
+    }
+    const cell = e.target.closest('[data-cal-date]');
+    if (cell) renderCalDayList(cell.dataset.calDate);
+  });
+  const onJobRowClick = (e) => {
+    const row = e.target.closest('[data-job-open]');
+    if (row) openJob(row.dataset.jobOpen);
+  };
+  $('#calendarWrap').addEventListener('click', onJobRowClick);
+  $('#agendaWrap').addEventListener('click', onJobRowClick);
+  $('#jobDetail').addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-job-action]');
+    if (!btn) return;
+    const action = btn.dataset.jobAction, id = btn.dataset.id;
+    if (action === 'back') { currentJobId = null; setView('dashboard'); }
+    else if (action === 'edit') editJob(id);
+    else if (action === 'complete') setJobStatus(id, 'Completed');
+    else if (action === 'cancel') setJobStatus(id, 'Cancelled');
+    else if (action === 'delete') deleteJob(id);
   });
 
   /* ---- Field Information wiring ---- */
@@ -7632,6 +8227,7 @@ async function init() {
       subscribeToCustomers();
       subscribeToEstimates();
       subscribeToFieldData();
+      subscribeToJobs();
       renderBusinessCard();
       renderReportingCard();
       renderCertCard();
@@ -7648,6 +8244,7 @@ async function init() {
       unsubscribeFromCustomers();
       unsubscribeFromEstimates();
       unsubscribeFromFieldData();
+      unsubscribeFromJobs();
       modeSelected = false;
       $('#accountInfo').textContent = 'Not signed in';
       $('#wipeBtn').style.display = 'none';
