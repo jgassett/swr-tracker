@@ -5219,7 +5219,7 @@ function validateRecord(r) {
   if (!r.species) errs.push('Species');
   if (SPECIFY_SPECIES.has(r.species) && !r.speciesOther) errs.push('Specify species');
   if (needsAnimalCount(r.species) && (!r.animalCount || r.animalCount < 1)) errs.push('Number of animals');
-  else if (needsAnimalCount(r.species) && r.animalCount > 50) errs.push('Number of animals can’t exceed 50 per record');
+  else if (needsAnimalCount(r.species) && r.animalCount > 500) errs.push('Number of animals can’t exceed 500 per record');
   if (!r.county) errs.push('County');
   if (!r.address) errs.push('Address');
   if (!r.captureMethod) errs.push('Capture method');
