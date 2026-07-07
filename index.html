@@ -2023,6 +2023,8 @@
           <button type="submit" class="btn btn-primary" id="saveCustomerBtn">Save Customer</button>
           <button type="button" class="btn btn-cancel btn-ghost" id="cancelCustomerBtn">Cancel</button>
         </div>
+        <button type="button" class="btn btn-amber" id="retryQbPushBtn" style="margin-top:10px; display:none;">Retry QuickBooks Push</button>
+        <div class="hint" id="retryQbPushHint" style="display:none;">This customer isn’t linked to QuickBooks yet. Pushing links to an existing QBO customer with the same name, or creates a new one.</div>
         <button type="button" class="btn btn-danger" id="deleteCustomerBtn" style="margin-top:10px; display:none;">Delete Customer</button>
       </form>
     </section>
@@ -2820,7 +2822,7 @@ let orgSettings = {
 };
 
 const PESTICIDE_EMAILJS_TEMPLATE_ID = 'template_4aa3u5a';
-const APP_VERSION = 'v1.55';  /* bump in lockstep with the SW cache version */
+const APP_VERSION = 'v1.56';  /* bump in lockstep with the SW cache version */
 /* Single source of truth: keep the footer label in sync with APP_VERSION so
    the two version displays can't drift apart again. */
 { const _fv = document.getElementById('footerVersion'); if (_fv) _fv.textContent = APP_VERSION; }
@@ -8068,6 +8070,8 @@ function resetCustomerForm() {
   $('#c-active').checked = false;
   fillGroupedSelect('c-county', COUNTY_GROUPS, '— select county —');
   $('#deleteCustomerBtn').style.display = 'none';
+  $('#retryQbPushBtn').style.display = 'none';
+  $('#retryQbPushHint').style.display = 'none';
   $('#saveCustomerBtn').textContent = 'Save Customer';
 }
 
@@ -8086,6 +8090,10 @@ function loadCustomerIntoForm(c) {
   $('#c-notes').value = c.notes || '';
   $('#c-cameraId').value = c.cameraId || '';
   $('#deleteCustomerBtn').style.display = 'block';
+  /* Existing customer never (or unsuccessfully) pushed to QuickBooks — offer a
+     manual retry of the qbCreateCustomer call that fires on first save. */
+  $('#retryQbPushBtn').style.display = c.qbId ? 'none' : 'block';
+  $('#retryQbPushHint').style.display = c.qbId ? 'none' : 'block';
   $('#saveCustomerBtn').textContent = 'Save Changes';
 }
 
@@ -8153,6 +8161,39 @@ async function handleSaveCustomer(e) {
   } finally {
     btn.disabled = false;
     isSaving = false;
+  }
+}
+
+/* Manual retry of the QuickBooks push for a customer whose original
+   qbCreateCustomer call failed (or predates the auto-push). Server-side the
+   callable is idempotent: it links to an existing QBO customer with the same
+   DisplayName before creating, and returns early if a qbId already exists. */
+async function handleRetryQbPush() {
+  if (!editingCustomerId) return;
+  if (!navigator.onLine) { toast('QuickBooks push needs a connection — try again online.', 'error'); return; }
+  const btn = $('#retryQbPushBtn');
+  btn.disabled = true;
+  const prevText = btn.textContent;
+  btn.textContent = 'Pushing…';
+  try {
+    const res = await httpsCallable(fbFunctions, 'qbCreateCustomer', { timeout: 120000 })({ customerId: editingCustomerId });
+    const r = (res && res.data) || {};
+    if (r.qbId) {
+      toast(r.alreadyLinked ? 'Linked to existing QuickBooks customer' : 'Added to QuickBooks');
+      btn.style.display = 'none';
+      $('#retryQbPushHint').style.display = 'none';
+    } else {
+      toast('QuickBooks didn’t return an id — try again', 'error');
+    }
+  } catch (err) {
+    const code = (err && err.code) || '';
+    const msg = code === 'functions/failed-precondition'
+      ? 'QuickBooks isn’t connected — connect it in Settings, then retry.'
+      : ((err && err.message) || 'error');
+    toast('QuickBooks push failed: ' + msg, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = prevText;
   }
 }
 
@@ -8625,6 +8666,7 @@ async function init() {
   $('#customerForm').addEventListener('submit', handleSaveCustomer);
   $('#cancelCustomerBtn').addEventListener('click', () => { resetCustomerForm(); setView('dashboard'); });
   $('#deleteCustomerBtn').addEventListener('click', handleDeleteCustomer);
+  $('#retryQbPushBtn').addEventListener('click', handleRetryQbPush);
   ['custSearch','custFilterStatus','custFilterCounty'].forEach((id) => {
     const el = $('#' + id);
     if (!el) return;
