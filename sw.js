@@ -1,7 +1,7 @@
 /* Southern Wildlife Tracker service worker.
  * Network-first for the HTML shell so deploys propagate automatically.
  * Cache-first for static assets, fonts, and third-party SDK bundles. */
-const CACHE = 'swr-tracker-v51';
+const CACHE = 'swr-tracker-v52';
 const SHELL = [
   './',
   './index.html',
@@ -38,6 +38,12 @@ self.addEventListener('fetch', (event) => {
 
   const url = new URL(req.url);
   if (url.protocol !== 'http:' && url.protocol !== 'https:') return;
+
+  /* version.txt is the update probe — always go to network, never cache it. */
+  if (url.pathname.endsWith('/version.txt')) {
+    event.respondWith(fetch(req).catch(() => new Response('', { status: 504 })));
+    return;
+  }
 
   /* Network-first for HTML navigations so new deploys reach clients fast. */
   const accept = req.headers.get('accept') || '';

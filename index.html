@@ -2476,6 +2476,10 @@
 </div>
 
 <div id="toast"></div>
+<div id="updateBanner" class="update-banner" style="display:none;">
+  <span id="updateBannerText">Update available</span>
+  <button type="button" id="updateBannerBtn">Reload</button>
+</div>
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
@@ -2743,7 +2747,7 @@ let orgSettings = {
 };
 
 const PESTICIDE_EMAILJS_TEMPLATE_ID = 'template_4aa3u5a';
-const APP_VERSION = 'v1.51';  /* bump in lockstep with the SW cache version */
+const APP_VERSION = 'v1.52';  /* bump in lockstep with the SW cache version */
 /* Single source of truth: keep the footer label in sync with APP_VERSION so
    the two version displays can't drift apart again. */
 { const _fv = document.getElementById('footerVersion'); if (_fv) _fv.textContent = APP_VERSION; }
@@ -3393,6 +3397,26 @@ async function autoEnablePushIfGranted() {
 /* Persistent sync: pull QuickBooks customers and camera photos automatically on
    launch and whenever the app is re-opened, so the user never has to tap "Sync
    Now" manually. Throttled so rapid re-opens don't hammer the backend. */
+/* Auto-update: iOS standalone PWAs resume from memory and don't re-navigate, so
+   a new deploy can go unseen. On launch/resume we fetch version.txt (bypassing
+   the service-worker cache) and, if it differs from what's running, show the
+   Reload banner. Tapping it reloads — the network-first SW then pulls fresh HTML. */
+let updatePromptShown = false;
+async function checkForUpdate() {
+  try {
+    const res = await fetch('./version.txt?cb=' + Date.now(), { cache: 'no-store' });
+    if (!res.ok) return;
+    const latest = (await res.text()).trim();
+    if (!latest || latest === APP_VERSION || updatePromptShown) return;
+    updatePromptShown = true;
+    const t = $('#updateBannerText'); if (t) t.textContent = `Update ${latest} ready`;
+    const b = $('#updateBanner'); if (b) b.style.display = 'flex';
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.getRegistration().then((r) => { if (r) r.update(); }).catch(() => {});
+    }
+  } catch (e) { /* offline — try again next resume */ }
+}
+
 let lastAutoSyncAt = 0;
 async function autoSyncOnOpen(force) {
   if (!currentUser || !navigator.onLine) return;
@@ -8420,18 +8444,25 @@ async function init() {
   });
   window.addEventListener('offline', () => updateSyncIndicator('offline'));
 
-  /* Re-opening a PWA usually resumes (no full reload) — refresh on return. */
+  /* Re-opening a PWA usually resumes (no full reload) — refresh + update-check. */
   document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible' && currentUser) autoSyncOnOpen(false);
+    if (document.visibilityState !== 'visible') return;
+    checkForUpdate();
+    if (currentUser) autoSyncOnOpen(false);
+  });
+
+  /* Tapping the update banner reloads; the network-first SW then serves the
+     newest HTML. */
+  $('#updateBannerBtn').addEventListener('click', () => {
+    const btn = $('#updateBannerBtn');
+    btn.disabled = true; btn.textContent = '…';
+    location.reload();
   });
 
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('sw.js').catch(() => {});
-    /* No banner. Updates propagate via:
-       - Network-first SW: every page load fetches the latest index.html
-       - skipWaiting() in install + clients.claim() in activate: new SW
-         takes over invisibly. The user sees latest content on next nav. */
   }
+  checkForUpdate();
 
   /* Splash stays visible until the first auth-state callback fires
      (handled in onAuthStateChanged above), which routes to either
