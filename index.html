@@ -2128,6 +2128,17 @@
           <input type="text" id="j-title" placeholder="e.g. Raccoon trap setup" required>
         </div>
         <div class="form-group">
+          <label for="j-type">Work type<span class="req">*</span></label>
+          <select id="j-type" required>
+            <option value="">— select type —</option>
+            <option value="Trapping">Trapping</option>
+            <option value="Pesticide">Pesticide</option>
+            <option value="Repair">Repair</option>
+            <option value="Camera Check">Camera Check</option>
+            <option value="Other">Other</option>
+          </select>
+        </div>
+        <div class="form-group">
           <label for="j-customer">Customer<span class="req">*</span></label>
           <div class="autocomplete-wrap">
             <input type="text" id="j-customer" placeholder="Search customers…" autocomplete="off">
@@ -2732,7 +2743,7 @@ let orgSettings = {
 };
 
 const PESTICIDE_EMAILJS_TEMPLATE_ID = 'template_4aa3u5a';
-const APP_VERSION = 'v1.49';  /* bump in lockstep with the SW cache version */
+const APP_VERSION = 'v1.50';  /* bump in lockstep with the SW cache version */
 /* Single source of truth: keep the footer label in sync with APP_VERSION so
    the two version displays can't drift apart again. */
 { const _fv = document.getElementById('footerVersion'); if (_fv) _fv.textContent = APP_VERSION; }
@@ -7140,7 +7151,7 @@ function jobsOnDate(dateStr) {
 
 function jobRowHtml(j) {
   const who = (j.assigneeNames || []).join(', ');
-  const sub = [j.customerName, who].filter(Boolean).join(' · ');
+  const sub = [j.type, j.customerName, who].filter(Boolean).join(' · ');
   return `<div class="job-row" data-job-open="${escapeHtml(j.id)}">
     <div class="job-time">${escapeHtml(fmtTime12(j.startTime))}</div>
     <div class="job-body"><div>${escapeHtml(j.title || 'Untitled')}</div>
@@ -7298,6 +7309,7 @@ function checkJobConflicts() {
 async function handleSaveJob(e) {
   e.preventDefault();
   const title = $('#j-title').value.trim();
+  const type = $('#j-type').value;
   const date = $('#j-date').value;
   const startTime = $('#j-start').value;
   const durationMins = parseInt($('#j-duration').value, 10) || 60;
@@ -7305,6 +7317,7 @@ async function handleSaveJob(e) {
   /* If the customer field was cleared/retyped without picking, drop the stale link. */
   if (!$('#j-customer').value.trim()) jobFormCustomer = null;
   if (!title) { toast('Job title is required', 'error'); $('#j-title').focus(); return; }
+  if (!type) { toast('Pick a work type', 'error'); $('#j-type').focus(); return; }
   if (!jobFormCustomer || !jobFormCustomer.id) { toast('Pick an existing customer for this job', 'error'); $('#j-customer').focus(); return; }
   if (!date || !startTime) { toast('Date and start time are required', 'error'); return; }
   if (!assignees.length) { toast('Assign at least one person', 'error'); return; }
@@ -7319,6 +7332,7 @@ async function handleSaveJob(e) {
     const est = cachedEstimates.find((x) => x.id === estId);
     const data = {
       title,
+      type,
       customerId: jobFormCustomer ? jobFormCustomer.id : null,
       customerName: jobFormCustomer ? jobFormCustomer.name : '',
       estimateId: estId || null,
@@ -7362,6 +7376,7 @@ function editJob(id) {
   setView('add');
   $('#j-id').value = id;
   $('#j-title').value = j.title || '';
+  $('#j-type').value = j.type || '';
   jobFormCustomer = j.customerId ? { id: j.customerId, name: j.customerName || '' } : null;
   $('#j-customer').value = j.customerName || '';
   const hint = $('#j-customer-hint');
@@ -7418,6 +7433,7 @@ function renderJobDetail(id) {
       <div class="muted" style="margin-top:6px;">${escapeHtml(when)}</div>
     </div>
     <div class="card">
+      ${detail('Work type', j.type)}
       ${detail('Customer', j.customerName)}
       ${detail('Assigned to', (j.assigneeNames || []).join(', '))}
       ${detail('Linked estimate', j.estimateNumber)}
