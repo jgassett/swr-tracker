@@ -1067,6 +1067,7 @@
     .status-pill.draft { background: var(--cream-deep); color: var(--ink-soft); }
     .status-pill.pending { background: #FBEED0; color: #8a6d1f; }
     .status-pill.pushed { background: #DDEAD8; color: var(--released); }
+    .status-pill.invoiced { background: #CBE0F5; color: #1d4e79; }
     .status-pill.rejected { background: #F6DADA; color: var(--danger); }
     /* Pricing module */
     .est-row { display: flex; align-items: center; gap: 12px; padding: 12px 4px; border-bottom: 1px solid var(--rule, #e2e8e2); cursor: pointer; }
@@ -2002,6 +2003,7 @@
           <option value="Draft">Draft</option>
           <option value="Pending Approval">Pending approval</option>
           <option value="Pushed to QB">Pushed to QB</option>
+          <option value="Invoiced">Invoiced</option>
           <option value="Rejected">Rejected</option>
         </select>
       </div>
@@ -2718,7 +2720,7 @@ let orgSettings = {
 };
 
 const PESTICIDE_EMAILJS_TEMPLATE_ID = 'template_4aa3u5a';
-const APP_VERSION = 'v1.47';  /* bump in lockstep with the SW cache version */
+const APP_VERSION = 'v1.48';  /* bump in lockstep with the SW cache version */
 /* Single source of truth: keep the footer label in sync with APP_VERSION so
    the two version displays can't drift apart again. */
 { const _fv = document.getElementById('footerVersion'); if (_fv) _fv.textContent = APP_VERSION; }
@@ -3602,6 +3604,7 @@ function fmtUSD(n) {
 function estStatusClass(s) {
   if (s === 'Pending Approval') return 'pending';
   if (s === 'Pushed to QB') return 'pushed';
+  if (s === 'Invoiced') return 'invoiced';
   if (s === 'Rejected') return 'rejected';
   return 'draft';
 }
@@ -3897,6 +3900,12 @@ function renderEstimateDetail(id) {
     actions += `<button class="btn btn-danger" data-est-action="delete" data-id="${escapeHtml(e.id)}" style="margin-top:10px;">Delete Estimate</button>`;
   } else if (e.status === 'Pushed to QB') {
     actions += `<div class="hint success">Pushed to QuickBooks${e.qbEstimateId ? ' (QB #' + escapeHtml(String(e.qbEstimateId)) + ')' : ''}.</div>`;
+    if (admin) actions += `<button class="btn btn-primary" data-est-action="invoice" data-id="${escapeHtml(e.id)}" style="margin-top:10px;">Convert to Invoice</button>`;
+  } else if (e.status === 'Invoiced') {
+    actions += `<div class="hint success">Invoiced in QuickBooks${e.qbInvoiceNumber ? ' (Invoice #' + escapeHtml(String(e.qbInvoiceNumber)) + ')' : ''}.</div>`;
+  }
+  if (e.invoiceError && admin) {
+    actions += `<div class="hint" style="color:var(--amber);margin-top:8px;">Last invoice attempt failed: ${escapeHtml(e.invoiceError)}</div>`;
   }
   if (e.pushError && admin) {
     actions += `<div class="hint" style="color:var(--amber);margin-top:8px;">Last push failed: ${escapeHtml(e.pushError)}</div>`;
@@ -3979,6 +3988,23 @@ async function approveAndPushEstimate(id) {
     if (code === 'functions/permission-denied') msg = 'Only an administrator can approve estimates.';
     else if (code === 'functions/failed-precondition') msg = msg; // already descriptive (not connected / no qbId)
     toast('Push failed: ' + msg, 'error');
+  }
+}
+
+async function convertEstimateToInvoice(id) {
+  const e = cachedEstimates.find((x) => x.id === id);
+  if (!e) return;
+  if (!confirm(`Create a QuickBooks invoice from ${e.estimateNumber || 'this estimate'} for ${e.customerName || 'this customer'}?`)) return;
+  toast('Creating invoice…');
+  try {
+    const res = await httpsCallable(fbFunctions, 'qbConvertToInvoice')({ estimateId: id });
+    const r = (res && res.data) || {};
+    toast(r.qbInvoiceNumber ? `Invoiced (QB #${r.qbInvoiceNumber})` : 'Invoice created in QuickBooks');
+  } catch (err) {
+    const code = (err && err.code) || '';
+    let msg = (err && err.message) || 'Invoice failed';
+    if (code === 'functions/permission-denied') msg = 'Only an administrator can create invoices.';
+    toast('Invoice failed: ' + msg, 'error');
   }
 }
 
@@ -8090,6 +8116,7 @@ async function init() {
     else if (action === 'delete') deleteEstimateDraft(id);
     else if (action === 'approve') approveAndPushEstimate(id);
     else if (action === 'reject') rejectEstimate(id);
+    else if (action === 'invoice') convertEstimateToInvoice(id);
   });
 
   /* ---- Job Scheduling wiring ---- */

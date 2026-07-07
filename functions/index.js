@@ -526,6 +526,90 @@ exports.qbPushEstimate = functions
     }
   });
 
+/* Convert an estimate to a QuickBooks Invoice. Admin-only. Builds the invoice
+ * from the estimate's line items and, when the estimate was already pushed to
+ * QBO, links the two (LinkedTxn) so QuickBooks marks the estimate as invoiced. */
+exports.qbConvertToInvoice = functions
+  .region(REGION)
+  .runWith({ secrets: SECRETS, timeoutSeconds: 120, memory: '256MB' })
+  .https.onCall(async (data, context) => {
+    if (!context.auth) {
+      throw new functions.https.HttpsError('unauthenticated', 'Sign in required.');
+    }
+    const email = ((context.auth.token && context.auth.token.email) || '').toLowerCase();
+    if (!ADMIN_EMAILS.includes(email)) {
+      throw new functions.https.HttpsError('permission-denied', 'Only an administrator can create invoices.');
+    }
+    const estimateId = data && data.estimateId;
+    if (!estimateId) throw new functions.https.HttpsError('invalid-argument', 'estimateId is required.');
+
+    const estRef = db.doc(`estimates/${estimateId}`);
+    const estSnap = await estRef.get();
+    if (!estSnap.exists) throw new functions.https.HttpsError('not-found', 'Estimate not found.');
+    const est = estSnap.data();
+    if (est.qbInvoiceId) {
+      throw new functions.https.HttpsError('failed-precondition', 'This estimate has already been invoiced.');
+    }
+    if (!est.customerId) throw new functions.https.HttpsError('failed-precondition', 'Estimate has no customer.');
+    const custSnap = await db.doc(`customers/${est.customerId}`).get();
+    const qbId = custSnap.exists ? custSnap.get('qbId') : null;
+    if (!qbId) {
+      throw new functions.https.HttpsError('failed-precondition',
+        'This customer isn’t linked to QuickBooks yet (no qbId). Run a customer sync, then retry.');
+    }
+
+    let accessToken, realmId;
+    try {
+      ({ accessToken, realmId } = await getValidAccessToken());
+    } catch (err) {
+      throw new functions.https.HttpsError('failed-precondition', err.message || 'QuickBooks not connected.');
+    }
+
+    try {
+      const itemId = await ensureServiceItemId(realmId, accessToken);
+      const lines = (est.lineItems || []).map((li) => ({
+        DetailType: 'SalesItemLineDetail',
+        Amount: Number(li.lineTotal) || 0,
+        Description: [li.category, li.species, li.description].filter(Boolean).join(' – '),
+        SalesItemLineDetail: {
+          ItemRef: { value: itemId },
+          Qty: Number(li.quantity) || 1,
+          UnitPrice: Number(li.unitPrice) || 0
+        }
+      }));
+      if (!lines.length) throw new Error('Estimate has no line items.');
+
+      const payload = { CustomerRef: { value: String(qbId) }, Line: lines };
+      /* Link back to the estimate so QBO shows it as invoiced. */
+      if (est.qbEstimateId) {
+        payload.LinkedTxn = [{ TxnId: String(est.qbEstimateId), TxnType: 'Estimate' }];
+      }
+
+      const result = await qboPost(realmId, accessToken, 'invoice', payload);
+      const qbInvoiceId = (result.Invoice && result.Invoice.Id) || null;
+      const qbInvoiceNumber = (result.Invoice && result.Invoice.DocNumber) || null;
+
+      await estRef.set({
+        status: 'Invoiced',
+        qbInvoiceId,
+        qbInvoiceNumber,
+        invoicedAt: new Date().toISOString(),
+        invoicedByEmail: email,
+        updatedAt: new Date().toISOString(),
+        invoiceError: admin.firestore.FieldValue.delete()
+      }, { merge: true });
+
+      return { qbInvoiceId, qbInvoiceNumber, customerName: est.customerName || null };
+    } catch (err) {
+      console.error('Invoice creation failed', err);
+      await estRef.set({
+        invoiceError: String(err.message).slice(0, 500),
+        updatedAt: new Date().toISOString()
+      }, { merge: true });
+      throw new functions.https.HttpsError('internal', err.message || 'QuickBooks invoice creation failed.');
+    }
+  });
+
 /* Create a Firestore customer in QuickBooks and store the returned qbId back
  * on the record. Called when an operator adds a customer in the app. */
 exports.qbCreateCustomer = functions
