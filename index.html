@@ -1201,6 +1201,13 @@
   <div class="splash-spinner" aria-hidden="true"></div>
 </div>
 
+<!-- Fatal boot-error screen (H4): shown if Firebase can't be reached or init fails -->
+<div id="fatalError" class="hidden" onclick="window.location.reload()" style="position:fixed;inset:0;z-index:99999;background:#1c2b22;color:#f5efe0;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;text-align:center;font-family:-apple-system,system-ui,sans-serif;">
+  <h1 style="font-size:22px;margin:0 0 12px;color:#f5efe0;">Can’t reach the server</h1>
+  <p style="max-width:340px;line-height:1.5;margin:0 0 20px;">Cannot reach the server — check your connection and tap to reload.</p>
+  <button type="button" onclick="event.stopPropagation(); window.location.reload();" style="background:#c4772a;color:#fff;border:none;border-radius:10px;padding:12px 28px;font-size:16px;font-weight:600;cursor:pointer;">Reload</button>
+</div>
+
 <!-- Sign-in screen -->
 <div id="signInScreen" class="hidden">
   <div class="signin-wrap">
@@ -2527,6 +2534,38 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-messaging.js";
 
 /* =====================================================================
+ * Boot resilience (H4) — surface a reload screen instead of an endless
+ * spinner or blank app when Firebase can't be reached or init fails.
+ * ===================================================================== */
+let bootResolved = false;
+let bootWatchdog = null;
+function showBootFatalError() {
+  if (bootResolved) return;
+  try {
+    const splash = document.getElementById('splashScreen');
+    if (splash) splash.classList.add('hidden');
+    const fatal = document.getElementById('fatalError');
+    if (fatal) fatal.classList.remove('hidden');
+  } catch (_) { /* last resort — nothing more we can do */ }
+}
+function markBootResolved() {
+  bootResolved = true;
+  if (bootWatchdog) { clearTimeout(bootWatchdog); bootWatchdog = null; }
+}
+/* If the first onAuthStateChanged callback hasn't fired within 10s, the app
+   can't reach Firebase — show the fatal screen. */
+bootWatchdog = setTimeout(() => { if (!bootResolved) showBootFatalError(); }, 10000);
+/* Any uncaught boot-time error should surface the fatal screen too, not fail
+   silently. The bootResolved guard means these only fire during startup. */
+window.onerror = function (msg, src, line, col, err) {
+  if (!bootResolved) { console.error('Uncaught boot error', err || msg); showBootFatalError(); }
+  return false;
+};
+window.addEventListener('unhandledrejection', (e) => {
+  if (!bootResolved) { console.error('Unhandled boot rejection', e && e.reason); showBootFatalError(); }
+});
+
+/* =====================================================================
  * Southern Wildlife Tracker
  * Firebase-backed records (with offline cache); IndexedDB for local
  * device settings (PIN, business info, migration flag).
@@ -2541,15 +2580,24 @@ const firebaseConfig = {
   appId: "1:333363468822:web:a715bb7255d88f6a1cb337"
 };
 
-const fbApp = initializeApp(firebaseConfig);
-const fbAuth = getAuth(fbApp);
-const fbDb = initializeFirestore(fbApp, {
-  localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() })
-});
-const fbStorage = getStorage(fbApp);
-/* Default region (us-central1) matches the gen-1 QuickBooks functions. */
-const fbFunctions = getFunctions(fbApp);
-try { await setPersistence(fbAuth, browserLocalPersistence); } catch (e) { /* private mode */ }
+/* Firebase SDK init (H4): if any of this throws, show the fatal screen and halt
+   rather than leaving a blank app or endless spinner. */
+let fbApp, fbAuth, fbDb, fbStorage, fbFunctions;
+try {
+  fbApp = initializeApp(firebaseConfig);
+  fbAuth = getAuth(fbApp);
+  fbDb = initializeFirestore(fbApp, {
+    localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() })
+  });
+  fbStorage = getStorage(fbApp);
+  /* Default region (us-central1) matches the gen-1 QuickBooks functions. */
+  fbFunctions = getFunctions(fbApp);
+  try { await setPersistence(fbAuth, browserLocalPersistence); } catch (e) { /* private mode */ }
+} catch (e) {
+  console.error('Firebase initialization failed', e);
+  showBootFatalError();
+  throw e;   /* stop the rest of the module — services are unusable */
+}
 
 /* ---- Web push (Firebase Cloud Messaging) ----
    VAPID_KEY = the public "Web Push certificate" key pair from the Firebase
@@ -3704,9 +3752,19 @@ function unsubscribeFromPesticideRecords() {
    never write `active`. Records carry `qbId`/`source` so that sync can match
    and dedupe without disturbing manually-created rows. */
 let customersUnsub = null;
+let customersRetryTimer = null;
 let cachedCustomers = [];
 
 function customersCol() { return collection(fbDb, 'customers'); }
+
+/* Visible per-module indicator for a dead Firestore stream (M5). */
+function showStreamError(containerId, label) {
+  const el = document.getElementById(containerId);
+  if (!el) return;
+  el.innerHTML = `<div class="empty" style="padding:16px;color:var(--amber,#c4772a);">` +
+    `<div class="em-title">${label} sync interrupted</div>` +
+    `<div>Lost connection to the server — showing possibly stale data. Reconnecting…</div></div>`;
+}
 
 function subscribeToCustomers() {
   if (customersUnsub) return;
@@ -3718,7 +3776,13 @@ function subscribeToCustomers() {
       renderCustomerList();
     }
     if (!$('#view-settings').classList.contains('hidden')) renderSettingsStatus();
-  }, (err) => console.error('Customers subscription error', err));
+  }, (err) => {
+    console.error('Customers subscription error', err);
+    showStreamError('customerList', 'Customer');
+    customersUnsub = null;
+    if (customersRetryTimer) clearTimeout(customersRetryTimer);
+    customersRetryTimer = setTimeout(() => { if (currentUser) subscribeToCustomers(); }, 5000);
+  });
 }
 function unsubscribeFromCustomers() {
   if (customersUnsub) { customersUnsub(); customersUnsub = null; }
@@ -3786,6 +3850,7 @@ const ESTIMATE_EMAILJS_TEMPLATE_ID = '';
 
 let cachedEstimates = [];
 let estimatesUnsub = null;
+let estimatesRetryTimer = null;
 let editingEstimateId = null;   // set while editing an existing Draft
 let currentEstimateId = null;   // estimate open in the detail view
 let builderLines = [];          // line items being assembled
@@ -3818,7 +3883,13 @@ function subscribeToEstimates() {
         renderEstimateDetail(currentEstimateId);
       }
     }
-  }, (err) => console.error('Estimates subscription error', err));
+  }, (err) => {
+    console.error('Estimates subscription error', err);
+    showStreamError('estimatesList', 'Estimate');
+    estimatesUnsub = null;
+    if (estimatesRetryTimer) clearTimeout(estimatesRetryTimer);
+    estimatesRetryTimer = setTimeout(() => { if (currentUser) subscribeToEstimates(); }, 5000);
+  });
 }
 function unsubscribeFromEstimates() {
   if (estimatesUnsub) { estimatesUnsub(); estimatesUnsub = null; }
@@ -7323,6 +7394,7 @@ async function wipeAll() {
  * ===================================================================== */
 let cachedJobs = [];
 let jobsUnsub = null;
+let jobsRetryTimer = null;
 let editingJobId = null;
 let currentJobId = null;
 let jobFormCustomer = null;
@@ -7390,7 +7462,14 @@ function subscribeToJobs() {
       if (!$('#view-schedule').classList.contains('hidden')) renderSchedule();
       if (currentJobId && !$('#view-schedule-detail').classList.contains('hidden')) renderJobDetail(currentJobId);
     }
-  }, (err) => console.error('Jobs subscription error', err));
+  }, (err) => {
+    console.error('Jobs subscription error', err);
+    showStreamError('calendarWrap', 'Schedule');
+    showStreamError('agendaWrap', 'Schedule');
+    jobsUnsub = null;
+    if (jobsRetryTimer) clearTimeout(jobsRetryTimer);
+    jobsRetryTimer = setTimeout(() => { if (currentUser) subscribeToJobs(); }, 5000);
+  });
 }
 function unsubscribeFromJobs() {
   if (jobsUnsub) { jobsUnsub(); jobsUnsub = null; }
@@ -8641,6 +8720,7 @@ async function init() {
   });
 
   onAuthStateChanged(fbAuth, async (user) => {
+    markBootResolved();   /* first auth-state callback = boot succeeded (H4) */
     currentUser = user;
     if (user) {
       const trapper = EMAIL_TO_TRAPPER[user.email.toLowerCase()];
