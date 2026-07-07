@@ -8120,7 +8120,7 @@ async function handleSaveCustomer(e) {
   if (!c.name) { toast('Customer name is required', 'error'); $('#c-name').focus(); return; }
   if (c.email && !EMAIL_RE.test(c.email)) { toast('Enter a valid email or leave it blank', 'error'); return; }
   if (c.phone && !isValidPhone(c.phone)) { toast('Phone must be 10 digits or left blank', 'error'); $('#c-phone').focus(); return; }
-  if (c.zip && !/^\d{5}$/.test(c.zip)) { toast('ZIP must be 5 digits or left blank', 'error'); $('#c-zip').focus(); return; }
+  if (c.zip && !/^\d{5}(-\d{4})?$/.test(c.zip)) { toast('ZIP must be 5 digits (or ZIP+4) or left blank', 'error'); $('#c-zip').focus(); return; }
   if (c.phone) c.phone = formatPhone(c.phone);
   c.name = titleCaseName(c.name);
   const btn = $('#saveCustomerBtn');
