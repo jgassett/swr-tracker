@@ -4073,39 +4073,48 @@ async function rejectEstimate(id) {
   toast('Estimate rejected');
 }
 
-async function approveAndPushEstimate(id) {
+async function approveAndPushEstimate(id, btn) {
   const e = cachedEstimates.find((x) => x.id === id);
   if (!e) return;
+  if (btn) btn.disabled = true;   /* block a double-tap before any async call fires */
   toast('Pushing to QuickBooks…');
   try {
-    const call = httpsCallable(fbFunctions, 'qbPushEstimate');
+    const call = httpsCallable(fbFunctions, 'qbPushEstimate', { timeout: 120000 });
     const res = await call({ estimateId: id });
     const r = (res && res.data) || {};
     toast('Approved — pushed to QuickBooks');
     sendEstimateApprovedEmail(e, r);
+    /* On success the estimate status changes and the detail re-renders,
+       replacing this button — so we intentionally leave it disabled. */
   } catch (err) {
     const code = (err && err.code) || '';
     let msg = (err && err.message) || 'Push failed';
     if (code === 'functions/permission-denied') msg = 'Only an administrator can approve estimates.';
-    else if (code === 'functions/failed-precondition') msg = msg; // already descriptive (not connected / no qbId)
+    else if (code === 'functions/deadline-exceeded') msg = 'QuickBooks is taking longer than expected — check QuickBooks before retrying to avoid a duplicate.';
+    else if (code === 'functions/failed-precondition') msg = msg; // already descriptive (not connected / no qbId / already pushed)
     toast('Push failed: ' + msg, 'error');
+    if (btn) btn.disabled = false;   /* re-enable so a genuine failure can be retried */
   }
 }
 
-async function convertEstimateToInvoice(id) {
+async function convertEstimateToInvoice(id, btn) {
   const e = cachedEstimates.find((x) => x.id === id);
   if (!e) return;
   if (!confirm(`Create a QuickBooks invoice from ${e.estimateNumber || 'this estimate'} for ${e.customerName || 'this customer'}?`)) return;
+  if (btn) btn.disabled = true;   /* block a double-tap before any async call fires */
   toast('Creating invoice…');
   try {
-    const res = await httpsCallable(fbFunctions, 'qbConvertToInvoice')({ estimateId: id });
+    const res = await httpsCallable(fbFunctions, 'qbConvertToInvoice', { timeout: 120000 })({ estimateId: id });
     const r = (res && res.data) || {};
     toast(r.qbInvoiceNumber ? `Invoiced (QB #${r.qbInvoiceNumber})` : 'Invoice created in QuickBooks');
+    /* Success re-renders the detail and replaces this button; leave it disabled. */
   } catch (err) {
     const code = (err && err.code) || '';
     let msg = (err && err.message) || 'Invoice failed';
     if (code === 'functions/permission-denied') msg = 'Only an administrator can create invoices.';
+    else if (code === 'functions/deadline-exceeded') msg = 'QuickBooks is taking longer than expected — check QuickBooks before retrying to avoid a duplicate.';
     toast('Invoice failed: ' + msg, 'error');
+    if (btn) btn.disabled = false;   /* re-enable so a genuine failure can be retried */
   }
 }
 
@@ -7743,7 +7752,7 @@ async function handleSaveCustomer(e) {
     /* New customers also get created in QuickBooks (fire-and-forget so the
        save/navigation isn't blocked). Edits and QB-synced rows are skipped. */
     if (!wasEdit && savedId) {
-      httpsCallable(fbFunctions, 'qbCreateCustomer')({ customerId: savedId })
+      httpsCallable(fbFunctions, 'qbCreateCustomer', { timeout: 120000 })({ customerId: savedId })
         .then((res) => { if (res && res.data && res.data.qbId) toast('Added to QuickBooks'); })
         .catch((err) => {
           const code = (err && err.code) || '';
@@ -7786,7 +7795,7 @@ async function handleSyncNow() {
   if (btn) { btn.disabled = true; btn.textContent = 'Syncing…'; }
   if (status) { status.style.color = 'var(--ink-soft)'; status.textContent = 'Contacting QuickBooks…'; }
   try {
-    const call = httpsCallable(fbFunctions, 'qbSyncNow');
+    const call = httpsCallable(fbFunctions, 'qbSyncNow', { timeout: 300000 });
     const res = await call();
     const r = (res && res.data) || {};
     if (status) {
@@ -8327,9 +8336,9 @@ async function init() {
     else if (action === 'edit') editEstimate(id);
     else if (action === 'submit') submitEstimateForApproval(id);
     else if (action === 'delete') deleteEstimateDraft(id);
-    else if (action === 'approve') approveAndPushEstimate(id);
+    else if (action === 'approve') approveAndPushEstimate(id, btn);
     else if (action === 'reject') rejectEstimate(id);
-    else if (action === 'invoice') convertEstimateToInvoice(id);
+    else if (action === 'invoice') convertEstimateToInvoice(id, btn);
   });
 
   /* ---- Job Scheduling wiring ---- */

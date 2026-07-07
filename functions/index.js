@@ -452,25 +452,52 @@ exports.qbPushEstimate = functions
     }
 
     const estRef = db.doc(`estimates/${estimateId}`);
-    const estSnap = await estRef.get();
-    if (!estSnap.exists) throw new functions.https.HttpsError('not-found', 'Estimate not found.');
-    const est = estSnap.data();
 
-    if (!est.customerId) {
-      throw new functions.https.HttpsError('failed-precondition', 'Estimate has no customer.');
+    /* Atomically claim the push so two concurrent taps can't both POST to Intuit
+       (C1), and a retry after an already-completed push can't duplicate (C2).
+       Aborts if the estimate is already pushed or another push is in flight. The
+       external Intuit POST happens AFTER this transaction commits — a Firestore
+       transaction must never span a network call (it may be retried). */
+    let est, qbId;
+    try {
+      const claim = await db.runTransaction(async (tx) => {
+        const snap = await tx.get(estRef);
+        if (!snap.exists) throw new functions.https.HttpsError('not-found', 'Estimate not found.');
+        const e = snap.data();
+        if (e.qbEstimateId) {
+          throw new functions.https.HttpsError('failed-precondition', 'This estimate has already been pushed to QuickBooks.');
+        }
+        const inFlight = e.qbPushInProgress ? Date.parse(e.qbPushInProgress) : 0;
+        if (inFlight && (Date.now() - inFlight) < 2 * 60 * 1000) {
+          throw new functions.https.HttpsError('failed-precondition', 'A push for this estimate is already in progress — wait a moment before retrying.');
+        }
+        if (!e.customerId) {
+          throw new functions.https.HttpsError('failed-precondition', 'Estimate has no customer.');
+        }
+        const custSnap = await tx.get(db.doc(`customers/${e.customerId}`));
+        const cid = custSnap.exists ? custSnap.get('qbId') : null;
+        if (!cid) {
+          throw new functions.https.HttpsError('failed-precondition',
+            'This customer isn’t linked to QuickBooks yet (no qbId). Make sure the customer ' +
+            'exists in QuickBooks / run a customer sync, then retry.');
+        }
+        tx.update(estRef, { qbPushInProgress: new Date().toISOString() });
+        return { est: e, qbId: cid };
+      });
+      est = claim.est; qbId = claim.qbId;
+    } catch (err) {
+      if (err instanceof functions.https.HttpsError) throw err;
+      throw new functions.https.HttpsError('aborted', err.message || 'Could not start the push.');
     }
-    const custSnap = await db.doc(`customers/${est.customerId}`).get();
-    const qbId = custSnap.exists ? custSnap.get('qbId') : null;
-    if (!qbId) {
-      throw new functions.https.HttpsError('failed-precondition',
-        'This customer isn’t linked to QuickBooks yet (no qbId). Make sure the customer ' +
-        'exists in QuickBooks / run a customer sync, then retry.');
-    }
+
+    /* Cleared on every exit path below so a failed push doesn't wedge the lock. */
+    const clearLock = () => ({ qbPushInProgress: admin.firestore.FieldValue.delete() });
 
     let accessToken, realmId;
     try {
       ({ accessToken, realmId } = await getValidAccessToken());
     } catch (err) {
+      await estRef.set({ ...clearLock(), updatedAt: new Date().toISOString() }, { merge: true });
       throw new functions.https.HttpsError('failed-precondition',
         err.message || 'QuickBooks not connected.');
     }
@@ -501,6 +528,7 @@ exports.qbPushEstimate = functions
         pushedAt: new Date().toISOString(),
         pushedByEmail: email,
         updatedAt: new Date().toISOString(),
+        ...clearLock(),
         pushError: admin.firestore.FieldValue.delete()
       }, { merge: true });
 
@@ -514,6 +542,7 @@ exports.qbPushEstimate = functions
       console.error('Estimate push failed', err);
       await estRef.set({
         pushError: String(err.message).slice(0, 500),
+        ...clearLock(),
         updatedAt: new Date().toISOString()
       }, { merge: true });
       throw new functions.https.HttpsError('internal', err.message || 'QuickBooks estimate push failed.');
@@ -538,24 +567,46 @@ exports.qbConvertToInvoice = functions
     if (!estimateId) throw new functions.https.HttpsError('invalid-argument', 'estimateId is required.');
 
     const estRef = db.doc(`estimates/${estimateId}`);
-    const estSnap = await estRef.get();
-    if (!estSnap.exists) throw new functions.https.HttpsError('not-found', 'Estimate not found.');
-    const est = estSnap.data();
-    if (est.qbInvoiceId) {
-      throw new functions.https.HttpsError('failed-precondition', 'This estimate has already been invoiced.');
+
+    /* Atomically claim the invoice conversion so a double-tap can't create two
+       invoices (H7) and a retry after a completed conversion can't duplicate.
+       The Intuit POST runs AFTER this transaction commits (see qbPushEstimate). */
+    let est, qbId;
+    try {
+      const claim = await db.runTransaction(async (tx) => {
+        const snap = await tx.get(estRef);
+        if (!snap.exists) throw new functions.https.HttpsError('not-found', 'Estimate not found.');
+        const e = snap.data();
+        if (e.qbInvoiceId) {
+          throw new functions.https.HttpsError('failed-precondition', 'This estimate has already been invoiced.');
+        }
+        const inFlight = e.qbInvoiceInProgress ? Date.parse(e.qbInvoiceInProgress) : 0;
+        if (inFlight && (Date.now() - inFlight) < 2 * 60 * 1000) {
+          throw new functions.https.HttpsError('failed-precondition', 'An invoice for this estimate is already in progress — wait a moment before retrying.');
+        }
+        if (!e.customerId) throw new functions.https.HttpsError('failed-precondition', 'Estimate has no customer.');
+        const custSnap = await tx.get(db.doc(`customers/${e.customerId}`));
+        const cid = custSnap.exists ? custSnap.get('qbId') : null;
+        if (!cid) {
+          throw new functions.https.HttpsError('failed-precondition',
+            'This customer isn’t linked to QuickBooks yet (no qbId). Run a customer sync, then retry.');
+        }
+        tx.update(estRef, { qbInvoiceInProgress: new Date().toISOString() });
+        return { est: e, qbId: cid };
+      });
+      est = claim.est; qbId = claim.qbId;
+    } catch (err) {
+      if (err instanceof functions.https.HttpsError) throw err;
+      throw new functions.https.HttpsError('aborted', err.message || 'Could not start the invoice.');
     }
-    if (!est.customerId) throw new functions.https.HttpsError('failed-precondition', 'Estimate has no customer.');
-    const custSnap = await db.doc(`customers/${est.customerId}`).get();
-    const qbId = custSnap.exists ? custSnap.get('qbId') : null;
-    if (!qbId) {
-      throw new functions.https.HttpsError('failed-precondition',
-        'This customer isn’t linked to QuickBooks yet (no qbId). Run a customer sync, then retry.');
-    }
+
+    const clearLock = () => ({ qbInvoiceInProgress: admin.firestore.FieldValue.delete() });
 
     let accessToken, realmId;
     try {
       ({ accessToken, realmId } = await getValidAccessToken());
     } catch (err) {
+      await estRef.set({ ...clearLock(), updatedAt: new Date().toISOString() }, { merge: true });
       throw new functions.https.HttpsError('failed-precondition', err.message || 'QuickBooks not connected.');
     }
 
@@ -590,6 +641,7 @@ exports.qbConvertToInvoice = functions
         invoicedAt: new Date().toISOString(),
         invoicedByEmail: email,
         updatedAt: new Date().toISOString(),
+        ...clearLock(),
         invoiceError: admin.firestore.FieldValue.delete()
       }, { merge: true });
 
@@ -598,6 +650,7 @@ exports.qbConvertToInvoice = functions
       console.error('Invoice creation failed', err);
       await estRef.set({
         invoiceError: String(err.message).slice(0, 500),
+        ...clearLock(),
         updatedAt: new Date().toISOString()
       }, { merge: true });
       throw new functions.https.HttpsError('internal', err.message || 'QuickBooks invoice creation failed.');
@@ -626,6 +679,24 @@ exports.qbCreateCustomer = functions
       ({ accessToken, realmId } = await getValidAccessToken());
     } catch (err) {
       throw new functions.https.HttpsError('failed-precondition', err.message || 'QuickBooks not connected.');
+    }
+
+    /* Prevent duplicate QBO customers: if one already exists with this exact
+       DisplayName, link to it instead of creating a second. Covers the case
+       where a manual customer wasn't linked at first (e.g. QBO was disconnected)
+       and now matches a customer already present in QuickBooks. A failed lookup
+       must not block creation, so fall through on error. */
+    try {
+      const escaped = String(c.name).replace(/'/g, "\\'");
+      const dup = await qboQuery(realmId, accessToken,
+        `SELECT Id FROM Customer WHERE DisplayName = '${escaped}'`);
+      const existing = dup.QueryResponse && dup.QueryResponse.Customer && dup.QueryResponse.Customer[0];
+      if (existing && existing.Id) {
+        await ref.set({ qbId: existing.Id, updatedAt: new Date().toISOString() }, { merge: true });
+        return { qbId: existing.Id, alreadyLinked: true };
+      }
+    } catch (err) {
+      console.error('QBO duplicate-name lookup failed; proceeding to create', err);
     }
 
     const payload = { DisplayName: c.name };
