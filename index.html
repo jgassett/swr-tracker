@@ -3177,6 +3177,14 @@ function escapeHtml(s) {
   return String(s).replace(/[&<>"']/g, (c) => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
 }
 
+/* Only allow http(s) URLs into an href — neutralizes javascript:/data: schemes
+   in stored fields (e.g. a pesticide sdsUrl/labelUrl an operator could set).
+   Combine with escapeHtml for the attribute context: escapeHtml(safeUrl(u)). */
+function safeUrl(u) {
+  const s = String(u == null ? '' : u).trim();
+  return /^https?:\/\//i.test(s) ? s : '#';
+}
+
 /* ---------- Screen routing ---------- */
 function hideSplash() {
   $('#splashScreen').classList.add('hidden');
@@ -6122,8 +6130,8 @@ function renderPesticideAdminList() {
       <div style="min-width: 0; flex: 1;">
         <div class="name">${escapeHtml(p.name)}</div>
         <div class="meta">${escapeHtml(p.activeIngredient || '')} · EPA ${escapeHtml(p.epaReg || '')} · ${escapeHtml(String(p.concentration ?? ''))}%</div>
-        ${p.sdsUrl ? `<a href="${escapeHtml(p.sdsUrl)}" target="_blank" rel="noopener" style="font-size: 11px; color: var(--amber); text-decoration: none; margin-right: 8px;">📄 SDS</a>` : ''}
-        ${p.labelUrl ? `<a href="${escapeHtml(p.labelUrl)}" target="_blank" rel="noopener" style="font-size: 11px; color: var(--amber); text-decoration: none;">📋 Label</a>` : ''}
+        ${p.sdsUrl ? `<a href="${escapeHtml(safeUrl(p.sdsUrl))}" target="_blank" rel="noopener" style="font-size: 11px; color: var(--amber); text-decoration: none; margin-right: 8px;">📄 SDS</a>` : ''}
+        ${p.labelUrl ? `<a href="${escapeHtml(safeUrl(p.labelUrl))}" target="_blank" rel="noopener" style="font-size: 11px; color: var(--amber); text-decoration: none;">📋 Label</a>` : ''}
       </div>
       <div class="actions">
         <button class="pill-btn" data-edit="${escapeHtml(p.id)}">Edit</button>
@@ -6142,7 +6150,7 @@ function openPesticideEditor(pesticide) {
   $('#pestConc').value = pesticide ? pesticide.concentration : '';
   const sdsPreview = $('#sdsPreview');
   if (pesticide && pesticide.sdsUrl) {
-    sdsPreview.innerHTML = `✓ SDS uploaded — <a href="${escapeHtml(pesticide.sdsUrl)}" target="_blank" rel="noopener">view current</a>. Pick a new file to replace.`;
+    sdsPreview.innerHTML = `✓ SDS uploaded — <a href="${escapeHtml(safeUrl(pesticide.sdsUrl))}" target="_blank" rel="noopener">view current</a>. Pick a new file to replace.`;
     sdsPreview.className = 'hint success';
   } else {
     sdsPreview.textContent = 'No SDS uploaded yet.';
@@ -6150,7 +6158,7 @@ function openPesticideEditor(pesticide) {
   }
   const labelPreview = $('#labelPreview');
   if (pesticide && pesticide.labelUrl) {
-    labelPreview.innerHTML = `✓ Label uploaded — <a href="${escapeHtml(pesticide.labelUrl)}" target="_blank" rel="noopener">view current</a>. Pick a new file to replace.`;
+    labelPreview.innerHTML = `✓ Label uploaded — <a href="${escapeHtml(safeUrl(pesticide.labelUrl))}" target="_blank" rel="noopener">view current</a>. Pick a new file to replace.`;
     labelPreview.className = 'hint success';
   } else {
     labelPreview.textContent = 'No label uploaded yet.';
@@ -6382,8 +6390,8 @@ function handleBrandSelectChange(i) {
     const p = cachedPesticides.find((x) => x.id === sel.value);
     if (linksEl && p) {
       const parts = [];
-      if (p.sdsUrl) parts.push(`<a href="${escapeHtml(p.sdsUrl)}" target="_blank" rel="noopener" style="color: var(--amber); text-decoration: none; font-weight: 600;">📄 View SDS</a>`);
-      if (p.labelUrl) parts.push(`<a href="${escapeHtml(p.labelUrl)}" target="_blank" rel="noopener" style="color: var(--amber); text-decoration: none; font-weight: 600;">📋 View Label</a>`);
+      if (p.sdsUrl) parts.push(`<a href="${escapeHtml(safeUrl(p.sdsUrl))}" target="_blank" rel="noopener" style="color: var(--amber); text-decoration: none; font-weight: 600;">📄 View SDS</a>`);
+      if (p.labelUrl) parts.push(`<a href="${escapeHtml(safeUrl(p.labelUrl))}" target="_blank" rel="noopener" style="color: var(--amber); text-decoration: none; font-weight: 600;">📋 View Label</a>`);
       linksEl.innerHTML = parts.join('');
     }
   } else {

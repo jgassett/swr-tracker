@@ -3,6 +3,15 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
+    function signedIn() { return request.auth != null; }
+
+    /* Admin gate — mirrors ADMIN_EMAILS in the app and in Cloud Functions. */
+    function isAdmin() {
+      return signedIn()
+        && request.auth.token.email != null
+        && request.auth.token.email.lower() == 'jon@southern-wildlife.com';
+    }
+
     /* Trap records — shared by all three trappers. */
     match /records/{recordId} {
       allow read:   if request.auth != null;
@@ -35,11 +44,15 @@ service cloud.firestore {
        write here too. The app-controlled `active` flag is never touched by
        that sync. Same auth pattern as the other shared collections. */
     match /customers/{customerId} {
-      allow read:   if request.auth != null;
-      allow create: if request.auth != null
+      allow read:   if signedIn();
+      allow create: if signedIn()
                     && request.resource.data.createdByUid == request.auth.uid;
-      allow update: if request.auth != null;
-      allow delete: if request.auth != null;
+      /* Shared edits are fine, but qbId (the QuickBooks CustomerRef used by the
+         estimate/invoice push) is set only by the QB sync / qbCreateCustomer
+         function via the Admin SDK — clients may never change it. */
+      allow update: if signedIn()
+                    && request.resource.data.get('qbId', null) == resource.data.get('qbId', null);
+      allow delete: if signedIn();
     }
 
     /* Job estimates (Pricing Constructor). Shared like the other collections.
@@ -47,11 +60,26 @@ service cloud.firestore {
        Cloud Function (qbPushEstimate), which writes qbEstimateId / the
        "Pushed to QB" status via the Admin SDK (bypassing these rules). */
     match /estimates/{estimateId} {
-      allow read:   if request.auth != null;
-      allow create: if request.auth != null
+      allow read:   if signedIn();
+      allow create: if signedIn()
                     && request.resource.data.createdByUid == request.auth.uid;
-      allow update: if request.auth != null;
-      allow delete: if request.auth != null;
+
+      /* Admin may make any client-side change (e.g. Reject). The approve → push
+         and convert-to-invoice writes come from Cloud Functions via the Admin
+         SDK and bypass these rules. A non-admin owner may edit or submit their
+         OWN estimate only while it is still Draft or Rejected, may not change
+         its ownership, and may never self-promote it to a QuickBooks state. */
+      allow update: if isAdmin()
+                    || (signedIn()
+                        && resource.data.createdByUid == request.auth.uid
+                        && resource.data.status in ['Draft', 'Rejected']
+                        && request.resource.data.createdByUid == resource.data.createdByUid
+                        && !(request.resource.data.status in ['Pushed to QB', 'Invoiced']));
+
+      /* Deletable only before it reaches QuickBooks — enforces at the rules
+         layer what the app previously only checked client-side. */
+      allow delete: if signedIn()
+                    && resource.data.status in ['Draft', 'Pending Approval', 'Rejected'];
     }
 
     /* Job schedule (Phase 4). Shared across the crew like the other
@@ -101,8 +129,10 @@ service cloud.firestore {
 
     /* Org-level settings (business name, permit, applicator certs, etc.). */
     match /org/{docId} {
-      allow read:  if request.auth != null;
-      allow write: if request.auth != null;
+      allow read:  if signedIn();
+      /* Business name, permit numbers, applicator certs and photo-retention are
+         admin-only (the app already gates the UI on isAdmin). */
+      allow write: if isAdmin();
     }
 
     /* Deny everything else by default. */

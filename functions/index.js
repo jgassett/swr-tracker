@@ -390,25 +390,19 @@ exports.qbCallback = functions
     }
   });
 
-/* Disconnect landing URL. Intuit redirects here when a user disconnects the
- * app from within QuickBooks (Apps → Disconnect). At that point Intuit has
- * already revoked the tokens, so we just clear our stored connection: drop the
- * tokens and flag needsReauth, which stops the daily sync from erroring and
- * tells the app to reconnect. */
+/* Disconnect landing URL. Intuit redirects the *user's browser* here when they
+ * disconnect the app from within QuickBooks (Apps → Disconnect). This is an
+ * unauthenticated, unsigned redirect — anyone can hit the URL — so it MUST NOT
+ * mutate stored state, or it becomes a one-request DoS on the integration
+ * (wipe tokens / force a reconnect for everyone).
+ *
+ * We don't need to clear anything here anyway: once Intuit revokes the tokens,
+ * the next sync's refresh gets invalid_grant and getValidAccessToken() already
+ * sets needsReauth (and the app prompts a reconnect). So this handler is purely
+ * informational. */
 exports.qbDisconnect = functions
   .region(REGION)
-  .https.onRequest(async (req, res) => {
-    try {
-      await TOKEN_DOC.set({
-        accessToken: admin.firestore.FieldValue.delete(),
-        refreshToken: admin.firestore.FieldValue.delete(),
-        needsReauth: true,
-        disconnectedAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      }, { merge: true });
-    } catch (err) {
-      console.error('Disconnect cleanup failed', err);
-    }
+  .https.onRequest((req, res) => {
     res.status(200).send(htmlPage('QuickBooks disconnected',
       'This app has been disconnected from QuickBooks. To resume syncing, ' +
       'reconnect from the app’s Settings → Connect QuickBooks.'));
