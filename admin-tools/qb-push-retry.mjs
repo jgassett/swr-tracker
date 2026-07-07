@@ -12,6 +12,8 @@
  *   node qb-push-retry.mjs                 # list customers missing a qbId
  *   node qb-push-retry.mjs <docId>         # push one customer by Firestore doc id
  *   node qb-push-retry.mjs --all           # push every customer missing a qbId
+ *   node qb-push-retry.mjs --find <text>   # show docId + qbId for customers whose name matches
+ *   node qb-push-retry.mjs --unlink <docId># clear a stale qbId so the customer can be re-pushed
  *
  * You'll be prompted for Employee ID and PIN (PIN input is hidden).
  * Requires Node 18+ (built-in fetch).
@@ -99,10 +101,37 @@ async function pushOne(idToken, docId) {
   return json.result || {};
 }
 
+async function unlinkOne(idToken, docId) {
+  const url = `${FS_BASE}/customers/${docId}?updateMask.fieldPaths=qbId&updateMask.fieldPaths=updatedAt`;
+  const res = await fetch(url, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` },
+    body: JSON.stringify({
+      fields: { qbId: { nullValue: null }, updatedAt: { stringValue: new Date().toISOString() } }
+    })
+  });
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(`Unlink failed: ${JSON.stringify(json.error || json)}`);
+}
+
 const arg = process.argv[2];
+const arg2 = process.argv[3];
 const idToken = await signIn();
 
-if (!arg) {
+if (arg === '--find') {
+  if (!arg2) { console.log('Usage: node qb-push-retry.mjs --find <name text>'); process.exit(1); }
+  const customers = await fetchAllCustomers(idToken);
+  const q = arg2.toLowerCase();
+  const hits = customers.filter((c) => (c.name || '').toLowerCase().includes(q));
+  if (!hits.length) { console.log(`No customer name contains "${arg2}".`); process.exit(0); }
+  for (const c of hits) {
+    console.log(`  ${c.id}   ${c.name || '(no name)'}   qbId: ${c.qbId || '(none)'}${c.active ? '' : '   [inactive]'}${c.source ? `   (source: ${c.source})` : ''}`);
+  }
+} else if (arg === '--unlink') {
+  if (!arg2) { console.log('Usage: node qb-push-retry.mjs --unlink <docId>'); process.exit(1); }
+  await unlinkOne(idToken, arg2);
+  console.log(`✓ Cleared qbId on ${arg2}. Now push it fresh:\n   node qb-push-retry.mjs ${arg2}`);
+} else if (!arg) {
   /* List mode: catches qbId === null AND docs where the field is missing entirely. */
   const customers = await fetchAllCustomers(idToken);
   const missing = customers.filter((c) => !c.qbId);
