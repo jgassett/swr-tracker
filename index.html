@@ -2114,12 +2114,12 @@
           <input type="text" id="j-title" placeholder="e.g. Raccoon trap setup" required>
         </div>
         <div class="form-group">
-          <label for="j-customer">Customer</label>
+          <label for="j-customer">Customer<span class="req">*</span></label>
           <div class="autocomplete-wrap">
             <input type="text" id="j-customer" placeholder="Search customers…" autocomplete="off">
             <div class="autocomplete-list hidden" id="j-customer-ac"></div>
           </div>
-          <div class="hint" id="j-customer-hint"></div>
+          <div class="hint" id="j-customer-hint">Pick a customer already on file — add them in Customers first if needed.</div>
         </div>
         <div class="form-group">
           <label for="j-estimate">Linked estimate<span class="opt">(optional)</span></label>
@@ -2718,7 +2718,7 @@ let orgSettings = {
 };
 
 const PESTICIDE_EMAILJS_TEMPLATE_ID = 'template_4aa3u5a';
-const APP_VERSION = 'v1.46';  /* bump in lockstep with the SW cache version */
+const APP_VERSION = 'v1.47';  /* bump in lockstep with the SW cache version */
 /* Single source of truth: keep the footer label in sync with APP_VERSION so
    the two version displays can't drift apart again. */
 { const _fv = document.getElementById('footerVersion'); if (_fv) _fv.textContent = APP_VERSION; }
@@ -7228,7 +7228,10 @@ async function handleSaveJob(e) {
   const startTime = $('#j-start').value;
   const durationMins = parseInt($('#j-duration').value, 10) || 60;
   const assignees = selectedAssignees();
+  /* If the customer field was cleared/retyped without picking, drop the stale link. */
+  if (!$('#j-customer').value.trim()) jobFormCustomer = null;
   if (!title) { toast('Job title is required', 'error'); $('#j-title').focus(); return; }
+  if (!jobFormCustomer || !jobFormCustomer.id) { toast('Pick an existing customer for this job', 'error'); $('#j-customer').focus(); return; }
   if (!date || !startTime) { toast('Date and start time are required', 'error'); return; }
   if (!assignees.length) { toast('Assign at least one person', 'error'); return; }
   const conflicts = checkJobConflicts();
