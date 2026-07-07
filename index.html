@@ -846,6 +846,8 @@
     .sync-indicator[data-state="syncing"] .label { color: var(--amber-soft); }
     .sync-indicator[data-state="offline"] .dot { background: #888; }
     .sync-indicator[data-state="offline"] .label { color: #999; }
+    .sync-indicator[data-state="queued"] .dot { background: var(--amber); }
+    .sync-indicator[data-state="queued"] .label { color: var(--amber-soft); }
     .sync-indicator[data-state="error"] .dot { background: var(--danger); }
     .sync-indicator[data-state="error"] .label { color: #E08070; }
     @keyframes swrPulse {
@@ -1201,6 +1203,13 @@
   <div class="splash-spinner" aria-hidden="true"></div>
 </div>
 
+<!-- Fatal boot-error screen (H4): shown if Firebase can't be reached or init fails -->
+<div id="fatalError" class="hidden" onclick="window.location.reload()" style="position:fixed;inset:0;z-index:99999;background:#1c2b22;color:#f5efe0;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;text-align:center;font-family:-apple-system,system-ui,sans-serif;">
+  <h1 style="font-size:22px;margin:0 0 12px;color:#f5efe0;">Can’t reach the server</h1>
+  <p style="max-width:340px;line-height:1.5;margin:0 0 20px;">Cannot reach the server — check your connection and tap to reload.</p>
+  <button type="button" onclick="event.stopPropagation(); window.location.reload();" style="background:#c4772a;color:#fff;border:none;border-radius:10px;padding:12px 28px;font-size:16px;font-weight:600;cursor:pointer;">Reload</button>
+</div>
+
 <!-- Sign-in screen -->
 <div id="signInScreen" class="hidden">
   <div class="signin-wrap">
@@ -1341,6 +1350,7 @@
       </div>
     </div>
     <div class="header-right">
+      <span id="pendingPhotoIndicator" class="hidden" style="font-size:12px;color:var(--amber,#c4772a);align-self:center;margin-right:8px;white-space:nowrap;" title="Photos waiting to upload">📷 <span class="label">pending</span></span>
       <button type="button" class="sync-indicator" id="syncIndicator" data-state="offline" title="Tap for sync status">
         <span class="dot"></span>
         <span class="label">Offline</span>
@@ -2526,6 +2536,38 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-messaging.js";
 
 /* =====================================================================
+ * Boot resilience (H4) — surface a reload screen instead of an endless
+ * spinner or blank app when Firebase can't be reached or init fails.
+ * ===================================================================== */
+let bootResolved = false;
+let bootWatchdog = null;
+function showBootFatalError() {
+  if (bootResolved) return;
+  try {
+    const splash = document.getElementById('splashScreen');
+    if (splash) splash.classList.add('hidden');
+    const fatal = document.getElementById('fatalError');
+    if (fatal) fatal.classList.remove('hidden');
+  } catch (_) { /* last resort — nothing more we can do */ }
+}
+function markBootResolved() {
+  bootResolved = true;
+  if (bootWatchdog) { clearTimeout(bootWatchdog); bootWatchdog = null; }
+}
+/* If the first onAuthStateChanged callback hasn't fired within 10s, the app
+   can't reach Firebase — show the fatal screen. */
+bootWatchdog = setTimeout(() => { if (!bootResolved) showBootFatalError(); }, 10000);
+/* Any uncaught boot-time error should surface the fatal screen too, not fail
+   silently. The bootResolved guard means these only fire during startup. */
+window.onerror = function (msg, src, line, col, err) {
+  if (!bootResolved) { console.error('Uncaught boot error', err || msg); showBootFatalError(); }
+  return false;
+};
+window.addEventListener('unhandledrejection', (e) => {
+  if (!bootResolved) { console.error('Unhandled boot rejection', e && e.reason); showBootFatalError(); }
+});
+
+/* =====================================================================
  * Southern Wildlife Tracker
  * Firebase-backed records (with offline cache); IndexedDB for local
  * device settings (PIN, business info, migration flag).
@@ -2540,15 +2582,24 @@ const firebaseConfig = {
   appId: "1:333363468822:web:a715bb7255d88f6a1cb337"
 };
 
-const fbApp = initializeApp(firebaseConfig);
-const fbAuth = getAuth(fbApp);
-const fbDb = initializeFirestore(fbApp, {
-  localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() })
-});
-const fbStorage = getStorage(fbApp);
-/* Default region (us-central1) matches the gen-1 QuickBooks functions. */
-const fbFunctions = getFunctions(fbApp);
-try { await setPersistence(fbAuth, browserLocalPersistence); } catch (e) { /* private mode */ }
+/* Firebase SDK init (H4): if any of this throws, show the fatal screen and halt
+   rather than leaving a blank app or endless spinner. */
+let fbApp, fbAuth, fbDb, fbStorage, fbFunctions;
+try {
+  fbApp = initializeApp(firebaseConfig);
+  fbAuth = getAuth(fbApp);
+  fbDb = initializeFirestore(fbApp, {
+    localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() })
+  });
+  fbStorage = getStorage(fbApp);
+  /* Default region (us-central1) matches the gen-1 QuickBooks functions. */
+  fbFunctions = getFunctions(fbApp);
+  try { await setPersistence(fbAuth, browserLocalPersistence); } catch (e) { /* private mode */ }
+} catch (e) {
+  console.error('Firebase initialization failed', e);
+  showBootFatalError();
+  throw e;   /* stop the rest of the module — services are unusable */
+}
 
 /* ---- Web push (Firebase Cloud Messaging) ----
    VAPID_KEY = the public "Web Push certificate" key pair from the Firebase
@@ -2769,7 +2820,7 @@ let orgSettings = {
 };
 
 const PESTICIDE_EMAILJS_TEMPLATE_ID = 'template_4aa3u5a';
-const APP_VERSION = 'v1.54';  /* bump in lockstep with the SW cache version */
+const APP_VERSION = 'v1.55';  /* bump in lockstep with the SW cache version */
 /* Single source of truth: keep the footer label in sync with APP_VERSION so
    the two version displays can't drift apart again. */
 { const _fv = document.getElementById('footerVersion'); if (_fv) _fv.textContent = APP_VERSION; }
@@ -2818,12 +2869,12 @@ async function dbPut(record) {
   delete data.id;
   if (record.id) {
     /* update existing — preserve createdByUid/Email if absent */
-    await setDoc(doc(fbDb, 'records', record.id), data, { merge: true });
+    await writeWithRetry(() => setDoc(doc(fbDb, 'records', record.id), data, { merge: true }));
     return record.id;
   }
   data.createdByUid = currentUser ? currentUser.uid : null;
   data.createdByEmail = currentUser ? currentUser.email : null;
-  const ref = await addDoc(recordsCol(), data);
+  const ref = await writeWithRetry(() => addDoc(recordsCol(), data));
   return ref.id;
 }
 async function dbDelete(id) {
@@ -3000,14 +3051,121 @@ function resetPhotoUI() {
   removeExistingPhoto = false;
   hidePhotoPreview();
 }
+/* M10: reject an upload/download that hangs past 30s so a save can't spin
+   forever on a flaky connection. */
+function withUploadTimeout(promise, ms = 30000) {
+  let timer;
+  const timeout = new Promise((_, reject) => {
+    timer = setTimeout(() => reject(new Error('Upload timed out — check your connection and try again')), ms);
+  });
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
+}
+
 async function uploadPendingPhoto() {
   if (!pendingPhotoBlob) return null;
   const photoId = (crypto && crypto.randomUUID ? crypto.randomUUID() : 'p-' + Date.now() + '-' + Math.random().toString(36).slice(2, 9));
   const path = `records/${photoId}/photo.jpg`;
   const ref = storageRef(fbStorage, path);
-  await uploadBytes(ref, pendingPhotoBlob, { contentType: 'image/jpeg' });
-  const url = await getDownloadURL(ref);
+  await withUploadTimeout(uploadBytes(ref, pendingPhotoBlob, { contentType: 'image/jpeg' }));
+  const url = await withUploadTimeout(getDownloadURL(ref));
   return { path, url };
+}
+
+/* ---------- Offline photo queue (H3 / H8) ----------
+   Firebase Storage has no offline write queue (unlike Firestore documents), so a
+   photo captured while offline would be lost. We stash the blob in its own
+   IndexedDB store keyed by "collection:recordId" and upload it on reconnect,
+   then stamp the record's photoUrl. Kept in a separate DB from the legacy
+   swrTrackerDB so it can't interfere with that store's versioning. */
+const PENDING_PHOTO_DB = 'swrPendingPhotos';
+const PENDING_PHOTO_STORE = 'photos';
+let flushingPhotos = false;
+
+function openPendingPhotoDB() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(PENDING_PHOTO_DB, 1);
+    req.onupgradeneeded = () => {
+      const idb = req.result;
+      if (!idb.objectStoreNames.contains(PENDING_PHOTO_STORE)) {
+        idb.createObjectStore(PENDING_PHOTO_STORE, { keyPath: 'key' });
+      }
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+async function putPendingPhoto(entry) {
+  const idb = await openPendingPhotoDB();
+  return new Promise((resolve, reject) => {
+    const t = idb.transaction(PENDING_PHOTO_STORE, 'readwrite');
+    t.objectStore(PENDING_PHOTO_STORE).put(entry);
+    t.oncomplete = () => { idb.close(); resolve(); };
+    t.onerror = () => { idb.close(); reject(t.error); };
+  });
+}
+async function getAllPendingPhotos() {
+  const idb = await openPendingPhotoDB();
+  return new Promise((resolve, reject) => {
+    const t = idb.transaction(PENDING_PHOTO_STORE, 'readonly');
+    const req = t.objectStore(PENDING_PHOTO_STORE).getAll();
+    req.onsuccess = () => { idb.close(); resolve(req.result || []); };
+    req.onerror = () => { idb.close(); reject(req.error); };
+  });
+}
+async function deletePendingPhoto(key) {
+  const idb = await openPendingPhotoDB();
+  return new Promise((resolve, reject) => {
+    const t = idb.transaction(PENDING_PHOTO_STORE, 'readwrite');
+    t.objectStore(PENDING_PHOTO_STORE).delete(key);
+    t.oncomplete = () => { idb.close(); resolve(); };
+    t.onerror = () => { idb.close(); reject(t.error); };
+  });
+}
+async function countPendingPhotos() {
+  try { return (await getAllPendingPhotos()).length; } catch (_) { return 0; }
+}
+
+/* Visible indicator (H3): show a header badge while any photo awaits upload. */
+async function updatePendingPhotoIndicator() {
+  const el = $('#pendingPhotoIndicator');
+  if (!el) return;
+  const n = await countPendingPhotos();
+  const label = el.querySelector('.label');
+  if (n > 0) {
+    el.classList.remove('hidden');
+    el.title = `${n} photo${n === 1 ? '' : 's'} waiting to upload`;
+    if (label) label.textContent = `${n} photo${n === 1 ? '' : 's'} pending`;
+  } else {
+    el.classList.add('hidden');
+  }
+}
+
+/* Upload every queued photo, then stamp its record and clear the entry.
+   Runs on reconnect / app resume / sign-in. Failures stay queued for next time. */
+async function flushPendingPhotos() {
+  if (flushingPhotos || !navigator.onLine || !currentUser) return;
+  flushingPhotos = true;
+  try {
+    const entries = await getAllPendingPhotos();
+    for (const e of entries) {
+      try {
+        const sref = storageRef(fbStorage, e.storagePath);
+        await uploadBytes(sref, e.blob, { contentType: e.contentType || 'image/jpeg' });
+        const url = await getDownloadURL(sref);
+        await setDoc(doc(fbDb, e.collection, e.id),
+          { photoUrl: url, photoPath: e.storagePath, photoPending: false, updatedAt: new Date().toISOString() },
+          { merge: true });
+        await deletePendingPhoto(e.key);
+      } catch (err) {
+        console.error('Pending photo upload failed; will retry on next reconnect', e.key, err);
+      }
+    }
+  } catch (err) {
+    console.error('flushPendingPhotos failed', err);
+  } finally {
+    flushingPhotos = false;
+    updatePendingPhotoIndicator();
+  }
 }
 
 async function sendRecordEmail(rec) {
@@ -3175,6 +3333,14 @@ function confirmDialog(title, body, opts = {}) {
 function escapeHtml(s) {
   if (s == null) return '';
   return String(s).replace(/[&<>"']/g, (c) => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+}
+
+/* Only allow http(s) URLs into an href — neutralizes javascript:/data: schemes
+   in stored fields (e.g. a pesticide sdsUrl/labelUrl an operator could set).
+   Combine with escapeHtml for the attribute context: escapeHtml(safeUrl(u)). */
+function safeUrl(u) {
+  const s = String(u == null ? '' : u).trim();
+  return /^https?:\/\//i.test(s) ? s : '#';
 }
 
 /* ---------- Screen routing ---------- */
@@ -3364,10 +3530,26 @@ function renderLandingCounts() {
 }
 
 /* ---------- Sync indicator ---------- */
+/* M4: track pending (unacknowledged) local writes per collection so the
+   indicator can distinguish "queued offline" from "synced". Each onSnapshot
+   handler stamps its collection's hasPendingWrites flag and re-derives. */
+const pendingWritesByCol = { records: false, customers: false, estimates: false, jobs: false };
+let recordsFromCache = false;
+function anyQueuedWrites() { return Object.values(pendingWritesByCol).some(Boolean); }
+function deriveSyncState() {
+  const queued = anyQueuedWrites();
+  if (!navigator.onLine) return queued ? 'queued' : 'offline';
+  if (lastSyncError) return 'error';
+  if (queued) return 'syncing';
+  return recordsFromCache ? 'offline' : 'synced';
+}
 function updateSyncIndicator(state) {
-  /* state: synced | syncing | offline | error. Updates both the in-app header
-     indicator and the one on the landing page. */
-  const text = state === 'synced' ? 'Synced' : state === 'syncing' ? 'Syncing' : state === 'offline' ? 'Offline' : 'Sync error';
+  /* state: synced | syncing | queued | offline | error. Updates both the in-app
+     header indicator and the one on the landing page. */
+  const text = state === 'synced' ? 'Synced'
+    : state === 'syncing' ? 'Syncing'
+    : state === 'queued' ? 'Queued — will sync when connected'
+    : state === 'offline' ? 'Offline' : 'Sync error';
   ['#syncIndicator', '#syncIndicatorLanding'].forEach((sel) => {
     const el = $(sel);
     if (!el) return;
@@ -3393,7 +3575,7 @@ async function enablePushNotifications() {
       token,
       uid: currentUser ? currentUser.uid : null,
       email: currentUser ? currentUser.email : null,
-      name: currentUser ? (EMAIL_TO_TRAPPER[currentUser.email] || currentUser.email) : null,
+      name: currentUser ? (EMAIL_TO_TRAPPER[currentUser.email.toLowerCase()] || currentUser.email) : null,
       updatedAt: new Date().toISOString()
     }, { merge: true }));
     setStatus('✓ Notifications enabled on this device.', true);
@@ -3428,7 +3610,7 @@ async function autoEnablePushIfGranted() {
       token,
       uid: currentUser ? currentUser.uid : null,
       email: currentUser ? currentUser.email : null,
-      name: currentUser ? (EMAIL_TO_TRAPPER[currentUser.email] || currentUser.email) : null,
+      name: currentUser ? (EMAIL_TO_TRAPPER[currentUser.email.toLowerCase()] || currentUser.email) : null,
       updatedAt: new Date().toISOString()
     }, { merge: true }));
     const status = $('#pushStatus');
@@ -3477,9 +3659,9 @@ function subscribeToRecords() {
   recordsUnsub = onSnapshot(q, { includeMetadataChanges: true }, (snap) => {
     cachedRecords = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
     lastSyncError = null;
-    const fromCache = snap.metadata.fromCache;
-    const pending = snap.metadata.hasPendingWrites;
-    updateSyncIndicator(pending ? 'syncing' : fromCache ? 'offline' : 'synced');
+    recordsFromCache = snap.metadata.fromCache;
+    pendingWritesByCol.records = snap.metadata.hasPendingWrites;
+    updateSyncIndicator(deriveSyncState());
     renderLandingCounts();
     if (!$('#app').classList.contains('hidden') && appMode !== 'customer') {
       renderDashboard();
@@ -3500,6 +3682,8 @@ function subscribeToRecords() {
 function unsubscribeFromRecords() {
   if (recordsUnsub) { recordsUnsub(); recordsUnsub = null; }
   cachedRecords = [];
+  pendingWritesByCol.records = false;
+  recordsFromCache = false;
 }
 
 /* ---------- Org config (shared business + reporting period) ---------- */
@@ -3598,25 +3782,44 @@ function unsubscribeFromPesticideRecords() {
    never write `active`. Records carry `qbId`/`source` so that sync can match
    and dedupe without disturbing manually-created rows. */
 let customersUnsub = null;
+let customersRetryTimer = null;
 let cachedCustomers = [];
 
 function customersCol() { return collection(fbDb, 'customers'); }
+
+/* Visible per-module indicator for a dead Firestore stream (M5). */
+function showStreamError(containerId, label) {
+  const el = document.getElementById(containerId);
+  if (!el) return;
+  el.innerHTML = `<div class="empty" style="padding:16px;color:var(--amber,#c4772a);">` +
+    `<div class="em-title">${label} sync interrupted</div>` +
+    `<div>Lost connection to the server — showing possibly stale data. Reconnecting…</div></div>`;
+}
 
 function subscribeToCustomers() {
   if (customersUnsub) return;
   const q = query(customersCol(), orderBy('name'));
   customersUnsub = onSnapshot(q, { includeMetadataChanges: true }, (snap) => {
     cachedCustomers = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    pendingWritesByCol.customers = snap.metadata.hasPendingWrites;
+    updateSyncIndicator(deriveSyncState());
     renderLandingCounts();
     if (!$('#app').classList.contains('hidden') && appMode === 'customer') {
       renderCustomerList();
     }
     if (!$('#view-settings').classList.contains('hidden')) renderSettingsStatus();
-  }, (err) => console.error('Customers subscription error', err));
+  }, (err) => {
+    console.error('Customers subscription error', err);
+    showStreamError('customerList', 'Customer');
+    customersUnsub = null;
+    if (customersRetryTimer) clearTimeout(customersRetryTimer);
+    customersRetryTimer = setTimeout(() => { if (currentUser) subscribeToCustomers(); }, 5000);
+  });
 }
 function unsubscribeFromCustomers() {
   if (customersUnsub) { customersUnsub(); customersUnsub = null; }
   cachedCustomers = [];
+  pendingWritesByCol.customers = false;
 }
 
 /* =====================================================================
@@ -3680,6 +3883,7 @@ const ESTIMATE_EMAILJS_TEMPLATE_ID = '';
 
 let cachedEstimates = [];
 let estimatesUnsub = null;
+let estimatesRetryTimer = null;
 let editingEstimateId = null;   // set while editing an existing Draft
 let currentEstimateId = null;   // estimate open in the detail view
 let builderLines = [];          // line items being assembled
@@ -3705,6 +3909,8 @@ function subscribeToEstimates() {
   const q = query(estimatesCol(), orderBy('createdAt', 'desc'));
   estimatesUnsub = onSnapshot(q, { includeMetadataChanges: true }, (snap) => {
     cachedEstimates = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    pendingWritesByCol.estimates = snap.metadata.hasPendingWrites;
+    updateSyncIndicator(deriveSyncState());
     renderLandingCounts();
     if (!$('#app').classList.contains('hidden') && appMode === 'pricing') {
       if (!$('#view-pricing').classList.contains('hidden')) renderEstimatesList();
@@ -3712,11 +3918,18 @@ function subscribeToEstimates() {
         renderEstimateDetail(currentEstimateId);
       }
     }
-  }, (err) => console.error('Estimates subscription error', err));
+  }, (err) => {
+    console.error('Estimates subscription error', err);
+    showStreamError('estimatesList', 'Estimate');
+    estimatesUnsub = null;
+    if (estimatesRetryTimer) clearTimeout(estimatesRetryTimer);
+    estimatesRetryTimer = setTimeout(() => { if (currentUser) subscribeToEstimates(); }, 5000);
+  });
 }
 function unsubscribeFromEstimates() {
   if (estimatesUnsub) { estimatesUnsub(); estimatesUnsub = null; }
   cachedEstimates = [];
+  pendingWritesByCol.estimates = false;
 }
 
 function generateEstimateNumber() {
@@ -3892,27 +4105,32 @@ function removeLineItem(i) {
   renderBuilderLines();
 }
 
-async function saveEstimate(status) {
+function saveEstimate(status) {
   if (!builderCustomer || !builderCustomer.id) throw new Error('Select a customer first.');
   if (!builderLines.length) throw new Error('Add at least one line item.');
   const grand = builderLines.reduce((s, li) => s + (Number(li.lineTotal) || 0), 0);
   const now = new Date().toISOString();
   const notes = ($('#est-notes').value || '').trim();
+  const onWriteError = (err) => {
+    console.error('Estimate write failed', err);
+    toast('An estimate change failed to sync: ' + ((err && err.message) || 'error'), 'error');
+  };
+  /* Optimistic (M3): fire the write and don't await the server ack. */
   if (editingEstimateId) {
-    await writeWithRetry(() => setDoc(doc(fbDb, 'estimates', editingEstimateId), {
+    setDoc(doc(fbDb, 'estimates', editingEstimateId), {
       customerId: builderCustomer.id, customerName: builderCustomer.name,
       lineItems: builderLines, subtotal: grand, grandTotal: grand, notes, status, updatedAt: now
-    }, { merge: true }));
+    }, { merge: true }).catch(onWriteError);
   } else {
     const operator = (currentUser && (EMAIL_TO_TRAPPER[currentUser.email] || currentUser.email)) || '';
-    await writeWithRetry(() => addDoc(estimatesCol(), {
+    setDoc(doc(estimatesCol()), {
       estimateNumber: generateEstimateNumber(),
       customerId: builderCustomer.id, customerName: builderCustomer.name,
       createdBy: operator, createdByUid: currentUser ? currentUser.uid : null,
       createdByEmail: currentUser ? currentUser.email : null,
       createdAt: now, updatedAt: now, status,
       lineItems: builderLines, subtotal: grand, grandTotal: grand, notes, qbEstimateId: null
-    }));
+    }, { merge: true }).catch(onWriteError);
   }
 }
 
@@ -3920,8 +4138,9 @@ async function handleSaveEstimate(status) {
   const btns = ['saveDraftBtn', 'submitEstimateBtn'];
   btns.forEach((b) => { const el = $('#' + b); if (el) el.disabled = true; });
   try {
-    await saveEstimate(status);
-    toast(status === 'Draft' ? 'Draft saved' : 'Submitted for approval');
+    const offline = !navigator.onLine;
+    saveEstimate(status);   /* sync: throws on validation, fires the write optimistically */
+    toast(offline ? 'Saved offline — will sync when connected' : (status === 'Draft' ? 'Draft saved' : 'Submitted for approval'));
     resetEstimateBuilder();
     setView('dashboard');
   } catch (err) {
@@ -3955,10 +4174,8 @@ function renderEstimatesList() {
 
 function showEstimateDetail(id) {
   currentEstimateId = id;
-  $$('.view').forEach((el) => el.classList.add('hidden'));
-  const d = $('#view-estimate-detail'); if (d) d.classList.remove('hidden');
-  $('#viewTitle').textContent = 'Estimate';
-  const main = $('#appMain'); if (main) main.scrollTop = 0;
+  /* Route through setView so the bottom-nav active state stays correct (L6). */
+  setView('estimate-detail');
   renderEstimateDetail(id);
 }
 
@@ -3966,7 +4183,11 @@ function renderEstimateDetail(id) {
   const e = cachedEstimates.find((x) => x.id === id);
   const box = $('#estimateDetail');
   if (!box) return;
-  if (!e) { box.innerHTML = '<div class="card">Estimate not found.</div>'; return; }
+  if (!e) {
+    box.innerHTML = '<div class="card">Estimate not found.</div>' +
+      '<div class="form-actions"><button class="btn btn-cancel btn-ghost" data-est-action="back">Back to Estimates</button></div>';
+    return;
+  }
   const admin = isAdmin();
   const lines = (e.lineItems || []).map((li) => `
     <div class="est-detail-line">
@@ -4044,8 +4265,12 @@ function editEstimate(id) {
 }
 
 async function submitEstimateForApproval(id) {
-  await writeWithRetry(() => setDoc(doc(fbDb, 'estimates', id), { status: 'Pending Approval', updatedAt: new Date().toISOString() }, { merge: true }));
-  toast('Submitted for approval');
+  try {
+    await writeWithRetry(() => setDoc(doc(fbDb, 'estimates', id), { status: 'Pending Approval', updatedAt: new Date().toISOString() }, { merge: true }));
+    toast('Submitted for approval');
+  } catch (err) {
+    toast('Submit failed: ' + ((err && err.message) || 'error'), 'error');
+  }
 }
 
 async function deleteEstimateDraft(id) {
@@ -4053,51 +4278,69 @@ async function deleteEstimateDraft(id) {
   const deletable = ['Draft', 'Pending Approval', 'Rejected'];
   if (!e || !deletable.includes(e.status)) { toast('Estimates already pushed to QuickBooks can’t be deleted here', 'error'); return; }
   if (!confirm('Delete this estimate? This cannot be undone.')) return;
-  await writeWithRetry(() => deleteDoc(doc(fbDb, 'estimates', id)));
-  toast('Estimate deleted');
-  currentEstimateId = null;
-  setView('dashboard');
+  try {
+    await writeWithRetry(() => deleteDoc(doc(fbDb, 'estimates', id)));
+    toast('Estimate deleted');
+    currentEstimateId = null;
+    setView('dashboard');
+  } catch (err) {
+    toast('Delete failed: ' + ((err && err.message) || 'error'), 'error');
+  }
 }
 
 async function rejectEstimate(id) {
-  const note = (prompt('Reason for rejection (optional):') || '').trim();
-  await writeWithRetry(() => setDoc(doc(fbDb, 'estimates', id), { status: 'Rejected', rejectionNote: note, updatedAt: new Date().toISOString() }, { merge: true }));
-  toast('Estimate rejected');
+  const note = prompt('Reason for rejection (optional):');
+  if (note === null) return;   /* M1: user cancelled the prompt — don't reject */
+  try {
+    await writeWithRetry(() => setDoc(doc(fbDb, 'estimates', id), { status: 'Rejected', rejectionNote: note.trim(), updatedAt: new Date().toISOString() }, { merge: true }));
+    toast('Estimate rejected');
+  } catch (err) {
+    toast('Reject failed: ' + ((err && err.message) || 'error'), 'error');
+  }
 }
 
-async function approveAndPushEstimate(id) {
+async function approveAndPushEstimate(id, btn) {
   const e = cachedEstimates.find((x) => x.id === id);
   if (!e) return;
+  if (btn) btn.disabled = true;   /* block a double-tap before any async call fires */
   toast('Pushing to QuickBooks…');
   try {
-    const call = httpsCallable(fbFunctions, 'qbPushEstimate');
+    const call = httpsCallable(fbFunctions, 'qbPushEstimate', { timeout: 120000 });
     const res = await call({ estimateId: id });
     const r = (res && res.data) || {};
     toast('Approved — pushed to QuickBooks');
     sendEstimateApprovedEmail(e, r);
+    /* On success the estimate status changes and the detail re-renders,
+       replacing this button — so we intentionally leave it disabled. */
   } catch (err) {
     const code = (err && err.code) || '';
     let msg = (err && err.message) || 'Push failed';
     if (code === 'functions/permission-denied') msg = 'Only an administrator can approve estimates.';
-    else if (code === 'functions/failed-precondition') msg = msg; // already descriptive (not connected / no qbId)
+    else if (code === 'functions/deadline-exceeded') msg = 'QuickBooks is taking longer than expected — check QuickBooks before retrying to avoid a duplicate.';
+    else if (code === 'functions/failed-precondition') msg = msg; // already descriptive (not connected / no qbId / already pushed)
     toast('Push failed: ' + msg, 'error');
+    if (btn) btn.disabled = false;   /* re-enable so a genuine failure can be retried */
   }
 }
 
-async function convertEstimateToInvoice(id) {
+async function convertEstimateToInvoice(id, btn) {
   const e = cachedEstimates.find((x) => x.id === id);
   if (!e) return;
   if (!confirm(`Create a QuickBooks invoice from ${e.estimateNumber || 'this estimate'} for ${e.customerName || 'this customer'}?`)) return;
+  if (btn) btn.disabled = true;   /* block a double-tap before any async call fires */
   toast('Creating invoice…');
   try {
-    const res = await httpsCallable(fbFunctions, 'qbConvertToInvoice')({ estimateId: id });
+    const res = await httpsCallable(fbFunctions, 'qbConvertToInvoice', { timeout: 120000 })({ estimateId: id });
     const r = (res && res.data) || {};
     toast(r.qbInvoiceNumber ? `Invoiced (QB #${r.qbInvoiceNumber})` : 'Invoice created in QuickBooks');
+    /* Success re-renders the detail and replaces this button; leave it disabled. */
   } catch (err) {
     const code = (err && err.code) || '';
     let msg = (err && err.message) || 'Invoice failed';
     if (code === 'functions/permission-denied') msg = 'Only an administrator can create invoices.';
+    else if (code === 'functions/deadline-exceeded') msg = 'QuickBooks is taking longer than expected — check QuickBooks before retrying to avoid a duplicate.';
     toast('Invoice failed: ' + msg, 'error');
+    if (btn) btn.disabled = false;   /* re-enable so a genuine failure can be retried */
   }
 }
 
@@ -4370,6 +4613,10 @@ function renderFieldDetail(key) {
 }
 
 async function assignFieldPhotos(key, customer) {
+  if (!customer || !customer.id) return;   /* M6: nothing to link to */
+  const ok = await confirmDialog('Link camera?',
+    `Link camera ID ${key} to ${customer.name || 'this customer'}? This will reassign all matching photos.`);
+  if (!ok) return;
   try {
     /* Persist the link on the customer (Camera ID) so this camera's current AND
        future photos + health resolve to them automatically. */
@@ -4429,20 +4676,29 @@ async function writeWithRetry(fn, attempts = 3) {
   throw lastErr;
 }
 
-async function saveCustomer(customer) {
+function saveCustomer(customer) {
   const data = { ...customer };
   delete data.id;
   data.updatedAt = new Date().toISOString();
+  let ref;
   if (customer.id) {
-    return writeWithRetry(() => setDoc(doc(fbDb, 'customers', customer.id), data, { merge: true }));
+    ref = doc(fbDb, 'customers', customer.id);
+  } else {
+    data.active = !!customer.active;
+    data.source = customer.source || 'manual';
+    data.qbId = customer.qbId || null;
+    data.createdAt = new Date().toISOString();
+    data.createdByUid = currentUser ? currentUser.uid : null;
+    data.createdByEmail = currentUser ? currentUser.email : null;
+    ref = doc(customersCol());
   }
-  data.active = !!customer.active;
-  data.source = customer.source || 'manual';
-  data.qbId = customer.qbId || null;
-  data.createdAt = new Date().toISOString();
-  data.createdByUid = currentUser ? currentUser.uid : null;
-  data.createdByEmail = currentUser ? currentUser.email : null;
-  const ref = await writeWithRetry(() => addDoc(customersCol(), data));
+  /* Optimistic (M3): commit to the local cache and return the id without
+     awaiting the server ack, so the form never hangs offline. Async failures
+     surface via a toast. */
+  setDoc(ref, data, { merge: true }).catch((err) => {
+    console.error('Customer write failed', err);
+    toast('A saved customer failed to sync: ' + ((err && err.message) || 'error'), 'error');
+  });
   return ref.id;
 }
 async function deleteCustomerDoc(id) {
@@ -4507,7 +4763,14 @@ async function handleSignIn(e) {
   e.preventDefault();
   const idRaw = $('#signInId').value.trim().toUpperCase();
   const pin = $('#signInPin').value;
-  if (!idRaw || !pin) return;
+  if (!idRaw || !pin) {
+    const msg = !idRaw && !pin ? 'Enter your Employee ID and PIN.'
+      : !idRaw ? 'Enter your Employee ID.'
+      : 'Enter your PIN.';
+    $('#signInError').textContent = msg;
+    toast(msg, 'error');
+    return;
+  }
   $('#signInError').textContent = '';
   const email = EMPLOYEE_ID_TO_EMAIL[idRaw];
   if (!email) {
@@ -4574,7 +4837,12 @@ async function handleForgotPin() {
 async function handleSignOut() {
   const ok = await confirmDialog('Sign out?', 'You’ll need your Employee ID and PIN to sign back in on this device. Records already saved stay in the cloud and sync again once you sign in.');
   if (!ok) return;
-  await fbSignOut(fbAuth);
+  try {
+    await fbSignOut(fbAuth);
+  } catch (err) {
+    console.error('Sign out failed', err);
+    toast('Sign out failed: ' + ((err && err.message) || 'error'), 'error');
+  }
 }
 
 /* ---------- Navigation ---------- */
@@ -4583,7 +4851,7 @@ const VIEW_TITLES = {
   trap:      { dashboard: 'Dashboard', records: 'Records', add: 'Add Record', export: 'Export', settings: 'Settings' },
   pesticide: { dashboard: 'Dashboard', records: 'Records', add: 'Add Application', export: 'Export', settings: 'Settings' },
   customer:  { dashboard: 'Customers', add: 'Add Customer', settings: 'Settings' },
-  pricing:   { dashboard: 'Estimates', add: 'New Estimate', settings: 'Settings' },
+  pricing:   { dashboard: 'Estimates', add: 'New Estimate', 'estimate-detail': 'Estimate', settings: 'Settings' },
   field:     { dashboard: 'Cameras' },
   schedule:  { dashboard: 'Calendar', add: 'New Job' },
   settings:  { dashboard: 'Settings' }
@@ -4627,7 +4895,9 @@ function setView(name) {
   const showEl = document.getElementById(`view-${actualId}`);
   if (showEl) showEl.classList.remove('hidden');
 
-  $$('#bottomNav .nav-btn, #bottomNav .nav-fab').forEach((b) => b.classList.toggle('active', b.dataset.view === name));
+  /* Detail views highlight their parent list tab in the bottom nav. */
+  const navView = name === 'estimate-detail' ? 'dashboard' : name;
+  $$('#bottomNav .nav-btn, #bottomNav .nav-fab').forEach((b) => b.classList.toggle('active', b.dataset.view === navView));
   const titles = VIEW_TITLES[appMode] || VIEW_TITLES.trap;
   $('#viewTitle').textContent = titles[name] || '';
   $('#appMain').scrollTop = 0;
@@ -4949,6 +5219,7 @@ function validateRecord(r) {
   if (!r.species) errs.push('Species');
   if (SPECIFY_SPECIES.has(r.species) && !r.speciesOther) errs.push('Specify species');
   if (needsAnimalCount(r.species) && (!r.animalCount || r.animalCount < 1)) errs.push('Number of animals');
+  else if (needsAnimalCount(r.species) && r.animalCount > 500) errs.push('Number of animals can’t exceed 500 per record');
   if (!r.county) errs.push('County');
   if (!r.address) errs.push('Address');
   if (!r.captureMethod) errs.push('Capture method');
@@ -4962,7 +5233,12 @@ function validateRecord(r) {
   }
   if (EXCLUDE_DISPOSALS.has(r.disposalMethod) && !isBatOrBird(r.species) && r.species !== OTHER_ANIMAL) {
     if (r.excludedNumber == null || r.excludedNumber < 0) errs.push('Number excluded');
+    else if (Math.floor(r.excludedNumber) !== r.excludedNumber) errs.push('Number excluded must be a whole number');
+    else if (r.excludedNumber > 999) errs.push('Number excluded can’t exceed 999');
   }
+  /* M12: date sanity — no future collection date; release not before collection. */
+  if (r.dateCollected && r.dateCollected > todayISO()) errs.push('Collection date can’t be in the future');
+  if (r.releaseDate && r.dateCollected && r.releaseDate < r.dateCollected) errs.push('Release date can’t be before the collection date');
   return errs;
 }
 
@@ -5023,79 +5299,118 @@ async function confirmSave() {
   isSaving = true;
   setSaveButtonBusy(true);
   try {
-  const rec = pendingRecord;
-  if (!rec.id) {
-    rec.createdAt = new Date().toISOString();
-    rec.recordNumber = generateRecordNumber(rec, cachedRecords);
-  } else {
-    const existing = await dbGet(rec.id);
-    if (existing) {
-      rec.createdAt = existing.createdAt;
-      /* recordNumber is immutable once assigned. Generate if missing for legacy records. */
-      rec.recordNumber = existing.recordNumber || generateRecordNumber(rec, cachedRecords);
-      /* Carry over photo if present and no replacement is pending. */
-      if (existing.photoUrl && !pendingPhotoBlob && !removeExistingPhoto) {
-        rec.photoUrl = existing.photoUrl;
-        rec.photoPath = existing.photoPath || null;
+    const rec = pendingRecord;
+    const wasEdit = !!rec.id;
+    if (!wasEdit) {
+      /* Assign a client-side id up front so an offline photo can key to it. */
+      rec.id = doc(recordsCol()).id;
+      rec.createdAt = new Date().toISOString();
+      rec.recordNumber = generateRecordNumber(rec, cachedRecords);
+    } else {
+      const existing = await dbGet(rec.id);
+      if (existing) {
+        rec.createdAt = existing.createdAt;
+        /* recordNumber is immutable once assigned. Generate if missing for legacy records. */
+        rec.recordNumber = existing.recordNumber || generateRecordNumber(rec, cachedRecords);
+        /* Carry over photo if present and no replacement is pending. */
+        if (existing.photoUrl && !pendingPhotoBlob && !removeExistingPhoto) {
+          rec.photoUrl = existing.photoUrl;
+          rec.photoPath = existing.photoPath || null;
+        }
       }
     }
-  }
-  /* Photo upload — if user captured one, push to Storage and stamp the URL. */
-  if (pendingPhotoBlob) {
-    try {
-      const result = await uploadPendingPhoto();
-      if (result) { rec.photoUrl = result.url; rec.photoPath = result.path; }
-    } catch (err) {
-      const cont = await confirmDialog(
-        'Photo upload failed',
-        `Could not upload the photo (${err.code || err.message || 'unknown'}). Save the record without it?`,
-        { okText: 'Save Without Photo' }
-      );
-      if (!cont) return;
-    }
-  } else if (removeExistingPhoto) {
-    rec.photoUrl = null;
-    rec.photoPath = null;
-  }
-  rec.updatedAt = new Date().toISOString();
-  const wasEdit = !!rec.id;
-  const newId = await dbPut(rec);
-  /* For new records, get the Firestore-assigned id back so the email
-     reflects the saved record. Edits keep their existing id. */
-  if (!wasEdit && newId) rec.id = newId;
-  pendingRecord = null;
-  const intent = submitIntent;
-  const carry = {
-    dateCollected: rec.dateCollected, trapper: rec.trapper,
-    clientName: rec.clientName, clientPhone: rec.clientPhone,
-    clientEmail: rec.clientEmail, clientBusiness: rec.clientBusiness,
-    address: rec.address, county: rec.county
-  };
-  closeSheet();
-  resetForm();
-  toast(wasEdit ? 'Record updated' : `Record saved · ${rec.recordNumber}`);
-  /* Fire the EmailJS notification on new records only. Fire-and-forget;
-     a failed send won't undo the saved record. */
-  if (!wasEdit) sendRecordEmail(rec);
 
-  if (intent === 'new') {
-    /* Fresh form (setView('add') resets it), then pre-fill date, trapper,
-       customer, and county from the just-saved record. */
-    setView('add');
-    $('#f-date').value = carry.dateCollected || todayISO();
-    $('#f-trapper').value = carry.trapper || '';
-    $('#f-client-name').value = carry.clientName || '';
-    $('#f-client-phone').value = carry.clientPhone || '';
-    $('#f-client-email').value = carry.clientEmail || '';
-    $('#f-client-business').value = carry.clientBusiness || '';
-    $('#f-address').value = carry.address || '';
-    if (carry.county) selectCountyIfKnown('f-county', carry.county);
-    return;
-  }
-  recordsViewMode = 'list';
-  updateRecordsViewToggleUI();
-  setView('records');
-  await refreshAll();
+    const offline = !navigator.onLine;
+    let photoQueued = false;
+
+    /* Photo handling. Online: upload to Storage now. Offline (H3): Storage has
+       no offline queue, so stash the blob in IndexedDB keyed to the record id
+       and upload it on reconnect — the photo is never lost. */
+    if (pendingPhotoBlob) {
+      if (offline) {
+        const storagePath = `records/${rec.id}/photo.jpg`;
+        try {
+          await putPendingPhoto({ key: `records:${rec.id}`, collection: 'records', id: rec.id, storagePath, contentType: 'image/jpeg', blob: pendingPhotoBlob });
+          rec.photoPath = storagePath;
+          rec.photoPending = true;
+          photoQueued = true;
+        } catch (err) {
+          console.error('Could not queue photo for offline upload', err);
+          toast('Couldn’t queue the photo for later upload; saving the record without it.', 'error');
+        }
+      } else {
+        try {
+          const result = await uploadPendingPhoto();
+          if (result) { rec.photoUrl = result.url; rec.photoPath = result.path; }
+        } catch (err) {
+          const cont = await confirmDialog(
+            'Photo upload failed',
+            `Could not upload the photo (${err.code || err.message || 'unknown'}). Save the record without it?`,
+            { okText: 'Save Without Photo' }
+          );
+          if (!cont) return;
+        }
+      }
+    } else if (removeExistingPhoto) {
+      rec.photoUrl = null;
+      rec.photoPath = null;
+    }
+
+    rec.updatedAt = new Date().toISOString();
+
+    /* Optimistic write (H1/H2): commit to the local cache and do NOT await the
+       server ack — offline that promise never resolves. A rejected write
+       (e.g. permission-denied, surfaced when online or on reconnect) toasts an
+       error; synchronous failures are caught below. */
+    const data = { ...rec };
+    delete data.id;
+    if (!wasEdit) {
+      data.createdByUid = currentUser ? currentUser.uid : null;
+      data.createdByEmail = currentUser ? currentUser.email : null;
+    }
+    setDoc(doc(fbDb, 'records', rec.id), data, { merge: true }).catch((err) => {
+      console.error('Record write failed', err);
+      toast('A saved record failed to sync: ' + ((err && err.message) || 'error'), 'error');
+    });
+
+    pendingRecord = null;
+    const intent = submitIntent;
+    const carry = {
+      dateCollected: rec.dateCollected, trapper: rec.trapper,
+      clientName: rec.clientName, clientPhone: rec.clientPhone,
+      clientEmail: rec.clientEmail, clientBusiness: rec.clientBusiness,
+      address: rec.address, county: rec.county
+    };
+    closeSheet();
+    resetForm();
+    if (photoQueued) updatePendingPhotoIndicator();
+    if (offline) toast(photoQueued ? 'Saved offline — record and photo will sync when connected' : 'Saved offline — will sync when connected');
+    else toast(wasEdit ? 'Record updated' : `Record saved · ${rec.recordNumber}`);
+    /* Fire the EmailJS notification on new records only. Fire-and-forget;
+       a failed send won't undo the saved record. */
+    if (!wasEdit) sendRecordEmail(rec);
+
+    if (intent === 'new') {
+      /* Fresh form (setView('add') resets it), then pre-fill date, trapper,
+         customer, and county from the just-saved record. */
+      setView('add');
+      $('#f-date').value = carry.dateCollected || todayISO();
+      $('#f-trapper').value = carry.trapper || '';
+      $('#f-client-name').value = carry.clientName || '';
+      $('#f-client-phone').value = carry.clientPhone || '';
+      $('#f-client-email').value = carry.clientEmail || '';
+      $('#f-client-business').value = carry.clientBusiness || '';
+      $('#f-address').value = carry.address || '';
+      if (carry.county) selectCountyIfKnown('f-county', carry.county);
+      return;
+    }
+    recordsViewMode = 'list';
+    updateRecordsViewToggleUI();
+    setView('records');
+    refreshAll();
+  } catch (err) {
+    console.error('confirmSave failed', err);
+    toast('Save failed: ' + ((err && err.message) || 'error'), 'error');
   } finally {
     isSaving = false;
     setSaveButtonBusy(false);
@@ -5845,7 +6160,7 @@ function openSheet(rec, mode, recordType) {
       $('#detailSub').textContent = `${fmtPaDateTime(rec.appliedAt)} · ${rec.applicator || ''}`;
     } else {
       $('#detailTitle').textContent = speciesDisplay(rec) + (rec.animalCount && rec.animalCount > 1 ? ` ×${rec.animalCount}` : '');
-      $('#detailSub').textContent = `${fmtDate(rec.dateCollected)} · ${rec.county} County · ${rec.trapper || ''}`;
+      $('#detailSub').textContent = `${fmtDate(rec.dateCollected)} · ${countyDisplay(rec)} County · ${rec.trapper || ''}`;
     }
     $('#detailClose').textContent = 'Close';
     $('#detailEdit').textContent = 'Edit';
@@ -6122,8 +6437,8 @@ function renderPesticideAdminList() {
       <div style="min-width: 0; flex: 1;">
         <div class="name">${escapeHtml(p.name)}</div>
         <div class="meta">${escapeHtml(p.activeIngredient || '')} · EPA ${escapeHtml(p.epaReg || '')} · ${escapeHtml(String(p.concentration ?? ''))}%</div>
-        ${p.sdsUrl ? `<a href="${escapeHtml(p.sdsUrl)}" target="_blank" rel="noopener" style="font-size: 11px; color: var(--amber); text-decoration: none; margin-right: 8px;">📄 SDS</a>` : ''}
-        ${p.labelUrl ? `<a href="${escapeHtml(p.labelUrl)}" target="_blank" rel="noopener" style="font-size: 11px; color: var(--amber); text-decoration: none;">📋 Label</a>` : ''}
+        ${p.sdsUrl ? `<a href="${escapeHtml(safeUrl(p.sdsUrl))}" target="_blank" rel="noopener" style="font-size: 11px; color: var(--amber); text-decoration: none; margin-right: 8px;">📄 SDS</a>` : ''}
+        ${p.labelUrl ? `<a href="${escapeHtml(safeUrl(p.labelUrl))}" target="_blank" rel="noopener" style="font-size: 11px; color: var(--amber); text-decoration: none;">📋 Label</a>` : ''}
       </div>
       <div class="actions">
         <button class="pill-btn" data-edit="${escapeHtml(p.id)}">Edit</button>
@@ -6142,7 +6457,7 @@ function openPesticideEditor(pesticide) {
   $('#pestConc').value = pesticide ? pesticide.concentration : '';
   const sdsPreview = $('#sdsPreview');
   if (pesticide && pesticide.sdsUrl) {
-    sdsPreview.innerHTML = `✓ SDS uploaded — <a href="${escapeHtml(pesticide.sdsUrl)}" target="_blank" rel="noopener">view current</a>. Pick a new file to replace.`;
+    sdsPreview.innerHTML = `✓ SDS uploaded — <a href="${escapeHtml(safeUrl(pesticide.sdsUrl))}" target="_blank" rel="noopener">view current</a>. Pick a new file to replace.`;
     sdsPreview.className = 'hint success';
   } else {
     sdsPreview.textContent = 'No SDS uploaded yet.';
@@ -6150,7 +6465,7 @@ function openPesticideEditor(pesticide) {
   }
   const labelPreview = $('#labelPreview');
   if (pesticide && pesticide.labelUrl) {
-    labelPreview.innerHTML = `✓ Label uploaded — <a href="${escapeHtml(pesticide.labelUrl)}" target="_blank" rel="noopener">view current</a>. Pick a new file to replace.`;
+    labelPreview.innerHTML = `✓ Label uploaded — <a href="${escapeHtml(safeUrl(pesticide.labelUrl))}" target="_blank" rel="noopener">view current</a>. Pick a new file to replace.`;
     labelPreview.className = 'hint success';
   } else {
     labelPreview.textContent = 'No label uploaded yet.';
@@ -6178,6 +6493,10 @@ async function savePesticide() {
     toast('Fill all required fields (name, active ingredient, EPA #, concentration).', 'error');
     return;
   }
+  if (concentration < 0 || concentration > 100) {   /* M9: master concentration range */
+    toast('Concentration must be between 0 and 100%.', 'error');
+    return;
+  }
   const isEdit = !!editingPesticideId;
   const existing = isEdit ? cachedPesticides.find((p) => p.id === editingPesticideId) : null;
 
@@ -6198,30 +6517,39 @@ async function savePesticide() {
   $('#pestSaveBtn').disabled = true;
   $('#pestSaveBtn').textContent = 'Saving…';
   try {
-    let pestId;
-    if (isEdit) {
-      pestId = editingPesticideId;
-      await setDoc(doc(fbDb, 'pesticides', pestId), data, { merge: true });
-    } else {
-      const ref = await addDoc(pesticidesCol(), data);
-      pestId = ref.id;
-    }
+    /* M7: resolve the id up front and upload the PDFs BEFORE writing the product
+       doc. If an upload fails, don't write the doc — no orphaned record. */
+    const pestId = isEdit ? editingPesticideId : doc(pesticidesCol()).id;
     const sdsFile = $('#pestSdsFile').files[0];
-    if (sdsFile) {
-      const path = `pesticides/${pestId}/sds.pdf`;
-      const sref = storageRef(fbStorage, path);
-      await uploadBytes(sref, sdsFile, { contentType: 'application/pdf' });
-      const url = await getDownloadURL(sref);
-      await setDoc(doc(fbDb, 'pesticides', pestId), { sdsUrl: url, sdsPath: path, updatedAt: new Date().toISOString() }, { merge: true });
-    }
     const labelFile = $('#pestLabelFile').files[0];
-    if (labelFile) {
-      const path = `pesticides/${pestId}/label.pdf`;
-      const sref = storageRef(fbStorage, path);
-      await uploadBytes(sref, labelFile, { contentType: 'application/pdf' });
-      const url = await getDownloadURL(sref);
-      await setDoc(doc(fbDb, 'pesticides', pestId), { labelUrl: url, labelPath: path, updatedAt: new Date().toISOString() }, { merge: true });
+
+    if (sdsFile) {
+      try {
+        const path = `pesticides/${pestId}/sds.pdf`;
+        const sref = storageRef(fbStorage, path);
+        await withUploadTimeout(uploadBytes(sref, sdsFile, { contentType: 'application/pdf' }));
+        data.sdsUrl = await withUploadTimeout(getDownloadURL(sref));
+        data.sdsPath = path;
+      } catch (err) {
+        toast('SDS upload failed: ' + ((err && err.message) || 'error') + ' — nothing was saved.', 'error');
+        return;
+      }
     }
+    if (labelFile) {
+      try {
+        const path = `pesticides/${pestId}/label.pdf`;
+        const sref = storageRef(fbStorage, path);
+        await withUploadTimeout(uploadBytes(sref, labelFile, { contentType: 'application/pdf' }));
+        data.labelUrl = await withUploadTimeout(getDownloadURL(sref));
+        data.labelPath = path;
+      } catch (err) {
+        toast('Label upload failed: ' + ((err && err.message) || 'error') + ' — nothing was saved.', 'error');
+        return;
+      }
+    }
+
+    /* Both uploads (if any) succeeded — now write the product doc. */
+    await writeWithRetry(() => setDoc(doc(fbDb, 'pesticides', pestId), data, { merge: true }));
     closePesticideEditor();
     toast(isEdit ? `Updated ${name}` : `Added ${name}`);
   } catch (err) {
@@ -6382,8 +6710,8 @@ function handleBrandSelectChange(i) {
     const p = cachedPesticides.find((x) => x.id === sel.value);
     if (linksEl && p) {
       const parts = [];
-      if (p.sdsUrl) parts.push(`<a href="${escapeHtml(p.sdsUrl)}" target="_blank" rel="noopener" style="color: var(--amber); text-decoration: none; font-weight: 600;">📄 View SDS</a>`);
-      if (p.labelUrl) parts.push(`<a href="${escapeHtml(p.labelUrl)}" target="_blank" rel="noopener" style="color: var(--amber); text-decoration: none; font-weight: 600;">📋 View Label</a>`);
+      if (p.sdsUrl) parts.push(`<a href="${escapeHtml(safeUrl(p.sdsUrl))}" target="_blank" rel="noopener" style="color: var(--amber); text-decoration: none; font-weight: 600;">📄 View SDS</a>`);
+      if (p.labelUrl) parts.push(`<a href="${escapeHtml(safeUrl(p.labelUrl))}" target="_blank" rel="noopener" style="color: var(--amber); text-decoration: none; font-weight: 600;">📋 View Label</a>`);
       linksEl.innerHTML = parts.join('');
     }
   } else {
@@ -6508,7 +6836,19 @@ function loadPesticideRecordIntoForm(rec) {
   (rec.products || []).forEach((p, idx) => {
     const i = idx + 1;
     const brandSel = document.getElementById(`pa-brand-${i}`);
-    if (brandSel) brandSel.value = p.brandId || (p.brandOther ? '__other__' : '');
+    if (brandSel) {
+      /* M8: the stored brand was deleted from the catalog — inject a disabled
+         option so the original association stays visible instead of silently
+         reverting to unspecified. */
+      if (p.brandId && !cachedPesticides.some((x) => x.id === p.brandId)) {
+        const gone = document.createElement('option');
+        gone.value = p.brandId;
+        gone.disabled = true;
+        gone.textContent = `[deleted product] — ${p.brandName || p.brandId}`;
+        brandSel.appendChild(gone);
+      }
+      brandSel.value = p.brandId || (p.brandOther ? '__other__' : '');
+    }
     const brandOther = document.getElementById(`pa-brand-other-${i}`);
     if (brandOther) brandOther.value = p.brandOther || '';
     document.getElementById(`pa-epa-${i}`).value = p.epaReg || '';
@@ -6617,8 +6957,11 @@ function validatePesticideRecord(r) {
   if (!r.applicator) errs.push('Applicator');
   if (!r.appliedAt) errs.push('Date / Time');
   if (r.weatherTemp == null) errs.push('Temperature');
+  else if (r.weatherTemp < -40 || r.weatherTemp > 130) errs.push('Temperature must be between -40 and 130°F');
   if (r.weatherWind == null) errs.push('Wind speed');
+  else if (r.weatherWind < 0 || r.weatherWind > 100) errs.push('Wind speed must be between 0 and 100 mph');
   if (r.weatherHumidity == null) errs.push('Humidity');
+  else if (r.weatherHumidity < 0 || r.weatherHumidity > 100) errs.push('Humidity must be between 0 and 100%');
   if (!r.purpose) errs.push('Purpose');
   if (r.purpose === 'Other (specify)' && !r.purposeOther) errs.push('Specify purpose');
   if (r.areaSize == null || r.areaSize <= 0) errs.push('Area size');
@@ -6636,11 +6979,19 @@ function validatePesticideRecord(r) {
     if (!r.treatmentCity) errs.push('Treatment city');
     if (!r.treatmentZip) errs.push('Treatment ZIP');
   }
-  if (r.finalVolumeGallons == null || r.finalVolumeGallons < 0) errs.push('Final volume');
+  if (r.finalVolumeGallons == null || r.finalVolumeGallons <= 0) errs.push('Final volume must be greater than 0 gallons');
   if (!r.applicationMethod) errs.push('Application method');
   if (r.applicationMethod === 'Other (specify)' && !r.applicationMethodOther) errs.push('Specify method');
   if (r.adjuvants.includes('Other') && !r.adjuvantOther) errs.push('Specify adjuvant');
   if (!r.products.length) errs.push('At least one product');
+  (r.products || []).forEach((p, i) => {
+    if (p.concentration != null && (p.concentration <= 0 || p.concentration > 100)) {
+      errs.push(`Product ${i + 1} concentration must be greater than 0 and up to 100%`);
+    }
+    if (p.volumeMl != null && p.volumeMl <= 0) {
+      errs.push(`Product ${i + 1} volume must be greater than 0 ml`);
+    }
+  });
   return errs;
 }
 
@@ -6696,54 +7047,74 @@ async function confirmSavePesticide() {
   isSaving = true;
   setSaveButtonBusy(true);
   try {
-  const rec = pendingPesticideRecord;
-  const isEdit = !!rec.id;
-  if (!isEdit) {
-    rec.createdAt = new Date().toISOString();
-    rec.recordNumber = generatePesticideRecordNumber(rec);
-  } else {
-    const existing = cachedPesticideRecords.find((x) => x.id === rec.id);
-    if (existing) {
-      rec.createdAt = existing.createdAt;
-      rec.recordNumber = existing.recordNumber || generatePesticideRecordNumber(rec);
-      if (existing.photoUrl && !pendingPaPhotoBlob && !removeExistingPaPhoto) {
-        rec.photoUrl = existing.photoUrl;
-        rec.photoPath = existing.photoPath || null;
+    const rec = pendingPesticideRecord;
+    const isEdit = !!rec.id;
+    if (!isEdit) {
+      /* Assign a client-side id up front so an offline photo can key to it. */
+      rec.id = doc(pesticideRecordsCol()).id;
+      rec.createdAt = new Date().toISOString();
+      rec.recordNumber = generatePesticideRecordNumber(rec);
+    } else {
+      const existing = cachedPesticideRecords.find((x) => x.id === rec.id);
+      if (existing) {
+        rec.createdAt = existing.createdAt;
+        rec.recordNumber = existing.recordNumber || generatePesticideRecordNumber(rec);
+        if (existing.photoUrl && !pendingPaPhotoBlob && !removeExistingPaPhoto) {
+          rec.photoUrl = existing.photoUrl;
+          rec.photoPath = existing.photoPath || null;
+        }
       }
     }
-  }
-  /* Photo upload (single for now). */
-  if (pendingPaPhotoBlob) {
-    try {
-      const photoId = (crypto && crypto.randomUUID ? crypto.randomUUID() : 'p-' + Date.now());
-      const path = `pesticide_records/${photoId}/photo.jpg`;
-      const ref = storageRef(fbStorage, path);
-      await uploadBytes(ref, pendingPaPhotoBlob, { contentType: 'image/jpeg' });
-      rec.photoUrl = await getDownloadURL(ref);
-      rec.photoPath = path;
-    } catch (err) {
-      const cont = await confirmDialog('Photo upload failed', `Save without photo? (${err.code || err.message || 'unknown'})`, { okText: 'Save Without Photo' });
-      if (!cont) return;
+
+    const offline = !navigator.onLine;
+    let photoQueued = false;
+
+    /* Photo handling. Online: upload now. Offline (H8): stash the blob in
+       IndexedDB keyed to the record id and upload on reconnect. */
+    if (pendingPaPhotoBlob) {
+      if (offline) {
+        const storagePath = `pesticide_records/${rec.id}/photo.jpg`;
+        try {
+          await putPendingPhoto({ key: `pesticide_records:${rec.id}`, collection: 'pesticide_records', id: rec.id, storagePath, contentType: 'image/jpeg', blob: pendingPaPhotoBlob });
+          rec.photoPath = storagePath;
+          rec.photoPending = true;
+          photoQueued = true;
+        } catch (err) {
+          console.error('Could not queue pesticide photo for offline upload', err);
+          toast('Couldn’t queue the photo for later upload; saving the record without it.', 'error');
+        }
+      } else {
+        try {
+          const photoId = (crypto && crypto.randomUUID ? crypto.randomUUID() : 'p-' + Date.now());
+          const path = `pesticide_records/${photoId}/photo.jpg`;
+          const ref = storageRef(fbStorage, path);
+          await withUploadTimeout(uploadBytes(ref, pendingPaPhotoBlob, { contentType: 'image/jpeg' }));
+          rec.photoUrl = await withUploadTimeout(getDownloadURL(ref));
+          rec.photoPath = path;
+        } catch (err) {
+          const cont = await confirmDialog('Photo upload failed', `Save without photo? (${err.code || err.message || 'unknown'})`, { okText: 'Save Without Photo' });
+          if (!cont) return;
+        }
+      }
+    } else if (removeExistingPaPhoto) {
+      rec.photoUrl = null;
+      rec.photoPath = null;
     }
-  } else if (removeExistingPaPhoto) {
-    rec.photoUrl = null;
-    rec.photoPath = null;
-  }
-  rec.updatedAt = new Date().toISOString();
-  const data = { ...rec };
-  delete data.id;
-  try {
-    let newId;
-    if (isEdit) {
-      await setDoc(doc(fbDb, 'pesticide_records', rec.id), data, { merge: true });
-      newId = rec.id;
-    } else {
+
+    rec.updatedAt = new Date().toISOString();
+
+    /* Optimistic write (H8/H2): commit locally, don't await the server ack. */
+    const data = { ...rec };
+    delete data.id;
+    if (!isEdit) {
       data.createdByUid = currentUser ? currentUser.uid : null;
       data.createdByEmail = currentUser ? currentUser.email : null;
-      const ref = await addDoc(pesticideRecordsCol(), data);
-      newId = ref.id;
-      rec.id = newId;
     }
+    writeWithRetry(() => setDoc(doc(fbDb, 'pesticide_records', rec.id), data, { merge: true })).catch((err) => {
+      console.error('Pesticide record write failed', err);
+      toast('A saved application failed to sync: ' + ((err && err.message) || 'error'), 'error');
+    });
+
     pendingPesticideRecord = null;
     const intent = submitIntent;
     const carry = {
@@ -6754,7 +7125,9 @@ async function confirmSavePesticide() {
     };
     closeSheet();
     resetPesticideRecordForm();
-    toast(isEdit ? 'Application updated' : `Saved · ${rec.recordNumber}`);
+    if (photoQueued) updatePendingPhotoIndicator();
+    if (offline) toast(photoQueued ? 'Saved offline — record and photo will sync when connected' : 'Saved offline — will sync when connected');
+    else toast(isEdit ? 'Application updated' : `Saved · ${rec.recordNumber}`);
     if (!isEdit) sendPesticideEmail(rec);
 
     if (intent === 'new') {
@@ -6772,10 +7145,9 @@ async function confirmSavePesticide() {
       return;
     }
     setView('records');
-    await refreshAll();
+    refreshAll();
   } catch (err) {
     toast(`Save failed: ${err.message || err}`, 'error');
-  }
   } finally {
     isSaving = false;
     setSaveButtonBusy(false);
@@ -6787,10 +7159,14 @@ async function deletePesticideRecord(id) {
   if (!target) return;
   const ok = await confirmDialog('Delete this application?', 'This cannot be undone.');
   if (!ok) return;
-  await deleteDoc(doc(fbDb, 'pesticide_records', target));
-  resetPesticideRecordForm();
-  setView('records');
-  toast('Application deleted');
+  try {
+    await deleteDoc(doc(fbDb, 'pesticide_records', target));
+    resetPesticideRecordForm();
+    setView('records');
+    toast('Application deleted');
+  } catch (err) {
+    toast('Delete failed: ' + ((err && err.message) || 'error'), 'error');
+  }
 }
 
 function fmtPaDateTime(s) {
@@ -7133,6 +7509,7 @@ async function wipeAll() {
  * ===================================================================== */
 let cachedJobs = [];
 let jobsUnsub = null;
+let jobsRetryTimer = null;
 let editingJobId = null;
 let currentJobId = null;
 let jobFormCustomer = null;
@@ -7182,6 +7559,8 @@ function subscribeToJobs() {
   const qy = query(jobsCol(), orderBy('date', 'asc'));
   jobsUnsub = onSnapshot(qy, { includeMetadataChanges: true }, (snap) => {
     cachedJobs = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    pendingWritesByCol.jobs = snap.metadata.hasPendingWrites;
+    updateSyncIndicator(deriveSyncState());
     /* Foreground in-app notice for jobs newly assigned to me. */
     if (seenJobIds === null) {
       seenJobIds = new Set(cachedJobs.map((j) => j.id));
@@ -7200,12 +7579,20 @@ function subscribeToJobs() {
       if (!$('#view-schedule').classList.contains('hidden')) renderSchedule();
       if (currentJobId && !$('#view-schedule-detail').classList.contains('hidden')) renderJobDetail(currentJobId);
     }
-  }, (err) => console.error('Jobs subscription error', err));
+  }, (err) => {
+    console.error('Jobs subscription error', err);
+    showStreamError('calendarWrap', 'Schedule');
+    showStreamError('agendaWrap', 'Schedule');
+    jobsUnsub = null;
+    if (jobsRetryTimer) clearTimeout(jobsRetryTimer);
+    jobsRetryTimer = setTimeout(() => { if (currentUser) subscribeToJobs(); }, 5000);
+  });
 }
 function unsubscribeFromJobs() {
   if (jobsUnsub) { jobsUnsub(); jobsUnsub = null; }
   cachedJobs = [];
   seenJobIds = null;
+  pendingWritesByCol.jobs = false;
 }
 
 /* ---- Calendar / agenda rendering ---- */
@@ -7480,7 +7867,11 @@ function renderJobDetail(id) {
   const j = cachedJobs.find((x) => x.id === id);
   const box = $('#jobDetail');
   if (!box) return;
-  if (!j) { box.innerHTML = '<div class="card">Job not found.</div>'; return; }
+  if (!j) {
+    box.innerHTML = '<div class="card">Job not found.</div>' +
+      '<div class="form-actions"><button class="btn btn-cancel btn-ghost" data-job-action="back">Back to Calendar</button></div>';
+    return;
+  }
   const se = jobStartEnd(j);
   const when = se
     ? `${longDate(j.date)} · ${fmtTime12(j.startTime)}–${fmtTime12(hhmm(se.end))}`
@@ -7561,15 +7952,23 @@ function populateJobSelect(selectId, selectedId) {
 }
 
 async function setJobStatus(id, status) {
-  await writeWithRetry(() => setDoc(doc(fbDb, 'jobs', id), { status, updatedAt: new Date().toISOString() }, { merge: true }));
-  toast(`Job ${status.toLowerCase()}`);
+  try {
+    await writeWithRetry(() => setDoc(doc(fbDb, 'jobs', id), { status, updatedAt: new Date().toISOString() }, { merge: true }));
+    toast(`Job ${status.toLowerCase()}`);
+  } catch (err) {
+    toast('Update failed: ' + ((err && err.message) || 'error'), 'error');
+  }
 }
 async function deleteJob(id) {
   if (!confirm('Delete this job? This cannot be undone.')) return;
-  await writeWithRetry(() => deleteDoc(doc(fbDb, 'jobs', id)));
-  toast('Job deleted');
-  currentJobId = null;
-  setView('dashboard');
+  try {
+    await writeWithRetry(() => deleteDoc(doc(fbDb, 'jobs', id)));
+    toast('Job deleted');
+    currentJobId = null;
+    setView('dashboard');
+  } catch (err) {
+    toast('Delete failed: ' + ((err && err.message) || 'error'), 'error');
+  }
 }
 
 async function refreshAll() {
@@ -7720,6 +8119,8 @@ async function handleSaveCustomer(e) {
   const c = readCustomerForm();
   if (!c.name) { toast('Customer name is required', 'error'); $('#c-name').focus(); return; }
   if (c.email && !EMAIL_RE.test(c.email)) { toast('Enter a valid email or leave it blank', 'error'); return; }
+  if (c.phone && !isValidPhone(c.phone)) { toast('Phone must be 10 digits or left blank', 'error'); $('#c-phone').focus(); return; }
+  if (c.zip && !/^\d{5}(-\d{4})?$/.test(c.zip)) { toast('ZIP must be 5 digits (or ZIP+4) or left blank', 'error'); $('#c-zip').focus(); return; }
   if (c.phone) c.phone = formatPhone(c.phone);
   c.name = titleCaseName(c.name);
   const btn = $('#saveCustomerBtn');
@@ -7727,15 +8128,19 @@ async function handleSaveCustomer(e) {
   isSaving = true;
   try {
     const wasEdit = !!c.id;
-    const savedId = await saveCustomer(c);
+    const offline = !navigator.onLine;
+    /* Optimistic (M3): saveCustomer commits locally and returns the id without
+       awaiting the server ack, so the form never hangs offline. */
+    const savedId = saveCustomer(c);
     resetCustomerForm();
     setView('dashboard');
-    await refreshAll();
-    toast(wasEdit ? 'Customer updated' : 'Customer added');
-    /* New customers also get created in QuickBooks (fire-and-forget so the
-       save/navigation isn't blocked). Edits and QB-synced rows are skipped. */
-    if (!wasEdit && savedId) {
-      httpsCallable(fbFunctions, 'qbCreateCustomer')({ customerId: savedId })
+    refreshAll();
+    if (offline) toast(wasEdit ? 'Saved offline — will sync when connected' : 'Customer saved offline — will sync when connected');
+    else toast(wasEdit ? 'Customer updated' : 'Customer added');
+    /* New customers also get created in QuickBooks. The callable needs a live
+       connection, so only attempt it when online. */
+    if (!wasEdit && savedId && !offline) {
+      httpsCallable(fbFunctions, 'qbCreateCustomer', { timeout: 120000 })({ customerId: savedId })
         .then((res) => { if (res && res.data && res.data.qbId) toast('Added to QuickBooks'); })
         .catch((err) => {
           const code = (err && err.code) || '';
@@ -7778,7 +8183,7 @@ async function handleSyncNow() {
   if (btn) { btn.disabled = true; btn.textContent = 'Syncing…'; }
   if (status) { status.style.color = 'var(--ink-soft)'; status.textContent = 'Contacting QuickBooks…'; }
   try {
-    const call = httpsCallable(fbFunctions, 'qbSyncNow');
+    const call = httpsCallable(fbFunctions, 'qbSyncNow', { timeout: 300000 });
     const res = await call();
     const r = (res && res.data) || {};
     if (status) {
@@ -7959,11 +8364,15 @@ async function init() {
     if (!editingId) return;
     const ok = await confirmDialog('Delete this record?', 'This cannot be undone.');
     if (!ok) return;
-    await dbDelete(editingId);
-    toast('Record deleted');
-    resetForm();
-    setView('records');
-    refreshAll();
+    try {
+      await dbDelete(editingId);
+      toast('Record deleted');
+      resetForm();
+      setView('records');
+      refreshAll();
+    } catch (err) {
+      toast('Delete failed: ' + ((err && err.message) || 'error'), 'error');
+    }
   });
 
   ['recSearch','filterTrapper','filterSpecies','filterCounty','filterDisposal'].forEach((id) => {
@@ -8319,9 +8728,9 @@ async function init() {
     else if (action === 'edit') editEstimate(id);
     else if (action === 'submit') submitEstimateForApproval(id);
     else if (action === 'delete') deleteEstimateDraft(id);
-    else if (action === 'approve') approveAndPushEstimate(id);
+    else if (action === 'approve') approveAndPushEstimate(id, btn);
     else if (action === 'reject') rejectEstimate(id);
-    else if (action === 'invoice') convertEstimateToInvoice(id);
+    else if (action === 'invoice') convertEstimateToInvoice(id, btn);
   });
 
   /* ---- Job Scheduling wiring ---- */
@@ -8435,6 +8844,8 @@ async function init() {
       const code = lastSyncError.code ? `[${lastSyncError.code}] ` : '';
       const msg = lastSyncError.message || String(lastSyncError);
       toast(`Sync error — ${code}${msg}`, 'error');
+    } else if (state === 'queued') {
+      toast('Offline — changes are queued locally and will sync when connection returns.');
     } else if (state === 'offline') {
       toast(currentUser
         ? 'Offline — records cached locally, will sync when connection returns.'
@@ -8447,6 +8858,7 @@ async function init() {
   });
 
   onAuthStateChanged(fbAuth, async (user) => {
+    markBootResolved();   /* first auth-state callback = boot succeeded (H4) */
     currentUser = user;
     if (user) {
       const trapper = EMAIL_TO_TRAPPER[user.email.toLowerCase()];
@@ -8473,6 +8885,8 @@ async function init() {
       /* Persistent notifications + sync — no manual re-tapping each launch. */
       autoEnablePushIfGranted();
       autoSyncOnOpen(true);
+      flushPendingPhotos();
+      updatePendingPhotoIndicator();
     } else {
       unsubscribeFromRecords();
       unsubscribeFromOrg();
@@ -8492,15 +8906,15 @@ async function init() {
   });
 
   window.addEventListener('online', () => {
-    if (currentUser) updateSyncIndicator('syncing');
+    if (currentUser) { updateSyncIndicator('syncing'); flushPendingPhotos(); }
   });
-  window.addEventListener('offline', () => updateSyncIndicator('offline'));
+  window.addEventListener('offline', () => updateSyncIndicator(deriveSyncState()));
 
   /* Re-opening a PWA usually resumes (no full reload) — refresh + update-check. */
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState !== 'visible') return;
     checkForUpdate();
-    if (currentUser) autoSyncOnOpen(false);
+    if (currentUser) { autoSyncOnOpen(false); flushPendingPhotos(); }
   });
 
   /* Tapping the update banner reloads; the network-first SW then serves the

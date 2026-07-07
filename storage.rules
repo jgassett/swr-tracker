@@ -1,0 +1,41 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    // Trap-record photos (index.html: records/{photoId}/photo.jpg)
+    match /records/{allPaths=**} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null
+                   && request.resource.size < 15 * 1024 * 1024
+                   && request.resource.contentType.matches('image/.*');
+    }
+
+    // Pesticide SDS / label PDFs (index.html: pesticides/{pestId}/{sds,label}.pdf)
+    match /pesticides/{allPaths=**} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null
+                   && request.resource.size < 25 * 1024 * 1024
+                   && request.resource.contentType == 'application/pdf';
+    }
+
+    // Pesticide-application photos (index.html: pesticide_records/{photoId}/photo.jpg)
+    match /pesticide_records/{allPaths=**} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null
+                   && request.resource.size < 15 * 1024 * 1024
+                   && request.resource.contentType.matches('image/.*');
+    }
+
+    // Camera photos — written server-side by the Cuddeback ingestion function
+    // (Admin SDK, bypasses rules). Clients read only.
+    match /cameraPhotos/{allPaths=**} {
+      allow read: if request.auth != null;
+      allow write: if false;
+    }
+
+    // Deny anything unexpected.
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}
