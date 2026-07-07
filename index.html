@@ -2544,7 +2544,7 @@ let orgSettings = {
 };
 
 const PESTICIDE_EMAILJS_TEMPLATE_ID = 'template_4aa3u5a';
-const APP_VERSION = 'v1.40';  /* bump in lockstep with the SW cache version */
+const APP_VERSION = 'v1.41';  /* bump in lockstep with the SW cache version */
 /* Single source of truth: keep the footer label in sync with APP_VERSION so
    the two version displays can't drift apart again. */
 { const _fv = document.getElementById('footerVersion'); if (_fv) _fv.textContent = APP_VERSION; }
@@ -6812,11 +6812,22 @@ async function handleSaveCustomer(e) {
   isSaving = true;
   try {
     const wasEdit = !!c.id;
-    await saveCustomer(c);
+    const savedId = await saveCustomer(c);
     resetCustomerForm();
     setView('dashboard');
     await refreshAll();
     toast(wasEdit ? 'Customer updated' : 'Customer added');
+    /* New customers also get created in QuickBooks (fire-and-forget so the
+       save/navigation isn't blocked). Edits and QB-synced rows are skipped. */
+    if (!wasEdit && savedId) {
+      httpsCallable(fbFunctions, 'qbCreateCustomer')({ customerId: savedId })
+        .then((res) => { if (res && res.data && res.data.qbId) toast('Added to QuickBooks'); })
+        .catch((err) => {
+          const code = (err && err.code) || '';
+          if (code === 'functions/failed-precondition') toast('Saved. Connect QuickBooks to sync new customers.');
+          else toast('Saved, but QuickBooks add failed: ' + ((err && err.message) || 'error'), 'error');
+        });
+    }
   } catch (err) {
     toast(`Save failed: ${err.code || err.message || err}`, 'error');
   } finally {

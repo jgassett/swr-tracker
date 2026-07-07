@@ -522,6 +522,50 @@ exports.qbPushEstimate = functions
     }
   });
 
+/* Create a Firestore customer in QuickBooks and store the returned qbId back
+ * on the record. Called when an operator adds a customer in the app. */
+exports.qbCreateCustomer = functions
+  .region(REGION)
+  .runWith({ secrets: SECRETS, timeoutSeconds: 60, memory: '256MB' })
+  .https.onCall(async (data, context) => {
+    if (!context.auth) throw new functions.https.HttpsError('unauthenticated', 'Sign in required.');
+    const customerId = data && data.customerId;
+    if (!customerId) throw new functions.https.HttpsError('invalid-argument', 'customerId is required.');
+
+    const ref = db.doc(`customers/${customerId}`);
+    const snap = await ref.get();
+    if (!snap.exists) throw new functions.https.HttpsError('not-found', 'Customer not found.');
+    const c = snap.data();
+    if (c.qbId) return { qbId: c.qbId, alreadyLinked: true };  // already in QuickBooks
+    if (!c.name) throw new functions.https.HttpsError('failed-precondition', 'Customer has no name.');
+
+    let accessToken, realmId;
+    try {
+      ({ accessToken, realmId } = await getValidAccessToken());
+    } catch (err) {
+      throw new functions.https.HttpsError('failed-precondition', err.message || 'QuickBooks not connected.');
+    }
+
+    const payload = { DisplayName: c.name };
+    if (c.email) payload.PrimaryEmailAddr = { Address: c.email };
+    if (c.phone) payload.PrimaryPhone = { FreeFormNumber: c.phone };
+    if (c.address || c.city) {
+      payload.BillAddr = {};
+      if (c.address) payload.BillAddr.Line1 = c.address;
+      if (c.city) payload.BillAddr.City = c.city;
+    }
+    try {
+      const result = await qboPost(realmId, accessToken, 'customer', payload);
+      const qbId = (result.Customer && result.Customer.Id) || null;
+      await ref.set({ qbId, updatedAt: new Date().toISOString() }, { merge: true });
+      return { qbId };
+    } catch (err) {
+      console.error('QBO customer create failed', err);
+      /* Surface QuickBooks' duplicate-name and validation errors to the app. */
+      throw new functions.https.HttpsError('internal', err.message || 'QuickBooks customer create failed.');
+    }
+  });
+
 /* Daily scheduled sync. */
 exports.qbDailySync = functions
   .region(REGION)
