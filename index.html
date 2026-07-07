@@ -2094,6 +2094,16 @@
         <div class="sync-now-status" id="syncNowStatus"></div>
       </div>
 
+      <div class="card" id="notificationsCard">
+        <h3 style="margin-bottom:6px;">Notifications</h3>
+        <p class="muted" style="font-size:14px;">Get a push notification on this device for things like new job assignments. Tap <strong>Enable</strong> once per device and allow notifications when prompted.</p>
+        <div class="btn-row" style="margin-top:12px;">
+          <button class="btn btn-primary" id="enablePushBtn">Enable on this device</button>
+          <button class="btn btn-ghost" id="pushTestBtn" style="display:none;">Send test</button>
+        </div>
+        <div class="sync-now-status" id="pushStatus"></div>
+      </div>
+
       <div class="card" id="bizCard">
         <h3 style="margin-bottom:10px;">Business</h3>
         <div id="bizDisplay" class="biz-info">
@@ -2317,6 +2327,9 @@ import {
 import {
   getFunctions, httpsCallable
 } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-functions.js";
+import {
+  getMessaging, getToken, onMessage, isSupported as messagingIsSupported
+} from "https://www.gstatic.com/firebasejs/10.13.0/firebase-messaging.js";
 
 /* =====================================================================
  * Southern Wildlife Tracker
@@ -2342,6 +2355,24 @@ const fbStorage = getStorage(fbApp);
 /* Default region (us-central1) matches the gen-1 QuickBooks functions. */
 const fbFunctions = getFunctions(fbApp);
 try { await setPersistence(fbAuth, browserLocalPersistence); } catch (e) { /* private mode */ }
+
+/* ---- Web push (Firebase Cloud Messaging) ----
+   VAPID_KEY = the public "Web Push certificate" key pair from the Firebase
+   console (Project settings → Cloud Messaging → Web Push certificates). It's a
+   public key, safe to embed. Until it's set, the Enable button reports "not
+   configured". */
+const VAPID_KEY = '';
+let fbMessaging = null;
+messagingIsSupported().then((ok) => {
+  if (!ok) return;
+  try {
+    fbMessaging = getMessaging(fbApp);
+    onMessage(fbMessaging, (payload) => {
+      const d = (payload && payload.data) || {};
+      toast((d.title ? d.title + ': ' : '') + (d.body || 'New notification'));
+    });
+  } catch (e) { console.warn('Messaging init failed', e); }
+}).catch(() => {});
 
 let currentUser = null;
 let recordsUnsub = null;
@@ -2544,7 +2575,7 @@ let orgSettings = {
 };
 
 const PESTICIDE_EMAILJS_TEMPLATE_ID = 'template_4aa3u5a';
-const APP_VERSION = 'v1.41';  /* bump in lockstep with the SW cache version */
+const APP_VERSION = 'v1.42';  /* bump in lockstep with the SW cache version */
 /* Single source of truth: keep the footer label in sync with APP_VERSION so
    the two version displays can't drift apart again. */
 { const _fv = document.getElementById('footerVersion'); if (_fv) _fv.textContent = APP_VERSION; }
@@ -3115,6 +3146,43 @@ function updateSyncIndicator(state) {
     const label = el.querySelector('.label');
     if (label) label.textContent = text;
   });
+}
+
+/* ---------- Web push enable / test ---------- */
+async function enablePushNotifications() {
+  const status = $('#pushStatus');
+  const setStatus = (msg, ok) => { if (status) { status.textContent = msg; status.style.color = ok ? 'var(--green-deep)' : 'var(--amber)'; } };
+  if (!('Notification' in window) || !fbMessaging) { setStatus('Push notifications aren’t supported on this browser/device.'); return; }
+  if (!VAPID_KEY) { setStatus('Push isn’t configured yet (missing Web Push key).'); return; }
+  try {
+    const perm = await Notification.requestPermission();
+    if (perm !== 'granted') { setStatus('Notifications permission was denied — enable it in your browser/app settings.'); return; }
+    const reg = await navigator.serviceWorker.register('./firebase-messaging-sw.js', { scope: './firebase-cloud-messaging-push-scope' });
+    const token = await getToken(fbMessaging, { vapidKey: VAPID_KEY, serviceWorkerRegistration: reg });
+    if (!token) { setStatus('Could not get a device token — try again.'); return; }
+    await writeWithRetry(() => setDoc(doc(fbDb, 'pushTokens', token), {
+      token,
+      uid: currentUser ? currentUser.uid : null,
+      email: currentUser ? currentUser.email : null,
+      name: currentUser ? (EMAIL_TO_TRAPPER[currentUser.email] || currentUser.email) : null,
+      updatedAt: new Date().toISOString()
+    }, { merge: true }));
+    setStatus('✓ Notifications enabled on this device.', true);
+    toast('Notifications enabled');
+    const testBtn = $('#pushTestBtn'); if (testBtn) testBtn.style.display = '';
+  } catch (err) {
+    console.error('enable push failed', err);
+    setStatus('Enable failed: ' + ((err && err.message) || 'error'));
+  }
+}
+async function sendTestNotification() {
+  try {
+    const res = await httpsCallable(fbFunctions, 'sendTestPush')();
+    const r = (res && res.data) || {};
+    toast(r.sent ? 'Test sent — check for the notification' : 'No devices registered yet');
+  } catch (err) {
+    toast('Test failed: ' + ((err && err.message) || 'error'), 'error');
+  }
 }
 
 /* ---------- Firestore subscription ---------- */
@@ -7309,6 +7377,8 @@ async function init() {
   $('#c-phone').addEventListener('blur', (e) => { const v = e.target.value.trim(); if (v) e.target.value = formatPhone(v); });
   $('#c-name').addEventListener('blur', (e) => { const v = e.target.value.trim(); if (v) e.target.value = titleCaseName(v); });
   $('#syncNowBtn').addEventListener('click', handleSyncNow);
+  $('#enablePushBtn').addEventListener('click', enablePushNotifications);
+  $('#pushTestBtn').addEventListener('click', sendTestNotification);
 
   /* ---- Customer autocomplete on trapping + pesticide forms ---- */
   function wireAutocomplete(inputId, listId, applyFn) {

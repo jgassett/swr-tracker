@@ -81,6 +81,13 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    /* Web-push device tokens. Clients register/remove their own; only the
+       Admin SDK (server) reads them to send notifications. */
+    match /pushTokens/{tokenId} {
+      allow read:  if false;
+      allow create, update, delete: if request.auth != null;
+    }
+
     /* Org-level settings (business name, permit, applicator certs, etc.). */
     match /org/{docId} {
       allow read:  if request.auth != null;

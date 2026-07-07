@@ -566,6 +566,56 @@ exports.qbCreateCustomer = functions
     }
   });
 
+/* =====================================================================
+ * Web push (Firebase Cloud Messaging) — reusable notification foundation.
+ * sendPushToEmails() is called by any feature (e.g. job assignments) to push
+ * a data-only message to every registered device of the given operators.
+ * ===================================================================== */
+async function sendPushToEmails(emails, payload) {
+  const list = [...new Set((emails || []).filter(Boolean))];
+  if (!list.length) return { sent: 0, tokens: 0 };
+  const tokens = [];
+  for (let i = 0; i < list.length; i += 10) {
+    const snap = await db.collection('pushTokens').where('email', 'in', list.slice(i, i + 10)).get();
+    snap.forEach((d) => { const t = d.get('token'); if (t) tokens.push(t); });
+  }
+  if (!tokens.length) return { sent: 0, tokens: 0 };
+  const res = await admin.messaging().sendEachForMulticast({
+    tokens,
+    data: {
+      title: String(payload.title || 'SWR Tracker'),
+      body: String(payload.body || ''),
+      url: String(payload.url || 'https://jgassett.github.io/swr-tracker/')
+    },
+    webpush: { headers: { Urgency: 'high' } }
+  });
+  res.responses.forEach((r, i) => {
+    if (!r.success) {
+      const code = r.error && r.error.code;
+      if (code === 'messaging/registration-token-not-registered' || code === 'messaging/invalid-argument') {
+        db.collection('pushTokens').doc(tokens[i]).delete().catch(() => {});
+      }
+    }
+  });
+  return { sent: res.successCount, tokens: tokens.length };
+}
+
+/* Send a test push to the caller's own devices (verifies the whole pipeline). */
+exports.sendTestPush = functions
+  .region(REGION)
+  .runWith({ memory: '256MB' })
+  .https.onCall(async (data, context) => {
+    if (!context.auth) throw new functions.https.HttpsError('unauthenticated', 'Sign in required.');
+    const email = (context.auth.token && context.auth.token.email) || null;
+    if (!email) throw new functions.https.HttpsError('failed-precondition', 'No email on your account.');
+    try {
+      return await sendPushToEmails([email], { title: 'SWR Tracker', body: 'Test notification — push is working ✅' });
+    } catch (err) {
+      console.error('sendTestPush failed', err);
+      throw new functions.https.HttpsError('internal', err.message || 'Push send failed');
+    }
+  });
+
 /* Daily scheduled sync. */
 exports.qbDailySync = functions
   .region(REGION)
