@@ -3049,13 +3049,23 @@ function resetPhotoUI() {
   removeExistingPhoto = false;
   hidePhotoPreview();
 }
+/* M10: reject an upload/download that hangs past 30s so a save can't spin
+   forever on a flaky connection. */
+function withUploadTimeout(promise, ms = 30000) {
+  let timer;
+  const timeout = new Promise((_, reject) => {
+    timer = setTimeout(() => reject(new Error('Upload timed out — check your connection and try again')), ms);
+  });
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
+}
+
 async function uploadPendingPhoto() {
   if (!pendingPhotoBlob) return null;
   const photoId = (crypto && crypto.randomUUID ? crypto.randomUUID() : 'p-' + Date.now() + '-' + Math.random().toString(36).slice(2, 9));
   const path = `records/${photoId}/photo.jpg`;
   const ref = storageRef(fbStorage, path);
-  await uploadBytes(ref, pendingPhotoBlob, { contentType: 'image/jpeg' });
-  const url = await getDownloadURL(ref);
+  await withUploadTimeout(uploadBytes(ref, pendingPhotoBlob, { contentType: 'image/jpeg' }));
+  const url = await withUploadTimeout(getDownloadURL(ref));
   return { path, url };
 }
 
@@ -3547,7 +3557,7 @@ async function enablePushNotifications() {
       token,
       uid: currentUser ? currentUser.uid : null,
       email: currentUser ? currentUser.email : null,
-      name: currentUser ? (EMAIL_TO_TRAPPER[currentUser.email] || currentUser.email) : null,
+      name: currentUser ? (EMAIL_TO_TRAPPER[currentUser.email.toLowerCase()] || currentUser.email) : null,
       updatedAt: new Date().toISOString()
     }, { merge: true }));
     setStatus('✓ Notifications enabled on this device.', true);
@@ -3582,7 +3592,7 @@ async function autoEnablePushIfGranted() {
       token,
       uid: currentUser ? currentUser.uid : null,
       email: currentUser ? currentUser.email : null,
-      name: currentUser ? (EMAIL_TO_TRAPPER[currentUser.email] || currentUser.email) : null,
+      name: currentUser ? (EMAIL_TO_TRAPPER[currentUser.email.toLowerCase()] || currentUser.email) : null,
       updatedAt: new Date().toISOString()
     }, { merge: true }));
     const status = $('#pushStatus');
@@ -4227,8 +4237,12 @@ function editEstimate(id) {
 }
 
 async function submitEstimateForApproval(id) {
-  await writeWithRetry(() => setDoc(doc(fbDb, 'estimates', id), { status: 'Pending Approval', updatedAt: new Date().toISOString() }, { merge: true }));
-  toast('Submitted for approval');
+  try {
+    await writeWithRetry(() => setDoc(doc(fbDb, 'estimates', id), { status: 'Pending Approval', updatedAt: new Date().toISOString() }, { merge: true }));
+    toast('Submitted for approval');
+  } catch (err) {
+    toast('Submit failed: ' + ((err && err.message) || 'error'), 'error');
+  }
 }
 
 async function deleteEstimateDraft(id) {
@@ -4236,16 +4250,25 @@ async function deleteEstimateDraft(id) {
   const deletable = ['Draft', 'Pending Approval', 'Rejected'];
   if (!e || !deletable.includes(e.status)) { toast('Estimates already pushed to QuickBooks can’t be deleted here', 'error'); return; }
   if (!confirm('Delete this estimate? This cannot be undone.')) return;
-  await writeWithRetry(() => deleteDoc(doc(fbDb, 'estimates', id)));
-  toast('Estimate deleted');
-  currentEstimateId = null;
-  setView('dashboard');
+  try {
+    await writeWithRetry(() => deleteDoc(doc(fbDb, 'estimates', id)));
+    toast('Estimate deleted');
+    currentEstimateId = null;
+    setView('dashboard');
+  } catch (err) {
+    toast('Delete failed: ' + ((err && err.message) || 'error'), 'error');
+  }
 }
 
 async function rejectEstimate(id) {
-  const note = (prompt('Reason for rejection (optional):') || '').trim();
-  await writeWithRetry(() => setDoc(doc(fbDb, 'estimates', id), { status: 'Rejected', rejectionNote: note, updatedAt: new Date().toISOString() }, { merge: true }));
-  toast('Estimate rejected');
+  const note = prompt('Reason for rejection (optional):');
+  if (note === null) return;   /* M1: user cancelled the prompt — don't reject */
+  try {
+    await writeWithRetry(() => setDoc(doc(fbDb, 'estimates', id), { status: 'Rejected', rejectionNote: note.trim(), updatedAt: new Date().toISOString() }, { merge: true }));
+    toast('Estimate rejected');
+  } catch (err) {
+    toast('Reject failed: ' + ((err && err.message) || 'error'), 'error');
+  }
 }
 
 async function approveAndPushEstimate(id, btn) {
@@ -4562,6 +4585,10 @@ function renderFieldDetail(key) {
 }
 
 async function assignFieldPhotos(key, customer) {
+  if (!customer || !customer.id) return;   /* M6: nothing to link to */
+  const ok = await confirmDialog('Link camera?',
+    `Link camera ID ${key} to ${customer.name || 'this customer'}? This will reassign all matching photos.`);
+  if (!ok) return;
   try {
     /* Persist the link on the customer (Camera ID) so this camera's current AND
        future photos + health resolve to them automatically. */
@@ -5164,6 +5191,9 @@ function validateRecord(r) {
   if (EXCLUDE_DISPOSALS.has(r.disposalMethod) && !isBatOrBird(r.species) && r.species !== OTHER_ANIMAL) {
     if (r.excludedNumber == null || r.excludedNumber < 0) errs.push('Number excluded');
   }
+  /* M12: date sanity — no future collection date; release not before collection. */
+  if (r.dateCollected && r.dateCollected > todayISO()) errs.push('Collection date can’t be in the future');
+  if (r.releaseDate && r.dateCollected && r.releaseDate < r.dateCollected) errs.push('Release date can’t be before the collection date');
   return errs;
 }
 
@@ -6418,6 +6448,10 @@ async function savePesticide() {
     toast('Fill all required fields (name, active ingredient, EPA #, concentration).', 'error');
     return;
   }
+  if (concentration < 0 || concentration > 100) {   /* M9: master concentration range */
+    toast('Concentration must be between 0 and 100%.', 'error');
+    return;
+  }
   const isEdit = !!editingPesticideId;
   const existing = isEdit ? cachedPesticides.find((p) => p.id === editingPesticideId) : null;
 
@@ -6438,30 +6472,39 @@ async function savePesticide() {
   $('#pestSaveBtn').disabled = true;
   $('#pestSaveBtn').textContent = 'Saving…';
   try {
-    let pestId;
-    if (isEdit) {
-      pestId = editingPesticideId;
-      await setDoc(doc(fbDb, 'pesticides', pestId), data, { merge: true });
-    } else {
-      const ref = await addDoc(pesticidesCol(), data);
-      pestId = ref.id;
-    }
+    /* M7: resolve the id up front and upload the PDFs BEFORE writing the product
+       doc. If an upload fails, don't write the doc — no orphaned record. */
+    const pestId = isEdit ? editingPesticideId : doc(pesticidesCol()).id;
     const sdsFile = $('#pestSdsFile').files[0];
-    if (sdsFile) {
-      const path = `pesticides/${pestId}/sds.pdf`;
-      const sref = storageRef(fbStorage, path);
-      await uploadBytes(sref, sdsFile, { contentType: 'application/pdf' });
-      const url = await getDownloadURL(sref);
-      await setDoc(doc(fbDb, 'pesticides', pestId), { sdsUrl: url, sdsPath: path, updatedAt: new Date().toISOString() }, { merge: true });
-    }
     const labelFile = $('#pestLabelFile').files[0];
-    if (labelFile) {
-      const path = `pesticides/${pestId}/label.pdf`;
-      const sref = storageRef(fbStorage, path);
-      await uploadBytes(sref, labelFile, { contentType: 'application/pdf' });
-      const url = await getDownloadURL(sref);
-      await setDoc(doc(fbDb, 'pesticides', pestId), { labelUrl: url, labelPath: path, updatedAt: new Date().toISOString() }, { merge: true });
+
+    if (sdsFile) {
+      try {
+        const path = `pesticides/${pestId}/sds.pdf`;
+        const sref = storageRef(fbStorage, path);
+        await withUploadTimeout(uploadBytes(sref, sdsFile, { contentType: 'application/pdf' }));
+        data.sdsUrl = await withUploadTimeout(getDownloadURL(sref));
+        data.sdsPath = path;
+      } catch (err) {
+        toast('SDS upload failed: ' + ((err && err.message) || 'error') + ' — nothing was saved.', 'error');
+        return;
+      }
     }
+    if (labelFile) {
+      try {
+        const path = `pesticides/${pestId}/label.pdf`;
+        const sref = storageRef(fbStorage, path);
+        await withUploadTimeout(uploadBytes(sref, labelFile, { contentType: 'application/pdf' }));
+        data.labelUrl = await withUploadTimeout(getDownloadURL(sref));
+        data.labelPath = path;
+      } catch (err) {
+        toast('Label upload failed: ' + ((err && err.message) || 'error') + ' — nothing was saved.', 'error');
+        return;
+      }
+    }
+
+    /* Both uploads (if any) succeeded — now write the product doc. */
+    await setDoc(doc(fbDb, 'pesticides', pestId), data, { merge: true });
     closePesticideEditor();
     toast(isEdit ? `Updated ${name}` : `Added ${name}`);
   } catch (err) {
@@ -6857,8 +6900,11 @@ function validatePesticideRecord(r) {
   if (!r.applicator) errs.push('Applicator');
   if (!r.appliedAt) errs.push('Date / Time');
   if (r.weatherTemp == null) errs.push('Temperature');
+  else if (r.weatherTemp < -40 || r.weatherTemp > 130) errs.push('Temperature must be between -40 and 130°F');
   if (r.weatherWind == null) errs.push('Wind speed');
+  else if (r.weatherWind < 0 || r.weatherWind > 100) errs.push('Wind speed must be between 0 and 100 mph');
   if (r.weatherHumidity == null) errs.push('Humidity');
+  else if (r.weatherHumidity < 0 || r.weatherHumidity > 100) errs.push('Humidity must be between 0 and 100%');
   if (!r.purpose) errs.push('Purpose');
   if (r.purpose === 'Other (specify)' && !r.purposeOther) errs.push('Specify purpose');
   if (r.areaSize == null || r.areaSize <= 0) errs.push('Area size');
@@ -6881,6 +6927,14 @@ function validatePesticideRecord(r) {
   if (r.applicationMethod === 'Other (specify)' && !r.applicationMethodOther) errs.push('Specify method');
   if (r.adjuvants.includes('Other') && !r.adjuvantOther) errs.push('Specify adjuvant');
   if (!r.products.length) errs.push('At least one product');
+  (r.products || []).forEach((p, i) => {
+    if (p.concentration != null && (p.concentration <= 0 || p.concentration > 100)) {
+      errs.push(`Product ${i + 1} concentration must be greater than 0 and up to 100%`);
+    }
+    if (p.volumeMl != null && p.volumeMl <= 0) {
+      errs.push(`Product ${i + 1} volume must be greater than 0 ml`);
+    }
+  });
   return errs;
 }
 
@@ -6977,8 +7031,8 @@ async function confirmSavePesticide() {
           const photoId = (crypto && crypto.randomUUID ? crypto.randomUUID() : 'p-' + Date.now());
           const path = `pesticide_records/${photoId}/photo.jpg`;
           const ref = storageRef(fbStorage, path);
-          await uploadBytes(ref, pendingPaPhotoBlob, { contentType: 'image/jpeg' });
-          rec.photoUrl = await getDownloadURL(ref);
+          await withUploadTimeout(uploadBytes(ref, pendingPaPhotoBlob, { contentType: 'image/jpeg' }));
+          rec.photoUrl = await withUploadTimeout(getDownloadURL(ref));
           rec.photoPath = path;
         } catch (err) {
           const cont = await confirmDialog('Photo upload failed', `Save without photo? (${err.code || err.message || 'unknown'})`, { okText: 'Save Without Photo' });
@@ -7048,10 +7102,14 @@ async function deletePesticideRecord(id) {
   if (!target) return;
   const ok = await confirmDialog('Delete this application?', 'This cannot be undone.');
   if (!ok) return;
-  await deleteDoc(doc(fbDb, 'pesticide_records', target));
-  resetPesticideRecordForm();
-  setView('records');
-  toast('Application deleted');
+  try {
+    await deleteDoc(doc(fbDb, 'pesticide_records', target));
+    resetPesticideRecordForm();
+    setView('records');
+    toast('Application deleted');
+  } catch (err) {
+    toast('Delete failed: ' + ((err && err.message) || 'error'), 'error');
+  }
 }
 
 function fmtPaDateTime(s) {
@@ -7830,15 +7888,23 @@ function populateJobSelect(selectId, selectedId) {
 }
 
 async function setJobStatus(id, status) {
-  await writeWithRetry(() => setDoc(doc(fbDb, 'jobs', id), { status, updatedAt: new Date().toISOString() }, { merge: true }));
-  toast(`Job ${status.toLowerCase()}`);
+  try {
+    await writeWithRetry(() => setDoc(doc(fbDb, 'jobs', id), { status, updatedAt: new Date().toISOString() }, { merge: true }));
+    toast(`Job ${status.toLowerCase()}`);
+  } catch (err) {
+    toast('Update failed: ' + ((err && err.message) || 'error'), 'error');
+  }
 }
 async function deleteJob(id) {
   if (!confirm('Delete this job? This cannot be undone.')) return;
-  await writeWithRetry(() => deleteDoc(doc(fbDb, 'jobs', id)));
-  toast('Job deleted');
-  currentJobId = null;
-  setView('dashboard');
+  try {
+    await writeWithRetry(() => deleteDoc(doc(fbDb, 'jobs', id)));
+    toast('Job deleted');
+    currentJobId = null;
+    setView('dashboard');
+  } catch (err) {
+    toast('Delete failed: ' + ((err && err.message) || 'error'), 'error');
+  }
 }
 
 async function refreshAll() {
@@ -8232,11 +8298,15 @@ async function init() {
     if (!editingId) return;
     const ok = await confirmDialog('Delete this record?', 'This cannot be undone.');
     if (!ok) return;
-    await dbDelete(editingId);
-    toast('Record deleted');
-    resetForm();
-    setView('records');
-    refreshAll();
+    try {
+      await dbDelete(editingId);
+      toast('Record deleted');
+      resetForm();
+      setView('records');
+      refreshAll();
+    } catch (err) {
+      toast('Delete failed: ' + ((err && err.message) || 'error'), 'error');
+    }
   });
 
   ['recSearch','filterTrapper','filterSpecies','filterCounty','filterDisposal'].forEach((id) => {
