@@ -2104,6 +2104,16 @@
         <div class="sync-now-status" id="pushStatus"></div>
       </div>
 
+      <div class="card" id="photoRetentionCard">
+        <h3 style="margin-bottom:6px;">Camera Photos</h3>
+        <p class="muted" style="font-size:14px;">How long to keep camera photos in the app before they're automatically deleted.</p>
+        <div class="form-group" style="margin-top:10px; max-width:220px;">
+          <label for="photoRetentionDays">Keep photos for</label>
+          <select id="photoRetentionDays"></select>
+        </div>
+        <div class="hint" id="photoRetentionHint"></div>
+      </div>
+
       <div class="card" id="bizCard">
         <h3 style="margin-bottom:10px;">Business</h3>
         <div id="bizDisplay" class="biz-info">
@@ -2575,7 +2585,7 @@ let orgSettings = {
 };
 
 const PESTICIDE_EMAILJS_TEMPLATE_ID = 'template_4aa3u5a';
-const APP_VERSION = 'v1.43';  /* bump in lockstep with the SW cache version */
+const APP_VERSION = 'v1.44';  /* bump in lockstep with the SW cache version */
 /* Single source of truth: keep the footer label in sync with APP_VERSION so
    the two version displays can't drift apart again. */
 { const _fv = document.getElementById('footerVersion'); if (_fv) _fv.textContent = APP_VERSION; }
@@ -3236,9 +3246,30 @@ function subscribeToOrg() {
     renderBusinessCard();
     renderReportingCard();
     renderCertCard();
+    renderPhotoRetentionCard();
     refreshApplicatorDropdown();
     renderDashboard();
   }, (err) => console.error('Org subscription error', err));
+}
+
+/* Camera-photo retention control (1–30 days). Admin sets it; everyone sees it. */
+function renderPhotoRetentionCard() {
+  const sel = $('#photoRetentionDays');
+  if (!sel) return;
+  if (!sel.options.length) {
+    for (let d = 1; d <= 30; d++) {
+      const o = document.createElement('option');
+      o.value = String(d);
+      o.textContent = d === 1 ? '1 day' : `${d} days`;
+      sel.appendChild(o);
+    }
+  }
+  const days = Number(orgSettings && orgSettings.photoRetentionDays) || 30;
+  sel.value = String(Math.min(30, Math.max(1, days)));
+  const admin = isAdmin();
+  sel.disabled = !admin;
+  const hint = $('#photoRetentionHint');
+  if (hint) hint.textContent = admin ? 'Photos older than this are removed automatically each day.' : 'Only an admin can change this.';
 }
 function unsubscribeFromOrg() {
   if (orgUnsub) { orgUnsub(); orgUnsub = null; }
@@ -7379,6 +7410,12 @@ async function init() {
   $('#syncNowBtn').addEventListener('click', handleSyncNow);
   $('#enablePushBtn').addEventListener('click', enablePushNotifications);
   $('#pushTestBtn').addEventListener('click', sendTestNotification);
+  $('#photoRetentionDays').addEventListener('change', async (e) => {
+    const days = parseInt(e.target.value, 10);
+    if (!Number.isFinite(days)) return;
+    try { await saveOrgConfig({ photoRetentionDays: days }); toast(`Keeping camera photos ${days} day${days === 1 ? '' : 's'}`); }
+    catch (err) { toast('Could not save: ' + ((err && err.message) || 'error'), 'error'); }
+  });
 
   /* ---- Customer autocomplete on trapping + pesticide forms ---- */
   function wireAutocomplete(inputId, listId, applyFn) {

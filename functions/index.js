@@ -616,6 +616,39 @@ exports.sendTestPush = functions
     }
   });
 
+/* Daily cleanup: delete camera photos older than the in-app retention setting
+ * (org/swr.photoRetentionDays, 1–30, default 30) — both the Storage file and
+ * the Firestore record. */
+exports.cleanupCameraPhotos = functions
+  .region(REGION)
+  .runWith({ timeoutSeconds: 300, memory: '256MB' })
+  .pubsub.schedule('every 24 hours')
+  .timeZone(REPORT_TZ)
+  .onRun(async () => {
+    try {
+      const orgSnap = await db.doc('org/swr').get();
+      let days = orgSnap.exists ? Number(orgSnap.get('photoRetentionDays')) : NaN;
+      if (!Number.isFinite(days) || days < 1) days = 30;
+      if (days > 30) days = 30;
+      const cutoff = new Date(Date.now() - days * 86400000).toISOString();
+      const snap = await db.collection('cameraPhotos').where('receivedAt', '<', cutoff).get();
+      if (snap.empty) { console.log('cleanupCameraPhotos: nothing older than', days, 'days'); return null; }
+      const bucket = admin.storage().bucket();
+      let batch = db.batch(); let ops = 0; let deleted = 0;
+      for (const d of snap.docs) {
+        const path = d.get('storagePath');
+        if (path) bucket.file(path).delete().catch(() => {});  // best-effort file delete
+        batch.delete(d.ref); ops++; deleted++;
+        if (ops >= 450) { await batch.commit(); batch = db.batch(); ops = 0; }
+      }
+      if (ops) await batch.commit();
+      console.log(`cleanupCameraPhotos: deleted ${deleted} photos older than ${days} days`);
+    } catch (err) {
+      console.error('cleanupCameraPhotos failed', err);
+    }
+    return null;
+  });
+
 /* Daily scheduled sync. */
 exports.qbDailySync = functions
   .region(REGION)
