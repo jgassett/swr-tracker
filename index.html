@@ -2361,7 +2361,7 @@ try { await setPersistence(fbAuth, browserLocalPersistence); } catch (e) { /* pr
    console (Project settings → Cloud Messaging → Web Push certificates). It's a
    public key, safe to embed. Until it's set, the Enable button reports "not
    configured". */
-const VAPID_KEY = '';
+const VAPID_KEY = 'BNkXOt0a02TSUOSvi3ozYz4PTNDTLTcp0c-VWyKbKdo2XUqDvvcdLZRSIT_MzqAKuaPTNZmUuLwLB9dMVPdVxOE';
 let fbMessaging = null;
 messagingIsSupported().then((ok) => {
   if (!ok) return;
@@ -2575,7 +2575,7 @@ let orgSettings = {
 };
 
 const PESTICIDE_EMAILJS_TEMPLATE_ID = 'template_4aa3u5a';
-const APP_VERSION = 'v1.42';  /* bump in lockstep with the SW cache version */
+const APP_VERSION = 'v1.43';  /* bump in lockstep with the SW cache version */
 /* Single source of truth: keep the footer label in sync with APP_VERSION so
    the two version displays can't drift apart again. */
 { const _fv = document.getElementById('footerVersion'); if (_fv) _fv.textContent = APP_VERSION; }
