@@ -1214,6 +1214,18 @@
     .legacy-group .lg-actions select { flex: 1; min-width: 150px; padding: 9px 30px 9px 10px; font-size: 13px; }
     .legacy-group .lg-actions .map-btn { flex-shrink: 0; }
 
+    /* ---- Customer Action Hub (Item 4) ---- */
+    .action-hub { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .action-hub .hub-btn {
+      display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
+      padding: 13px 8px; border: 1px solid var(--line); border-radius: 12px;
+      background: var(--cream-deep); color: var(--green-deep); font-weight: 600; font-size: 13px;
+      text-align: center; cursor: pointer; transition: background 0.12s, transform 0.05s;
+    }
+    .action-hub .hub-btn svg { width: 20px; height: 20px; stroke: var(--amber); fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+    .action-hub .hub-btn:active { transform: scale(0.97); background: rgba(196,119,42,0.15); }
+    #hubJobChooser button { margin: 0 6px 6px 0; }
+
     /* Wider screens — center the form, two-up rows */
     @media (min-width: 600px) {
       #view-add, #view-dashboard, #view-records, #view-export, #view-settings,
@@ -2016,6 +2028,37 @@
 
     <!-- ADD / EDIT CUSTOMER -->
     <section id="view-add-customer" class="view hidden">
+      <!-- Customer Action Hub (Item 4) — shown only for existing customers -->
+      <div class="card hidden" id="customerActionHub">
+        <h3 style="margin:0 0 10px;">Quick Actions</h3>
+        <div id="hubJobChooser" class="hidden" style="margin-bottom:10px;"></div>
+        <div class="action-hub">
+          <button type="button" class="hub-btn" data-hub-action="start-job">
+            <svg viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
+            Start New Job
+          </button>
+          <button type="button" class="hub-btn" data-hub-action="schedule-appointment">
+            <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+            Schedule Appointment
+          </button>
+          <button type="button" class="hub-btn" data-hub-action="create-estimate">
+            <svg viewBox="0 0 24 24"><path d="M4 4h16v4H4z"/><path d="M4 12h10"/><path d="M4 16h10"/><path d="M4 20h7"/><path d="M18 13v7"/><path d="M15 16l3-3 3 3"/></svg>
+            Create Estimate
+          </button>
+          <button type="button" class="hub-btn" data-hub-action="log-trap">
+            <svg viewBox="0 0 24 24"><circle cx="6" cy="11" r="2.5"/><circle cx="12" cy="8" r="2.5"/><circle cx="18" cy="11" r="2.5"/><ellipse cx="12" cy="17" rx="5" ry="4"/></svg>
+            Log Trap Record
+          </button>
+          <button type="button" class="hub-btn" data-hub-action="log-pesticide">
+            <svg viewBox="0 0 24 24"><path d="M9 2h6v3l3 3v3l-3 1v9a2 2 0 0 1-2 2h-2a2 2 0 0 1-2-2v-9l-3-1V8l3-3z"/><circle cx="12" cy="14" r="1.5"/></svg>
+            Log Pesticide Application
+          </button>
+          <button type="button" class="hub-btn" data-hub-action="assign-camera">
+            <svg viewBox="0 0 24 24"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+            Assign Camera
+          </button>
+        </div>
+      </div>
       <form id="customerForm" novalidate>
         <input type="hidden" id="c-id">
 
@@ -9268,6 +9311,10 @@ function resetCustomerForm() {
   $('#retryQbPushBtn').style.display = 'none';
   $('#retryQbPushHint').style.display = 'none';
   $('#saveCustomerBtn').textContent = 'Save Customer';
+  const hub = $('#customerActionHub');
+  if (hub) hub.classList.add('hidden');
+  const chooser = $('#hubJobChooser');
+  if (chooser) { chooser.classList.add('hidden'); chooser.innerHTML = ''; }
 }
 
 function loadCustomerIntoForm(c) {
@@ -9290,6 +9337,85 @@ function loadCustomerIntoForm(c) {
   $('#retryQbPushBtn').style.display = c.qbId ? 'none' : 'block';
   $('#retryQbPushHint').style.display = c.qbId ? 'none' : 'block';
   $('#saveCustomerBtn').textContent = 'Save Changes';
+  const hub = $('#customerActionHub');
+  if (hub) hub.classList.remove('hidden');
+}
+
+/* =====================================================================
+ * Customer Action Hub (Item 4) — one-tap jumps from a customer into any
+ * module with the customer (and, when unambiguous, their active job)
+ * pre-selected. Multiple active jobs → inline job selector first.
+ * ===================================================================== */
+function customerActiveJobs(customerId) {
+  return lifecycleJobs().filter((j) => j.customerId === customerId && jobIsActive(j));
+}
+
+function handleHubAction(action) {
+  const c = cachedCustomers.find((x) => x.id === editingCustomerId);
+  if (!c) return;
+  const needsJob = action === 'schedule-appointment' || action === 'log-trap' || action === 'log-pesticide';
+  if (!needsJob) { hubProceed(action, null, c); return; }
+  const jobs = customerActiveJobs(c.id);
+  if (!jobs.length) {
+    if (action === 'schedule-appointment') {
+      toast('No active job for this customer — start one first; appointments live inside jobs.');
+      hubProceed('start-job', null, c);
+    } else {
+      hubProceed(action, null, c);   /* records can be logged without a job */
+    }
+  } else if (jobs.length === 1) {
+    hubProceed(action, jobs[0].id, c);
+  } else {
+    showHubJobSelector(action, jobs);
+  }
+}
+
+let hubPendingAction = null;
+function showHubJobSelector(action, jobs) {
+  hubPendingAction = action;
+  const box = $('#hubJobChooser');
+  if (!box) return;
+  box.innerHTML = '<div class="hint" style="margin-bottom:6px;">Multiple active jobs — which one?</div>' +
+    jobs.map((j) => `<button type="button" class="map-btn ghost" data-hub-job="${escapeHtml(j.id)}">${escapeHtml(j.jobNumber || 'Job')} · ${escapeHtml(j.status || '')}</button>`).join('');
+  box.classList.remove('hidden');
+}
+
+function hubProceed(action, jobId, c) {
+  const chooser = $('#hubJobChooser');
+  if (chooser) { chooser.classList.add('hidden'); chooser.innerHTML = ''; }
+  hubPendingAction = null;
+  if (action === 'start-job') {
+    pendingJobCustomerId = c.id;     /* consumed by resetLifecycleJobForm in setView */
+    editingLifecycleJobId = null;
+    setAppModeQuiet('jobs');
+    setView('add');
+  } else if (action === 'schedule-appointment') {
+    editingAppointment = null;
+    pendingAppointmentJobId = jobId; /* consumed by resetAppointmentForm in setView */
+    appointmentReturnTo = null;
+    setAppModeQuiet('schedule');
+    setView('add');
+  } else if (action === 'create-estimate') {
+    editingEstimateId = null;
+    setAppModeQuiet('pricing');
+    setView('add');                  /* resets the builder… */
+    applyEstimateCustomer(c);        /* …then pre-select the customer */
+  } else if (action === 'log-trap') {
+    if (jobId) { startWorkLog(jobId, 'trap'); return; }
+    editingId = null; pendingRecord = null;
+    setAppModeQuiet('trap');
+    setView('add');
+    applyCustomerToTrapForm(c);
+  } else if (action === 'log-pesticide') {
+    if (jobId) { startWorkLog(jobId, 'pesticide'); return; }
+    editingPesticideRecordId = null; pendingPesticideRecord = null;
+    setAppModeQuiet('pesticide');
+    setView('add');
+    applyCustomerToPesticideForm(c);
+  } else if (action === 'assign-camera') {
+    const field = $('#c-cameraId');
+    if (field) { field.scrollIntoView({ behavior: 'smooth', block: 'center' }); setTimeout(() => field.focus(), 300); }
+  }
 }
 
 function editCustomer(id) {
@@ -9867,6 +9993,16 @@ async function init() {
     if (!el) return;
     el.addEventListener('input', renderCustomerList);
     el.addEventListener('change', renderCustomerList);
+  });
+  $('#customerActionHub').addEventListener('click', (e) => {
+    const jobBtn = e.target.closest('[data-hub-job]');
+    if (jobBtn) {
+      const c = cachedCustomers.find((x) => x.id === editingCustomerId);
+      if (c && hubPendingAction) hubProceed(hubPendingAction, jobBtn.dataset.hubJob, c);
+      return;
+    }
+    const btn = e.target.closest('[data-hub-action]');
+    if (btn) handleHubAction(btn.dataset.hubAction);
   });
   $('#c-phone').addEventListener('blur', (e) => { const v = e.target.value.trim(); if (v) e.target.value = formatPhone(v); });
   $('#c-name').addEventListener('blur', (e) => { const v = e.target.value.trim(); if (v) e.target.value = titleCaseName(v); });
