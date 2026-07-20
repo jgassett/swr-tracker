@@ -97,11 +97,35 @@ service cloud.firestore {
        across the crew like the other collections; assignees are notified
        server-side (notifyJobAssignment, Admin SDK) which also reads jobs to
        build the push payload. */
+
+    /* Lifecycle position of a v2 job status. Mirrors JOB_STATUSES in the
+       app; unknown statuses rank -1 and so can never be written. */
+    function jobStatusRank(s) {
+      return {'Lead': 0, 'Estimated': 1, 'Scheduled': 2, 'Active': 3,
+              'Pending Close': 4, 'Invoiced': 5, 'Paid': 6}.get(s, -1);
+    }
+
+    /* Forward-only status guard for v2 lifecycle jobs (they carry a
+       jobNumber; legacy schedule docs keep the v1 shared-edit behavior).
+       A client update may keep the status as-is, cancel a not-yet-cancelled
+       job, or move it forward in the progression — never backward, never
+       out of Cancelled, never to an unknown status. Blocks a stale offline
+       write from regressing a job another device already advanced. */
+    function jobStatusMoveOk() {
+      return !('jobNumber' in resource.data)
+        || request.resource.data.get('status', null) == resource.data.get('status', null)
+        || (resource.data.get('status', 'Lead') != 'Cancelled'
+            && (request.resource.data.get('status', null) == 'Cancelled'
+                || jobStatusRank(request.resource.data.get('status', ''))
+                     > jobStatusRank(resource.data.get('status', 'Lead'))));
+    }
+
     match /jobs/{jobId} {
       allow read:   if request.auth != null;
       allow create: if request.auth != null
                     && request.resource.data.createdByUid == request.auth.uid;
-      allow update: if request.auth != null;
+      allow update: if request.auth != null
+                    && jobStatusMoveOk();
       allow delete: if request.auth != null;
     }
 

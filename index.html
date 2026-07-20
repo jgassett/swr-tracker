@@ -3081,7 +3081,7 @@ import {
   getFunctions, httpsCallable
 } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-functions.js";
 import {
-  getMessaging, getToken, onMessage, isSupported as messagingIsSupported
+  getMessaging, getToken, deleteToken, onMessage, isSupported as messagingIsSupported
 } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-messaging.js";
 
 /* =====================================================================
@@ -4209,6 +4209,31 @@ async function autoEnablePushIfGranted() {
     if (status) { status.textContent = '✓ Notifications enabled on this device.'; status.style.color = 'var(--green-deep)'; }
     const testBtn = $('#pushTestBtn'); if (testBtn) testBtn.style.display = '';
   } catch (err) { console.warn('auto push refresh failed', err); }
+}
+
+/* Sign-out hygiene: invalidate this device's FCM token and pull it out of the
+   operator's pushTokens doc, so a shared device stops receiving the signed-out
+   operator's notifications. Best-effort with short timeouts — sign-out must
+   never hang on a slow or offline network. If the Firestore removal doesn't
+   land, the token is already dead client-side and the backend prunes it as
+   invalid on the next send. */
+async function cleanupPushTokenOnSignOut() {
+  if (!currentUser || !currentUser.email || !fbMessaging || !VAPID_KEY) return;
+  if (!('Notification' in window) || Notification.permission !== 'granted') return;
+  const withTimeout = (p, ms) => Promise.race([p, new Promise((resolve) => setTimeout(resolve, ms))]);
+  try {
+    const reg = await navigator.serviceWorker.register('./firebase-messaging-sw.js', { scope: './firebase-cloud-messaging-push-scope' });
+    const token = await withTimeout(getToken(fbMessaging, { vapidKey: VAPID_KEY, serviceWorkerRegistration: reg }), 4000);
+    await withTimeout(deleteToken(fbMessaging), 4000);
+    if (token) {
+      await withTimeout(updateDoc(doc(fbDb, 'pushTokens', currentUser.email.toLowerCase()), {
+        tokens: arrayRemove(token),
+        updatedAt: new Date().toISOString()
+      }), 4000);
+    }
+  } catch (err) {
+    console.warn('push token cleanup on sign-out failed', err);
+  }
 }
 
 /* Persistent sync: pull QuickBooks customers and camera photos automatically on
@@ -5560,6 +5585,9 @@ async function handleSignOut() {
   const ok = await confirmDialog('Sign out?', 'You’ll need your Employee ID and PIN to sign back in on this device. Records already saved stay in the cloud and sync again once you sign in.');
   if (!ok) return;
   try {
+    /* Stop this device receiving the signed-out operator's pushes. Must run
+       BEFORE fbSignOut — the Firestore write needs the auth session. */
+    await cleanupPushTokenOnSignOut();
     await fbSignOut(fbAuth);
   } catch (err) {
     console.error('Sign out failed', err);
