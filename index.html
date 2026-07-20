@@ -6698,6 +6698,9 @@ async function handlePesticideLocationChange(lat, lng, source) {
       if (match) $('#pa-county').value = match;
       setCountyFallback('paCountyGroup', false);
     } else {
+      /* No county for the NEW location — a silent county from a previous
+         location must not override the manual fallback pick. */
+      silentPaCounty = null;
       setCountyFallback('paCountyGroup', true);
     }
     const okText = `Located: ${formatted || '(' + lat.toFixed(5) + ', ' + lng.toFixed(5) + ')'} · ${useTreatment ? 'Treatment site' : 'Client address'} fields filled.`;
@@ -6705,7 +6708,10 @@ async function handlePesticideLocationChange(lat, lng, source) {
     if (paHint) { paHint.textContent = `✓ ${formatted || `Location saved (${lat.toFixed(5)}, ${lng.toFixed(5)})`}`; paHint.className = 'hint success'; }
   } catch (e) {
     /* Offline / geocoder down: keep the coordinates usable and expose the
-       manual county dropdown so the record still carries a county. */
+       manual county dropdown so the record still carries a county. Clear
+       any silent county from a previous location so it can't override the
+       manual pick. */
+    silentPaCounty = null;
     setCountyFallback('paCountyGroup', true);
     const failText = `Coordinates saved (${lat.toFixed(5)}, ${lng.toFixed(5)}). Geocoder offline — fill address fields manually and pick the County of Treatment below.`;
     setMapStatus('paMapStatus', failText, 'error');
@@ -9831,14 +9837,18 @@ async function handleSaveAppointment(e) {
       /* Optimistic write (H1): do NOT await the server ack — offline it
          never resolves and the Save button would hang disabled forever. */
       writeWithRetry(() => setDoc(doc(fbDb, 'jobs', editingAppointment.jobId, 'appointments', apptId), data, { merge: true }))
+        .then(() =>
+          /* Reschedules/reassignments notify the assigned operators too
+             (review sweep #7). Chained on the write so the function reads
+             the committed doc, not the pre-update one; offline this simply
+             defers the push until the write syncs. */
+          httpsCallable(fbFunctions, 'notifyJobAssignment')({ jobId, appointmentId: apptId, event: 'updated' })
+            .catch((err) => console.warn('appointment update notify failed', err)))
         .catch((err) => {
           console.error('Appointment update failed', err);
           toast('Appointment failed to sync: ' + ((err && err.message) || 'error'), 'error');
         });
       toast('Appointment updated');
-      /* Reschedules/reassignments notify the assigned operators too (review sweep #7). */
-      httpsCallable(fbFunctions, 'notifyJobAssignment')({ jobId, appointmentId: apptId, event: 'updated' })
-        .catch((err) => console.warn('appointment update notify failed', err));
     } else {
       data.outcome = '';
       data.createdBy = (currentUser && (EMAIL_TO_TRAPPER[currentUser.email.toLowerCase()] || currentUser.email)) || '';
@@ -9850,14 +9860,18 @@ async function handleSaveAppointment(e) {
       /* Optimistic write (H1): fire without awaiting so scheduling works
          offline; the rebait prompt below then runs immediately too. */
       writeWithRetry(() => setDoc(ref, data))
+        .then(() =>
+          /* Push to every assigned contractor (Item 1). Chained on the write
+             so the function finds the committed doc (it throws not-found if
+             the callable's read beats the commit); offline this defers the
+             push until the write syncs. */
+          httpsCallable(fbFunctions, 'notifyJobAssignment')({ jobId, appointmentId: apptId })
+            .catch((err) => console.warn('appointment notify failed', err)))
         .catch((err) => {
           console.error('Appointment create failed', err);
           toast('Appointment failed to sync: ' + ((err && err.message) || 'error'), 'error');
         });
       toast('Appointment scheduled');
-      /* Push to every assigned contractor (Item 1). Fire-and-forget. */
-      httpsCallable(fbFunctions, 'notifyJobAssignment')({ jobId, appointmentId: apptId })
-        .catch((err) => console.warn('appointment notify failed', err));
       advanceJobStatusAuto(jobId, 'Scheduled');
     }
     const wasEditing = !!editingAppointment;
