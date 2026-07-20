@@ -4376,23 +4376,28 @@ function saveEstimate(status) {
     console.error('Estimate write failed', err);
     toast('An estimate change failed to sync: ' + ((err && err.message) || 'error'), 'error');
   };
-  /* Optimistic (M3): fire the write and don't await the server ack. */
+  /* Optimistic (M3): fire the write and don't await the server ack. Returns
+     { id, estimateNumber } so a job-linked save can stamp the job (Item 5). */
   if (editingEstimateId) {
     setDoc(doc(fbDb, 'estimates', editingEstimateId), {
       customerId: builderCustomer.id, customerName: builderCustomer.name,
       lineItems: builderLines, subtotal: grand, grandTotal: grand, notes, status, updatedAt: now
     }, { merge: true }).catch(onWriteError);
-  } else {
-    const operator = (currentUser && (EMAIL_TO_TRAPPER[currentUser.email] || currentUser.email)) || '';
-    setDoc(doc(estimatesCol()), {
-      estimateNumber: generateEstimateNumber(),
-      customerId: builderCustomer.id, customerName: builderCustomer.name,
-      createdBy: operator, createdByUid: currentUser ? currentUser.uid : null,
-      createdByEmail: currentUser ? currentUser.email : null,
-      createdAt: now, updatedAt: now, status,
-      lineItems: builderLines, subtotal: grand, grandTotal: grand, notes, qbEstimateId: null
-    }, { merge: true }).catch(onWriteError);
+    const existing = cachedEstimates.find((e) => e.id === editingEstimateId);
+    return { id: editingEstimateId, estimateNumber: (existing && existing.estimateNumber) || '' };
   }
+  const operator = (currentUser && (EMAIL_TO_TRAPPER[currentUser.email] || currentUser.email)) || '';
+  const ref = doc(estimatesCol());
+  const estimateNumber = generateEstimateNumber();
+  setDoc(ref, {
+    estimateNumber,
+    customerId: builderCustomer.id, customerName: builderCustomer.name,
+    createdBy: operator, createdByUid: currentUser ? currentUser.uid : null,
+    createdByEmail: currentUser ? currentUser.email : null,
+    createdAt: now, updatedAt: now, status,
+    lineItems: builderLines, subtotal: grand, grandTotal: grand, notes, qbEstimateId: null
+  }, { merge: true }).catch(onWriteError);
+  return { id: ref.id, estimateNumber };
 }
 
 async function handleSaveEstimate(status) {
@@ -4400,14 +4405,51 @@ async function handleSaveEstimate(status) {
   btns.forEach((b) => { const el = $('#' + b); if (el) el.disabled = true; });
   try {
     const offline = !navigator.onLine;
-    saveEstimate(status);   /* sync: throws on validation, fires the write optimistically */
+    const saved = saveEstimate(status);   /* sync: throws on validation, fires the write optimistically */
+    /* Estimate created from a job (Item 5): one estimate per job — stamp the
+       estimateId on the job record and nudge it to Estimated. */
+    const jobId = pendingEstimateJobId;
+    pendingEstimateJobId = null;
+    if (jobId && saved && saved.id) {
+      const j = cachedJobs.find((x) => x.id === jobId);
+      if (j && !j.estimateId) {
+        setDoc(doc(fbDb, 'jobs', jobId), {
+          estimateId: saved.id,
+          estimateNumber: saved.estimateNumber || '',
+          updatedAt: new Date().toISOString()
+        }, { merge: true }).then(() => advanceJobStatusAuto(jobId, 'Estimated'))
+          .catch((err) => console.error('job estimate link failed', err));
+      }
+    }
     toast(offline ? 'Saved offline — will sync when connected' : (status === 'Draft' ? 'Draft saved' : 'Submitted for approval'));
     resetEstimateBuilder();
+    if (jobId) { openLifecycleJob(jobId); return; }
     setView('dashboard');
   } catch (err) {
     toast((err && err.message) || 'Save failed', 'error');
   } finally {
     btns.forEach((b) => { const el = $('#' + b); if (el) el.disabled = false; });
+  }
+}
+
+/* Set when "Create Estimate" is tapped on a Job Detail screen (Item 5). */
+let pendingEstimateJobId = null;
+
+/* Open the estimate builder pre-linked to a job + its customer (Item 5). */
+function startEstimateForJob(jobId) {
+  const j = cachedJobs.find((x) => x.id === jobId);
+  if (!j) return;
+  if (j.estimateId) { toast('This job already has an estimate — one estimate per job.', 'error'); return; }
+  editingEstimateId = null;
+  setAppModeQuiet('pricing');
+  setView('add');                    /* resets the builder */
+  pendingEstimateJobId = jobId;      /* consumed on save */
+  const c = cachedCustomers.find((x) => x.id === j.customerId);
+  if (c) applyEstimateCustomer(c);
+  else if (j.customerName) { builderCustomer = { id: j.customerId, name: j.customerName, qbId: null }; $('#est-customer').value = j.customerName; }
+  const hint = $('#est-customer-hint');
+  if (hint && j.jobNumber) {
+    hint.textContent = (hint.textContent ? hint.textContent + ' · ' : '') + `Will attach to ${j.jobNumber}`;
   }
 }
 
@@ -8731,6 +8773,9 @@ function renderLifecycleJobDetail(id) {
   const canMarkPaid = (j.status === 'Invoiced') || (!!j.qbInvoiceId && j.status !== 'Paid' && j.status !== 'Cancelled');
 
   let actions = `<button class="btn btn-amber" data-ljob-action="schedule-visit" data-id="${escapeHtml(id)}">Schedule Next Visit</button>`;
+  if (!j.estimateId && j.status !== 'Cancelled' && j.status !== 'Paid') {
+    actions += `<button class="btn btn-primary" data-ljob-action="create-estimate" data-id="${escapeHtml(id)}">Create Estimate</button>`;
+  }
   actions += `<button class="btn btn-primary" data-ljob-action="log-trap" data-id="${escapeHtml(id)}">Log Trap Activity</button>`;
   actions += `<button class="btn btn-primary" data-ljob-action="log-pesticide" data-id="${escapeHtml(id)}">Log Pesticide Activity</button>`;
   actions += `<button class="btn btn-ghost" data-ljob-action="assign-camera" data-id="${escapeHtml(id)}">Assign Camera</button>`;
@@ -9353,7 +9398,7 @@ function customerActiveJobs(customerId) {
 function handleHubAction(action) {
   const c = cachedCustomers.find((x) => x.id === editingCustomerId);
   if (!c) return;
-  const needsJob = action === 'schedule-appointment' || action === 'log-trap' || action === 'log-pesticide';
+  const needsJob = action === 'schedule-appointment' || action === 'log-trap' || action === 'log-pesticide' || action === 'create-estimate';
   if (!needsJob) { hubProceed(action, null, c); return; }
   const jobs = customerActiveJobs(c.id);
   if (!jobs.length) {
@@ -9361,7 +9406,7 @@ function handleHubAction(action) {
       toast('No active job for this customer — start one first; appointments live inside jobs.');
       hubProceed('start-job', null, c);
     } else {
-      hubProceed(action, null, c);   /* records can be logged without a job */
+      hubProceed(action, null, c);   /* records + estimates work without a job */
     }
   } else if (jobs.length === 1) {
     hubProceed(action, jobs[0].id, c);
@@ -9396,6 +9441,8 @@ function hubProceed(action, jobId, c) {
     setAppModeQuiet('schedule');
     setView('add');
   } else if (action === 'create-estimate') {
+    const j = jobId ? cachedJobs.find((x) => x.id === jobId) : null;
+    if (j && !j.estimateId) { startEstimateForJob(jobId); return; }
     editingEstimateId = null;
     setAppModeQuiet('pricing');
     setView('add');                  /* resets the builder… */
@@ -10188,6 +10235,7 @@ async function init() {
       if (j && j.customerId) { setAppModeQuiet('customer'); editCustomer(j.customerId); }
       else toast('This job has no linked customer to assign a camera to', 'error');
     }
+    else if (action === 'create-estimate') startEstimateForJob(id);
     else if (action === 'pending-close') setJobLifecycleStatus(id, 'Pending Close');
     else if (action === 'generate-invoice') generateJobInvoice(id, btn);
     else if (action === 'mark-paid') markJobPaid(id);
