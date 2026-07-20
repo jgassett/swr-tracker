@@ -5702,6 +5702,7 @@ function resetForm() {
   editingId = null;
   pendingRecord = null;
   releaseDateDirty = false;
+  silentReleaseCounty = null;
   hideTrapCustomerSuggest();
   hideAutocomplete($('#f-client-name-ac'));
   hideAutocomplete($('#f-address-ac'));
@@ -5750,6 +5751,7 @@ function loadIntoForm(rec) {
   editingId = rec.id || null;
   pendingRecord = null;
   releaseDateDirty = !!rec.releaseDate;  /* keep the saved release date on edit */
+  silentReleaseCounty = rec.countyOfRelease || null;
   $('#f-id').value = rec.id || '';
   $('#f-date').value = rec.dateCollected || '';
   $('#f-trapper').value = rec.trapper || '';
@@ -5853,6 +5855,11 @@ function readForm() {
   r.customerId = linkedJob ? (linkedJob.customerId || null) : (trapFormCustomerId || null);
   r.customerName = linkedJob ? (linkedJob.customerName || '') : '';
   r.propertyId = ($('#f-property') && $('#f-property').value) || null;
+  /* Item 10: silently-captured county of release (Nominatim). Falls back to
+     the dropdown value so the KDFWR export column is always populated. */
+  r.countyOfRelease = RELEASE_DISPOSALS.has(r.disposalMethod)
+    ? (silentReleaseCounty || r.releaseCounty || null)
+    : null;
   if (editingId) r.id = editingId;
   return r;
 }
@@ -6046,6 +6053,9 @@ async function confirmSave() {
          customer, and county from the just-saved record. */
       setView('add');
       $('#f-date').value = carry.dateCollected || todayISO();
+      /* Item 11: fresh form session — Date of Release mirrors Date Collected
+         again (the dirty flag was cleared by resetForm inside setView). */
+      $('#f-release-date').value = $('#f-date').value;
       $('#f-trapper').value = carry.trapper || '';
       $('#f-client-name').value = carry.clientName || '';
       $('#f-client-phone').value = carry.clientPhone || '';
@@ -6449,31 +6459,31 @@ async function handlePesticideLocationChange(lat, lng, source) {
   }
 }
 
+/* Item 10: the county of release is captured SILENTLY from whichever
+   location method the operator uses — reverse geocoded via Nominatim and
+   stored without a confirmation dialog. The (soon-to-be-hidden) dropdown is
+   synced quietly so validation and the KDFWR export keep working. */
+let silentReleaseCounty = null;
+
 async function handleReleaseLocationChange(lat, lng, source) {
   $('#f-release-lat').value = lat;
   $('#f-release-lng').value = lng;
-  setMapStatus('releaseMapStatus', 'Looking up county…', 'working');
+  setMapStatus('releaseMapStatus', 'Looking up location…', 'working');
   try {
     const geo = await reverseGeocode(lat, lng);
     if (geo.county) {
-      if (dropdownHasOption('f-release-county', geo.county)) {
-        setMapStatus('releaseMapStatus',
-          `Detected: ${geo.county} County. Confirm to use it.`, 'working');
-        const set = await maybeConfirmCounty('f-release-county', geo.county, 'County of Release');
-        setMapStatus('releaseMapStatus',
-          set ? `Release county: ${geo.county}`
-              : `Coordinates saved. Pick the county manually.`, 'success');
-      } else {
-        setMapStatus('releaseMapStatus',
-          `Detected "${geo.county}" — not in dropdown. Pick manually.`, 'success');
-      }
+      silentReleaseCounty = geo.county;
+      const match = matchingOptionValue('f-release-county', geo.county);
+      if (match) $('#f-release-county').value = match;
+      setMapStatus('releaseMapStatus',
+        `Release location saved${geo.formattedAddress ? ' · ' + geo.formattedAddress : ` (${lat.toFixed(5)}, ${lng.toFixed(5)})`}.`, 'success');
     } else {
       setMapStatus('releaseMapStatus',
         `Coordinates saved (${lat.toFixed(5)}, ${lng.toFixed(5)}).`, 'success');
     }
   } catch (e) {
     setMapStatus('releaseMapStatus',
-      `Coordinates saved (${lat.toFixed(5)}, ${lng.toFixed(5)}). County lookup failed.`, 'error');
+      `Coordinates saved (${lat.toFixed(5)}, ${lng.toFixed(5)}). Location lookup failed.`, 'error');
   }
   if (source !== 'drag') autoScrollPastMap('f-release-county');
 }
@@ -10867,11 +10877,18 @@ async function init() {
     if (pestSuggestedCustomer) applyCustomerToPesticideForm(pestSuggestedCustomer);
   });
 
-  /* Track manual edits to Date of Release so the auto-default stops (Item 6). */
-  $('#f-release-date').addEventListener('input', () => { releaseDateDirty = true; });
-  $('#f-date').addEventListener('change', () => {
+  /* Item 11: Date of Release mirrors Date Collected until the operator
+     hand-edits it in the current form session; then the auto-default stops
+     until the next fresh form (resetForm clears the flag). Both `input` and
+     `change` are tracked — native date pickers differ on which one fires. */
+  const markReleaseDateDirty = () => { releaseDateDirty = true; };
+  $('#f-release-date').addEventListener('input', markReleaseDateDirty);
+  $('#f-release-date').addEventListener('change', markReleaseDateDirty);
+  const mirrorReleaseDate = () => {
     if (!releaseDateDirty) $('#f-release-date').value = $('#f-date').value;
-  });
+  };
+  $('#f-date').addEventListener('change', mirrorReleaseDate);
+  $('#f-date').addEventListener('input', mirrorReleaseDate);
 
   $('#f-date').value = todayISO();
   const p = reportPeriod();
