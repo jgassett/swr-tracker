@@ -1226,6 +1226,14 @@
     .action-hub .hub-btn:active { transform: scale(0.97); background: rgba(196,119,42,0.15); }
     #hubJobChooser button { margin: 0 6px 6px 0; }
 
+    /* ---- Operator certification badges (Item 8) ---- */
+    .badge-cert {
+      display: inline-block; padding: 3px 10px; border-radius: 999px;
+      font-size: 11px; font-weight: 700; letter-spacing: 0.02em; white-space: nowrap;
+    }
+    .badge-cert.certified { background: #DDEAD8; color: var(--released); }
+    .badge-cert.pending { background: #FBEED0; color: #8a6d1f; }
+
     /* Wider screens — center the form, two-up rows */
     @media (min-width: 600px) {
       #view-add, #view-dashboard, #view-records, #view-export, #view-settings,
@@ -2689,6 +2697,12 @@
           </div>
           <button class="btn btn-primary" id="saveBizBtn">Save Business Info</button>
         </div>
+      </div>
+
+      <div class="card" id="operatorsCard">
+        <h3 style="margin-bottom:10px;">Operators</h3>
+        <p class="muted" style="font-size:13px; margin-bottom:8px;">KDFWR WCO certification status. Pending operators are sub-permitted under Jon Gassett's permit — they can work and log records, but their records can't be submitted on the annual KDFWR report until they're certified.</p>
+        <div id="operatorsList" class="biz-info"></div>
       </div>
 
       <div class="card" id="certCard">
@@ -5530,8 +5544,40 @@ function fillFilters() {
   fillSelect('filterSpecies', SPECIES, true, 'All species');
   fillSelect('filterCounty', COUNTIES, true, 'All counties');
 }
+/* Settings → Operators (Item 8): certification badges. */
+function renderOperatorsCard() {
+  const root = $('#operatorsList');
+  if (!root) return;
+  root.innerHTML = OPERATORS.map((o) => `
+    <div class="biz-row">
+      <span style="font-weight:600;color:var(--ink);">${escapeHtml(o.name)} <span class="muted" style="font-weight:400;font-size:12px;">· ${escapeHtml(o.employeeId)}</span></span>
+      <span class="badge-cert ${o.certificationStatus === 'certified' ? 'certified' : 'pending'}">${o.certificationStatus === 'certified' ? 'Certified' : 'Pending Certification'}</span>
+    </div>`).join('');
+}
+
+/* Trapper dropdown with a pending-certification indicator (Item 8) —
+   informational only, never blocks record creation. Option VALUES stay the
+   plain operator names so saved records are unaffected. */
+function fillTrapperSelect() {
+  const sel = document.getElementById('f-trapper');
+  if (!sel) return;
+  const current = sel.value;
+  sel.innerHTML = '';
+  const blank = document.createElement('option');
+  blank.value = '';
+  blank.textContent = '— select trapper —';
+  sel.appendChild(blank);
+  for (const name of TRAPPERS) {
+    const o = document.createElement('option');
+    o.value = name;
+    o.textContent = operatorIsPending(name) ? `${name} ⚠ pending certification` : name;
+    sel.appendChild(o);
+  }
+  if (current && TRAPPERS.includes(current)) sel.value = current;
+}
+
 function fillForm() {
-  fillSelect('f-trapper', TRAPPERS, true, '— select trapper —');
+  fillTrapperSelect();
   fillGroupedSelect('f-species', SPECIES_GROUPS, '— select species —');
   fillGroupedSelect('f-county', COUNTY_GROUPS, '— select county —');
   fillSelect('f-capture', CAPTURE_METHODS, true, '— select method —');
@@ -7134,7 +7180,9 @@ function refreshApplicatorDropdown() {
     const cert = certs[name] || '';
     const opt = document.createElement('option');
     opt.value = name;
-    opt.textContent = cert ? name : `${name} (not certified)`;
+    let label = cert ? name : `${name} (not certified)`;
+    if (operatorIsPending(name)) label += ' ⚠ WCO cert pending';   /* Item 8: informational */
+    opt.textContent = label;
     if (!cert) opt.disabled = true;
     sel.appendChild(opt);
   });
@@ -9926,6 +9974,7 @@ async function init() {
   fillForm();
   fillPesticideForm();
   fillExportPeriods();
+  renderOperatorsCard();
 
   $('#bottomNav').addEventListener('click', (e) => {
     const btn = e.target.closest('button[data-view]');
