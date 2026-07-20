@@ -136,6 +136,13 @@ service cloud.firestore {
       allow delete: if request.auth != null;
     }
 
+    /* Graph API 401 diagnostics (Item 7) — written server-side by the email
+       pipeline (Admin SDK); clients read for visibility only. */
+    match /graphErrors/{errorId} {
+      allow read:  if request.auth != null;
+      allow write: if false;
+    }
+
     /* Web-push device tokens. Clients register/remove their own; only the
        Admin SDK (server) reads them to send notifications. */
     match /pushTokens/{tokenId} {

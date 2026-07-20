@@ -2355,6 +2355,7 @@
         <h2>Cameras</h2>
         <p class="muted">Camera health &amp; photos by customer, pulled from the trap cameras.</p>
       </div>
+      <div class="conn-status" id="graphConnStatus" style="margin-bottom:8px;"></div>
       <div class="btn-row" style="margin-bottom:10px;">
         <button class="btn btn-ghost" id="fieldSyncBtn">Sync Now</button>
       </div>
@@ -4912,7 +4913,38 @@ function deviceStatusLive(d) {
   return n === 0 ? 'green' : n === 1 ? 'yellow' : 'red';
 }
 
+/* Graph email-pipeline status (Item 7) — org/graphStatus is stamped by the
+   server on every successful mailbox poll. */
+let graphStatusUnsub = null;
+let graphStatusData = null;
+
+function renderGraphConnStatus() {
+  const el = $('#graphConnStatus');
+  if (!el) return;
+  if (!graphStatusData || !graphStatusData.lastPollAt) {
+    el.textContent = 'Email pipeline: no successful poll recorded yet.';
+    el.className = 'conn-status off';
+    return;
+  }
+  const mins = Math.round((Date.now() - Date.parse(graphStatusData.lastPollAt)) / 60000);
+  const ago = mins < 1 ? 'just now' : mins < 60 ? `${mins} min ago` : `${Math.round(mins / 60)} hr ago`;
+  /* The ingest runs every 15 minutes — past 45 the pipeline is likely stuck. */
+  const stale = mins > 45;
+  let text = `${stale ? '⚠' : '✓'} Email pipeline last polled ${ago}`;
+  if (graphStatusData.lastErrorAt) {
+    text += ` · last error ${String(graphStatusData.lastErrorAt).slice(0, 16).replace('T', ' ')}`;
+  }
+  el.textContent = text;
+  el.className = 'conn-status ' + (stale ? 'off' : 'ok');
+}
+
 function subscribeToFieldData() {
+  if (!graphStatusUnsub) {
+    graphStatusUnsub = onSnapshot(doc(fbDb, 'org', 'graphStatus'), (snap) => {
+      graphStatusData = snap.exists() ? snap.data() : null;
+      renderGraphConnStatus();
+    }, (err) => console.error('graphStatus subscription error', err));
+  }
   if (!cameraHealthUnsub) {
     cameraHealthUnsub = onSnapshot(cameraHealthCol(), (snap) => {
       cachedCameraHealth = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
@@ -4930,8 +4962,10 @@ function subscribeToFieldData() {
 function unsubscribeFromFieldData() {
   if (cameraHealthUnsub) { cameraHealthUnsub(); cameraHealthUnsub = null; }
   if (cameraPhotosUnsub) { cameraPhotosUnsub(); cameraPhotosUnsub = null; }
+  if (graphStatusUnsub) { graphStatusUnsub(); graphStatusUnsub = null; }
   cachedCameraHealth = [];
   cachedCameraPhotos = [];
+  graphStatusData = null;
 }
 function refreshFieldViews() {
   if (!$('#view-field').classList.contains('hidden')) renderFieldDashboard();
@@ -4975,6 +5009,7 @@ function fieldGroups() {
 }
 
 function renderFieldDashboard() {
+  renderGraphConnStatus();
   const root = $('#fieldList');
   if (!root) return;
   const filter = ($('#fieldFilter') && $('#fieldFilter').value) || 'all';

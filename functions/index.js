@@ -942,7 +942,21 @@ exports.qbDailySync = functions
  * doc matched to the active customer by subject key. Report emails
  * (reports.cuddelink.com) → parse the attached HTML → cameraHealth docs.
  * ===================================================================== */
-async function graphToken() {
+/* ---- Graph auth hardening (Item 7) ----
+ * The app-only token is cached per function instance and refreshed
+ * PROACTIVELY five minutes before its expiry, so requests never go out with
+ * a token that's about to lapse. Every request runs through graphFetch(),
+ * which — should a 401 still slip through (revocation, clock skew) —
+ * refreshes the token and retries the request exactly once before failing,
+ * so a single 401 never loses a photo. All 401s are logged to the
+ * `graphErrors` Firestore collection with timestamp + email subject. */
+let _graphTokenCache = { token: null, expiresAt: 0 };
+
+async function graphToken(forceRefresh = false) {
+  const REFRESH_BUFFER_MS = 5 * 60 * 1000;
+  if (!forceRefresh && _graphTokenCache.token && Date.now() < _graphTokenCache.expiresAt - REFRESH_BUFFER_MS) {
+    return _graphTokenCache.token;
+  }
   const res = await fetch(`https://login.microsoftonline.com/${process.env.MS_TENANT_ID}/oauth2/v2.0/token`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -955,27 +969,64 @@ async function graphToken() {
   });
   const text = await res.text();
   if (!res.ok) throw new Error(`Graph token ${res.status}: ${text}`);
-  return JSON.parse(text).access_token;
+  const json = JSON.parse(text);
+  _graphTokenCache = {
+    token: json.access_token,
+    expiresAt: Date.now() + (Number(json.expires_in) || 3600) * 1000
+  };
+  return _graphTokenCache.token;
 }
-async function graphGet(token, path) {
-  const res = await fetch(`https://graph.microsoft.com/v1.0${path}`, {
-    headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' }
+
+async function logGraphError(status, path, context = {}) {
+  try {
+    await db.collection('graphErrors').add({
+      at: new Date().toISOString(),
+      status: status || null,
+      path: String(path || '').slice(0, 300),
+      subject: context.subject || null,
+      message: context.message || null
+    });
+  } catch (e) {
+    console.error('graphErrors log failed', e);
+  }
+}
+
+/* Authenticated Graph request with 401 refresh-and-retry-once. */
+async function graphFetch(path, options = {}, context = {}) {
+  const url = path.startsWith('http') ? path : `https://graph.microsoft.com/v1.0${path}`;
+  const doFetch = async (t) => fetch(url, {
+    ...options,
+    headers: { ...(options.headers || {}), Authorization: `Bearer ${t}` }
   });
+  let res = await doFetch(await graphToken());
+  if (res.status === 401) {
+    console.warn('Graph 401 — refreshing token and retrying once', path);
+    await logGraphError(401, path, { ...context, message: 'Graph 401 — token refreshed, request retried' });
+    res = await doFetch(await graphToken(true));
+    if (res.status === 401) {
+      await logGraphError(401, path, { ...context, message: 'Graph 401 persisted after token refresh — request failed' });
+    }
+  }
+  return res;
+}
+
+async function graphGet(path, context = {}) {
+  const res = await graphFetch(path, { headers: { Accept: 'application/json' } }, context);
   const text = await res.text();
   if (!res.ok) throw new Error(`Graph GET ${res.status}: ${text}`);
   return JSON.parse(text);
 }
-async function graphGetBytes(token, path) {
-  const res = await fetch(`https://graph.microsoft.com/v1.0${path}`, { headers: { Authorization: `Bearer ${token}` } });
+async function graphGetBytes(path, context = {}) {
+  const res = await graphFetch(path, {}, context);
   if (!res.ok) throw new Error(`Graph bytes GET ${res.status}: ${await res.text()}`);
   return Buffer.from(await res.arrayBuffer());
 }
-async function graphMarkRead(token, id) {
-  await fetch(`https://graph.microsoft.com/v1.0/users/${PHOTOS_MAILBOX}/messages/${id}`, {
+async function graphMarkRead(id, context = {}) {
+  await graphFetch(`/users/${PHOTOS_MAILBOX}/messages/${id}`, {
     method: 'PATCH',
-    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ isRead: true })
-  });
+  }, context);
 }
 
 /* Build a camera-key → customer lookup. An explicit `cameraId` on a customer
@@ -1001,15 +1052,16 @@ async function customerKeyMap() {
   return { get: (k) => byCam.get(k) || byName.get(k) || null };
 }
 
-async function handlePhotoMessage(token, m, keyMap) {
+async function handlePhotoMessage(m, keyMap) {
+  const ctx = { subject: m.subject || '' };
   const key = cb.subjectKey(m.subject);
   const match = key ? keyMap.get(key) : null;
-  const atts = await graphGet(token, `/users/${PHOTOS_MAILBOX}/messages/${m.id}/attachments?$select=id,name,contentType,isInline`);
+  const atts = await graphGet(`/users/${PHOTOS_MAILBOX}/messages/${m.id}/attachments?$select=id,name,contentType,isInline`, ctx);
   const bucket = admin.storage().bucket();
   let photos = 0;
   for (const a of (atts.value || [])) {
     if (a.isInline || !/^image\//i.test(a.contentType || '')) continue;
-    const buf = await graphGetBytes(token, `/users/${PHOTOS_MAILBOX}/messages/${m.id}/attachments/${a.id}/$value`);
+    const buf = await graphGetBytes(`/users/${PHOTOS_MAILBOX}/messages/${m.id}/attachments/${a.id}/$value`, ctx);
     const dlToken = crypto.randomUUID();
     const safeName = (a.name || 'photo.jpg').replace(/[^\w.\-]/g, '_');
     const path = `cameraPhotos/${key || 'unassigned'}/${m.id}_${safeName}`;
@@ -1037,11 +1089,12 @@ async function handlePhotoMessage(token, m, keyMap) {
   return { photos, unassigned: !match };
 }
 
-async function handleReportMessage(token, m, keyMap) {
-  const atts = await graphGet(token, `/users/${PHOTOS_MAILBOX}/messages/${m.id}/attachments?$select=id,name,contentType,isInline`);
+async function handleReportMessage(m, keyMap) {
+  const ctx = { subject: m.subject || '' };
+  const atts = await graphGet(`/users/${PHOTOS_MAILBOX}/messages/${m.id}/attachments?$select=id,name,contentType,isInline`, ctx);
   const htmlAtt = (atts.value || []).find((a) => /html/i.test(a.contentType || '') || /\.html?$/i.test(a.name || ''));
   if (!htmlAtt) throw new Error('report message has no HTML attachment');
-  const buf = await graphGetBytes(token, `/users/${PHOTOS_MAILBOX}/messages/${m.id}/attachments/${htmlAtt.id}/$value`);
+  const buf = await graphGetBytes(`/users/${PHOTOS_MAILBOX}/messages/${m.id}/attachments/${htmlAtt.id}/$value`, ctx);
   const parsed = cb.parseReportHtml(buf.toString('utf8'));
   if (!parsed || !parsed.network) throw new Error('could not parse report HTML');
 
@@ -1076,12 +1129,23 @@ async function handleReportMessage(token, m, keyMap) {
   return { devices: parsed.devices.length };
 }
 
-/* Poll the mailbox: process unread photo + report messages, mark them read. */
+/* Poll the mailbox: process unread photo + report messages, mark them read.
+ * Every successful run stamps org/graphStatus.lastPollAt so the app's Cameras
+ * module can show a Graph connection indicator (Item 7). */
 async function ingestMailbox() {
-  const token = await graphToken();
-  const data = await graphGet(token,
-    `/users/${PHOTOS_MAILBOX}/messages?$filter=isRead eq false&$top=25` +
-    `&$select=id,subject,from,receivedDateTime,hasAttachments&$orderby=receivedDateTime desc`);
+  let data;
+  try {
+    data = await graphGet(
+      `/users/${PHOTOS_MAILBOX}/messages?$filter=isRead eq false&$top=25` +
+      `&$select=id,subject,from,receivedDateTime,hasAttachments&$orderby=receivedDateTime desc`,
+      { subject: '(mailbox poll)' });
+  } catch (err) {
+    await db.doc('org/graphStatus').set({
+      lastErrorAt: new Date().toISOString(),
+      lastError: String(err.message || err).slice(0, 300)
+    }, { merge: true }).catch(() => {});
+    throw err;
+  }
   const msgs = data.value || [];
   let photos = 0, reports = 0, unassigned = 0, skipped = 0;
   const keyMap = msgs.length ? await customerKeyMap() : { get: () => null };
@@ -1089,21 +1153,28 @@ async function ingestMailbox() {
     const sender = ((m.from && m.from.emailAddress && m.from.emailAddress.address) || '').toLowerCase();
     try {
       if (sender.includes(CL_IMG_SENDER)) {
-        const r = await handlePhotoMessage(token, m, keyMap);
+        const r = await handlePhotoMessage(m, keyMap);
         photos += r.photos;
         if (r.unassigned) unassigned++;
       } else if (sender.includes(CL_REPORT_SENDER)) {
-        await handleReportMessage(token, m, keyMap);
+        await handleReportMessage(m, keyMap);
         reports++;
       } else {
         skipped++;
       }
-      await graphMarkRead(token, m.id);
+      await graphMarkRead(m.id, { subject: m.subject || '' });
     } catch (err) {
       console.error('Ingest failed for message', m.id, err.message); // leave unread → retried next run
     }
   }
-  return { processed: msgs.length, photos, reports, unassigned, skipped, at: new Date().toISOString() };
+  const result = { processed: msgs.length, photos, reports, unassigned, skipped, at: new Date().toISOString() };
+  await db.doc('org/graphStatus').set({
+    lastPollAt: result.at,
+    lastResult: result,
+    lastError: admin.firestore.FieldValue.delete(),
+    lastErrorAt: admin.firestore.FieldValue.delete()
+  }, { merge: true }).catch(() => {});
+  return result;
 }
 
 /* Scheduled poll every 15 minutes. */
