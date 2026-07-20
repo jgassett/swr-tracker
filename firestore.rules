@@ -55,6 +55,17 @@ service cloud.firestore {
       allow delete: if signedIn();
     }
 
+    /* Customer properties subcollection (Item 9). Matched as a collection
+       group so the app can list every property (camera-key matching, form
+       selectors). Same auth pattern as the other shared collections. */
+    match /{path=**}/properties/{propertyId} {
+      allow read:   if signedIn();
+      allow create: if signedIn()
+                    && request.resource.data.createdByUid == request.auth.uid;
+      allow update: if signedIn();
+      allow delete: if signedIn();
+    }
+
     /* Job estimates (Pricing Constructor). Shared like the other collections.
        The approve → QuickBooks push happens server-side in an admin-gated
        Cloud Function (qbPushEstimate), which writes qbEstimateId / the

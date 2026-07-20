@@ -1755,6 +1755,11 @@
           <label for="f-client-business">Business Name<span class="opt">(optional)</span></label>
           <input type="text" id="f-client-business" autocomplete="organization">
         </div>
+        <div class="form-group hidden" id="f-property-group">
+          <label for="f-property">Property<span class="opt">(this customer has multiple sites)</span></label>
+          <select id="f-property"><option value="">— main address —</option></select>
+          <div class="hint">Picking a property pre-fills the trap location below.</div>
+        </div>
 
         <h3 class="form-section">Animal</h3>
         <div class="form-group">
@@ -2045,6 +2050,11 @@
             <input type="text" id="pa-client-zip" inputmode="numeric" maxlength="10" autocomplete="postal-code" required>
           </div>
         </div>
+        <div class="form-group hidden" id="pa-property-group">
+          <label for="pa-property">Property<span class="opt">(this customer has multiple sites)</span></label>
+          <select id="pa-property"><option value="">— main address —</option></select>
+          <div class="hint">Picking a property pre-fills the address above.</div>
+        </div>
 
         <h3 class="form-section">Treatment Site</h3>
         <div class="form-group">
@@ -2210,6 +2220,44 @@
           </button>
         </div>
       </div>
+      <!-- Properties sub-model (Item 9) — shown only for existing customers -->
+      <div class="card hidden" id="customerPropertiesCard">
+        <h3 style="margin:0 0 6px;">Properties</h3>
+        <p class="muted" style="font-size:13px; margin-bottom:8px;">Each property carries its own Camera ID so trap-camera photos land on the right site.</p>
+        <div id="propertiesList"></div>
+        <button type="button" class="btn btn-amber" id="addPropertyBtn" style="margin-top:10px;">+ Add Property</button>
+        <div id="propertyForm" class="hidden" style="margin-top:14px; border-top:1px solid var(--line); padding-top:12px;">
+          <input type="hidden" id="pr-id">
+          <div class="form-group">
+            <label for="pr-nickname">Site Nickname<span class="req">*</span></label>
+            <input type="text" id="pr-nickname" placeholder="e.g. Lake house, Barn lot">
+          </div>
+          <div class="form-group">
+            <label for="pr-address">Address</label>
+            <input type="text" id="pr-address" autocomplete="off">
+          </div>
+          <div class="field-row two">
+            <div class="form-group">
+              <label for="pr-city">City</label>
+              <input type="text" id="pr-city" autocomplete="off">
+            </div>
+            <div class="form-group">
+              <label for="pr-county">County</label>
+              <select id="pr-county"><option value="">— select county —</option></select>
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="pr-cameraId">Camera ID</label>
+            <input type="text" id="pr-cameraId" autocomplete="off" placeholder="e.g. HAYDENT1">
+            <div class="hint" id="pr-cameraId-hint">Last name + first initial + property number, max 10 characters (e.g. HaydenT1). Auto-suggested; single-property customers keep their existing Camera ID.</div>
+          </div>
+          <div class="btn-row">
+            <button type="button" class="btn btn-ghost" id="cancelPropertyBtn">Cancel</button>
+            <button type="button" class="btn btn-primary" id="savePropertyBtn">Save Property</button>
+          </div>
+          <button type="button" class="btn btn-danger" id="deletePropertyBtn" style="margin-top:10px; display:none;">Delete Property</button>
+        </div>
+      </div>
       <form id="customerForm" novalidate>
         <input type="hidden" id="c-id">
 
@@ -2314,6 +2362,10 @@
           <div class="autocomplete-list hidden" id="est-customer-ac"></div>
         </div>
         <div class="hint" id="est-customer-hint"></div>
+      </div>
+      <div class="form-group hidden" id="est-property-group">
+        <label for="est-property">Property<span class="opt">(this customer has multiple sites)</span></label>
+        <select id="est-property"><option value="">— main address —</option></select>
       </div>
 
       <h3 class="form-section">Line Items</h3>
@@ -4372,6 +4424,7 @@ function resetEstimateBuilder() {
   pendingLine = null;
   const setVal = (id, v) => { const el = $('#' + id); if (el) el.value = v; };
   setVal('est-id', ''); setVal('est-customer', ''); setVal('est-notes', ''); setVal('li-category', '');
+  populatePropertySelect('est-property', 'est-property-group', null, '');
   const hint = $('#est-customer-hint'); if (hint) { hint.textContent = ''; hint.className = 'hint'; }
   const dyn = $('#li-dynamic-fields'); if (dyn) dyn.innerHTML = '';
   const prev = $('#li-preview'); if (prev) prev.textContent = '';
@@ -4394,6 +4447,7 @@ function customerPickerOptions(term) {
 function applyEstimateCustomer(c) {
   builderCustomer = { id: c.id, name: c.name || '', qbId: c.qbId || null };
   $('#est-customer').value = c.name || '';
+  populatePropertySelect('est-property', 'est-property-group', c.id, '');
   const hint = $('#est-customer-hint');
   if (hint) {
     if (c.qbId) { hint.textContent = `✓ ${c.name} — linked to QuickBooks`; hint.className = 'hint success'; }
@@ -4536,9 +4590,10 @@ function saveEstimate(status) {
   };
   /* Optimistic (M3): fire the write and don't await the server ack. Returns
      { id, estimateNumber } so a job-linked save can stamp the job (Item 5). */
+  const propertyId = ($('#est-property') && $('#est-property').value) || null;
   if (editingEstimateId) {
     setDoc(doc(fbDb, 'estimates', editingEstimateId), {
-      customerId: builderCustomer.id, customerName: builderCustomer.name,
+      customerId: builderCustomer.id, customerName: builderCustomer.name, propertyId,
       lineItems: builderLines, subtotal: grand, grandTotal: grand, notes, status, updatedAt: now
     }, { merge: true }).catch(onWriteError);
     const existing = cachedEstimates.find((e) => e.id === editingEstimateId);
@@ -4549,7 +4604,7 @@ function saveEstimate(status) {
   const estimateNumber = generateEstimateNumber();
   setDoc(ref, {
     estimateNumber,
-    customerId: builderCustomer.id, customerName: builderCustomer.name,
+    customerId: builderCustomer.id, customerName: builderCustomer.name, propertyId,
     createdBy: operator, createdByUid: currentUser ? currentUser.uid : null,
     createdByEmail: currentUser ? currentUser.email : null,
     createdAt: now, updatedAt: now, status,
@@ -4711,6 +4766,7 @@ function editEstimate(id) {
   builderCustomer = { id: e.customerId, name: e.customerName || '', qbId: c ? (c.qbId || null) : null };
   $('#est-id').value = id;
   $('#est-customer').value = e.customerName || '';
+  populatePropertySelect('est-property', 'est-property-group', e.customerId, e.propertyId || '');
   $('#est-notes').value = e.notes || '';
   const hint = $('#est-customer-hint');
   if (hint) {
@@ -4893,6 +4949,12 @@ function custCameraKey(name) {
 function resolveCustomerForKey(key) {
   if (!key) return null;
   const K = key.toUpperCase();
+  /* Property Camera IDs win (Item 9) — a match links customer AND property. */
+  const byProp = cachedProperties.find((p) => (p.cameraId || '').trim().toUpperCase() === K);
+  if (byProp) {
+    const c = cachedCustomers.find((x) => x.id === byProp.customerId);
+    return { id: byProp.customerId, name: c ? (c.name || '') : '', propertyId: byProp.id };
+  }
   const byId = cachedCustomers.find((c) => (c.cameraId || '').trim().toUpperCase() === K);
   if (byId) return { id: byId.id, name: byId.name || '' };
   const byName = cachedCustomers.filter((c) => c.active && custCameraKey(c.name) === K);
@@ -5659,6 +5721,8 @@ function resetForm() {
   const _addrHint = $('#addressValidationHint');
   if (_addrHint) { _addrHint.textContent = ''; _addrHint.className = 'hint'; }
   resetPhotoUI();
+  trapFormCustomerId = null;
+  populatePropertySelect('f-property', 'f-property-group', null, '');
   /* Clear any markers on map widgets if they're already initialized. */
   if (trapMapInstance) trapMapInstance.clear();
   if (releaseMapInstance) releaseMapInstance.clear();
@@ -5741,6 +5805,11 @@ function loadIntoForm(rec) {
   else hidePhotoPreview();
   $('#deleteBtn').style.display = editingId ? 'block' : 'none';
   populateJobSelect('f-job', rec.jobId || '');
+  /* Property link (Item 9): resolve the owning customer from the record or
+     the property itself so the selector shows the right options. */
+  const recProp = rec.propertyId ? cachedProperties.find((p) => p.id === rec.propertyId) : null;
+  trapFormCustomerId = rec.customerId || (recProp ? recProp.customerId : null);
+  populatePropertySelect('f-property', 'f-property-group', trapFormCustomerId, rec.propertyId || '');
   updateConditionals();
 }
 
@@ -5781,8 +5850,9 @@ function readForm() {
   const linkedJob = jobId ? cachedJobs.find((x) => x.id === jobId) : null;
   r.jobId = jobId || null;
   r.jobTitle = linkedJob ? (linkedJob.title || linkedJob.jobNumber || '') : '';
-  r.customerId = linkedJob ? (linkedJob.customerId || null) : null;
+  r.customerId = linkedJob ? (linkedJob.customerId || null) : (trapFormCustomerId || null);
   r.customerName = linkedJob ? (linkedJob.customerName || '') : '';
+  r.propertyId = ($('#f-property') && $('#f-property').value) || null;
   if (editingId) r.id = editingId;
   return r;
 }
@@ -7379,6 +7449,8 @@ function resetPesticideRecordForm() {
   resetPesticidePhotoUI();
   $('#pa-site-lat').value = '';
   $('#pa-site-lng').value = '';
+  pestFormCustomerId = null;
+  populatePropertySelect('pa-property', 'pa-property-group', null, '');
   if (paMapInstance) paMapInstance.clear();
   setMapStatus('paMapStatus', 'Use My Location, or drop a pin, to capture the treatment site. Auto-fills the address fields above.');
   $('#paDeleteBtn').style.display = 'none';
@@ -7466,6 +7538,9 @@ function loadPesticideRecordIntoForm(rec) {
   if (rec.photoUrl) showPesticidePhotoPreview(rec.photoUrl);
   $('#paDeleteBtn').style.display = 'block';
   populateJobSelect('pa-job', rec.jobId || '');
+  const recProp = rec.propertyId ? cachedProperties.find((p) => p.id === rec.propertyId) : null;
+  pestFormCustomerId = rec.customerId || (recProp ? recProp.customerId : null);
+  populatePropertySelect('pa-property', 'pa-property-group', pestFormCustomerId, rec.propertyId || '');
   updatePesticideConditionals();
 }
 
@@ -7535,8 +7610,9 @@ function readPesticideForm() {
   const linkedJob = jobId ? cachedJobs.find((x) => x.id === jobId) : null;
   r.jobId = jobId || null;
   r.jobTitle = linkedJob ? (linkedJob.title || linkedJob.jobNumber || '') : '';
-  r.customerId = linkedJob ? (linkedJob.customerId || null) : null;
+  r.customerId = linkedJob ? (linkedJob.customerId || null) : (pestFormCustomerId || null);
   r.customerName = linkedJob ? (linkedJob.customerName || '') : '';
+  r.propertyId = ($('#pa-property') && $('#pa-property').value) || null;
   if (editingPesticideRecordId) r.id = editingPesticideRecordId;
   return r;
 }
@@ -9586,6 +9662,10 @@ function resetCustomerForm() {
   if (hub) hub.classList.add('hidden');
   const chooser = $('#hubJobChooser');
   if (chooser) { chooser.classList.add('hidden'); chooser.innerHTML = ''; }
+  const propCard = $('#customerPropertiesCard');
+  if (propCard) propCard.classList.add('hidden');
+  const propForm = $('#propertyForm');
+  if (propForm) propForm.classList.add('hidden');
 }
 
 function loadCustomerIntoForm(c) {
@@ -9610,6 +9690,8 @@ function loadCustomerIntoForm(c) {
   $('#saveCustomerBtn').textContent = 'Save Changes';
   const hub = $('#customerActionHub');
   if (hub) hub.classList.remove('hidden');
+  closePropertyEditor();
+  renderPropertiesCard();
 }
 
 /* =====================================================================
@@ -9686,9 +9768,173 @@ function hubProceed(action, jobId, c) {
     setView('add');
     applyCustomerToPesticideForm(c);
   } else if (action === 'assign-camera') {
+    /* With properties on file, cameras live on the property records. */
+    const props = propertiesForCustomer(editingCustomerId);
+    if (props.length) {
+      const card = $('#customerPropertiesCard');
+      if (card) card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      toast('Cameras are assigned per property — edit a property below.');
+      return;
+    }
     const field = $('#c-cameraId');
     if (field) { field.scrollIntoView({ behavior: 'smooth', block: 'center' }); setTimeout(() => field.focus(), 300); }
   }
+}
+
+/* =====================================================================
+ * Customer Properties sub-model (Item 9)
+ * ---------------------------------------------------------------------
+ * customers/{id}/properties/{propId}: siteNickname, address, city, county,
+ * cameraId. Read app-wide via a collection-group subscription. Camera IDs
+ * are LastnameF + property number, total ≤ 10 chars (HAYDENT1); a
+ * single-property customer keeps their existing un-numbered Camera ID.
+ * ===================================================================== */
+let propertiesUnsub = null;
+let propertiesRetryTimer = null;
+let editingPropertyId = null;
+
+function subscribeToProperties() {
+  if (propertiesUnsub) return;
+  propertiesUnsub = onSnapshot(collectionGroup(fbDb, 'properties'), (snap) => {
+    cachedProperties = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    cachedProperties.sort((a, b) => (a.siteNickname || '').localeCompare(b.siteNickname || ''));
+    if (editingCustomerId && !$('#view-add-customer').classList.contains('hidden')) renderPropertiesCard();
+  }, (err) => {
+    console.error('Properties subscription error', err);
+    propertiesUnsub = null;
+    if (propertiesRetryTimer) clearTimeout(propertiesRetryTimer);
+    propertiesRetryTimer = setTimeout(() => { if (currentUser) subscribeToProperties(); }, 5000);
+  });
+}
+function unsubscribeFromProperties() {
+  if (propertiesUnsub) { propertiesUnsub(); propertiesUnsub = null; }
+  cachedProperties = [];
+}
+
+/* Suggested Camera ID: LastnameFirstInitial + N, truncated so the total
+   never exceeds 10 characters (HAYDENT1, AMMERMANM1). */
+function suggestPropertyCameraId(customerName, propNumber) {
+  const base = custCameraKey(customerName) || '';
+  const num = String(propNumber);
+  return (base.slice(0, Math.max(1, 10 - num.length)) + num).toUpperCase();
+}
+
+function renderPropertiesCard() {
+  const card = $('#customerPropertiesCard');
+  const root = $('#propertiesList');
+  if (!card || !root) return;
+  if (!editingCustomerId) { card.classList.add('hidden'); return; }
+  card.classList.remove('hidden');
+  const props = propertiesForCustomer(editingCustomerId);
+  if (!props.length) {
+    root.innerHTML = '<div class="muted" style="font-size:13px;padding:4px 0;">No properties yet — the customer\'s main address (and its Camera ID) applies.</div>';
+    return;
+  }
+  root.innerHTML = props.map((p) => `
+    <div class="biz-row" style="align-items:flex-start;">
+      <span style="min-width:0;">
+        <span style="font-weight:600;color:var(--green-deep);">${escapeHtml(p.siteNickname || '(unnamed site)')}</span><br>
+        <span class="muted" style="font-size:12px;">${escapeHtml([p.address, p.city].filter(Boolean).join(', ') || 'No address')}${p.county ? ' · ' + escapeHtml(p.county) + ' Co.' : ''}</span><br>
+        <span class="muted" style="font-size:12px;">Camera: <strong>${escapeHtml(p.cameraId || '—')}</strong></span>
+      </span>
+      <button type="button" class="pill-btn" data-prop-edit="${escapeHtml(p.id)}" style="background:var(--cream-deep);border:none;padding:6px 10px;border-radius:6px;font-size:12px;font-weight:600;color:var(--green-deep);">Edit</button>
+    </div>`).join('');
+}
+
+function openPropertyEditor(prop) {
+  editingPropertyId = prop ? prop.id : null;
+  fillGroupedSelect('pr-county', COUNTY_GROUPS, '— select county —');
+  $('#pr-id').value = prop ? prop.id : '';
+  $('#pr-nickname').value = prop ? (prop.siteNickname || '') : '';
+  $('#pr-address').value = prop ? (prop.address || '') : '';
+  $('#pr-city').value = prop ? (prop.city || '') : '';
+  $('#pr-county').value = prop ? (prop.county || '') : '';
+  const cust = cachedCustomers.find((c) => c.id === editingCustomerId);
+  if (prop) {
+    $('#pr-cameraId').value = prop.cameraId || '';
+  } else {
+    /* Suggest the next Camera ID from the count of existing properties. */
+    const n = propertiesForCustomer(editingCustomerId).length + 1;
+    $('#pr-cameraId').value = cust ? suggestPropertyCameraId(cust.name, n) : '';
+  }
+  $('#deletePropertyBtn').style.display = prop ? 'block' : 'none';
+  $('#propertyForm').classList.remove('hidden');
+  $('#pr-nickname').focus();
+}
+
+function closePropertyEditor() {
+  editingPropertyId = null;
+  $('#propertyForm').classList.add('hidden');
+}
+
+async function saveProperty() {
+  if (!editingCustomerId) return;
+  const siteNickname = $('#pr-nickname').value.trim();
+  if (!siteNickname) { toast('Give the property a site nickname', 'error'); $('#pr-nickname').focus(); return; }
+  const cameraId = $('#pr-cameraId').value.trim().toUpperCase().replace(/\s+/g, '');
+  if (cameraId && cameraId.length > 10) { toast('Camera ID can\'t exceed 10 characters', 'error'); $('#pr-cameraId').focus(); return; }
+  const data = {
+    customerId: editingCustomerId,
+    siteNickname,
+    address: $('#pr-address').value.trim(),
+    city: $('#pr-city').value.trim(),
+    county: $('#pr-county').value,
+    cameraId,
+    updatedAt: new Date().toISOString()
+  };
+  try {
+    if (editingPropertyId) {
+      await writeWithRetry(() => setDoc(doc(fbDb, 'customers', editingCustomerId, 'properties', editingPropertyId), data, { merge: true }));
+    } else {
+      data.createdAt = new Date().toISOString();
+      data.createdByUid = currentUser ? currentUser.uid : null;
+      data.createdByEmail = currentUser ? currentUser.email : null;
+      await writeWithRetry(() => setDoc(doc(collection(fbDb, 'customers', editingCustomerId, 'properties')), data));
+    }
+    toast(editingPropertyId ? 'Property updated' : 'Property added');
+    closePropertyEditor();
+  } catch (err) {
+    toast('Save failed: ' + ((err && err.message) || 'error'), 'error');
+  }
+}
+
+async function deleteProperty() {
+  if (!editingCustomerId || !editingPropertyId) return;
+  const ok = await confirmDialog('Delete this property?', 'Records that reference it keep their stored values. This cannot be undone.');
+  if (!ok) return;
+  try {
+    await writeWithRetry(() => deleteDoc(doc(fbDb, 'customers', editingCustomerId, 'properties', editingPropertyId)));
+    toast('Property deleted');
+    closePropertyEditor();
+  } catch (err) {
+    toast('Delete failed: ' + ((err && err.message) || 'error'), 'error');
+  }
+}
+
+/* ---- Property selectors on the trap / pesticide / estimate forms ---- */
+let trapFormCustomerId = null;
+let pestFormCustomerId = null;
+
+function populatePropertySelect(selectId, groupId, customerId, selectedId) {
+  const sel = document.getElementById(selectId);
+  const group = document.getElementById(groupId);
+  if (!sel || !group) return;
+  sel.innerHTML = '<option value="">— main address —</option>';
+  let props = customerId ? propertiesForCustomer(customerId) : [];
+  /* Editing an old record whose property belongs to a different/unknown
+     customer: surface that property so the link stays visible. */
+  if (selectedId && !props.some((p) => p.id === selectedId)) {
+    const orphan = cachedProperties.find((p) => p.id === selectedId);
+    if (orphan) props = [...props, orphan];
+  }
+  group.classList.toggle('hidden', !props.length);
+  for (const p of props) {
+    const o = document.createElement('option');
+    o.value = p.id;
+    o.textContent = [p.siteNickname, p.address].filter(Boolean).join(' · ') || p.id;
+    sel.appendChild(o);
+  }
+  sel.value = selectedId || '';
 }
 
 function editCustomer(id) {
@@ -9902,6 +10148,22 @@ function applyCustomerToTrapForm(c) {
   const hint = $('#addressValidationHint');
   if (hint) { hint.textContent = `✓ Customer on file: ${c.name}`; hint.className = 'hint success'; }
   hideTrapCustomerSuggest();
+  /* Property selector (Item 9): shown when the customer has property records. */
+  trapFormCustomerId = c.id || null;
+  populatePropertySelect('f-property', 'f-property-group', trapFormCustomerId, '');
+}
+
+/* Pre-fill the trap location from a selected property (Item 9). */
+function applyPropertyToTrapForm(p) {
+  if (!p) return;
+  const fullAddr = [p.address, p.city].filter(Boolean).join(', ');
+  if (fullAddr) {
+    const a = $('#f-address');
+    a.value = fullAddr;
+    delete a.dataset.fromMap;
+    delete a.dataset.lastValidated;
+  }
+  if (p.county) selectCountyIfKnown('f-county', p.county);
 }
 
 /* Fill pesticide-form client fields from a chosen customer. */
@@ -9920,6 +10182,21 @@ function applyCustomerToPesticideForm(c) {
   const status = $('#pa-address-status');
   if (status) { status.textContent = `✓ Customer on file: ${c.name}`; status.className = 'hint success'; }
   hidePestCustomerSuggest();
+  /* Property selector (Item 9). */
+  pestFormCustomerId = c.id || null;
+  populatePropertySelect('pa-property', 'pa-property-group', pestFormCustomerId, '');
+}
+
+/* Pre-fill the pesticide client address from a selected property (Item 9). */
+function applyPropertyToPesticideForm(p) {
+  if (!p) return;
+  if (p.address) {
+    const a = $('#pa-client-address');
+    a.value = p.address;
+    delete a.dataset.fromMap;
+    delete a.dataset.lastValidated;
+  }
+  if (p.city) $('#pa-client-city').value = p.city;
 }
 
 /* ---- Use-My-Location → suggest a matching customer ---- */
@@ -10268,6 +10545,26 @@ async function init() {
     el.addEventListener('input', renderCustomerList);
     el.addEventListener('change', renderCustomerList);
   });
+  /* ---- Customer properties wiring (Item 9) ---- */
+  $('#addPropertyBtn').addEventListener('click', () => openPropertyEditor(null));
+  $('#cancelPropertyBtn').addEventListener('click', closePropertyEditor);
+  $('#savePropertyBtn').addEventListener('click', saveProperty);
+  $('#deletePropertyBtn').addEventListener('click', deleteProperty);
+  $('#propertiesList').addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-prop-edit]');
+    if (!btn) return;
+    const p = cachedProperties.find((x) => x.id === btn.dataset.propEdit);
+    if (p) openPropertyEditor(p);
+  });
+  $('#f-property').addEventListener('change', () => {
+    const p = cachedProperties.find((x) => x.id === $('#f-property').value);
+    if (p) applyPropertyToTrapForm(p);
+  });
+  $('#pa-property').addEventListener('change', () => {
+    const p = cachedProperties.find((x) => x.id === $('#pa-property').value);
+    if (p) applyPropertyToPesticideForm(p);
+  });
+
   $('#customerActionHub').addEventListener('click', (e) => {
     const jobBtn = e.target.closest('[data-hub-job]');
     if (jobBtn) {
@@ -10625,6 +10922,7 @@ async function init() {
       subscribeToFieldData();
       subscribeToJobs();
       subscribeToAppointments();
+      subscribeToProperties();
       renderBusinessCard();
       renderReportingCard();
       renderCertCard();
@@ -10645,6 +10943,7 @@ async function init() {
       unsubscribeFromFieldData();
       unsubscribeFromJobs();
       unsubscribeFromAppointments();
+      unsubscribeFromProperties();
       modeSelected = false;
       $('#accountInfo').textContent = 'Not signed in';
       $('#wipeBtn').style.display = 'none';

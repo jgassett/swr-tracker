@@ -1029,26 +1029,43 @@ async function graphMarkRead(id, context = {}) {
   }, context);
 }
 
-/* Build a camera-key → customer lookup. An explicit `cameraId` on a customer
- * wins (exact, any customer); otherwise fall back to a unique name-derived key
- * among ACTIVE customers. Ambiguous name-keys are dropped (→ unassigned). */
+/* Build a camera-key → customer lookup. Property Camera IDs (Item 9) win —
+ * a match links the photo to both the customer AND the specific property.
+ * Next an explicit `cameraId` on a customer (exact, any customer); otherwise
+ * fall back to a unique name-derived key among ACTIVE customers. Ambiguous
+ * name-keys are dropped (→ unassigned). */
 async function customerKeyMap() {
   const snap = await db.collection('customers').get();
+  const nameById = new Map();
   const byCam = new Map();
   const byName = new Map();
   const nameAmbiguous = new Set();
   snap.forEach((d) => {
+    nameById.set(d.id, d.get('name') || '');
     const cam = (d.get('cameraId') || '').trim().toUpperCase();
-    if (cam) byCam.set(cam, { id: d.id, name: d.get('name') || '' });
+    if (cam) byCam.set(cam, { id: d.id, name: d.get('name') || '', propertyId: null });
     if (d.get('active')) {
       const key = cb.customerKeyFor(d.get('name'));
       if (key) {
         if (byName.has(key)) nameAmbiguous.add(key);
-        else byName.set(key, { id: d.id, name: d.get('name') || '' });
+        else byName.set(key, { id: d.id, name: d.get('name') || '', propertyId: null });
       }
     }
   });
   nameAmbiguous.forEach((k) => byName.delete(k));
+  /* Property Camera IDs override customer-level entries on collision. */
+  try {
+    const propSnap = await db.collectionGroup('properties').get();
+    propSnap.forEach((d) => {
+      const cam = (d.get('cameraId') || '').trim().toUpperCase();
+      if (!cam) return;
+      const customerId = d.get('customerId') || (d.ref.parent.parent ? d.ref.parent.parent.id : null);
+      if (!customerId) return;
+      byCam.set(cam, { id: customerId, name: nameById.get(customerId) || '', propertyId: d.id });
+    });
+  } catch (err) {
+    console.error('property lookup failed — continuing with customer-level matching', err);
+  }
   return { get: (k) => byCam.get(k) || byName.get(k) || null };
 }
 
@@ -1074,6 +1091,7 @@ async function handlePhotoMessage(m, keyMap) {
       customerKey: key || null,
       customerId: match ? match.id : null,
       customerName: match ? match.name : null,
+      propertyId: (match && match.propertyId) || null,
       assigned: !!match,
       subject: m.subject || '',
       receivedAt: m.receivedDateTime || new Date().toISOString(),
@@ -1108,6 +1126,7 @@ async function handleReportMessage(m, keyMap) {
       customerKey: parsed.network,
       customerId: match ? match.id : null,
       customerName: match ? match.name : null,
+      propertyId: (match && match.propertyId) || null,
       cameraNumber: d.cameraNumber,
       cameraName: d.cameraName,
       mode: d.mode,
