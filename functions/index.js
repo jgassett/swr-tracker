@@ -54,6 +54,14 @@ const SECRETS = ['QBO_CLIENT_ID', 'QBO_CLIENT_SECRET'];
  * ADMIN_EMAILS in the app. */
 const ADMIN_EMAILS = ['jon@southern-wildlife.com'];
 
+/* Operator email → display name. Mirrors EMAIL_TO_TRAPPER in the app. */
+const EMAIL_TO_TRAPPER = {
+  'jon@southern-wildlife.com': 'Jon Gassett',
+  'robin@southern-wildlife.com': 'Robin Gassett',
+  'chris@southern-wildlife.com': 'Chris Griffith'
+};
+const ALL_OPERATOR_EMAILS = Object.keys(EMAIL_TO_TRAPPER);
+
 /* All SWR estimate lines map to a single generic QuickBooks Product/Service;
  * the human-readable category/species/detail goes in each line's Description. */
 const SERVICE_ITEM_NAME = 'Wildlife Services';
@@ -742,20 +750,40 @@ exports.qbCreateCustomer = functions
  * a data-only message to every registered device of the given operators.
  * ===================================================================== */
 async function sendPushToEmails(emails, payload) {
-  const list = [...new Set((emails || []).filter(Boolean))];
+  const list = [...new Set((emails || []).filter(Boolean).map((e) => String(e).toLowerCase()))];
   if (!list.length) return { sent: 0, tokens: 0 };
-  const tokens = [];
+
+  /* Collect device tokens. New format (v2): one pushTokens/{email} doc per
+   * operator holding a `tokens` array (multiple devices per operator). Legacy
+   * format (v1): one pushTokens/{token} doc per device with an `email` field.
+   * Both are read so devices registered before the upgrade keep working. */
+  const entries = [];   // { token, ref, legacy } — ref used for invalid-token cleanup
+  const seen = new Set();
+  const emailDocs = await db.getAll(...list.map((e) => db.collection('pushTokens').doc(e)));
+  emailDocs.forEach((d) => {
+    if (!d.exists) return;
+    const arr = d.get('tokens');
+    (Array.isArray(arr) ? arr : []).forEach((t) => {
+      if (t && !seen.has(t)) { seen.add(t); entries.push({ token: t, ref: d.ref, legacy: false }); }
+    });
+  });
   for (let i = 0; i < list.length; i += 10) {
     const snap = await db.collection('pushTokens').where('email', 'in', list.slice(i, i + 10)).get();
-    snap.forEach((d) => { const t = d.get('token'); if (t) tokens.push(t); });
+    snap.forEach((d) => {
+      const t = d.get('token');
+      if (t && !seen.has(t)) { seen.add(t); entries.push({ token: t, ref: d.ref, legacy: true }); }
+    });
   }
-  if (!tokens.length) return { sent: 0, tokens: 0 };
+  if (!entries.length) return { sent: 0, tokens: 0 };
+
+  const tokens = entries.map((e) => e.token);
   const res = await admin.messaging().sendEachForMulticast({
     tokens,
     data: {
       title: String(payload.title || 'SWR Tracker'),
       body: String(payload.body || ''),
-      url: String(payload.url || 'https://jgassett.github.io/swr-tracker/')
+      url: String(payload.url || 'https://jgassett.github.io/swr-tracker/'),
+      tag: String(payload.tag || '')
     },
     webpush: { headers: { Urgency: 'high' } }
   });
@@ -763,7 +791,12 @@ async function sendPushToEmails(emails, payload) {
     if (!r.success) {
       const code = r.error && r.error.code;
       if (code === 'messaging/registration-token-not-registered' || code === 'messaging/invalid-argument') {
-        db.collection('pushTokens').doc(tokens[i]).delete().catch(() => {});
+        const e = entries[i];
+        if (e.legacy) {
+          e.ref.delete().catch(() => {});
+        } else {
+          e.ref.set({ tokens: admin.firestore.FieldValue.arrayRemove(e.token) }, { merge: true }).catch(() => {});
+        }
       }
     }
   });
@@ -786,29 +819,65 @@ exports.sendTestPush = functions
     }
   });
 
-/* Notify a job's assignees (web push) that they've been scheduled. Reads the
- * job doc server-side so a client can't spam arbitrary push messages — it may
- * only trigger notifications for the assignees recorded on a real job. */
+/* Notify an appointment's assigned contractors (web push). Reads the job (and,
+ * when given, the appointment subcollection doc) server-side so a client can't
+ * spam arbitrary push messages — it may only trigger notifications for the
+ * operators recorded on a real appointment. Handles both eras of the data
+ * model: legacy Schedule docs (the job doc IS the appointment: date/startTime/
+ * type/assignees) and v2 lifecycle jobs (jobs/{jobId}/appointments/{apptId}
+ * with scheduledDate/scheduledTime/visitType/assignedOperators).
+ * The push body includes date, time, job type, customer name, and which
+ * contractor it is assigned to (Item 1). */
 exports.notifyJobAssignment = functions
   .region(REGION)
   .runWith({ memory: '256MB' })
   .https.onCall(async (data, context) => {
     if (!context.auth) throw new functions.https.HttpsError('unauthenticated', 'Sign in required.');
     const jobId = data && data.jobId;
+    const appointmentId = data && data.appointmentId;
     if (!jobId) throw new functions.https.HttpsError('invalid-argument', 'jobId is required.');
-    const snap = await db.collection('jobs').doc(String(jobId)).get();
-    if (!snap.exists) throw new functions.https.HttpsError('not-found', 'Job not found.');
-    const job = snap.data() || {};
-    const emails = Array.isArray(job.assignees) ? job.assignees.filter(Boolean) : [];
+    const jobSnap = await db.collection('jobs').doc(String(jobId)).get();
+    if (!jobSnap.exists) throw new functions.https.HttpsError('not-found', 'Job not found.');
+    const job = jobSnap.data() || {};
+
+    /* Legacy schedule docs double as the appointment record. */
+    let a = job;
+    if (appointmentId) {
+      const apptSnap = await db.collection('jobs').doc(String(jobId))
+        .collection('appointments').doc(String(appointmentId)).get();
+      if (!apptSnap.exists) throw new functions.https.HttpsError('not-found', 'Appointment not found.');
+      a = apptSnap.data() || {};
+    }
+
+    const emails = (Array.isArray(a.assignedOperators) && a.assignedOperators.length ? a.assignedOperators
+      : Array.isArray(a.assignees) ? a.assignees : []).filter(Boolean);
     if (!emails.length) return { sent: 0 };
-    const when = [job.date, job.startTime].filter(Boolean).join(' ');
-    const body = [job.title || 'New job', job.customerName, when].filter(Boolean).join(' · ');
+
+    const dateStr = a.scheduledDate || a.date || '';
+    const timeStr = a.scheduledTime || a.startTime || '';
+    const jobType = a.visitType || a.type || job.type || '';
+    const customerName = a.customerName || job.customerName || '';
+
     try {
-      return await sendPushToEmails(emails, {
-        title: 'New job assigned',
-        body,
-        url: './'
-      });
+      let sent = 0, tokens = 0;
+      /* One personalized push per contractor: "…Assigned to <name>". */
+      for (const email of emails) {
+        const name = EMAIL_TO_TRAPPER[String(email).toLowerCase()] || email;
+        const body = [
+          [dateStr, timeStr].filter(Boolean).join(' '),
+          jobType,
+          customerName,
+          `Assigned to ${name}`
+        ].filter(Boolean).join(' · ');
+        const r = await sendPushToEmails([email], {
+          title: 'New appointment scheduled',
+          body,
+          url: './',
+          tag: `appt-${appointmentId || jobId}`
+        });
+        sent += r.sent; tokens += r.tokens;
+      }
+      return { sent, tokens };
     } catch (err) {
       console.error('notifyJobAssignment failed', err);
       throw new functions.https.HttpsError('internal', err.message || 'Push send failed');

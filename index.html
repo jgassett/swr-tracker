@@ -2525,7 +2525,7 @@ import {
 import {
   initializeFirestore, persistentLocalCache, persistentMultipleTabManager,
   collection, doc, getDoc, getDocs, addDoc, setDoc, deleteDoc,
-  query, orderBy, onSnapshot, writeBatch
+  query, orderBy, onSnapshot, writeBatch, arrayUnion, collectionGroup, where
 } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import {
   getStorage, ref as storageRef, uploadBytes, getDownloadURL
@@ -3562,6 +3562,21 @@ function updateSyncIndicator(state) {
 }
 
 /* ---------- Web push enable / test ---------- */
+/* Register this device's FCM token under the signed-in operator's email
+   (Item 1): pushTokens/{email} holds a `tokens` array so one operator can
+   have multiple devices. The backend prunes tokens FCM reports as dead. */
+function registerPushToken(token) {
+  if (!currentUser || !currentUser.email) return Promise.resolve();
+  const email = currentUser.email.toLowerCase();
+  return setDoc(doc(fbDb, 'pushTokens', email), {
+    email,
+    uid: currentUser.uid,
+    name: EMAIL_TO_TRAPPER[email] || email,
+    tokens: arrayUnion(token),
+    updatedAt: new Date().toISOString()
+  }, { merge: true });
+}
+
 async function enablePushNotifications() {
   const status = $('#pushStatus');
   const setStatus = (msg, ok) => { if (status) { status.textContent = msg; status.style.color = ok ? 'var(--green-deep)' : 'var(--amber)'; } };
@@ -3573,13 +3588,7 @@ async function enablePushNotifications() {
     const reg = await navigator.serviceWorker.register('./firebase-messaging-sw.js', { scope: './firebase-cloud-messaging-push-scope' });
     const token = await getToken(fbMessaging, { vapidKey: VAPID_KEY, serviceWorkerRegistration: reg });
     if (!token) { setStatus('Could not get a device token — try again.'); return; }
-    await writeWithRetry(() => setDoc(doc(fbDb, 'pushTokens', token), {
-      token,
-      uid: currentUser ? currentUser.uid : null,
-      email: currentUser ? currentUser.email : null,
-      name: currentUser ? (EMAIL_TO_TRAPPER[currentUser.email.toLowerCase()] || currentUser.email) : null,
-      updatedAt: new Date().toISOString()
-    }, { merge: true }));
+    await writeWithRetry(() => registerPushToken(token));
     setStatus('✓ Notifications enabled on this device.', true);
     toast('Notifications enabled');
     const testBtn = $('#pushTestBtn'); if (testBtn) testBtn.style.display = '';
@@ -3608,13 +3617,7 @@ async function autoEnablePushIfGranted() {
     const reg = await navigator.serviceWorker.register('./firebase-messaging-sw.js', { scope: './firebase-cloud-messaging-push-scope' });
     const token = await getToken(fbMessaging, { vapidKey: VAPID_KEY, serviceWorkerRegistration: reg });
     if (!token) return;
-    await writeWithRetry(() => setDoc(doc(fbDb, 'pushTokens', token), {
-      token,
-      uid: currentUser ? currentUser.uid : null,
-      email: currentUser ? currentUser.email : null,
-      name: currentUser ? (EMAIL_TO_TRAPPER[currentUser.email.toLowerCase()] || currentUser.email) : null,
-      updatedAt: new Date().toISOString()
-    }, { merge: true }));
+    await writeWithRetry(() => registerPushToken(token));
     const status = $('#pushStatus');
     if (status) { status.textContent = '✓ Notifications enabled on this device.'; status.style.color = 'var(--green-deep)'; }
     const testBtn = $('#pushTestBtn'); if (testBtn) testBtn.style.display = '';
