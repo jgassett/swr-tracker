@@ -118,6 +118,22 @@
     .mode-grid .mode-card .mode-count { margin-left: 0; text-align: center; }
     .mode-grid .mode-card .mode-count .n { font-size: 20px; }
     .landing-sync { display: flex; justify-content: flex-end; margin-bottom: 6px; }
+    /* Settings gear on the landing page (Item 16): 24px icon, bottom-right,
+       above the safe-area inset. */
+    .landing-gear {
+      position: fixed;
+      right: 16px;
+      bottom: calc(var(--safe-bot) + 14px);
+      width: 44px; height: 44px;              /* comfortable tap target */
+      background: rgba(255,255,255,0.07);
+      border: 1px solid rgba(196,119,42,0.3);
+      border-radius: 50%;
+      color: var(--amber-soft);
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer; z-index: 97;
+    }
+    .landing-gear svg { width: 24px; height: 24px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+    .landing-gear:active { background: rgba(196,119,42,0.25); }
     .settings-group { font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-soft); margin: 20px 4px 8px; }
     .settings-group.first { margin-top: 4px; }
     .conn-status { font-size: 13px; font-weight: 600; margin-top: 4px; }
@@ -254,7 +270,7 @@
       height: calc(var(--nav-h) + var(--safe-bot));
       padding-bottom: var(--safe-bot);
       background: #fff; border-top: 1px solid var(--line);
-      display: grid; grid-template-columns: repeat(5, 1fr);
+      display: grid; grid-template-columns: repeat(4, 1fr);
       align-items: stretch;
       z-index: 50;
     }
@@ -1576,17 +1592,12 @@
       </div>
       <div class="mode-count"><span class="n" id="landingScheduleCount">0</span><span class="lbl">upcoming</span></div>
     </button>
-    <button type="button" class="mode-card" data-mode="settings">
-      <div class="icon-circle">
-        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3h.1a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8v.1a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z"/></svg>
-      </div>
-      <div>
-        <div class="mode-title">Settings</div>
-        <div class="mode-desc">Connections, business info, and data</div>
-      </div>
-    </button>
     </div>
   </div>
+  <!-- Settings demoted to a small gear (Item 16): bottom-right, above the safe area. -->
+  <button type="button" id="landingGearBtn" class="landing-gear" aria-label="Settings" title="Settings">
+    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3h.1a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8v.1a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z"/></svg>
+  </button>
 </div>
 
 <!-- App -->
@@ -2947,10 +2958,8 @@
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>
       <span>Export</span>
     </button>
-    <button class="nav-btn" data-view="settings">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3h.1a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8v.1a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z"/></svg>
-      <span>Settings</span>
-    </button>
+    <!-- Settings removed from the bottom nav (Item 16) — reachable via the
+         gear icon on the landing page. Four items, freed slot not replaced. -->
   </nav>
 </div>
 
@@ -10931,6 +10940,7 @@ async function init() {
   /* Mode picker + header toggle */
   /* Landing page — tapping a module card enters that module. */
   $('#modePicker').addEventListener('click', (e) => {
+    if (e.target.closest('#landingGearBtn')) { setAppMode('settings'); return; }   /* Item 16 */
     const btn = e.target.closest('.mode-card');
     if (!btn) return;
     setAppMode(btn.dataset.mode);
