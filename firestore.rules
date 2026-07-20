@@ -82,10 +82,23 @@ service cloud.firestore {
                     && resource.data.status in ['Draft', 'Pending Approval', 'Rejected'];
     }
 
-    /* Job schedule (Phase 4). Shared across the crew like the other
-       collections; assignees are notified server-side (notifyJobAssignment,
-       Admin SDK) which also reads jobs to build the push payload. */
+    /* Jobs (v2 lifecycle containers + legacy Phase-4 schedule docs). Shared
+       across the crew like the other collections; assignees are notified
+       server-side (notifyJobAssignment, Admin SDK) which also reads jobs to
+       build the push payload. */
     match /jobs/{jobId} {
+      allow read:   if request.auth != null;
+      allow create: if request.auth != null
+                    && request.resource.data.createdByUid == request.auth.uid;
+      allow update: if request.auth != null;
+      allow delete: if request.auth != null;
+    }
+
+    /* Appointments subcollection under jobs (v2). Matched as a collection
+       group so the app can query every job's appointments for the shared
+       Schedule calendar. Only jobs carry an `appointments` subcollection.
+       Same auth pattern as the other shared collections. */
+    match /{path=**}/appointments/{appointmentId} {
       allow read:   if request.auth != null;
       allow create: if request.auth != null
                     && request.resource.data.createdByUid == request.auth.uid;
