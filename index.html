@@ -2334,6 +2334,7 @@
           <div class="biz-row"><span class="biz-label">Jon Gassett</span><span class="biz-value mono" id="certJon">—</span></div>
           <div class="biz-row"><span class="biz-label">Robin Gassett</span><span class="biz-value mono" id="certRobin">—</span></div>
           <div class="biz-row"><span class="biz-label">Chris Griffith</span><span class="biz-value mono" id="certChris">—</span></div>
+          <div class="biz-row"><span class="biz-label">Tanya Clark</span><span class="biz-value mono" id="certTanya">—</span></div>
         </div>
         <div id="certEdit" class="hidden">
           <p class="muted" style="font-size:13px; margin-bottom:10px;">KY Department of Agriculture pesticide applicator certification numbers. Leave a field blank to mark that applicator as not yet certified (their option will be disabled in the pesticide form).</p>
@@ -2348,6 +2349,10 @@
           <div class="form-group">
             <label for="editCertChris">Chris Griffith</label>
             <input type="text" id="editCertChris" autocomplete="off" placeholder="(not yet certified)">
+          </div>
+          <div class="form-group">
+            <label for="editCertTanya">Tanya Clark</label>
+            <input type="text" id="editCertTanya" autocomplete="off" placeholder="(not yet certified)">
           </div>
           <button class="btn btn-primary" id="saveCertBtn">Save Certifications</button>
         </div>
@@ -2640,7 +2645,8 @@ let cachedPesticides = [];
 const APPLICATOR_CERT_DEFAULTS = {
   'Jon Gassett': '71707',
   'Robin Gassett': '71879',
-  'Chris Griffith': ''
+  'Chris Griffith': '',
+  'Tanya Clark': ''
 };
 
 const PESTICIDE_PURPOSES = [
@@ -2689,20 +2695,36 @@ const APPLICATION_METHODS = [
 const ADJUVANTS = ['Water', 'Crop Oil', 'Surfactant', 'Other'];
 const AREA_UNITS = ['sq ft', 'acres'];
 
-const TRAPPERS = ['Jon Gassett', 'Robin Gassett', 'Chris Griffith'];
+const TRAPPERS = ['Jon Gassett', 'Robin Gassett', 'Chris Griffith', 'Tanya Clark'];
 
 const EMAIL_TO_TRAPPER = {
   'jon@southern-wildlife.com': 'Jon Gassett',
   'robin@southern-wildlife.com': 'Robin Gassett',
-  'chris@southern-wildlife.com': 'Chris Griffith'
+  'chris@southern-wildlife.com': 'Chris Griffith',
+  'tanya@southern-wildlife.com': 'Tanya Clark'
 };
 
 /* Employee ID (FLXX) -> account email. Per-initial-pair sequence. */
 const EMPLOYEE_ID_TO_EMAIL = {
   'JG01': 'jon@southern-wildlife.com',
   'RG01': 'robin@southern-wildlife.com',
-  'CG01': 'chris@southern-wildlife.com'
+  'CG01': 'chris@southern-wildlife.com',
+  'TC01': 'tanya@southern-wildlife.com'
 };
+
+/* Operator data model (Item 2). certificationStatus: 'certified' operators
+   have passed the KDFWR WCO certification test; 'pending' operators are
+   sub-permitted under Jon Gassett's permit and may work + log records, but
+   their records can't go on the annual KDFWR report until certified (Item 8
+   surfaces this as an informational badge — it never blocks record entry). */
+const OPERATORS = [
+  { name: 'Jon Gassett',    email: 'jon@southern-wildlife.com',   employeeId: 'JG01', certificationStatus: 'certified' },
+  { name: 'Robin Gassett',  email: 'robin@southern-wildlife.com', employeeId: 'RG01', certificationStatus: 'certified' },
+  { name: 'Chris Griffith', email: 'chris@southern-wildlife.com', employeeId: 'CG01', certificationStatus: 'certified' },
+  { name: 'Tanya Clark',    email: 'tanya@southern-wildlife.com', employeeId: 'TC01', certificationStatus: 'pending' }
+];
+const OPERATOR_CERT_STATUS = Object.fromEntries(OPERATORS.map((o) => [o.name, o.certificationStatus]));
+function operatorIsPending(name) { return OPERATOR_CERT_STATUS[name] === 'pending'; }
 
 /* EmailJS — sends a per-record notification on save. Destination address
    is configured inside the EmailJS template, not here. */
@@ -2718,7 +2740,7 @@ try {
 } catch (e) { console.warn('EmailJS init failed', e); }
 
 /* Admin accounts can perform destructive shared-data actions (Clear All Records). */
-const ADMIN_EMAILS = new Set(['jon@southern-wildlife.com']);
+const ADMIN_EMAILS = new Set(['jon@southern-wildlife.com', 'tanya@southern-wildlife.com']);
 function isAdmin() {
   return currentUser && currentUser.email && ADMIN_EMAILS.has(currentUser.email.toLowerCase());
 }
@@ -6438,9 +6460,11 @@ function renderCertCard() {
   $('#certJon').textContent = fmt(certs['Jon Gassett']);
   $('#certRobin').textContent = fmt(certs['Robin Gassett']);
   $('#certChris').textContent = fmt(certs['Chris Griffith']);
+  $('#certTanya').textContent = fmt(certs['Tanya Clark']);
   $('#editCertJon').value = certs['Jon Gassett'] || '';
   $('#editCertRobin').value = certs['Robin Gassett'] || '';
   $('#editCertChris').value = certs['Chris Griffith'] || '';
+  $('#editCertTanya').value = certs['Tanya Clark'] || '';
   $('#certDisplay').classList.toggle('hidden', isAdmin());
   $('#certEdit').classList.toggle('hidden', !isAdmin());
 }
@@ -6450,7 +6474,8 @@ async function handleSaveCerts() {
   const newCerts = {
     'Jon Gassett': $('#editCertJon').value.trim(),
     'Robin Gassett': $('#editCertRobin').value.trim(),
-    'Chris Griffith': $('#editCertChris').value.trim()
+    'Chris Griffith': $('#editCertChris').value.trim(),
+    'Tanya Clark': $('#editCertTanya').value.trim()
   };
   const ok = await confirmDialog(
     'Save certifications?',

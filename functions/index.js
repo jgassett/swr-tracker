@@ -52,13 +52,14 @@ const SECRETS = ['QBO_CLIENT_ID', 'QBO_CLIENT_SECRET'];
 
 /* Only these accounts may approve + push estimates to QuickBooks. Mirrors
  * ADMIN_EMAILS in the app. */
-const ADMIN_EMAILS = ['jon@southern-wildlife.com'];
+const ADMIN_EMAILS = ['jon@southern-wildlife.com', 'tanya@southern-wildlife.com'];
 
 /* Operator email → display name. Mirrors EMAIL_TO_TRAPPER in the app. */
 const EMAIL_TO_TRAPPER = {
   'jon@southern-wildlife.com': 'Jon Gassett',
   'robin@southern-wildlife.com': 'Robin Gassett',
-  'chris@southern-wildlife.com': 'Chris Griffith'
+  'chris@southern-wildlife.com': 'Chris Griffith',
+  'tanya@southern-wildlife.com': 'Tanya Clark'
 };
 const ALL_OPERATOR_EMAILS = Object.keys(EMAIL_TO_TRAPPER);
 
