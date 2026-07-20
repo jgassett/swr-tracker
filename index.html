@@ -2174,15 +2174,40 @@
         <div class="form-group">
           <input type="hidden" id="pa-site-lat">
           <input type="hidden" id="pa-site-lng">
-          <div class="map-section-label">Treatment Site Map</div>
-          <div class="map-controls">
-            <button type="button" class="map-btn" id="paLocateBtn">
+          <div class="map-section-label">Treatment Site Location</div>
+          <div class="loc-options" id="paLocOptions">
+            <button type="button" class="map-btn" data-pa-loc="gps">
               <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>
               Use My Location
             </button>
+            <button type="button" class="map-btn ghost" data-pa-loc="address">
+              <svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h10"/></svg>
+              Enter an Address
+            </button>
+            <button type="button" class="map-btn ghost" data-pa-loc="map">
+              <svg viewBox="0 0 24 24"><path d="M9 20l-6-3V4l6 3 6-3 6 3v13l-6-3-6 3z"/><path d="M9 7v13M15 4v13"/></svg>
+              Locate on Map
+            </button>
           </div>
+          <div class="loc-entry hidden" id="paLocEntry">
+            <input type="text" id="paLocInput" placeholder="123 Main St, Lexington — or 38.02, -84.50" autocomplete="off">
+            <button type="button" class="map-btn" id="paLocGo">Set</button>
+          </div>
+          <div class="hint" id="paLocHint"></div>
+        </div>
+        <div class="form-group hidden" id="paMapGroup">
+          <div class="map-section-label">Drop a pin on the treatment site</div>
           <div id="paMap" class="location-map"></div>
-          <div class="map-status" id="paMapStatus">Use My Location, or drop a pin, to capture the treatment site. Auto-fills the address fields above.</div>
+          <div class="map-status" id="paMapStatus">Tap the map to drop a pin — the address fills in automatically.</div>
+        </div>
+        <!-- County of treatment is captured silently from the location
+             (Item 15 parity) — hidden value holder, surfaced only when the
+             geocoder can't supply a county. -->
+        <div class="form-group hidden" id="paCountyGroup" aria-hidden="true">
+          <label for="pa-county">County of Treatment</label>
+          <select id="pa-county" tabindex="-1">
+            <option value="">— select county —</option>
+          </select>
         </div>
 
         <h3 class="form-section">Products Applied</h3>
@@ -5696,9 +5721,11 @@ function setView(name, opts) {
   }
   if (name === 'assign-legacy') renderAssignLegacyView();
   if (name === 'settings' || appMode === 'settings') renderSettingsStatus();
-  /* Pesticide-form map lazy init */
+  /* Pesticide-form map: lazy, only when its group is already visible
+     (Item 15 parity, H3 — the map opens exclusively via "Locate on Map"
+     or when editing a record that has coordinates). */
   if (name === 'add' && appMode === 'pesticide') {
-    setTimeout(ensurePaMap, 80);
+    if (!$('#paMapGroup').classList.contains('hidden')) setTimeout(ensurePaMap, 80);
   }
   /* Trap-mode maps init lazily only when their group is visible (Item 15:
      the map opens exclusively via "Locate on Map" or when editing a record
@@ -6621,10 +6648,16 @@ async function handleTrapLocationChange(lat, lng, source) {
   }
 }
 
+/* Item 15 parity (H3): the treatment-site county is captured SILENTLY from
+   whichever of the three location methods the operator uses. */
+let silentPaCounty = null;
+
 async function handlePesticideLocationChange(lat, lng, source) {
   $('#pa-site-lat').value = lat;
   $('#pa-site-lng').value = lng;
+  const paHint = $('#paLocHint');
   setMapStatus('paMapStatus', 'Looking up address…', 'working');
+  if (paHint) { paHint.textContent = 'Looking up address…'; paHint.className = 'hint working'; }
   try {
     const geo = await reverseGeocode(lat, lng);
     const formatted = geo.formattedAddress || '';
@@ -6658,13 +6691,25 @@ async function handlePesticideLocationChange(lat, lng, source) {
     /* Suggest a saved customer at this location, if one matches. */
     const custMatch = findCustomerNearAddress(geo.streetAddress, geo.city);
     if (custMatch) showPestCustomerSuggest(custMatch); else hidePestCustomerSuggest();
-    setMapStatus('paMapStatus',
-      `Located: ${formatted || '(' + lat.toFixed(5) + ', ' + lng.toFixed(5) + ')'} · ${useTreatment ? 'Treatment site' : 'Client address'} fields filled.`,
-      'success');
+    /* County: extracted and stored silently (Item 15 parity, H3). */
+    if (geo.county) {
+      silentPaCounty = geo.county;
+      const match = matchingOptionValue('pa-county', geo.county);
+      if (match) $('#pa-county').value = match;
+      setCountyFallback('paCountyGroup', false);
+    } else {
+      setCountyFallback('paCountyGroup', true);
+    }
+    const okText = `Located: ${formatted || '(' + lat.toFixed(5) + ', ' + lng.toFixed(5) + ')'} · ${useTreatment ? 'Treatment site' : 'Client address'} fields filled.`;
+    setMapStatus('paMapStatus', okText, 'success');
+    if (paHint) { paHint.textContent = `✓ ${formatted || `Location saved (${lat.toFixed(5)}, ${lng.toFixed(5)})`}`; paHint.className = 'hint success'; }
   } catch (e) {
-    setMapStatus('paMapStatus',
-      `Coordinates saved (${lat.toFixed(5)}, ${lng.toFixed(5)}). Geocoder offline — fill address fields manually.`,
-      'error');
+    /* Offline / geocoder down: keep the coordinates usable and expose the
+       manual county dropdown so the record still carries a county. */
+    setCountyFallback('paCountyGroup', true);
+    const failText = `Coordinates saved (${lat.toFixed(5)}, ${lng.toFixed(5)}). Geocoder offline — fill address fields manually and pick the County of Treatment below.`;
+    setMapStatus('paMapStatus', failText, 'error');
+    if (paHint) { paHint.textContent = failText; paHint.className = 'hint error'; }
   }
 }
 
@@ -6732,6 +6777,10 @@ function setTrapLocation(lat, lng) {
 function setReleaseLocation(lat, lng) {
   if (releaseMapInstance) releaseMapInstance.setLocation(lat, lng, { notify: false });
   handleReleaseLocationChange(lat, lng, 'locate');
+}
+function setPaLocation(lat, lng) {
+  if (paMapInstance) paMapInstance.setLocation(lat, lng, { notify: false });
+  handlePesticideLocationChange(lat, lng, 'locate');
 }
 
 /* Option A: device GPS → the site handler (reverse geocode + silent county). */
@@ -7516,6 +7565,7 @@ function fillPesticideForm() {
   fillSelect('pa-purpose', PESTICIDE_PURPOSES, true, '— select purpose —');
   fillSelect('pa-area-type', PESTICIDE_AREAS, true, '— select area type —');
   fillSelect('pa-method', APPLICATION_METHODS, true, '— select method —');
+  fillGroupedSelect('pa-county', COUNTY_GROUPS, '— select county —');
   buildProductRows();
   buildAdjuvantCheckboxes();
   refreshPesticideBrandDropdowns();
@@ -7736,10 +7786,20 @@ function resetPesticideRecordForm() {
   resetPesticidePhotoUI();
   $('#pa-site-lat').value = '';
   $('#pa-site-lng').value = '';
+  /* Item 15 parity (H3): collapse the location widgets back to the
+     three-option row and clear the silent county. */
+  silentPaCounty = null;
+  ['paMapGroup', 'paLocEntry'].forEach((id) => {
+    const el = document.getElementById(id);
+    if (el) el.classList.add('hidden');
+  });
+  setCountyFallback('paCountyGroup', false);
+  const paIn = $('#paLocInput'); if (paIn) paIn.value = '';
+  const paHint = $('#paLocHint'); if (paHint) { paHint.textContent = ''; paHint.className = 'hint'; }
   pestFormCustomerId = null;
   populatePropertySelect('pa-property', 'pa-property-group', null, '');
   if (paMapInstance) paMapInstance.clear();
-  setMapStatus('paMapStatus', 'Use My Location, or drop a pin, to capture the treatment site. Auto-fills the address fields above.');
+  setMapStatus('paMapStatus', 'Tap the map to drop a pin — the address fills in automatically.');
   $('#paDeleteBtn').style.display = 'none';
   /* Linked-job picker: apply a pending link from "Log Pesticide", else clear. */
   populateJobSelect('pa-job', pendingWorkLogJobId || '');
@@ -7816,7 +7876,16 @@ function loadPesticideRecordIntoForm(rec) {
   $('#pa-notes').value = rec.notes || '';
   $('#pa-site-lat').value = rec.siteLat != null ? rec.siteLat : '';
   $('#pa-site-lng').value = rec.siteLng != null ? rec.siteLng : '';
+  /* Item 15 parity (H3): restore the silently-captured county so an
+     edit-save never wipes it, and reveal the map only when the record
+     already has coordinates. */
+  silentPaCounty = rec.county || null;
+  if (rec.county) {
+    const cm = matchingOptionValue('pa-county', rec.county);
+    if (cm) $('#pa-county').value = cm;
+  }
   if (rec.siteLat != null && rec.siteLng != null) {
+    $('#paMapGroup').classList.remove('hidden');
     setTimeout(() => {
       ensurePaMap();
       if (paMapInstance) paMapInstance.setLocation(rec.siteLat, rec.siteLng, { notify: false });
@@ -7890,7 +7959,10 @@ function readPesticideForm() {
     signsPosted: signs && signs.value === 'yes',
     notes: $('#pa-notes').value.trim(),
     siteLat: $('#pa-site-lat').value === '' ? null : parseFloat($('#pa-site-lat').value),
-    siteLng: $('#pa-site-lng').value === '' ? null : parseFloat($('#pa-site-lng').value)
+    siteLng: $('#pa-site-lng').value === '' ? null : parseFloat($('#pa-site-lng').value),
+    /* Item 15 parity (H3): silently-captured treatment county, with the
+       hidden dropdown as the manual fallback when geocoding failed. */
+    county: silentPaCounty || (($('#pa-county') && $('#pa-county').value) || null)
   };
   /* Linked scheduled job (optional). */
   const jobId = ($('#pa-job') && $('#pa-job').value) || '';
@@ -9197,21 +9269,23 @@ async function setJobLifecycleStatus(id, status, extra = {}) {
     toast(`Can’t move this job from ${j.status || 'Lead'} to ${status} — jobs only move forward.`, 'error');
     return false;
   }
-  try {
-    await writeWithRetry(() => setDoc(doc(fbDb, 'jobs', id), { status, ...extra, updatedAt: new Date().toISOString() }, { merge: true }));
-    toast(`Job ${j.jobNumber || ''} → ${status}`);
-    /* In-app notification to the job's other operators (Item 12). */
-    notifyOperatorsInApp(j.assignedOperators || [], {
-      type: 'job',
-      title: `${j.jobNumber || 'Job'} → ${status}`,
-      body: [j.customerName, `moved to ${status}`].filter(Boolean).join(' · '),
-      relatedId: id
+  /* Optimistic write (H1): do NOT await the server ack — offline that
+     promise never resolves. A rejected write (surfaced when online or on
+     reconnect) toasts an error. */
+  writeWithRetry(() => setDoc(doc(fbDb, 'jobs', id), { status, ...extra, updatedAt: new Date().toISOString() }, { merge: true }))
+    .catch((err) => {
+      console.error('Job status write failed', err);
+      toast('Status update failed to sync: ' + ((err && err.message) || 'error'), 'error');
     });
-    return true;
-  } catch (err) {
-    toast('Status update failed: ' + ((err && err.message) || 'error'), 'error');
-    return false;
-  }
+  toast(`Job ${j.jobNumber || ''} → ${status}`);
+  /* In-app notification to the job's other operators (Item 12). */
+  notifyOperatorsInApp(j.assignedOperators || [], {
+    type: 'job',
+    title: `${j.jobNumber || 'Job'} → ${status}`,
+    body: [j.customerName, `moved to ${status}`].filter(Boolean).join(' · '),
+    relatedId: id
+  });
+  return true;
 }
 /* Fire-and-forget forward nudge used by automatic triggers (estimate linked,
    appointment scheduled, work logged). Never moves a job backward. */
@@ -9405,7 +9479,17 @@ async function handleSaveLifecycleJob(e) {
         notes: $('#lj-notes').value.trim(),
         updatedAt: now
       };
-      await writeWithRetry(() => setDoc(doc(fbDb, 'jobs', editingLifecycleJobId), data, { merge: true }));
+      /* Optimistic write (H1): do NOT await the server ack — offline that
+         promise never resolves and the form would hang. */
+      writeWithRetry(() => setDoc(doc(fbDb, 'jobs', editingLifecycleJobId), data, { merge: true }))
+        .catch((err) => {
+          console.error('Job update failed', err);
+          toast('Job update failed to sync: ' + ((err && err.message) || 'error'), 'error');
+        });
+      /* Keep the local cache current so the detail view renders the edit
+         immediately (the snapshot confirms it moments later). */
+      const idx = cachedJobs.findIndex((x) => x.id === editingLifecycleJobId);
+      if (idx >= 0) cachedJobs[idx] = { ...cachedJobs[idx], ...data };
       /* Newly linked estimate nudges the job forward. */
       if (estimateId && !existing.estimateId) advanceJobStatusAuto(editingLifecycleJobId, 'Estimated');
       toast('Job updated');
@@ -9435,7 +9519,15 @@ async function handleSaveLifecycleJob(e) {
         updatedAt: now,
         notes: $('#lj-notes').value.trim()
       };
-      await writeWithRetry(() => setDoc(ref, data));
+      /* Optimistic write (H1): fire without awaiting so job creation works
+         offline; seed the local cache so the detail view renders instantly
+         (the snapshot replaces it moments later). */
+      writeWithRetry(() => setDoc(ref, data))
+        .catch((err) => {
+          console.error('Job create failed', err);
+          toast('Job failed to sync: ' + ((err && err.message) || 'error'), 'error');
+        });
+      if (!cachedJobs.some((x) => x.id === ref.id)) cachedJobs.push({ id: ref.id, ...data });
       toast(`Job opened · ${data.jobNumber}`);
       resetLifecycleJobForm();
       openLifecycleJob(ref.id);
@@ -9736,7 +9828,13 @@ async function handleSaveAppointment(e) {
     let apptId;
     if (editingAppointment) {
       apptId = editingAppointment.id;
-      await writeWithRetry(() => setDoc(doc(fbDb, 'jobs', editingAppointment.jobId, 'appointments', apptId), data, { merge: true }));
+      /* Optimistic write (H1): do NOT await the server ack — offline it
+         never resolves and the Save button would hang disabled forever. */
+      writeWithRetry(() => setDoc(doc(fbDb, 'jobs', editingAppointment.jobId, 'appointments', apptId), data, { merge: true }))
+        .catch((err) => {
+          console.error('Appointment update failed', err);
+          toast('Appointment failed to sync: ' + ((err && err.message) || 'error'), 'error');
+        });
       toast('Appointment updated');
       /* Reschedules/reassignments notify the assigned operators too (review sweep #7). */
       httpsCallable(fbFunctions, 'notifyJobAssignment')({ jobId, appointmentId: apptId, event: 'updated' })
@@ -9749,7 +9847,13 @@ async function handleSaveAppointment(e) {
       data.createdAt = now;
       const ref = doc(collection(fbDb, 'jobs', jobId, 'appointments'));
       apptId = ref.id;
-      await writeWithRetry(() => setDoc(ref, data));
+      /* Optimistic write (H1): fire without awaiting so scheduling works
+         offline; the rebait prompt below then runs immediately too. */
+      writeWithRetry(() => setDoc(ref, data))
+        .catch((err) => {
+          console.error('Appointment create failed', err);
+          toast('Appointment failed to sync: ' + ((err && err.message) || 'error'), 'error');
+        });
       toast('Appointment scheduled');
       /* Push to every assigned contractor (Item 1). Fire-and-forget. */
       httpsCallable(fbFunctions, 'notifyJobAssignment')({ jobId, appointmentId: apptId })
@@ -9845,8 +9949,10 @@ function rebaitStepEndDate() {
     </div>`;
 }
 
-/* Write the recurring Check Visit / Rebait appointments. */
-async function createRebaitAppointments(jobId, template, intervalDays, endDate, dates) {
+/* Write the recurring Check Visit / Rebait appointments. Optimistic (H1):
+   the batch is fired without awaiting the server ack — offline that promise
+   never resolves. A rejected commit toasts an error when it surfaces. */
+function createRebaitAppointments(jobId, template, intervalDays, endDate, dates) {
   if (!dates.length) return 0;
   const now = new Date().toISOString();
   const batch = writeBatch(fbDb);
@@ -9876,11 +9982,19 @@ async function createRebaitAppointments(jobId, template, intervalDays, endDate, 
       updatedAt: now
     });
   });
-  await batch.commit();
+  batch.commit().catch((err) => {
+    console.error('Rebait series write failed', err);
+    toast('Rebait check visits failed to sync: ' + ((err && err.message) || 'error'), 'error');
+  });
   return dates.length;
 }
 
-async function confirmRebaitSequence() {
+/* H2 guard: a slow double-tap on "Create Sequence" must not write the
+   series twice. */
+let rebaitCreateInFlight = false;
+
+function confirmRebaitSequence() {
+  if (rebaitCreateInFlight) return;
   const ctx = rebaitCtx;
   if (!ctx) return;
   const endEl = $('#rebait-end');
@@ -9892,12 +10006,15 @@ async function confirmRebaitSequence() {
   let d = addDaysISO(start, interval);
   while (d <= endDate) { dates.push(d); d = addDaysISO(d, interval); }
   if (!dates.length) { toast('That interval and end date produce no check visits', 'error'); return; }
+  rebaitCreateInFlight = true;
   try {
-    await createRebaitAppointments(ctx.jobId, ctx.appt, interval, endDate, dates);
+    createRebaitAppointments(ctx.jobId, ctx.appt, interval, endDate, dates);
     toast(`${dates.length} check visit${dates.length === 1 ? '' : 's'} scheduled through ${fmtShortDate(endDate)}`);
     closeRebaitSheet();
   } catch (err) {
     toast('Could not create the sequence: ' + ((err && err.message) || 'error'), 'error');
+  } finally {
+    rebaitCreateInFlight = false;
   }
 }
 
@@ -9915,9 +10032,14 @@ async function promptRebaitExtension(jobId, appt) {
   while (d <= newEnd) { dates.push(d); d = addDaysISO(d, interval); }
   if (!dates.length) return;
   try {
-    /* The completed visit is no longer the last of the sequence. */
-    await setDoc(doc(fbDb, 'jobs', jobId, 'appointments', appt.id), { isLastRebait: false, updatedAt: new Date().toISOString() }, { merge: true });
-    await createRebaitAppointments(jobId, appt, interval, newEnd, dates);
+    /* The completed visit is no longer the last of the sequence. Optimistic
+       (H1): fire both writes without awaiting so the flow works offline. */
+    setDoc(doc(fbDb, 'jobs', jobId, 'appointments', appt.id), { isLastRebait: false, updatedAt: new Date().toISOString() }, { merge: true })
+      .catch((err) => {
+        console.error('Rebait flag clear failed', err);
+        toast('Rebait update failed to sync: ' + ((err && err.message) || 'error'), 'error');
+      });
+    createRebaitAppointments(jobId, appt, interval, newEnd, dates);
     toast(`${dates.length} more check visit${dates.length === 1 ? '' : 's'} scheduled through ${fmtShortDate(newEnd)}`);
   } catch (err) {
     toast('Extension failed: ' + ((err && err.message) || 'error'), 'error');
@@ -9972,33 +10094,34 @@ async function completeAppointment(jobId, apptId) {
   if (!a) return;
   const outcome = prompt('Outcome for this visit (optional):', a.outcome || '');
   if (outcome === null) return;   /* cancelled the prompt */
-  try {
-    await writeWithRetry(() => setDoc(doc(fbDb, 'jobs', jobId, 'appointments', apptId), {
-      status: 'Completed',
-      outcome: outcome.trim(),
-      completedAt: new Date().toISOString(),
-      completedByEmail: currentUser ? currentUser.email : null,
-      updatedAt: new Date().toISOString()
-    }, { merge: true }));
-    toast('Appointment completed');
-    advanceJobStatusAuto(jobId, 'Active');
-    /* Item 13: completing the final rebait visit offers a 30-day extension. */
-    if (a.isLastRebait && typeof promptRebaitExtension === 'function') promptRebaitExtension(jobId, a);
-  } catch (err) {
-    toast('Update failed: ' + ((err && err.message) || 'error'), 'error');
-  }
+  /* Optimistic write (H1): do NOT await — offline the ack never arrives and
+     the auto-advance + rebait-extension steps below would never run. */
+  writeWithRetry(() => setDoc(doc(fbDb, 'jobs', jobId, 'appointments', apptId), {
+    status: 'Completed',
+    outcome: outcome.trim(),
+    completedAt: new Date().toISOString(),
+    completedByEmail: currentUser ? currentUser.email : null,
+    updatedAt: new Date().toISOString()
+  }, { merge: true })).catch((err) => {
+    console.error('Appointment complete failed', err);
+    toast('Completion failed to sync: ' + ((err && err.message) || 'error'), 'error');
+  });
+  toast('Appointment completed');
+  advanceJobStatusAuto(jobId, 'Active');
+  /* Item 13: completing the final rebait visit offers a 30-day extension. */
+  if (a.isLastRebait && typeof promptRebaitExtension === 'function') promptRebaitExtension(jobId, a);
 }
 
 async function cancelAppointment(jobId, apptId) {
   if (!confirm('Cancel this appointment?')) return;
-  try {
-    await writeWithRetry(() => setDoc(doc(fbDb, 'jobs', jobId, 'appointments', apptId), {
-      status: 'Cancelled', updatedAt: new Date().toISOString()
-    }, { merge: true }));
-    toast('Appointment cancelled');
-  } catch (err) {
-    toast('Update failed: ' + ((err && err.message) || 'error'), 'error');
-  }
+  /* Optimistic write (H1): fire without awaiting so it works offline. */
+  writeWithRetry(() => setDoc(doc(fbDb, 'jobs', jobId, 'appointments', apptId), {
+    status: 'Cancelled', updatedAt: new Date().toISOString()
+  }, { merge: true })).catch((err) => {
+    console.error('Appointment cancel failed', err);
+    toast('Cancellation failed to sync: ' + ((err && err.message) || 'error'), 'error');
+  });
+  toast('Appointment cancelled');
 }
 
 function editAppointment(jobId, apptId) {
@@ -10125,21 +10248,21 @@ async function assignLegacyGroup(index, jobId) {
   const g = legacyGroupsCache[index];
   const j = cachedJobs.find((x) => x.id === jobId);
   if (!g || !j) { toast('Pick a job first', 'error'); return; }
-  try {
-    const batch = writeBatch(fbDb);
-    const now = new Date().toISOString();
-    for (const it of g.items) {
-      batch.set(doc(fbDb, it.col, it.id), {
-        jobId, jobTitle: j.jobNumber || '', customerId: j.customerId || null,
-        customerName: j.customerName || '', updatedAt: now
-      }, { merge: true });
-    }
-    await batch.commit();
-    toast(`Linked ${g.items.length} record${g.items.length === 1 ? '' : 's'} to ${j.jobNumber}`);
-    renderAssignLegacyView();
-  } catch (err) {
-    toast('Assign failed: ' + ((err && err.message) || 'error'), 'error');
+  const batch = writeBatch(fbDb);
+  const now = new Date().toISOString();
+  for (const it of g.items) {
+    batch.set(doc(fbDb, it.col, it.id), {
+      jobId, jobTitle: j.jobNumber || '', customerId: j.customerId || null,
+      customerName: j.customerName || '', updatedAt: now
+    }, { merge: true });
   }
+  /* Optimistic write (H1): fire without awaiting so linking works offline. */
+  batch.commit().catch((err) => {
+    console.error('Legacy assign failed', err);
+    toast('Assign failed to sync: ' + ((err && err.message) || 'error'), 'error');
+  });
+  toast(`Linked ${g.items.length} record${g.items.length === 1 ? '' : 's'} to ${j.jobNumber}`);
+  renderAssignLegacyView();
 }
 
 async function createJobForLegacyGroup(index) {
@@ -10153,7 +10276,9 @@ async function createJobForLegacyGroup(index) {
   try {
     const now = new Date().toISOString();
     const ref = doc(jobsCol());
-    await writeWithRetry(() => setDoc(ref, {
+    /* Optimistic writes (H1): fire the job create and the record links
+       without awaiting so the flow works offline. */
+    writeWithRetry(() => setDoc(ref, {
       jobNumber: generateJobNumber(),
       customerId: match ? match.id : null,
       customerName: match ? match.name : g.name,
@@ -10166,7 +10291,10 @@ async function createJobForLegacyGroup(index) {
       createdByEmail: currentUser ? currentUser.email : null,
       createdAt: now, updatedAt: now,
       notes: `Created from legacy records (${g.date || 'no date'}).`
-    }));
+    })).catch((err) => {
+      console.error('Legacy job create failed', err);
+      toast('Job failed to sync: ' + ((err && err.message) || 'error'), 'error');
+    });
     /* cachedJobs may not include the new job yet — link directly. */
     const batch = writeBatch(fbDb);
     for (const it of g.items) {
@@ -10175,7 +10303,10 @@ async function createJobForLegacyGroup(index) {
         customerName: match ? match.name : g.name, updatedAt: now
       }, { merge: true });
     }
-    await batch.commit();
+    batch.commit().catch((err) => {
+      console.error('Legacy link failed', err);
+      toast('Record links failed to sync: ' + ((err && err.message) || 'error'), 'error');
+    });
     toast(`Job created and ${g.items.length} record${g.items.length === 1 ? '' : 's'} linked`);
     renderAssignLegacyView();
   } catch (err) {
@@ -10894,6 +11025,8 @@ async function init() {
          instead of creating a new one. */
       if (appMode === 'schedule') editingAppointment = null;
       if (appMode === 'jobs') editingLifecycleJobId = null;
+      if (appMode === 'customer') editingCustomerId = null;
+      if (appMode === 'pricing') editingEstimateId = null;
     }
     setView(v);
   });
@@ -11067,9 +11200,27 @@ async function init() {
     if (v) e.target.value = titleCaseName(v);
   });
   $('#pa-fetch-weather').addEventListener('click', fetchPesticideWeather);
-  $('#paLocateBtn').addEventListener('click', () => {
-    ensurePaMap();
-    doLocate((lat, lng) => paMapInstance.setLocation(lat, lng, { source: 'locate' }), 'paMapStatus');
+  /* Item 15 parity (H3): three-option location entry for the treatment site. */
+  $('#paLocOptions').addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-pa-loc]');
+    if (!btn) return;
+    const mode = btn.dataset.paLoc;
+    if (mode === 'gps') {
+      locateAndSet(setPaLocation, $('#paLocHint'));
+    } else if (mode === 'address') {
+      const entry = $('#paLocEntry');
+      entry.classList.toggle('hidden');
+      if (!entry.classList.contains('hidden')) $('#paLocInput').focus();
+    } else if (mode === 'map') {
+      const g = $('#paMapGroup');
+      g.classList.toggle('hidden');
+      if (!g.classList.contains('hidden')) setTimeout(ensurePaMap, 60);
+    }
+  });
+  $('#paLocGo').addEventListener('click', () =>
+    resolveTypedLocation($('#paLocInput').value, setPaLocation, $('#paLocHint')));
+  $('#paLocInput').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); $('#paLocGo').click(); }
   });
   $('#pa-client-address').addEventListener('blur', () => setTimeout(validatePesticideAddressOnBlur, 150));
   $('#pa-client-address').addEventListener('input', () => {
@@ -11125,21 +11276,6 @@ async function init() {
   $('#photoReplaceBtn').addEventListener('click', () => $('#photoInput').click());
   $('#photoRemoveBtn').addEventListener('click', handlePhotoRemove);
   $('#photoInput').addEventListener('change', handlePhotoSelected);
-
-  /* Map locate button (pesticide form still uses the always-on map). */
-  async function doLocate(handler, statusId) {
-    setMapStatus(statusId, 'Getting your location…', 'working');
-    try {
-      const pos = await getCurrentPositionPromise();
-      handler(pos.lat, pos.lng);
-    } catch (err) {
-      const msg = err.code === 1 ? 'Location permission denied.'
-                : err.code === 2 ? 'Location unavailable.'
-                : err.code === 3 ? 'Location request timed out.'
-                : (err.message || 'Could not get location.');
-      setMapStatus(statusId, msg, 'error');
-    }
-  }
 
   /* ---- Item 15: three-option location entry (capture + release) ---- */
   $('#trapLocOptions').addEventListener('click', (e) => {
