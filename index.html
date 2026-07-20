@@ -8424,7 +8424,10 @@ function longDate(dateStr) {
 
 function subscribeToJobs() {
   if (jobsUnsub) return;
-  const qy = query(jobsCol(), orderBy('date', 'asc'));
+  /* No orderBy: lifecycle job docs have no `date` field and Firestore's
+     orderBy EXCLUDES documents missing the ordered field — ordering here
+     would drop every v2 job from server snapshots. Consumers sort locally. */
+  const qy = query(jobsCol());
   jobsUnsub = onSnapshot(qy, { includeMetadataChanges: true }, (snap) => {
     cachedJobs = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
     pendingWritesByCol.jobs = snap.metadata.hasPendingWrites;
