@@ -1515,7 +1515,13 @@
 <!-- Mode picker (after sign-in) -->
 <div id="modePicker" class="hidden">
   <div class="mode-picker-wrap">
-    <div class="landing-sync"><button type="button" class="sync-indicator" id="syncIndicatorLanding" data-state="offline" title="Sync status"><span class="dot"></span><span class="label">Offline</span></button></div>
+    <div class="landing-sync" style="gap:8px;">
+      <button type="button" class="header-bell" id="headerBellLanding" aria-label="Notifications" title="Notifications">
+        <svg viewBox="0 0 24 24"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+        <span class="bell-badge hidden" id="bellBadgeLanding">0</span>
+      </button>
+      <button type="button" class="sync-indicator" id="syncIndicatorLanding" data-state="offline" title="Sync status"><span class="dot"></span><span class="label">Offline</span></button>
+    </div>
     <img class="brand-logo" src="logo.png" alt="SWR"
          onload="this.classList.add('loaded');" onerror="this.remove();">
     <h1>What are you doing today?</h1>
@@ -11402,10 +11408,18 @@ async function init() {
 
   /* ---- Notifications wiring (Items 12 & 17) ---- */
   $('#headerBell').addEventListener('click', openNotifications);
+  /* Bell on the landing page (Item 17): enter the app shell straight onto
+     the Notifications page; Back returns to the landing page. */
+  $('#headerBellLanding').addEventListener('click', () => {
+    notifReturnView = '__landing__';
+    setAppModeQuiet(appMode || 'trap');
+    setView('notifications');
+  });
   $('#notifsBackBtn').addEventListener('click', () => {
-    const back = notifReturnView && notifReturnView !== 'notifications' ? notifReturnView : 'dashboard';
+    const back = notifReturnView;
     notifReturnView = null;
-    setView(back);
+    if (back === '__landing__') { backToLanding(); return; }
+    setView(back && back !== 'notifications' ? back : 'dashboard');
   });
   $('#clearAllNotifsBtn').addEventListener('click', clearAllNotifications);
   $('#notificationsList').addEventListener('click', (e) => {
