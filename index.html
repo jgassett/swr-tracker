@@ -1238,6 +1238,149 @@
       .sheet { max-width: 560px; left: 50%; right: auto; transform: translate(-50%, 100%); border-radius: 22px; bottom: 24px; }
       .sheet.open { transform: translate(-50%, 0); }
     }
+
+    /* =====================================================================
+     * Item 6 — Responsive layout. Layout & spacing only; no functionality
+     * changes. iPhone (<768px) keeps the existing layout untouched.
+     * ===================================================================== */
+
+    /* Keyboard navigation: a clear focus ring on every interactive element. */
+    button:focus-visible, a:focus-visible, [tabindex]:focus-visible,
+    .nav-btn:focus-visible, .mode-card:focus-visible, .hub-btn:focus-visible {
+      outline: 2px solid var(--amber);
+      outline-offset: 2px;
+    }
+
+    /* Hover states for pointer devices (desktop & trackpad iPad). */
+    @media (hover: hover) and (pointer: fine) {
+      .btn:hover { filter: brightness(1.07); }
+      .btn-ghost:hover, .map-btn.ghost:hover, .pill-btn:hover { background: var(--line); }
+      .map-btn:hover { filter: brightness(1.07); }
+      .rec:hover, .customer-row:hover, .est-row:hover, .job-row:hover,
+      .job-lc-row:hover, #fieldList .field-row:hover, .appt-timeline .at-row:hover,
+      .records-table tbody tr:hover, .autocomplete-item:hover, .cam-health-row:hover { background: var(--cream-deep); }
+      .hub-btn:hover { background: rgba(196,119,42,0.16); }
+      .cal-cell:hover { border-color: var(--amber-soft); }
+      .cal-nav:hover { border-color: var(--amber); color: var(--amber); }
+      .nav-btn:hover { color: var(--green); background: var(--cream-deep); }
+      .nav-fab:hover { background: #B06B26; }
+      .header-btn:hover, .sync-indicator:hover { background: rgba(255,255,255,0.1); }
+      .view-mode-toggle button:hover, .sched-toggle button:hover { color: var(--green-deep); }
+      .cust-active-toggle:hover { border-color: var(--amber); }
+      .link-like:hover { color: #8a4f17; }
+    }
+
+    /* ---- iPad: 768–1199px — two-column dashboards & record lists ---- */
+    @media (min-width: 768px) and (max-width: 1199px) {
+      :root { --nav-h: 80px; }
+      #bottomNav { padding: 0 48px; column-gap: 24px; }
+      .nav-btn { font-size: 12.5px; gap: 4px; padding: 10px 0; }
+      .nav-btn svg { width: 26px; height: 26px; }
+      .nav-fab { width: 64px; height: 64px; margin-top: -26px; }
+      #appMain { padding-left: 28px; padding-right: 28px; }
+      #appMain > section.view { max-width: 940px; margin-left: auto; margin-right: auto; }
+
+      /* Dashboard: full-width banner + stats, then two columns. */
+      #view-dashboard { display: grid; grid-template-columns: 1fr 1fr; column-gap: 18px; align-items: start; }
+      #view-dashboard > .period-banner { grid-column: 1 / -1; grid-row: 1; }
+      #view-dashboard > .greeting { grid-column: 1 / -1; grid-row: 2; }
+      #view-dashboard > .stat-grid { grid-column: 1 / -1; grid-row: 3; }
+      #view-dashboard > .section-title-row { grid-column: 1; grid-row: 4; }
+      #view-dashboard > #topSpeciesList { grid-column: 1; grid-row: 5; }
+      #view-dashboard > .section-title { grid-column: 2; grid-row: 4; margin: 18px 0 10px; }
+      #view-dashboard > #dashRecent { grid-column: 2; grid-row: 5; }
+
+      /* Record & directory lists in two columns. */
+      #customerList, #pesticideRecordList, #estimatesList, #fieldList, #jobsList {
+        display: grid; grid-template-columns: 1fr 1fr; column-gap: 28px; align-content: start;
+      }
+      #customerList .empty, #pesticideRecordList .empty, #estimatesList .empty,
+      #fieldList .empty, #jobsList .empty,
+      #customerList > div[style], #pesticideRecordList > div[style],
+      #estimatesList > div[style], #fieldList > div[style], #jobsList > div[style] { grid-column: 1 / -1; }
+
+      .mode-picker-wrap { max-width: 640px; }
+      .mode-grid { grid-template-columns: repeat(3, 1fr); }
+      .action-hub { grid-template-columns: repeat(3, 1fr); }
+    }
+
+    /* ---- Desktop & Mac: ≥1200px — left sidebar, centered content ---- */
+    @media (min-width: 1200px) {
+      /* The bottom nav becomes a fixed left sidebar with icons + labels.
+         display:flex !important beats the inline grid-template-columns the
+         nav renderer sets for the phone layout. */
+      #bottomNav {
+        top: 0; bottom: 0; left: 0; right: auto;
+        width: 224px; height: auto;
+        display: flex !important; flex-direction: column; gap: 4px;
+        padding: 28px 14px 20px;
+        background: #fff;
+        border-top: none; border-right: 1px solid var(--line);
+        z-index: 60;
+      }
+      .nav-btn {
+        flex-direction: row; justify-content: flex-start; gap: 12px;
+        padding: 12px 14px; border-radius: 10px; font-size: 14.5px; font-weight: 600;
+      }
+      .nav-btn svg { width: 21px; height: 21px; }
+      .nav-btn.active { background: rgba(30,58,42,0.08); }
+      .nav-fab {
+        width: auto; height: auto; margin: 10px 0 4px; align-self: stretch;
+        border-radius: 10px; padding: 12px 14px; box-shadow: none;
+        justify-content: flex-start; gap: 12px;
+      }
+      .nav-fab svg { width: 20px; height: 20px; }
+      .nav-fab::after { content: attr(aria-label); font-size: 14.5px; font-weight: 700; }
+
+      /* Content clears the sidebar and centers at 1100px max. */
+      #appHeader { padding-left: calc(224px + 28px); padding-right: 28px; }
+      #appMain { padding-left: calc(224px + 28px); padding-right: 28px; }
+      #appMain > section.view { max-width: 1100px; margin-left: auto; margin-right: auto; }
+      #toast { bottom: 32px; }
+
+      /* Dashboards: three-column grid. */
+      #view-dashboard { display: grid; grid-template-columns: repeat(3, 1fr); column-gap: 18px; align-items: start; }
+      #view-dashboard > .period-banner { grid-column: 1 / -1; grid-row: 1; }
+      #view-dashboard > .greeting { grid-column: 1 / -1; grid-row: 2; }
+      #view-dashboard > .stat-grid { grid-column: 1 / -1; grid-row: 3; grid-template-columns: repeat(4, 1fr); }
+      #view-dashboard > .section-title-row { grid-column: 1; grid-row: 4; }
+      #view-dashboard > #topSpeciesList { grid-column: 1; grid-row: 5; }
+      #view-dashboard > .section-title { grid-column: 2 / -1; grid-row: 4; margin: 18px 0 10px; }
+      #view-dashboard > #dashRecent { grid-column: 2 / -1; grid-row: 5; }
+
+      /* Directory / list modules in three columns. */
+      #customerList, #estimatesList, #fieldList, #jobsList, #pesticideRecordList {
+        display: grid; grid-template-columns: repeat(3, 1fr); column-gap: 28px; align-content: start;
+      }
+      #customerList .empty, #pesticideRecordList .empty, #estimatesList .empty,
+      #fieldList .empty, #jobsList .empty,
+      #customerList > div[style], #pesticideRecordList > div[style],
+      #estimatesList > div[style], #fieldList > div[style], #jobsList > div[style] { grid-column: 1 / -1; }
+
+      /* Master–detail: the record detail opens as a right-hand panel beside
+         the list instead of a bottom sheet. */
+      .sheet {
+        left: auto; right: 28px; bottom: 28px; top: 110px;
+        width: 460px; max-width: 460px; max-height: none;
+        border-radius: 18px;
+        transform: translateX(120%);
+      }
+      .sheet.open { transform: translateX(0); }
+      .sheet-backdrop { background: rgba(21,41,30,0.25); }
+
+      /* Forms: 640px, centered in the content area. */
+      #view-add form, #view-add-pesticide form, #view-add-customer form,
+      #view-add-schedule form, #view-add-job form, #view-add-appointment form,
+      #view-estimate-builder, #view-add-customer .card, #view-export .card,
+      #view-settings .card { max-width: 640px; margin-left: auto; margin-right: auto; }
+      #view-export .card, #view-settings .card { margin-bottom: 14px; }
+
+      /* Landing page scales up for big screens. */
+      .mode-picker-wrap { max-width: 760px; }
+      .mode-grid { grid-template-columns: repeat(3, 1fr); gap: 16px; }
+      .action-hub { grid-template-columns: repeat(3, 1fr); }
+      .cal-cell { min-height: 84px; }
+    }
   </style>
 </head>
 <body>
