@@ -2933,6 +2933,13 @@
   </div>
 </div>
 
+<!-- Rebait sequence prompt (Item 13) — bottom sheet, three questions in sequence -->
+<div class="sheet" id="rebaitSheet">
+  <div class="sheet-handle"></div>
+  <h2 id="rebaitTitle">Rebait schedule</h2>
+  <div id="rebaitBody"></div>
+</div>
+
 <!-- Pesticide edit modal (admin only) -->
 <div id="pesticideEditOverlay" class="hidden">
   <div class="edit-modal-wrap">
@@ -9508,6 +9515,153 @@ async function handleSaveAppointment(e) {
   }
 }
 
+/* =====================================================================
+ * Rebait sequence (Item 13)
+ * ---------------------------------------------------------------------
+ * After saving a Trap Set / Treatment appointment, a bottom sheet walks
+ * three questions: set up a rebait schedule? → days between checks
+ * (default 3) → end date (default +30 days). Confirming generates
+ * recurring Check Visit / Rebait appointments on the same job, customer,
+ * time, and operators; the final one carries isLastRebait so completing it
+ * offers a 30-day extension.
+ * ===================================================================== */
+let rebaitCtx = null;   /* { jobId, appt } while the sheet is open */
+
+function addDaysISO(iso, days) {
+  const [y, m, d] = String(iso).split('-').map(Number);
+  const date = new Date(y, (m || 1) - 1, (d || 1) + Number(days));
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+}
+
+function openRebaitSheet() {
+  $('#sheetBackdrop').classList.add('open');
+  $('#rebaitSheet').classList.add('open');
+}
+function closeRebaitSheet() {
+  $('#rebaitSheet').classList.remove('open');
+  $('#sheetBackdrop').classList.remove('open');
+  rebaitCtx = null;
+}
+function rebaitSheetOpen() { return $('#rebaitSheet').classList.contains('open'); }
+
+function promptRebaitSequence(jobId, appt) {
+  rebaitCtx = { jobId, appt };
+  $('#rebaitTitle').textContent = 'Rebait schedule';
+  $('#rebaitBody').innerHTML = `
+    <p style="margin:6px 0 16px;">Trap set saved. Do you want to set up a rebait schedule for ${escapeHtml(appt.customerName || 'this job')}?</p>
+    <div class="btn-row">
+      <button type="button" class="btn btn-ghost" data-rebait="no">No</button>
+      <button type="button" class="btn btn-primary" data-rebait="yes">Yes</button>
+    </div>`;
+  openRebaitSheet();
+}
+
+function rebaitStepInterval() {
+  $('#rebaitBody').innerHTML = `
+    <div class="form-group" style="margin-top:6px;">
+      <label for="rebait-interval">How many days between check visits?</label>
+      <input type="number" id="rebait-interval" inputmode="numeric" min="1" max="30" step="1" value="3">
+    </div>
+    <div class="btn-row">
+      <button type="button" class="btn btn-ghost" data-rebait="cancel">Cancel</button>
+      <button type="button" class="btn btn-primary" data-rebait="interval-next">Continue</button>
+    </div>`;
+  setTimeout(() => { const el = $('#rebait-interval'); if (el) el.focus(); }, 150);
+}
+
+function rebaitStepEndDate() {
+  const start = rebaitCtx.appt.scheduledDate || todayISO();
+  $('#rebaitBody').innerHTML = `
+    <div class="form-group" style="margin-top:6px;">
+      <label for="rebait-end">What is the end date for this rebait sequence?</label>
+      <input type="date" id="rebait-end" value="${escapeHtml(addDaysISO(start, 30))}">
+      <div class="hint">Check visits run every ${rebaitCtx.intervalDays} day${rebaitCtx.intervalDays === 1 ? '' : 's'} from the trap set through this date.</div>
+    </div>
+    <div class="btn-row">
+      <button type="button" class="btn btn-ghost" data-rebait="cancel">Cancel</button>
+      <button type="button" class="btn btn-primary" data-rebait="create">Create Sequence</button>
+    </div>`;
+}
+
+/* Write the recurring Check Visit / Rebait appointments. */
+async function createRebaitAppointments(jobId, template, intervalDays, endDate, dates) {
+  if (!dates.length) return 0;
+  const now = new Date().toISOString();
+  const batch = writeBatch(fbDb);
+  dates.forEach((date, i) => {
+    batch.set(doc(collection(fbDb, 'jobs', jobId, 'appointments')), {
+      jobId,
+      jobNumber: template.jobNumber || '',
+      customerId: template.customerId || null,
+      customerName: template.customerName || '',
+      propertyId: template.propertyId || null,
+      visitType: 'Check Visit / Rebait',
+      scheduledDate: date,
+      scheduledTime: template.scheduledTime || '09:00',
+      durationMins: 60,
+      assignedOperators: template.assignedOperators || [],
+      assigneeNames: template.assigneeNames || [],
+      status: 'Scheduled',
+      outcome: '',
+      notes: 'Auto-generated rebait check',
+      isLastRebait: i === dates.length - 1,
+      rebaitIntervalDays: intervalDays,
+      rebaitEndDate: endDate,
+      createdBy: (currentUser && (EMAIL_TO_TRAPPER[currentUser.email.toLowerCase()] || currentUser.email)) || '',
+      createdByUid: currentUser ? currentUser.uid : null,
+      createdByEmail: currentUser ? currentUser.email : null,
+      createdAt: now,
+      updatedAt: now
+    });
+  });
+  await batch.commit();
+  return dates.length;
+}
+
+async function confirmRebaitSequence() {
+  const ctx = rebaitCtx;
+  if (!ctx) return;
+  const endEl = $('#rebait-end');
+  const endDate = endEl && endEl.value;
+  const start = ctx.appt.scheduledDate || todayISO();
+  if (!endDate || endDate <= start) { toast('Pick an end date after the trap set date', 'error'); return; }
+  const interval = ctx.intervalDays;
+  const dates = [];
+  let d = addDaysISO(start, interval);
+  while (d <= endDate) { dates.push(d); d = addDaysISO(d, interval); }
+  if (!dates.length) { toast('That interval and end date produce no check visits', 'error'); return; }
+  try {
+    await createRebaitAppointments(ctx.jobId, ctx.appt, interval, endDate, dates);
+    toast(`${dates.length} check visit${dates.length === 1 ? '' : 's'} scheduled through ${fmtShortDate(endDate)}`);
+    closeRebaitSheet();
+  } catch (err) {
+    toast('Could not create the sequence: ' + ((err && err.message) || 'error'), 'error');
+  }
+}
+
+/* Completing the last rebait visit offers a 30-day extension. */
+async function promptRebaitExtension(jobId, appt) {
+  const ok = await confirmDialog('Extend rebait sequence?',
+    'That was the last scheduled rebait check. Do you want to extend the rebait sequence for another 30 days?',
+    { okText: 'Extend 30 Days' });
+  if (!ok) return;
+  const interval = Number(appt.rebaitIntervalDays) || 3;
+  const curEnd = appt.rebaitEndDate || appt.scheduledDate || todayISO();
+  const newEnd = addDaysISO(curEnd, 30);
+  const dates = [];
+  let d = addDaysISO(curEnd, 1);   /* starts the day after the current end date */
+  while (d <= newEnd) { dates.push(d); d = addDaysISO(d, interval); }
+  if (!dates.length) return;
+  try {
+    /* The completed visit is no longer the last of the sequence. */
+    await setDoc(doc(fbDb, 'jobs', jobId, 'appointments', appt.id), { isLastRebait: false, updatedAt: new Date().toISOString() }, { merge: true });
+    await createRebaitAppointments(jobId, appt, interval, newEnd, dates);
+    toast(`${dates.length} more check visit${dates.length === 1 ? '' : 's'} scheduled through ${fmtShortDate(newEnd)}`);
+  } catch (err) {
+    toast('Extension failed: ' + ((err && err.message) || 'error'), 'error');
+  }
+}
+
 /* ---- Appointment detail ---- */
 let currentAppointment = null;  /* { jobId, id } */
 
@@ -10532,11 +10686,29 @@ async function init() {
   });
 
   $('#sheetBackdrop').addEventListener('click', () => {
+    if (rebaitSheetOpen()) { closeRebaitSheet(); return; }   /* Item 13 */
     if (sheetMode === 'review') {
       /* Reviewing — backdrop tap should not silently discard. Keep open. */
       return;
     }
     closeSheet();
+  });
+
+  /* Rebait sequence sheet (Item 13). */
+  $('#rebaitSheet').addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-rebait]');
+    if (!btn || !rebaitCtx) return;
+    const a = btn.dataset.rebait;
+    if (a === 'no' || a === 'cancel') closeRebaitSheet();
+    else if (a === 'yes') rebaitStepInterval();
+    else if (a === 'interval-next') {
+      const el = $('#rebait-interval');
+      const n = el ? parseInt(el.value, 10) : NaN;
+      if (!Number.isFinite(n) || n < 1) { toast('Enter days between check visits (1 or more)', 'error'); return; }
+      rebaitCtx.intervalDays = n;
+      rebaitStepEndDate();
+    }
+    else if (a === 'create') confirmRebaitSequence();
   });
   $('#detailClose').addEventListener('click', () => {
     /* In review mode: just close the sheet, the form still holds the data. */
