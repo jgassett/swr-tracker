@@ -3072,7 +3072,7 @@ import {
 import {
   initializeFirestore, persistentLocalCache, persistentMultipleTabManager,
   collection, doc, getDoc, getDocs, addDoc, setDoc, deleteDoc,
-  query, orderBy, onSnapshot, writeBatch, arrayUnion, collectionGroup, where
+  query, orderBy, onSnapshot, writeBatch, arrayUnion, arrayRemove, updateDoc, collectionGroup, where
 } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import {
   getStorage, ref as storageRef, uploadBytes, getDownloadURL
@@ -4078,7 +4078,9 @@ function renderLandingCounts() {
   const alertN = cachedCameraHealth.filter((h) => { const s = deviceStatusLive(h); return s === 'red' || s === 'yellow'; }).length;
   const redN = cachedCameraHealth.filter((h) => deviceStatusLive(h) === 'red').length;
   const nowMs = Date.now();
-  const todayKeyStr = new Date().toISOString().slice(0, 10);
+  /* Local date, not UTC — toISOString() rolls to tomorrow in the evening
+     (UTC-4/-5) and undercounts today's appointments. */
+  const todayKeyStr = dateKey(new Date());
   const upcomingLegacyN = cachedJobs.filter((j) => {
     if (isLifecycleJob(j)) return false;
     if (j.status && j.status !== 'Scheduled') return false;
@@ -4146,6 +4148,13 @@ function updateSyncIndicator(state) {
 function registerPushToken(token) {
   if (!currentUser || !currentUser.email) return Promise.resolve();
   const email = currentUser.email.toLowerCase();
+  /* Shared device: this token now belongs to THIS operator — pull it out of
+     every other operator's doc so their pushes stop landing here. */
+  for (const other of Object.keys(EMAIL_TO_TRAPPER)) {
+    if (other === email) continue;
+    updateDoc(doc(fbDb, 'pushTokens', other), { tokens: arrayRemove(token) })
+      .catch(() => {});   /* doc may not exist — fine */
+  }
   return setDoc(doc(fbDb, 'pushTokens', email), {
     email,
     uid: currentUser.uid,
@@ -4531,6 +4540,11 @@ function generateEstimateNumber() {
 /* ---- Builder ---- */
 function resetEstimateBuilder() {
   editingEstimateId = null;
+  /* Abandoned job-linked estimate: clear the pending link so the next
+     unrelated estimate save can't attach to that job. (Set in
+     startEstimateForJob AFTER the reset; consumed in handleSaveEstimate
+     BEFORE it — so clearing here only affects cancel/new paths.) */
+  pendingEstimateJobId = null;
   builderLines = [];
   builderCustomer = null;
   pendingLine = null;
@@ -5571,9 +5585,10 @@ function backToLanding() {
   showLanding();
 }
 
-function setView(name) {
+function setView(name, opts) {
   /* The Menu button returns to the main landing page (no bottom nav). */
   if (name === 'menu') { backToLanding(); return; }
+  const preserveForm = !!(opts && opts.preserveForm);
   currentView = name;
   /* Hide every view section, then reveal the one matching mode+name. */
   ['dashboard','records','records-pesticide','add','add-pesticide',
@@ -5618,7 +5633,7 @@ function setView(name) {
   $('#appMain').scrollTop = 0;
   document.body.classList.toggle('in-add', name === 'add' || name === 'edit-legacy' || name === 'add-appointment');
 
-  if (name === 'add') {
+  if (name === 'add' && !preserveForm) {
     if (appMode === 'trap') {
       if (!editingId && !pendingRecord) resetForm();
     } else if (appMode === 'pesticide') {
@@ -5633,7 +5648,7 @@ function setView(name) {
       if (!editingLifecycleJobId) resetLifecycleJobForm();
     }
   }
-  if (name === 'add-appointment' && !editingAppointment) resetAppointmentForm();
+  if (name === 'add-appointment' && !editingAppointment && !preserveForm) resetAppointmentForm();
   if (appMode === 'customer' && name === 'dashboard') {
     fillCustomerCountyFilter();
     renderCustomerList();
@@ -5825,6 +5840,8 @@ function resetForm() {
     const el = document.getElementById(id);
     if (el) el.classList.add('hidden');
   });
+  setCountyFallback('trapCountyGroup', false);
+  setCountyFallback('releaseCountyGroup', false);
   const relAddr = $('#f-release-address'); if (relAddr) relAddr.value = '';
   const relHint = $('#releaseLocHint'); if (relHint) { relHint.textContent = ''; relHint.className = 'hint'; }
   const tIn = $('#trapLocInput'); if (tIn) tIn.value = '';
@@ -6053,7 +6070,16 @@ async function reviewForm(e) {
   submitIntent = (e.submitter && e.submitter.dataset.intent) || 'close';
   const rec = readForm();
   const errs = validateRecord(rec);
-  if (errs.length) { toast('Required: ' + errs.join(', '), 'error'); return; }
+  if (errs.length) {
+    /* Catch-all for the offline county dead end: if the county couldn't be
+       derived, expose the manual dropdown so the save isn't blocked. */
+    if (!rec.county && !rec.countyOfCollection) setCountyFallback('trapCountyGroup', true);
+    if (RELEASE_DISPOSALS.has(rec.disposalMethod) && !rec.releaseCounty && !rec.countyOfRelease) {
+      setCountyFallback('releaseCountyGroup', true);
+    }
+    toast('Required: ' + errs.join(', '), 'error');
+    return;
+  }
 
   /* Warn if a very similar record already exists (likely a duplicate). */
   const dup = findNearDuplicateRecord(rec);
@@ -6508,6 +6534,20 @@ async function validateAddressOnBlur() {
    user-facing county field. */
 let silentTrapCounty = null;
 
+/* Offline / geocoder-down fallback: when the county can't be derived from
+   the location (no network, Nominatim down, or no county in the result),
+   un-hide the county dropdown so the record can still be saved with a
+   manually picked county. Hidden again on the next successful lookup and
+   on form reset. */
+function setCountyFallback(groupId, show) {
+  const g = document.getElementById(groupId);
+  if (!g) return;
+  g.classList.toggle('hidden', !show);
+  if (show) g.removeAttribute('aria-hidden'); else g.setAttribute('aria-hidden', 'true');
+  const sel = g.querySelector('select');
+  if (sel) { if (show) sel.removeAttribute('tabindex'); else sel.setAttribute('tabindex', '-1'); }
+}
+
 async function handleTrapLocationChange(lat, lng, source) {
   $('#f-trap-lat').value = lat;
   $('#f-trap-lng').value = lng;
@@ -6531,12 +6571,23 @@ async function handleTrapLocationChange(lat, lng, source) {
       silentTrapCounty = geo.county;
       const match = matchingOptionValue('f-county', geo.county);
       if (match) $('#f-county').value = match;
+      setCountyFallback('trapCountyGroup', false);
+    } else {
+      setCountyFallback('trapCountyGroup', true);
     }
     const okText = `✓ ${geo.formattedAddress || `Location saved (${lat.toFixed(5)}, ${lng.toFixed(5)})`}`;
     setMapStatus('trapMapStatus', okText, 'success');
     if (hint) { hint.textContent = okText; hint.className = 'hint success'; }
   } catch (e) {
-    const failText = `Coordinates saved (${lat.toFixed(5)}, ${lng.toFixed(5)}) — address lookup failed.`;
+    /* Offline / geocoder down: keep the coordinates usable — fill the
+       address with them and expose the manual county dropdown so the
+       record can still be saved. */
+    const addressInput = $('#f-address');
+    if (addressInput && !addressInput.value.trim()) {
+      addressInput.value = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+    }
+    setCountyFallback('trapCountyGroup', true);
+    const failText = `Coordinates saved (${lat.toFixed(5)}, ${lng.toFixed(5)}) — address lookup failed. Pick the County of Collection below.`;
     setMapStatus('trapMapStatus', failText, 'error');
     if (hint) { hint.textContent = failText; hint.className = 'hint error'; }
   }
@@ -6610,12 +6661,22 @@ async function handleReleaseLocationChange(lat, lng, source) {
       silentReleaseCounty = geo.county;
       const match = matchingOptionValue('f-release-county', geo.county);
       if (match) $('#f-release-county').value = match;
+      setCountyFallback('releaseCountyGroup', false);
+    } else {
+      setCountyFallback('releaseCountyGroup', true);
     }
     const okText = `✓ ${geo.formattedAddress || `Release location saved (${lat.toFixed(5)}, ${lng.toFixed(5)})`}`;
     setMapStatus('releaseMapStatus', okText, 'success');
     if (hint) { hint.textContent = okText; hint.className = 'hint success'; }
   } catch (e) {
-    const failText = `Coordinates saved (${lat.toFixed(5)}, ${lng.toFixed(5)}) — location lookup failed.`;
+    /* Offline / geocoder down: keep the coordinates usable and expose the
+       manual county dropdown so the record can still be saved. */
+    const display = $('#f-release-address');
+    if (display && !display.value.trim()) {
+      display.value = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+    }
+    setCountyFallback('releaseCountyGroup', true);
+    const failText = `Coordinates saved (${lat.toFixed(5)}, ${lng.toFixed(5)}) — location lookup failed. Pick the County of Release below.`;
     setMapStatus('releaseMapStatus', failText, 'error');
     if (hint) { hint.textContent = failText; hint.className = 'hint error'; }
   }
@@ -8436,12 +8497,17 @@ function subscribeToJobs() {
     if (seenJobIds === null) {
       seenJobIds = new Set(cachedJobs.map((j) => j.id));
     } else if (currentUser) {
-      const me = currentUser.email;
+      const me = currentUser.email.toLowerCase();
       for (const j of cachedJobs) {
         if (seenJobIds.has(j.id)) continue;
         seenJobIds.add(j.id);
-        if (!snap.metadata.hasPendingWrites && Array.isArray(j.assignees) && j.assignees.includes(me)) {
-          toast(`New job assigned: ${j.title || 'Untitled'}`);
+        if (snap.metadata.hasPendingWrites) continue;
+        /* Legacy schedule docs use `assignees`; lifecycle jobs use `assignedOperators`. */
+        const mine = [...(Array.isArray(j.assignees) ? j.assignees : []),
+                      ...(Array.isArray(j.assignedOperators) ? j.assignedOperators : [])]
+          .some((em) => String(em).toLowerCase() === me);
+        if (mine) {
+          toast(`New job assigned: ${j.title || j.jobNumber || 'Untitled'}`);
         }
       }
     }
@@ -8486,6 +8552,7 @@ function renderSchedule() {
 function calendarEntryFromLegacy(j) {
   return {
     kind: 'legacy', id: j.id, date: j.date || '', startTime: j.startTime || '',
+    durationMins: Number(j.durationMins) || 60,
     title: j.title || 'Untitled',
     sub: [j.type, j.customerName, (j.assigneeNames || []).join(', ')].filter(Boolean).join(' · '),
     status: j.status || 'Scheduled'
@@ -8494,6 +8561,7 @@ function calendarEntryFromLegacy(j) {
 function calendarEntryFromAppt(a) {
   return {
     kind: 'appt', id: a.id, jobId: a.jobId, date: a.scheduledDate || '', startTime: a.scheduledTime || '',
+    durationMins: Number(a.durationMins) || 60,
     title: a.visitType || 'Visit',
     sub: [a.jobNumber, a.customerName, (a.assigneeNames || []).join(', ')].filter(Boolean).join(' · '),
     status: a.status || 'Scheduled'
@@ -8659,10 +8727,15 @@ function checkJobConflicts() {
   if (!box) return [];
   const draft = currentJobDraft();
   if (!draft.date || !draft.startTime) { box.innerHTML = ''; return []; }
-  const conflicts = cachedJobs.filter((j) => j.id !== editingJobId && j.status !== 'Cancelled' && jobsOverlap(draft, j));
+  /* Check legacy schedule docs AND v2 appointments so double-booking
+     warnings are symmetric with checkAppointmentConflicts. */
+  const conflicts = allCalendarEntries().filter((e) =>
+    e.status !== 'Cancelled' &&
+    !(e.kind === 'legacy' && e.id === editingJobId) &&
+    jobsOverlap(draft, { date: e.date, startTime: e.startTime, durationMins: e.durationMins || 60 }));
   if (conflicts.length) {
     const list = conflicts.map((c) => {
-      const who = (c.assigneeNames && c.assigneeNames.length) ? ' · ' + c.assigneeNames.join(', ') : '';
+      const who = c.sub ? ' · ' + c.sub : '';
       return `${escapeHtml(c.title || 'Untitled')} (${escapeHtml(fmtTime12(c.startTime))}${escapeHtml(who)})`;
     }).join('; ');
     box.innerHTML = `<div class="conflict-warn">⚠ Overlaps ${conflicts.length} scheduled job${conflicts.length > 1 ? 's' : ''}: ${list}</div>`;
@@ -9070,7 +9143,15 @@ function generateJobNumber() {
       if (Number.isFinite(n) && n > max) max = n;
     }
   }
-  return `${prefix}${String(max + 1).padStart(3, '0')}`;
+  let candidate = `${prefix}${String(max + 1).padStart(3, '0')}`;
+  /* Offline, the local cache can be hours stale — another device may mint
+     the same sequence number. A short random suffix keeps offline-created
+     numbers unique; the readable sequence (and the parseInt scan above)
+     still work. */
+  if (!navigator.onLine) {
+    candidate += '-' + Math.random().toString(36).slice(2, 4).toUpperCase();
+  }
+  return candidate;
 }
 /* Transitions are controlled: forward through the progression, or Cancelled
    from any stage. Never backward, never out of Cancelled. */
@@ -9267,8 +9348,14 @@ function checkedEmails(boxId) { return $$(`#${boxId} input:checked`).map((i) => 
 
 async function handleSaveLifecycleJob(e) {
   e.preventDefault();
-  if (!$('#lj-customer').value.trim()) lifecycleJobCustomer = null;
-  if (!lifecycleJobCustomer || !lifecycleJobCustomer.id) { toast('Pick a customer for this job', 'error'); $('#lj-customer').focus(); return; }
+  /* The picked customer only counts if the field still shows their name —
+     an edited name without a fresh pick must not save the old customer id. */
+  const typedName = $('#lj-customer').value.trim();
+  if (!typedName || (lifecycleJobCustomer &&
+      typedName.toLowerCase() !== (lifecycleJobCustomer.name || '').trim().toLowerCase())) {
+    lifecycleJobCustomer = null;
+  }
+  if (!lifecycleJobCustomer || !lifecycleJobCustomer.id) { toast('Pick a customer from the list for this job', 'error'); $('#lj-customer').focus(); return; }
   const operators = checkedEmails('lj-operators');
   const estimateId = $('#lj-estimate').value || null;
   const propertyId = ($('#lj-property') && $('#lj-property').value) || null;
@@ -9527,6 +9614,7 @@ function resetAppointmentForm() {
   $('#ap-id').value = '';
   fillSelect('ap-visit-type', VISIT_TYPES, true, '— select visit type —');
   populateAppointmentJobSelect(pendingAppointmentJobId || '');
+  $('#ap-job').disabled = false;
   const jsel = $('#ap-job');
   if (pendingAppointmentJobId && jsel) jsel.value = pendingAppointmentJobId;
   pendingAppointmentJobId = null;
@@ -9549,6 +9637,17 @@ function populateAppointmentJobSelect(selectedId) {
     o.textContent = `${j.jobNumber} · ${j.customerName || ''}`;
     sel.appendChild(o);
   }
+  /* Editing an appointment whose job is no longer active (Paid/Cancelled):
+     keep that job selectable so the appointment stays editable. */
+  if (selectedId && !jobs.some((j) => j.id === selectedId)) {
+    const j = cachedJobs.find((x) => x.id === selectedId);
+    if (j) {
+      const o = document.createElement('option');
+      o.value = j.id;
+      o.textContent = `${j.jobNumber || 'Job'} · ${j.customerName || ''} (${j.status || 'closed'})`;
+      sel.appendChild(o);
+    }
+  }
   if (selectedId) sel.value = selectedId;
 }
 
@@ -9561,7 +9660,7 @@ function checkAppointmentConflicts() {
   const others = allCalendarEntries().filter((e) =>
     e.status !== 'Cancelled' &&
     !(editingAppointment && e.kind === 'appt' && e.id === editingAppointment.id) &&
-    jobsOverlap(draft, { date: e.date, startTime: e.startTime, durationMins: 60 }));
+    jobsOverlap(draft, { date: e.date, startTime: e.startTime, durationMins: e.durationMins || 60 }));
   if (others.length) {
     const list = others.map((e) => `${escapeHtml(e.title)} (${escapeHtml(fmtTime12(e.startTime))})`).join('; ');
     box.innerHTML = `<div class="conflict-warn">⚠ Overlaps ${others.length} scheduled entr${others.length > 1 ? 'ies' : 'y'}: ${list}</div>`;
@@ -9571,7 +9670,9 @@ function checkAppointmentConflicts() {
 
 async function handleSaveAppointment(e) {
   e.preventDefault();
-  const jobId = $('#ap-job').value;
+  /* When editing, the doc path is fixed — always use the original job so
+     the jobId field can never diverge from the subcollection path. */
+  const jobId = editingAppointment ? editingAppointment.jobId : $('#ap-job').value;
   const j = cachedJobs.find((x) => x.id === jobId);
   const visitType = $('#ap-visit-type').value;
   const scheduledDate = $('#ap-date').value;
@@ -9609,6 +9710,9 @@ async function handleSaveAppointment(e) {
       apptId = editingAppointment.id;
       await writeWithRetry(() => setDoc(doc(fbDb, 'jobs', editingAppointment.jobId, 'appointments', apptId), data, { merge: true }));
       toast('Appointment updated');
+      /* Reschedules/reassignments notify the assigned operators too (review sweep #7). */
+      httpsCallable(fbFunctions, 'notifyJobAssignment')({ jobId, appointmentId: apptId, event: 'updated' })
+        .catch((err) => console.warn('appointment update notify failed', err));
     } else {
       data.outcome = '';
       data.createdBy = (currentUser && (EMAIL_TO_TRAPPER[currentUser.email.toLowerCase()] || currentUser.email)) || '';
@@ -9879,6 +9983,9 @@ function editAppointment(jobId, apptId) {
   fillSelect('ap-visit-type', VISIT_TYPES, true, '— select visit type —');
   populateAppointmentJobSelect(jobId);
   $('#ap-job').value = jobId;
+  /* The doc lives under jobs/{jobId}/appointments — changing the job here
+     would desync the jobId field from the document path, so lock it. */
+  $('#ap-job').disabled = true;
   $('#ap-visit-type').value = a.visitType || '';
   $('#ap-date').value = a.scheduledDate || '';
   $('#ap-time').value = a.scheduledTime || '';
@@ -9919,9 +10026,11 @@ function viewJobRecords(jobId, kind) {
   if (kind === 'trap') {
     trapRecFilter.jobId = jobId; trapRecFilter.unlinkedOnly = false;
     setAppModeQuiet('trap'); setView('records');
+    renderRecords();   /* apply the new filter now, not on the next snapshot */
   } else {
     pestRecFilter.jobId = jobId; pestRecFilter.unlinkedOnly = false;
     setAppModeQuiet('pesticide'); setView('records');
+    renderPesticideRecordsList();
   }
 }
 
@@ -10752,6 +10861,11 @@ async function init() {
     if (v === 'add' && currentView !== 'add') {
       if (appMode === 'trap' && !pendingRecord) resetForm();
       if (appMode === 'pesticide' && !pendingPesticideRecord) resetPesticideRecordForm();
+      /* An edit abandoned via the bottom nav must not leak into the next
+         "+" tap — that would silently overwrite the old appointment/job
+         instead of creating a new one. */
+      if (appMode === 'schedule') editingAppointment = null;
+      if (appMode === 'jobs') editingLifecycleJobId = null;
     }
     setView(v);
   });
@@ -11422,7 +11536,9 @@ async function init() {
     const back = notifReturnView;
     notifReturnView = null;
     if (back === '__landing__') { backToLanding(); return; }
-    setView(back && back !== 'notifications' ? back : 'dashboard');
+    /* preserveForm: returning into an in-progress entry form must not
+       reset it (review sweep #2). */
+    setView(back && back !== 'notifications' ? back : 'dashboard', { preserveForm: true });
   });
   $('#clearAllNotifsBtn').addEventListener('click', clearAllNotifications);
   $('#notificationsList').addEventListener('click', (e) => {

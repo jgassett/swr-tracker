@@ -155,14 +155,27 @@ service cloud.firestore {
     }
 
     /* In-app notifications (Item 12). Each operator can only READ and WRITE
-       (mark read / dismiss) their own notifications. Creation is open to any
-       signed-in operator so client-side events (job status changes) can
-       notify teammates; server-side alerts use the Admin SDK and bypass
-       these rules anyway. */
+       (mark read / dismiss) their own notifications. Client-side creation
+       exists solely for the job-status-change teammate notice, so creates
+       are locked to that exact shape (unread, type 'job', bounded strings,
+       not addressed to yourself). Server-side alerts use the Admin SDK and
+       bypass these rules anyway. */
     match /notifications/{notificationId} {
       allow read:   if signedIn()
                     && resource.data.recipientEmail == request.auth.token.email.lower();
-      allow create: if signedIn();
+      allow create: if signedIn()
+                    && request.auth.token.email != null
+                    && request.resource.data.keys().hasOnly(
+                         ['recipientEmail', 'type', 'title', 'body', 'relatedId', 'read', 'createdAt'])
+                    && request.resource.data.recipientEmail is string
+                    && request.resource.data.recipientEmail != request.auth.token.email.lower()
+                    && request.resource.data.type == 'job'
+                    && request.resource.data.title is string
+                    && request.resource.data.title.size() <= 200
+                    && request.resource.data.body is string
+                    && request.resource.data.body.size() <= 500
+                    && request.resource.data.read == false
+                    && request.resource.data.createdAt is string;
       allow update: if signedIn()
                     && resource.data.recipientEmail == request.auth.token.email.lower();
       allow delete: if signedIn()

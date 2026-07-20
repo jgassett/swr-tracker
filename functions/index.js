@@ -768,13 +768,16 @@ async function sendPushToEmails(emails, payload) {
       if (t && !seen.has(t)) { seen.add(t); entries.push({ token: t, ref: d.ref, legacy: false }); }
     });
   });
-  for (let i = 0; i < list.length; i += 10) {
-    const snap = await db.collection('pushTokens').where('email', 'in', list.slice(i, i + 10)).get();
-    snap.forEach((d) => {
-      const t = d.get('token');
-      if (t && !seen.has(t)) { seen.add(t); entries.push({ token: t, ref: d.ref, legacy: true }); }
-    });
-  }
+  /* Legacy docs may hold mixed-case emails, which a lowercased `in` query
+     would miss — the collection is tiny (a few devices per operator), so
+     scan it and match case-insensitively. */
+  const wanted = new Set(list);
+  const legacySnap = await db.collection('pushTokens').get();
+  legacySnap.forEach((d) => {
+    const t = d.get('token');
+    const em = String(d.get('email') || '').toLowerCase();
+    if (t && wanted.has(em) && !seen.has(t)) { seen.add(t); entries.push({ token: t, ref: d.ref, legacy: true }); }
+  });
   if (!entries.length) return { sent: 0, tokens: 0 };
 
   const tokens = entries.map((e) => e.token);
@@ -913,6 +916,8 @@ exports.notifyJobAssignment = functions
     const timeStr = a.scheduledTime || a.startTime || '';
     const jobType = a.visitType || a.type || job.type || '';
     const customerName = a.customerName || job.customerName || '';
+    /* Reschedules/reassignments notify too — same payload, accurate title. */
+    const title = (data && data.event === 'updated') ? 'Appointment updated' : 'New appointment scheduled';
 
     try {
       let sent = 0, tokens = 0;
@@ -926,7 +931,7 @@ exports.notifyJobAssignment = functions
           `Assigned to ${name}`
         ].filter(Boolean).join(' · ');
         const r = await sendPushToEmails([email], {
-          title: 'New appointment scheduled',
+          title,
           body,
           url: './',
           tag: `appt-${appointmentId || jobId}`
@@ -935,7 +940,7 @@ exports.notifyJobAssignment = functions
         /* Mirror into the in-app bell feed (Item 12). */
         await createNotifications([email], {
           type: 'appointment',
-          title: 'New appointment scheduled',
+          title,
           body,
           relatedId: appointmentId || jobId
         }).catch((e) => console.error('appointment feed notification failed', e));
@@ -1208,6 +1213,29 @@ async function handleReportMessage(m, keyMap) {
   }
   await batch.commit();
 
+  /* A daily status report proves the camera network is alive — refresh
+     lastSeen so the 90-minute watchdog doesn't flag a healthy network that
+     simply had no animal activity (photos are motion-triggered). Only move
+     lastSeen forward; a newer photo timestamp must win. */
+  try {
+    const reportSeen = m.receivedDateTime || nowIso;
+    const statusRef = db.doc(`cameraStatus/${parsed.network}`);
+    const statusSnap = await statusRef.get();
+    const prevSeen = statusSnap.exists ? (statusSnap.get('lastSeen') || '') : '';
+    if (!prevSeen || reportSeen > prevSeen) {
+      await statusRef.set({
+        customerKey: parsed.network,
+        customerId: match ? match.id : null,
+        customerName: match ? match.name : null,
+        propertyId: (match && match.propertyId) || null,
+        lastSeen: reportSeen,
+        updatedAt: nowIso
+      }, { merge: true });
+    }
+  } catch (err) {
+    console.error('cameraStatus lastSeen refresh from report failed', parsed.network, err);
+  }
+
   /* Item 14: any camera failing the green threshold in the daily status
      email alerts every operator — battery low, SD card at/above 90%
      capacity (free space below threshold), an error flag (photo queue
@@ -1227,7 +1255,15 @@ async function handleReportMessage(m, keyMap) {
         if (defs.includes('sd')) conds.push(['sd', 'SD card at or above 90% capacity']);
         if (defs.includes('queue')) conds.push(['queue', `error flag: photo queue backlog (${d.photoQueue} queued)`]);
       } else if (!inReport.has(String(h.cameraNumber))) {
-        conds.push(['noreport', 'no daily status report received for this camera']);
+        /* Retirement cutoff: a camera absent from reports for over 7 days
+           is considered removed — stop alerting about it daily forever.
+           reportDate/updatedAt are only written while the camera still
+           appears in reports, so they mark its last known appearance. */
+        const lastAppeared = Date.parse(h.reportDate || '') || Date.parse(h.updatedAt || '') || 0;
+        const RETIRED_MS = 7 * 24 * 60 * 60 * 1000;
+        if (!lastAppeared || Date.now() - lastAppeared <= RETIRED_MS) {
+          conds.push(['noreport', 'no daily status report received for this camera']);
+        }
       }
       for (const [condKey, condText] of conds) {
         const camLabel = `${parsed.network} #${h.cameraNumber}${h.cameraName ? ` (${h.cameraName})` : ''}`;
@@ -1269,7 +1305,10 @@ exports.cameraWatchdog = functions
         if (silentFor <= OFFLINE_MS || silentFor > RETIRED_MS) continue;
         const map = s.lastNotifiedAt || {};
         const prev = map.offline ? Date.parse(map.offline) : 0;
-        if (prev && now - prev < CAMERA_ALERT_WINDOW_MS) continue;
+        /* One alert per silence episode: after alerting, stay quiet until a
+           new photo/report moves lastSeen forward again — a camera with no
+           overnight activity must not re-alert every 2 hours for days. */
+        if (prev && (prev >= last || now - prev < CAMERA_ALERT_WINDOW_MS)) continue;
         const nickname = await propertyNickname(s.customerId, s.propertyId);
         const body = [
           `Camera ${d.id}`,
