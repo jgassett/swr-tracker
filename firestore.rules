@@ -147,6 +147,21 @@ service cloud.firestore {
       allow delete: if request.auth != null;
     }
 
+    /* In-app notifications (Item 12). Each operator can only READ and WRITE
+       (mark read / dismiss) their own notifications. Creation is open to any
+       signed-in operator so client-side events (job status changes) can
+       notify teammates; server-side alerts use the Admin SDK and bypass
+       these rules anyway. */
+    match /notifications/{notificationId} {
+      allow read:   if signedIn()
+                    && resource.data.recipientEmail == request.auth.token.email.lower();
+      allow create: if signedIn();
+      allow update: if signedIn()
+                    && resource.data.recipientEmail == request.auth.token.email.lower();
+      allow delete: if signedIn()
+                    && resource.data.recipientEmail == request.auth.token.email.lower();
+    }
+
     /* Graph API 401 diagnostics (Item 7) — written server-side by the email
        pipeline (Admin SDK); clients read for visibility only. */
     match /graphErrors/{errorId} {

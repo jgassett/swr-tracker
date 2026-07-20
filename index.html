@@ -1234,6 +1234,40 @@
     .badge-cert.certified { background: #DDEAD8; color: var(--released); }
     .badge-cert.pending { background: #FBEED0; color: #8a6d1f; }
 
+    /* ---- Notifications (Items 12 & 17) ---- */
+    .header-bell {
+      position: relative; background: transparent; border: none;
+      color: var(--amber-soft); padding: 8px; border-radius: 10px;
+      display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0;
+      cursor: pointer;
+    }
+    .header-bell:active { background: rgba(255,255,255,0.1); }
+    .header-bell svg { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+    .bell-badge {
+      position: absolute; top: 2px; right: 0;
+      min-width: 17px; height: 17px; padding: 0 4px;
+      background: var(--danger); color: #fff;
+      border-radius: 999px; font-size: 10px; font-weight: 700;
+      display: flex; align-items: center; justify-content: center; line-height: 1;
+    }
+    .notif-row { display: flex; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--line); align-items: flex-start; }
+    .notif-row:last-child { border-bottom: none; }
+    .notif-row .nf-icon {
+      width: 36px; height: 36px; border-radius: 10px; flex-shrink: 0;
+      background: var(--cream-deep); display: flex; align-items: center; justify-content: center; font-size: 17px;
+    }
+    .notif-row.unread .nf-icon { background: rgba(196,119,42,0.18); }
+    .notif-row .nf-body { flex: 1; min-width: 0; }
+    .notif-row .nf-title { font-weight: 600; color: var(--green-deep); }
+    .notif-row.unread .nf-title::before { content: '●'; color: var(--amber); font-size: 10px; margin-right: 6px; vertical-align: 2px; }
+    .notif-row .nf-text { font-size: 13px; color: var(--ink); margin-top: 2px; }
+    .notif-row .nf-meta { font-size: 11.5px; color: var(--ink-soft); margin-top: 3px; text-transform: uppercase; letter-spacing: 0.04em; }
+    .notif-row .nf-dismiss {
+      background: var(--cream-deep); border: none; color: var(--ink-soft);
+      width: 30px; height: 30px; border-radius: 8px; font-size: 16px; line-height: 1; flex-shrink: 0; cursor: pointer;
+    }
+    .notif-row .nf-dismiss:active { background: var(--line); }
+
     /* Wider screens — center the form, two-up rows */
     @media (min-width: 600px) {
       #view-add, #view-dashboard, #view-records, #view-export, #view-settings,
@@ -1571,6 +1605,10 @@
     </div>
     <div class="header-right">
       <span id="pendingPhotoIndicator" class="hidden" style="font-size:12px;color:var(--amber,#c4772a);align-self:center;margin-right:8px;white-space:nowrap;" title="Photos waiting to upload">📷 <span class="label">pending</span></span>
+      <button type="button" class="header-bell" id="headerBell" aria-label="Notifications" title="Notifications">
+        <svg viewBox="0 0 24 24"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+        <span class="bell-badge hidden" id="bellBadge">0</span>
+      </button>
       <button type="button" class="sync-indicator" id="syncIndicator" data-state="offline" title="Tap for sync status">
         <span class="dot"></span>
         <span class="label">Offline</span>
@@ -2649,6 +2687,21 @@
     <!-- SETTINGS: assign legacy records to jobs -->
     <section id="view-assign-legacy" class="view hidden">
       <div id="assignLegacyView"></div>
+    </section>
+
+    <!-- NOTIFICATIONS (Items 12 & 17) — reachable from any screen via the bell -->
+    <section id="view-notifications" class="view hidden">
+      <div class="row" style="margin-bottom:12px;">
+        <div class="greeting" style="margin:0;">
+          <h2>Notifications</h2>
+          <p class="muted" id="notifsSub">Appointments, camera alerts, and job updates.</p>
+        </div>
+        <button type="button" class="map-btn ghost" id="clearAllNotifsBtn" style="flex-shrink:0;">Clear all</button>
+      </div>
+      <div class="card" id="notificationsList"></div>
+      <div class="form-actions">
+        <button type="button" class="btn btn-cancel btn-ghost" id="notifsBackBtn">Back</button>
+      </div>
     </section>
 
     <!-- EXPORT -->
@@ -5468,7 +5521,7 @@ function setView(name) {
    'customers','add-customer','pricing','estimate-builder','estimate-detail',
    'field','field-detail','schedule','add-schedule','schedule-detail',
    'jobs','add-job','job-detail','add-appointment','appointment-detail','assign-legacy',
-   'export','settings'].forEach((v) => {
+   'notifications','export','settings'].forEach((v) => {
     const el = document.getElementById(`view-${v}`);
     if (el) el.classList.add('hidden');
   });
@@ -5501,7 +5554,8 @@ function setView(name) {
   const navView = name === 'estimate-detail' ? 'dashboard' : name;
   $$('#bottomNav .nav-btn, #bottomNav .nav-fab').forEach((b) => b.classList.toggle('active', b.dataset.view === navView));
   const titles = VIEW_TITLES[appMode] || VIEW_TITLES.trap;
-  $('#viewTitle').textContent = titles[name] || '';
+  $('#viewTitle').textContent = name === 'notifications' ? 'Notifications' : (titles[name] || '');
+  if (name === 'notifications') renderNotificationsPage();
   $('#appMain').scrollTop = 0;
   document.body.classList.toggle('in-add', name === 'add' || name === 'edit-legacy' || name === 'add-appointment');
 
@@ -8701,6 +8755,143 @@ async function deleteJob(id) {
 }
 
 /* =====================================================================
+ * In-app notifications (Items 12 & 17)
+ * ---------------------------------------------------------------------
+ * notifications collection: recipientEmail, type (appointment | camera |
+ * job), title, body, relatedId, read, createdAt. Server-side alerts are
+ * written by Cloud Functions; client-side events (job status changes)
+ * write teammate notifications directly. The bell badge shows the live
+ * unread count everywhere.
+ * ===================================================================== */
+let cachedNotifications = [];
+let notificationsUnsub = null;
+let notificationsRetryTimer = null;
+let notifReturnView = null;   /* where the bell was tapped from */
+
+function subscribeToNotifications() {
+  if (notificationsUnsub || !currentUser) return;
+  const qy = query(collection(fbDb, 'notifications'),
+    where('recipientEmail', '==', currentUser.email.toLowerCase()));
+  notificationsUnsub = onSnapshot(qy, (snap) => {
+    cachedNotifications = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    cachedNotifications.sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
+    updateBellBadge();
+    if (!$('#view-notifications').classList.contains('hidden')) renderNotificationsPage();
+  }, (err) => {
+    console.error('Notifications subscription error', err);
+    notificationsUnsub = null;
+    if (notificationsRetryTimer) clearTimeout(notificationsRetryTimer);
+    notificationsRetryTimer = setTimeout(() => { if (currentUser) subscribeToNotifications(); }, 5000);
+  });
+}
+function unsubscribeFromNotifications() {
+  if (notificationsUnsub) { notificationsUnsub(); notificationsUnsub = null; }
+  cachedNotifications = [];
+  updateBellBadge();
+}
+
+function unreadNotifCount() { return cachedNotifications.filter((n) => !n.read).length; }
+
+function updateBellBadge() {
+  const n = unreadNotifCount();
+  ['bellBadge', 'bellBadgeLanding'].forEach((id) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.textContent = n > 99 ? '99+' : String(n);
+    el.classList.toggle('hidden', n === 0);
+  });
+}
+
+const NOTIF_TYPE_META = {
+  appointment: { icon: '📅', label: 'Appointment' },
+  camera: { icon: '📷', label: 'Camera alert' },
+  job: { icon: '💼', label: 'Job update' }
+};
+
+function fmtNotifTime(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (isNaN(d)) return iso;
+  return d.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+}
+
+function renderNotificationsPage() {
+  const root = $('#notificationsList');
+  if (!root) return;
+  const sub = $('#notifsSub');
+  const unread = cachedNotifications.filter((n) => !n.read);
+  const read = cachedNotifications.filter((n) => n.read);
+  if (sub) sub.textContent = unread.length ? `${unread.length} unread` : 'All caught up.';
+  const clearBtn = $('#clearAllNotifsBtn');
+  if (clearBtn) clearBtn.style.display = unread.length ? '' : 'none';
+  if (!cachedNotifications.length) {
+    root.innerHTML = '<div class="empty"><div class="em-title">Nothing yet</div><div>Appointment, camera, and job alerts will land here.</div></div>';
+    return;
+  }
+  const row = (n) => {
+    const meta = NOTIF_TYPE_META[n.type] || { icon: '🔔', label: n.type || 'Notice' };
+    return `<div class="notif-row${n.read ? '' : ' unread'}">
+      <div class="nf-icon">${meta.icon}</div>
+      <div class="nf-body">
+        <div class="nf-title">${escapeHtml(n.title || meta.label)}</div>
+        ${n.body ? `<div class="nf-text">${escapeHtml(n.body)}</div>` : ''}
+        <div class="nf-meta">${escapeHtml(meta.label)} · ${escapeHtml(fmtNotifTime(n.createdAt))}</div>
+      </div>
+      ${n.read ? '' : `<button type="button" class="nf-dismiss" data-notif-dismiss="${escapeHtml(n.id)}" aria-label="Dismiss">×</button>`}
+    </div>`;
+  };
+  /* Unread first, then read — each newest-first. */
+  root.innerHTML = [...unread, ...read].map(row).join('');
+}
+
+function dismissNotification(id) {
+  setDoc(doc(fbDb, 'notifications', id), { read: true, readAt: new Date().toISOString() }, { merge: true })
+    .catch((err) => console.error('notification dismiss failed', err));
+}
+
+async function clearAllNotifications() {
+  const unread = cachedNotifications.filter((n) => !n.read);
+  if (!unread.length) return;
+  try {
+    let batch = writeBatch(fbDb);
+    let ops = 0;
+    const now = new Date().toISOString();
+    for (const n of unread) {
+      batch.set(doc(fbDb, 'notifications', n.id), { read: true, readAt: now }, { merge: true });
+      if (++ops >= 450) { await batch.commit(); batch = writeBatch(fbDb); ops = 0; }
+    }
+    if (ops) await batch.commit();
+    toast('Notifications cleared');
+  } catch (err) {
+    toast('Clear failed: ' + ((err && err.message) || 'error'), 'error');
+  }
+}
+
+/* Write in-app notifications to teammates (fire-and-forget). */
+function notifyOperatorsInApp(emails, payload) {
+  const me = currentUser ? currentUser.email.toLowerCase() : null;
+  const list = [...new Set((emails || []).map((e) => String(e).toLowerCase()).filter((e) => e && e !== me))];
+  if (!list.length) return;
+  const now = new Date().toISOString();
+  for (const email of list) {
+    setDoc(doc(collection(fbDb, 'notifications')), {
+      recipientEmail: email,
+      type: payload.type || 'job',
+      title: payload.title || '',
+      body: payload.body || '',
+      relatedId: payload.relatedId || null,
+      read: false,
+      createdAt: now
+    }).catch((err) => console.error('in-app notify failed', err));
+  }
+}
+
+function openNotifications() {
+  notifReturnView = currentView === 'notifications' ? notifReturnView : currentView;
+  setView('notifications');
+}
+
+/* =====================================================================
  * Job Lifecycle (v2, Item 3) — the central Job container.
  * ---------------------------------------------------------------------
  * Lifecycle jobs live in the same `jobs` collection as the legacy Phase-4
@@ -8763,6 +8954,13 @@ async function setJobLifecycleStatus(id, status, extra = {}) {
   try {
     await writeWithRetry(() => setDoc(doc(fbDb, 'jobs', id), { status, ...extra, updatedAt: new Date().toISOString() }, { merge: true }));
     toast(`Job ${j.jobNumber || ''} → ${status}`);
+    /* In-app notification to the job's other operators (Item 12). */
+    notifyOperatorsInApp(j.assignedOperators || [], {
+      type: 'job',
+      title: `${j.jobNumber || 'Job'} → ${status}`,
+      body: [j.customerName, `moved to ${status}`].filter(Boolean).join(' · '),
+      relatedId: id
+    });
     return true;
   } catch (err) {
     toast('Status update failed: ' + ((err && err.message) || 'error'), 'error');
@@ -10899,6 +11097,19 @@ async function init() {
   $('#forgotPinBtn').addEventListener('click', handleForgotPin);
   $('#signOutBtn').addEventListener('click', handleSignOut);
 
+  /* ---- Notifications wiring (Items 12 & 17) ---- */
+  $('#headerBell').addEventListener('click', openNotifications);
+  $('#notifsBackBtn').addEventListener('click', () => {
+    const back = notifReturnView && notifReturnView !== 'notifications' ? notifReturnView : 'dashboard';
+    notifReturnView = null;
+    setView(back);
+  });
+  $('#clearAllNotifsBtn').addEventListener('click', clearAllNotifications);
+  $('#notificationsList').addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-notif-dismiss]');
+    if (btn) dismissNotification(btn.dataset.notifDismiss);
+  });
+
   $('#syncIndicator').addEventListener('click', () => {
     const state = $('#syncIndicator').dataset.state;
     if (state === 'error' && lastSyncError) {
@@ -10940,6 +11151,7 @@ async function init() {
       subscribeToJobs();
       subscribeToAppointments();
       subscribeToProperties();
+      subscribeToNotifications();
       renderBusinessCard();
       renderReportingCard();
       renderCertCard();
@@ -10961,6 +11173,7 @@ async function init() {
       unsubscribeFromJobs();
       unsubscribeFromAppointments();
       unsubscribeFromProperties();
+      unsubscribeFromNotifications();
       modeSelected = false;
       $('#accountInfo').textContent = 'Not signed in';
       $('#wipeBtn').style.display = 'none';

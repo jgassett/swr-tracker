@@ -804,6 +804,29 @@ async function sendPushToEmails(emails, payload) {
   return { sent: res.successCount, tokens: tokens.length };
 }
 
+/* In-app notification feed (Item 12): one doc per recipient in the
+ * `notifications` collection. Used alongside sendPushToEmails so alerts land
+ * both on the device (push) and in the app's bell feed. */
+async function createNotifications(emails, payload) {
+  const list = [...new Set((emails || []).filter(Boolean).map((e) => String(e).toLowerCase()))];
+  if (!list.length) return 0;
+  const now = new Date().toISOString();
+  const batch = db.batch();
+  for (const email of list) {
+    batch.set(db.collection('notifications').doc(), {
+      recipientEmail: email,
+      type: payload.type || 'general',
+      title: String(payload.title || ''),
+      body: String(payload.body || ''),
+      relatedId: payload.relatedId || null,
+      read: false,
+      createdAt: now
+    });
+  }
+  await batch.commit();
+  return list.length;
+}
+
 /* Send a test push to the caller's own devices (verifies the whole pipeline). */
 exports.sendTestPush = functions
   .region(REGION)
@@ -877,6 +900,13 @@ exports.notifyJobAssignment = functions
           tag: `appt-${appointmentId || jobId}`
         });
         sent += r.sent; tokens += r.tokens;
+        /* Mirror into the in-app bell feed (Item 12). */
+        await createNotifications([email], {
+          type: 'appointment',
+          title: 'New appointment scheduled',
+          body,
+          relatedId: appointmentId || jobId
+        }).catch((e) => console.error('appointment feed notification failed', e));
       }
       return { sent, tokens };
     } catch (err) {
