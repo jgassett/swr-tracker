@@ -827,6 +827,38 @@ async function createNotifications(emails, payload) {
   return list.length;
 }
 
+/* Camera health alerting (Item 14): every operator gets both a device push
+ * and an in-app feed entry. */
+async function notifyAllOperators(payload) {
+  try { await sendPushToEmails(ALL_OPERATOR_EMAILS, payload); }
+  catch (e) { console.error('operator push failed', e); }
+  try { await createNotifications(ALL_OPERATOR_EMAILS, payload); }
+  catch (e) { console.error('operator feed notification failed', e); }
+}
+
+async function propertyNickname(customerId, propertyId) {
+  if (!customerId || !propertyId) return null;
+  try {
+    const snap = await db.doc(`customers/${customerId}/properties/${propertyId}`).get();
+    return snap.exists ? (snap.get('siteNickname') || null) : null;
+  } catch (e) { return null; }
+}
+
+/* Dedup (Item 14): no repeat notification for the same camera + condition
+ * within 2 hours — lastNotifiedAt map on the camera record enforces it.
+ * set(..., {merge:true}) deep-merges the map so per-condition keys don't
+ * clobber each other. */
+const CAMERA_ALERT_WINDOW_MS = 2 * 60 * 60 * 1000;
+async function maybeSendCameraAlert(docRef, existingData, condKey, body, relatedId) {
+  const now = Date.now();
+  const map = (existingData && existingData.lastNotifiedAt) || {};
+  const prev = map[condKey] ? Date.parse(map[condKey]) : 0;
+  if (prev && now - prev < CAMERA_ALERT_WINDOW_MS) return false;
+  await notifyAllOperators({ type: 'camera', title: 'Camera health alert', body, relatedId, tag: `cam-${condKey}-${relatedId}` });
+  await docRef.set({ lastNotifiedAt: { [condKey]: new Date(now).toISOString() } }, { merge: true });
+  return true;
+}
+
 /* Send a test push to the caller's own devices (verifies the whole pipeline). */
 exports.sendTestPush = functions
   .region(REGION)
@@ -1134,7 +1166,7 @@ async function handlePhotoMessage(m, keyMap) {
     });
     photos++;
   }
-  return { photos, unassigned: !match };
+  return { photos, unassigned: !match, key, match, receivedAt: m.receivedDateTime || new Date().toISOString() };
 }
 
 async function handleReportMessage(m, keyMap) {
@@ -1175,8 +1207,84 @@ async function handleReportMessage(m, keyMap) {
     }, { merge: true });
   }
   await batch.commit();
+
+  /* Item 14: any camera failing the green threshold in the daily status
+     email alerts every operator — battery low, SD card at/above 90%
+     capacity (free space below threshold), an error flag (photo queue
+     backlog), or no daily status report received for that camera. 2-hour
+     per-camera-per-condition dedup via lastNotifiedAt. */
+  try {
+    const nickname = await propertyNickname(match ? match.id : null, match ? match.propertyId : null);
+    const healthSnap = await db.collection('cameraHealth').where('customerKey', '==', parsed.network).get();
+    const inReport = new Set(parsed.devices.map((d) => String(d.cameraNumber)));
+    for (const hd of healthSnap.docs) {
+      const h = hd.data();
+      const conds = [];
+      const d = parsed.devices.find((x) => String(x.cameraNumber) === String(h.cameraNumber));
+      if (d) {
+        const defs = cb.deviceDeficiencies(d);
+        if (defs.includes('battery')) conds.push(['battery', 'battery level low']);
+        if (defs.includes('sd')) conds.push(['sd', 'SD card at or above 90% capacity']);
+        if (defs.includes('queue')) conds.push(['queue', `error flag: photo queue backlog (${d.photoQueue} queued)`]);
+      } else if (!inReport.has(String(h.cameraNumber))) {
+        conds.push(['noreport', 'no daily status report received for this camera']);
+      }
+      for (const [condKey, condText] of conds) {
+        const camLabel = `${parsed.network} #${h.cameraNumber}${h.cameraName ? ` (${h.cameraName})` : ''}`;
+        const body = [`Camera ${camLabel}`, h.customerName || (match && match.name) || null, nickname, condText]
+          .filter(Boolean).join(' · ');
+        await maybeSendCameraAlert(hd.ref, h, condKey, body, hd.id);
+      }
+    }
+  } catch (err) {
+    console.error('camera report alerting failed', err);
+  }
+
   return { devices: parsed.devices.length };
 }
+
+/* =====================================================================
+ * Camera watchdog (Item 14) — Cloud Scheduler, every 60 minutes.
+ * Checks lastSeen across active camera records; any camera silent for more
+ * than 90 minutes alerts every operator. A camera that has been silent for
+ * over 7 days is considered retired and stops alerting. 2-hour dedup via
+ * lastNotifiedAt.offline on the camera record.
+ * ===================================================================== */
+exports.cameraWatchdog = functions
+  .region(REGION)
+  .runWith({ timeoutSeconds: 120, memory: '256MB' })
+  .pubsub.schedule('every 60 minutes')
+  .timeZone(REPORT_TZ)
+  .onRun(async () => {
+    const OFFLINE_MS = 90 * 60 * 1000;
+    const RETIRED_MS = 7 * 24 * 60 * 60 * 1000;
+    try {
+      const snap = await db.collection('cameraStatus').get();
+      const now = Date.now();
+      for (const d of snap.docs) {
+        const s = d.data();
+        const last = s.lastSeen ? Date.parse(s.lastSeen) : 0;
+        if (!last) continue;
+        const silentFor = now - last;
+        if (silentFor <= OFFLINE_MS || silentFor > RETIRED_MS) continue;
+        const map = s.lastNotifiedAt || {};
+        const prev = map.offline ? Date.parse(map.offline) : 0;
+        if (prev && now - prev < CAMERA_ALERT_WINDOW_MS) continue;
+        const nickname = await propertyNickname(s.customerId, s.propertyId);
+        const body = [
+          `Camera ${d.id}`,
+          s.customerName || null,
+          nickname,
+          'No photo received in 90 minutes — camera may be offline, stolen, or malfunctioning.'
+        ].filter(Boolean).join(' · ');
+        await notifyAllOperators({ type: 'camera', title: 'Camera offline', body, relatedId: d.id, tag: `cam-offline-${d.id}` });
+        await d.ref.set({ lastNotifiedAt: { offline: new Date(now).toISOString() } }, { merge: true });
+      }
+    } catch (err) {
+      console.error('cameraWatchdog failed', err);
+    }
+    return null;
+  });
 
 /* Poll the mailbox: process unread photo + report messages, mark them read.
  * Every successful run stamps org/graphStatus.lastPollAt so the app's Cameras
@@ -1198,6 +1306,7 @@ async function ingestMailbox() {
   const msgs = data.value || [];
   let photos = 0, reports = 0, unassigned = 0, skipped = 0;
   const keyMap = msgs.length ? await customerKeyMap() : { get: () => null };
+  const lastSeenByKey = new Map();   /* Item 14: newest photo time per camera key */
   for (const m of msgs) {
     const sender = ((m.from && m.from.emailAddress && m.from.emailAddress.address) || '').toLowerCase();
     try {
@@ -1205,6 +1314,10 @@ async function ingestMailbox() {
         const r = await handlePhotoMessage(m, keyMap);
         photos += r.photos;
         if (r.unassigned) unassigned++;
+        if (r.photos && r.key) {
+          const prev = lastSeenByKey.get(r.key);
+          if (!prev || (r.receivedAt || '') > (prev.receivedAt || '')) lastSeenByKey.set(r.key, r);
+        }
       } else if (sender.includes(CL_REPORT_SENDER)) {
         await handleReportMessage(m, keyMap);
         reports++;
@@ -1215,6 +1328,18 @@ async function ingestMailbox() {
     } catch (err) {
       console.error('Ingest failed for message', m.id, err.message); // leave unread → retried next run
     }
+  }
+  /* Item 14 (event-driven): stamp lastSeen on the camera record at write
+     time — no polling. One write per camera key per run. */
+  for (const [key, r] of lastSeenByKey) {
+    await db.doc(`cameraStatus/${key}`).set({
+      customerKey: key,
+      customerId: r.match ? r.match.id : null,
+      customerName: r.match ? r.match.name : null,
+      propertyId: (r.match && r.match.propertyId) || null,
+      lastSeen: r.receivedAt,
+      updatedAt: new Date().toISOString()
+    }, { merge: true }).catch((e) => console.error('cameraStatus lastSeen write failed', key, e));
   }
   const result = { processed: msgs.length, photos, reports, unassigned, skipped, at: new Date().toISOString() };
   await db.doc('org/graphStatus').set({

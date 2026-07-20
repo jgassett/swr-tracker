@@ -137,6 +137,13 @@ service cloud.firestore {
       allow delete: if request.auth != null;
     }
 
+    /* Per-camera lastSeen tracking (Item 14) — written server-side by the
+       photo pipeline and read by the watchdog; clients read only. */
+    match /cameraStatus/{cameraKey} {
+      allow read:  if request.auth != null;
+      allow write: if false;
+    }
+
     /* Camera health snapshots (per device), written server-side from the daily
        report. Clients may only DELETE a row — used by "Delete Photos From App"
        to clear a retired camera; the ingest recreates rows if that camera
