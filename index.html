@@ -10646,6 +10646,18 @@ function completeTask(id) {
   if (t.taskType === 'Re-bait Trap' && typeof handleRebaitTaskCompleted === 'function') {
     handleRebaitTaskCompleted({ ...t, completedDate });
   }
+  /* Item 18: type-linked activity forms — completing a linked task offers
+     the matching log immediately (also reachable any time from the task
+     detail's Log buttons). */
+  if (t.taskType === 'Pesticide Application' && t.jobId) {
+    confirmDialog('Log the application?',
+      'This task is linked to the pesticide form. Log the pesticide application for this job now?',
+      { okText: 'Log Application' }).then((ok) => { if (ok) startWorkLog(t.jobId, 'pesticide'); });
+  } else if (t.taskType === 'Set Trap' && t.jobId) {
+    confirmDialog('Log a trap record?',
+      'This task is linked to the trapping form. Log a trapping record for this job now?',
+      { okText: 'Log Record' }).then((ok) => { if (ok) startWorkLog(t.jobId, 'trap'); });
+  }
 }
 
 function cancelTask(id) {
