@@ -1235,7 +1235,7 @@ async function handleReportMessage(m, keyMap) {
   await batch.commit();
 
   /* A daily status report proves the camera network is alive — refresh
-     lastSeen so the 90-minute watchdog doesn't flag a healthy network that
+     lastSeen so the 6.5-hour watchdog doesn't flag a healthy network that
      simply had no animal activity (photos are motion-triggered). Only move
      lastSeen forward; a newer photo timestamp must win. */
   try {
@@ -1303,9 +1303,12 @@ async function handleReportMessage(m, keyMap) {
 /* =====================================================================
  * Camera watchdog (Item 14) — Cloud Scheduler, every 60 minutes.
  * Checks lastSeen across active camera records; any camera silent for more
- * than 90 minutes alerts every operator. A camera that has been silent for
- * over 7 days is considered retired and stops alerting. 2-hour dedup via
- * lastNotifiedAt.offline on the camera record.
+ * than 390 minutes (6.5 hours) alerts every operator. Action-triggered
+ * photos send hourly but scheduled status photos only send every 6 hours,
+ * so a camera silent for 6.5 hours is genuinely offline rather than between
+ * scheduled transmissions (v2-patch-2 Item 1; was 90 minutes). A camera
+ * that has been silent for over 7 days is considered retired and stops
+ * alerting. 2-hour dedup via lastNotifiedAt.offline on the camera record.
  * ===================================================================== */
 exports.cameraWatchdog = functions
   .region(REGION)
@@ -1313,7 +1316,7 @@ exports.cameraWatchdog = functions
   .pubsub.schedule('every 60 minutes')
   .timeZone(REPORT_TZ)
   .onRun(async () => {
-    const OFFLINE_MS = 90 * 60 * 1000;
+    const OFFLINE_MS = 390 * 60 * 1000;   /* 6.5 hours — see header comment */
     const RETIRED_MS = 7 * 24 * 60 * 60 * 1000;
     try {
       const snap = await db.collection('cameraStatus').get();
@@ -1335,7 +1338,7 @@ exports.cameraWatchdog = functions
           `Camera ${d.id}`,
           s.customerName || null,
           nickname,
-          'No photo received in 90 minutes — camera may be offline, stolen, or malfunctioning.'
+          'No photo received in 6.5 hours — camera may be offline, stolen, or malfunctioning.'
         ].filter(Boolean).join(' · ');
         await notifyAllOperators({ type: 'camera', title: 'Camera offline', body, relatedId: d.id, tag: `cam-offline-${d.id}` });
         await d.ref.set({ lastNotifiedAt: { offline: new Date(now).toISOString() } }, { merge: true });
