@@ -67,7 +67,7 @@ const ALL_OPERATOR_EMAILS = Object.keys(EMAIL_TO_TRAPPER);
  * the human-readable category/species/detail goes in each line's Description. */
 const SERVICE_ITEM_NAME = 'Wildlife Services';
 
-/* ---- Field Information (Cuddeback CuddeLink) ingestion ---- */
+/* ---- Monitoring module (Cuddeback CuddeLink) ingestion — Item 17 rename ---- */
 const cb = require('./cuddeback-parse');
 const MS_SECRETS = ['MS_TENANT_ID', 'MS_CLIENT_ID', 'MS_CLIENT_SECRET'];
 const PHOTOS_MAILBOX = 'photos@southern-wildlife.com';
@@ -1023,7 +1023,7 @@ exports.qbDailySync = functions
   });
 
 /* =====================================================================
- * Field Information — Cuddeback photo + report ingestion (Microsoft Graph)
+ * Monitoring — Cuddeback photo + report ingestion (Microsoft Graph)
  * ---------------------------------------------------------------------
  * Polls the photos@ shared mailbox with an app-only Graph token. Photo
  * emails (images.cuddelink.com) → JPEG to Firebase Storage + a cameraPhotos
@@ -1411,8 +1411,8 @@ async function ingestMailbox() {
 }
 
 /* Poll the mailbox: process unread photo + report messages, mark them read.
- * Every successful run stamps org/graphStatus.lastPollAt so the app's Cameras
- * module can show a Graph connection indicator (Item 7). */
+ * Every successful run stamps org/graphStatus.lastPollAt so the app's
+ * Monitoring module can show a Graph connection indicator (Item 7). */
 async function ingestMailboxUnlocked() {
   let data;
   try {
@@ -1491,7 +1491,7 @@ exports.cuddebackIngest = functions
     return null;
   });
 
-/* Manual "Sync Now" for the Field Information module (authenticated). */
+/* Manual "Sync Now" for the Monitoring module (authenticated). */
 exports.fieldSyncNow = functions
   .region(REGION)
   .runWith({ secrets: MS_SECRETS, timeoutSeconds: 300, memory: '512MB' })

@@ -1121,7 +1121,7 @@
     .est-detail-line .d-sub { color: var(--ink-soft); font-size: 12px; }
     .cust-active-toggle { flex-shrink: 0; align-self: center; border: 1px solid var(--line); background: #fff; color: var(--ink-soft); border-radius: 999px; padding: 6px 14px; font-size: 12px; font-weight: 700; cursor: pointer; white-space: nowrap; }
     .cust-active-toggle.on { background: #DDEAD8; color: var(--released); border-color: #cfe3c7; }
-    /* Field Information module */
+    /* Monitoring module (formerly Field Information / Cameras) */
     .cam-dot { width: 13px; height: 13px; border-radius: 50%; flex-shrink: 0; display: inline-block; }
     .cam-dot.green { background: #2e9e5b; } .cam-dot.yellow { background: #e0a800; }
     .cam-dot.red { background: var(--danger); } .cam-dot.none { background: #bbb; }
@@ -2506,7 +2506,7 @@
     <!-- FIELD INFO: dashboard -->
     <section id="view-field" class="view hidden">
       <div class="greeting">
-        <h2>Cameras</h2>
+        <h2>Monitoring</h2>
         <p class="muted">Camera health &amp; photos by customer, pulled from the trap cameras.</p>
       </div>
       <div class="conn-status" id="graphConnStatus" style="margin-bottom:8px;"></div>
@@ -4044,7 +4044,8 @@ function showSignInScreen() {
 }
 let modeSelected = false;
 
-const MODULE_LABELS = { trap: 'Trapping', pesticide: 'Pesticides', customer: 'Customers', pricing: 'Pricing', jobs: 'Jobs', field: 'Cameras', schedule: 'Schedule', settings: 'Settings', allrecords: 'All Records' };
+/* Item 17 (v2-patch-1): Field Work -> Trapping Records; Cameras -> Monitoring. */
+const MODULE_LABELS = { trap: 'Trapping Records', pesticide: 'Pesticides', customer: 'Customers', pricing: 'Pricing', jobs: 'Jobs', field: 'Monitoring', schedule: 'Schedule', settings: 'Settings', allrecords: 'All Records' };
 
 /* Bottom-nav layout per module. The main landing page has no bottom nav.
    `fab: true` renders the raised amber add button (kept from the original
@@ -4081,7 +4082,7 @@ const NAV_CONFIGS = {
   ],
   field: [
     { view: 'menu', label: 'Menu', icon: 'menu' },
-    { view: 'dashboard', label: 'Cameras', icon: 'camera' }
+    { view: 'dashboard', label: 'Monitoring', icon: 'camera' }
   ],
   schedule: [
     { view: 'menu', label: 'Menu', icon: 'menu' },
@@ -5236,7 +5237,8 @@ async function seedPriceListIfNeeded() {
 }
 
 /* =====================================================================
- * Field Information (Phase 3) — camera photos + health by customer
+ * Monitoring (Phase 3, renamed from Cameras/Field Information — Item 17)
+ * — camera photos + health by customer
  * Reads cameraPhotos / cameraHealth (written server-side by the Cuddeback
  * ingestion function). Sync Now calls the fieldSyncNow callable.
  * ===================================================================== */
@@ -5494,7 +5496,7 @@ function renderFieldDetail(key) {
     <div class="card"><h3 style="margin-top:0;">Photos (${g.photos.length})</h3>${photos}</div>
     <div class="form-actions">
       <button class="btn btn-danger" id="fieldClearBtn">Delete Photos From App</button>
-      <button class="btn btn-cancel btn-ghost" id="fieldBackBtn">Back to Cameras</button>
+      <button class="btn btn-cancel btn-ghost" id="fieldBackBtn">Back to Monitoring</button>
     </div>`;
 
   /* Resolve each photo through the Firebase Storage SDK (getDownloadURL) rather
@@ -5824,7 +5826,7 @@ const VIEW_TITLES = {
   customer:  { dashboard: 'Customers', add: 'Add Customer', settings: 'Settings' },
   pricing:   { dashboard: 'Estimates', add: 'New Estimate', 'estimate-detail': 'Estimate', settings: 'Settings' },
   jobs:      { dashboard: 'Jobs', add: 'New Job', 'job-detail': 'Job', 'add-appointment': 'New Appointment', 'appointment-detail': 'Appointment', 'add-task': 'New Task', 'task-detail': 'Task' },
-  field:     { dashboard: 'Cameras' },
+  field:     { dashboard: 'Monitoring' },
   schedule:  { dashboard: 'Calendar', add: 'New Task', 'edit-legacy': 'Edit Job', 'add-appointment': 'New Appointment', 'appointment-detail': 'Appointment', 'job-detail': 'Job', 'add-task': 'New Task', 'task-detail': 'Task' },
   settings:  { dashboard: 'Settings', 'assign-legacy': 'Assign Legacy Records' },
   allrecords: { dashboard: 'View Records' }
@@ -12982,7 +12984,7 @@ async function init() {
     if (newJob) createJobForLegacyGroup(parseInt(newJob.dataset.lgNewjob, 10));
   });
 
-  /* ---- Field Information wiring ---- */
+  /* ---- Monitoring (camera) wiring ---- */
   $('#cameraAlertBanner').addEventListener('click', () => {
     const f = $('#fieldFilter'); if (f) f.value = 'alerts';
     setAppMode('field');
