@@ -12,7 +12,7 @@
  *
  * Examples:
  *   node create-operator.mjs TC01 493817
- *   node create-operator.mjs tanya@southern-wildlife.com 493817
+ *   node create-operator.mjs tanya.clark0071@gmail.com 493817
  */
 
 import { readFileSync } from 'node:fs';
@@ -29,7 +29,7 @@ const EMPLOYEE_ID_TO_EMAIL = {
   JG01: 'jon@southern-wildlife.com',
   RG01: 'robin@southern-wildlife.com',
   CG01: 'chris@southern-wildlife.com',
-  TC01: 'tanya@southern-wildlife.com',
+  TC01: 'tanya.clark0071@gmail.com',
 };
 
 function die(msg) {

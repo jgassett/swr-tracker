@@ -35,7 +35,7 @@ const EMPLOYEE_ID_TO_EMAIL = {
   JG01: 'jon@southern-wildlife.com',
   RG01: 'robin@southern-wildlife.com',
   CG01: 'chris@southern-wildlife.com',
-  TC01: 'tanya@southern-wildlife.com',
+  TC01: 'tanya.clark0071@gmail.com',
 };
 
 function die(msg) {

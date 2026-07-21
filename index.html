@@ -3293,7 +3293,7 @@ const EMAIL_TO_TRAPPER = {
   'jon@southern-wildlife.com': 'Jon Gassett',
   'robin@southern-wildlife.com': 'Robin Gassett',
   'chris@southern-wildlife.com': 'Chris Griffith',
-  'tanya@southern-wildlife.com': 'Tanya Clark'
+  'tanya.clark0071@gmail.com': 'Tanya Clark'
 };
 
 /* Employee ID (FLXX) -> account email. Per-initial-pair sequence. */
@@ -3301,7 +3301,7 @@ const EMPLOYEE_ID_TO_EMAIL = {
   'JG01': 'jon@southern-wildlife.com',
   'RG01': 'robin@southern-wildlife.com',
   'CG01': 'chris@southern-wildlife.com',
-  'TC01': 'tanya@southern-wildlife.com'
+  'TC01': 'tanya.clark0071@gmail.com'
 };
 
 /* Operator data model (Item 2). certificationStatus: 'certified' operators
@@ -3313,7 +3313,7 @@ const OPERATORS = [
   { name: 'Jon Gassett',    email: 'jon@southern-wildlife.com',   employeeId: 'JG01', certificationStatus: 'certified' },
   { name: 'Robin Gassett',  email: 'robin@southern-wildlife.com', employeeId: 'RG01', certificationStatus: 'certified' },
   { name: 'Chris Griffith', email: 'chris@southern-wildlife.com', employeeId: 'CG01', certificationStatus: 'certified' },
-  { name: 'Tanya Clark',    email: 'tanya@southern-wildlife.com', employeeId: 'TC01', certificationStatus: 'pending' }
+  { name: 'Tanya Clark',    email: 'tanya.clark0071@gmail.com', employeeId: 'TC01', certificationStatus: 'pending' }
 ];
 const OPERATOR_CERT_STATUS = Object.fromEntries(OPERATORS.map((o) => [o.name, o.certificationStatus]));
 function operatorIsPending(name) { return OPERATOR_CERT_STATUS[name] === 'pending'; }
@@ -3332,7 +3332,7 @@ try {
 } catch (e) { console.warn('EmailJS init failed', e); }
 
 /* Admin accounts can perform destructive shared-data actions (Clear All Records). */
-const ADMIN_EMAILS = new Set(['jon@southern-wildlife.com', 'tanya@southern-wildlife.com']);
+const ADMIN_EMAILS = new Set(['jon@southern-wildlife.com', 'tanya.clark0071@gmail.com']);
 function isAdmin() {
   return currentUser && currentUser.email && ADMIN_EMAILS.has(currentUser.email.toLowerCase());
 }
