@@ -347,6 +347,11 @@
       text-align: center; padding: 30px 16px; color: var(--ink-soft);
     }
     .empty .em-title { font-family: 'Playfair Display', serif; font-size: 18px; color: var(--green-deep); margin-bottom: 4px; }
+    .empty .em-check {
+      width: 44px; height: 44px; border-radius: 50%; margin: 0 auto 10px;
+      background: #DDEAD8; color: var(--released); font-size: 22px; font-weight: 700;
+      display: flex; align-items: center; justify-content: center;
+    }
 
     /* Record list */
     .rec {
@@ -1295,6 +1300,7 @@
     }
     .notif-row { display: flex; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--line); align-items: flex-start; }
     .notif-row:last-child { border-bottom: none; }
+    .notif-row.unread { border-left: 3px solid var(--amber); padding-left: 10px; }
     .notif-row .nf-icon {
       width: 36px; height: 36px; border-radius: 10px; flex-shrink: 0;
       background: var(--cream-deep); display: flex; align-items: center; justify-content: center; font-size: 17px;
@@ -1314,7 +1320,8 @@
     /* Wider screens — center the form, two-up rows */
     @media (min-width: 600px) {
       #view-add, #view-dashboard, #view-records, #view-export, #view-settings,
-      #view-customers, #view-add-customer, #view-records-pesticide, #view-add-pesticide {
+      #view-customers, #view-add-customer, #view-records-pesticide, #view-add-pesticide,
+      #view-notifications {
         max-width: 760px; margin: 0 auto;
       }
       .field-row.two { grid-template-columns: 1fr 1fr; gap: 14px; }
@@ -9242,6 +9249,33 @@ function fmtNotifTime(iso) {
   return d.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
 }
 
+/* Best-effort "who/what is this about" line: the customer (job/appointment
+   notices) or camera (camera alerts) resolved from the live caches at render
+   time — notification docs themselves only carry relatedId (the Firestore
+   rules lock client-created docs to that exact shape). */
+function notifSourceName(n) {
+  if (!n || !n.relatedId) return '';
+  const rid = String(n.relatedId);
+  if (n.type === 'camera') {
+    const h = cachedCameraHealth.find((x) => x.id === rid);
+    if (h) {
+      const cam = h.cameraName || (h.cameraNumber ? `Camera #${h.cameraNumber}` : '');
+      return [h.customerName || h.customerKey, cam].filter(Boolean).join(' · ');
+    }
+    /* Network-level "report missing" alerts use the network key itself. */
+    return rid.includes('__') ? rid.split('__')[0] : rid;
+  }
+  const j = cachedJobs.find((x) => x.id === rid);
+  if (j && j.customerName) return j.customerName;
+  const a = cachedAppointments.find((x) => x.id === rid);
+  if (a) {
+    if (a.customerName) return a.customerName;
+    const pj = a.jobId ? cachedJobs.find((x) => x.id === a.jobId) : null;
+    if (pj && pj.customerName) return pj.customerName;
+  }
+  return '';
+}
+
 function renderNotificationsPage() {
   const root = $('#notificationsList');
   if (!root) return;
@@ -9251,19 +9285,20 @@ function renderNotificationsPage() {
   if (sub) sub.textContent = unread.length ? `${unread.length} unread` : 'All caught up.';
   const clearBtn = $('#clearAllNotifsBtn');
   if (clearBtn) clearBtn.style.display = unread.length ? '' : 'none';
-  const caughtUp = '<div class="empty"><div class="em-title">No new notifications — you are all caught up</div><div>Appointment, camera, and job alerts will land here.</div></div>';
+  const caughtUp = '<div class="empty"><div class="em-check" aria-hidden="true">✓</div><div class="em-title">No new notifications — you are all caught up</div><div>Appointment, camera, and job alerts will land here.</div></div>';
   if (!cachedNotifications.length) {
     root.innerHTML = caughtUp;
     return;
   }
   const row = (n) => {
     const meta = NOTIF_TYPE_META[n.type] || { icon: '🔔', label: n.type || 'Notice' };
+    const source = notifSourceName(n);
     return `<div class="notif-row${n.read ? '' : ' unread'}">
       <div class="nf-icon">${meta.icon}</div>
       <div class="nf-body">
         <div class="nf-title">${escapeHtml(n.title || meta.label)}</div>
         ${n.body ? `<div class="nf-text">${escapeHtml(n.body)}</div>` : ''}
-        <div class="nf-meta">${escapeHtml(meta.label)} · ${escapeHtml(fmtNotifTime(n.createdAt))}</div>
+        <div class="nf-meta">${escapeHtml([meta.label, source, fmtNotifTime(n.createdAt)].filter(Boolean).join(' · '))}</div>
       </div>
       ${n.read ? '' : `<button type="button" class="nf-dismiss" data-notif-dismiss="${escapeHtml(n.id)}" aria-label="Dismiss">×</button>`}
     </div>`;
