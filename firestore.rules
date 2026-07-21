@@ -120,6 +120,12 @@ service cloud.firestore {
                      > jobStatusRank(resource.data.get('status', 'Lead'))));
     }
 
+    /* Job-number allocation counter (M4) — read and bumped inside a client
+       transaction by any signed-in operator. */
+    match /counters/{counterId} {
+      allow read, write: if request.auth != null;
+    }
+
     match /jobs/{jobId} {
       allow read:   if request.auth != null;
       allow create: if request.auth != null

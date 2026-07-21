@@ -852,13 +852,29 @@ async function propertyNickname(customerId, propertyId) {
  * set(..., {merge:true}) deep-merges the map so per-condition keys don't
  * clobber each other. */
 const CAMERA_ALERT_WINDOW_MS = 2 * 60 * 60 * 1000;
+/* M16: the dedup stamp is CLAIMED in a transaction before sending — two
+ * concurrent ingests (scheduled poll + manual Sync Now) both passed the old
+ * stale in-memory check and double-alerted every operator. The transaction
+ * loser sees the fresh stamp and skips. (existingData is no longer trusted
+ * for the check; kept in the signature for the call sites.) */
 async function maybeSendCameraAlert(docRef, existingData, condKey, body, relatedId) {
   const now = Date.now();
-  const map = (existingData && existingData.lastNotifiedAt) || {};
-  const prev = map[condKey] ? Date.parse(map[condKey]) : 0;
-  if (prev && now - prev < CAMERA_ALERT_WINDOW_MS) return false;
+  let claimed = false;
+  try {
+    claimed = await db.runTransaction(async (tx) => {
+      const snap = await tx.get(docRef);
+      const map = (snap.exists && snap.get('lastNotifiedAt')) || {};
+      const prev = map[condKey] ? Date.parse(map[condKey]) : 0;
+      if (prev && now - prev < CAMERA_ALERT_WINDOW_MS) return false;
+      tx.set(docRef, { lastNotifiedAt: { [condKey]: new Date(now).toISOString() } }, { merge: true });
+      return true;
+    });
+  } catch (e) {
+    console.error('camera alert dedup claim failed', e);
+    return false;
+  }
+  if (!claimed) return false;
   await notifyAllOperators({ type: 'camera', title: 'Camera health alert', body, relatedId, tag: `cam-${condKey}-${relatedId}` });
-  await docRef.set({ lastNotifiedAt: { [condKey]: new Date(now).toISOString() } }, { merge: true });
   return true;
 }
 
@@ -981,6 +997,34 @@ exports.cleanupCameraPhotos = functions
       console.log(`cleanupCameraPhotos: deleted ${deleted} photos older than ${days} days`);
     } catch (err) {
       console.error('cleanupCameraPhotos failed', err);
+    }
+    return null;
+  });
+
+/* M12: the notifications feed is append-only (camera alerts fan out to every
+ * operator daily) — without cleanup it grows unbounded and the client
+ * subscription downloads the whole history each session. Read state lives on
+ * each doc, so anything older than 60 days is history nobody scrolls to.
+ * Single-field range query — no composite index required. */
+exports.cleanupNotifications = functions
+  .region(REGION)
+  .runWith({ timeoutSeconds: 300, memory: '256MB' })
+  .pubsub.schedule('every 24 hours')
+  .timeZone(REPORT_TZ)
+  .onRun(async () => {
+    try {
+      const cutoff = new Date(Date.now() - 60 * 86400000).toISOString();
+      const snap = await db.collection('notifications').where('createdAt', '<', cutoff).get();
+      if (snap.empty) { console.log('cleanupNotifications: nothing older than 60 days'); return null; }
+      let batch = db.batch(); let ops = 0; let deleted = 0;
+      for (const d of snap.docs) {
+        batch.delete(d.ref); ops++; deleted++;
+        if (ops >= 450) { await batch.commit(); batch = db.batch(); ops = 0; }
+      }
+      if (ops) await batch.commit();
+      console.log(`cleanupNotifications: deleted ${deleted} notifications older than 60 days`);
+    } catch (err) {
+      console.error('cleanupNotifications failed', err);
     }
     return null;
   });
@@ -1319,16 +1363,80 @@ exports.cameraWatchdog = functions
         await notifyAllOperators({ type: 'camera', title: 'Camera offline', body, relatedId: d.id, tag: `cam-offline-${d.id}` });
         await d.ref.set({ lastNotifiedAt: { offline: new Date(now).toISOString() } }, { merge: true });
       }
+      /* M15: a whole network's daily report can stop arriving — then
+         handleReportMessage never runs for it (its `noreport` check only
+         fires when a report DOES arrive with a camera missing), and photo
+         emails keep lastSeen fresh so the offline check above stays silent.
+         Group the health rows by network and alert when the newest report
+         ingest is over ~a day old. One alert per silent day; a network
+         silent for over 7 days is considered retired. */
+      const NOREPORT_NET_MS = 30 * 60 * 60 * 1000;
+      const health = await db.collection('cameraHealth').get();
+      const newestByNetwork = new Map();
+      for (const hd of health.docs) {
+        const network = hd.id.includes('__') ? hd.id.split('__')[0] : hd.id;
+        const h = hd.data();
+        const t = h.updatedAt ? Date.parse(h.updatedAt) : (h.reportDate ? Date.parse(h.reportDate) : 0);
+        if (t > (newestByNetwork.get(network) || 0)) newestByNetwork.set(network, t);
+      }
+      for (const [network, newest] of newestByNetwork) {
+        if (!newest) continue;
+        const age = now - newest;
+        if (age <= NOREPORT_NET_MS || age > RETIRED_MS) continue;
+        const statusRef = db.doc(`cameraStatus/${network}`);
+        const statusSnap = await statusRef.get();
+        const map = (statusSnap.exists && statusSnap.get('lastNotifiedAt')) || {};
+        const prev = map.noreportNetwork ? Date.parse(map.noreportNetwork) : 0;
+        if (prev && now - prev < NOREPORT_NET_MS) continue;
+        const days = Math.max(1, Math.floor(age / 86400000));
+        const body = `Camera network ${network} · No daily status report ingested in ${days} day${days > 1 ? 's' : ''} — check the CuddeLink home camera and report email delivery.`;
+        await notifyAllOperators({ type: 'camera', title: 'Camera report missing', body, relatedId: network, tag: `cam-noreport-net-${network}` });
+        await statusRef.set({ lastNotifiedAt: { noreportNetwork: new Date(now).toISOString() } }, { merge: true });
+      }
     } catch (err) {
       console.error('cameraWatchdog failed', err);
     }
     return null;
   });
 
+/* M16: only one mailbox ingest at a time. The scheduled poll and a manual
+ * Sync Now both fetch "unread" messages and mark them read only afterwards,
+ * so overlapping runs process the same emails twice (duplicate photos and a
+ * second pass at the alert dedup). Short transactional lease; a crashed
+ * run's lease expires after 10 minutes. */
+const INGEST_LEASE_MS = 10 * 60 * 1000;
+async function acquireIngestLease() {
+  const ref = db.doc('org/ingestLock');
+  return db.runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    const heldAt = (snap.exists && snap.get('leasedAt')) ? Date.parse(snap.get('leasedAt')) : 0;
+    if (heldAt && Date.now() - heldAt < INGEST_LEASE_MS) return false;
+    tx.set(ref, { leasedAt: new Date().toISOString() }, { merge: true });
+    return true;
+  });
+}
+async function releaseIngestLease() {
+  await db.doc('org/ingestLock').set({ leasedAt: null }, { merge: true }).catch(() => {});
+}
+
+async function ingestMailbox() {
+  /* true = acquired, false = a peer holds it, null = lease check errored
+     (proceed for availability, but never release a lease we don't hold). */
+  let leased = null;
+  try { leased = await acquireIngestLease(); }
+  catch (e) { console.error('ingest lease failed — proceeding without a lease', e); }
+  if (leased === false) return { busy: true, at: new Date().toISOString() };
+  try {
+    return await ingestMailboxUnlocked();
+  } finally {
+    if (leased === true) await releaseIngestLease();
+  }
+}
+
 /* Poll the mailbox: process unread photo + report messages, mark them read.
  * Every successful run stamps org/graphStatus.lastPollAt so the app's Cameras
  * module can show a Graph connection indicator (Item 7). */
-async function ingestMailbox() {
+async function ingestMailboxUnlocked() {
   let data;
   try {
     data = await graphGet(

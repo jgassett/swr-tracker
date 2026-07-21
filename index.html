@@ -1252,6 +1252,12 @@
 
     /* ---- Simplified location entry (Item 15) ---- */
     .loc-options { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+    /* M20: the toggle showing an open sub-panel (address entry / map). */
+    .loc-options .map-btn.active {
+      background: rgba(196,119,42,0.12);
+      box-shadow: inset 0 0 0 2px var(--amber);
+      border-radius: 8px;
+    }
     .loc-entry { display: flex; gap: 8px; margin-top: 8px; align-items: stretch; }
     .loc-entry input { flex: 1; min-width: 0; }
     .loc-entry .map-btn { flex-shrink: 0; }
@@ -2364,7 +2370,7 @@
           </div>
           <div class="form-group">
             <label for="pr-cameraId">Camera ID</label>
-            <input type="text" id="pr-cameraId" autocomplete="off" placeholder="e.g. HAYDENT1">
+            <input type="text" id="pr-cameraId" autocomplete="off" placeholder="e.g. HAYDENT1" maxlength="10">
             <div class="hint" id="pr-cameraId-hint">Last name + first initial + property number, max 10 characters (e.g. HaydenT1). Auto-suggested; single-property customers keep their existing Camera ID.</div>
           </div>
           <div class="btn-row">
@@ -2427,7 +2433,7 @@
         <h3 class="form-section">Trap Camera</h3>
         <div class="form-group">
           <label for="c-cameraId">Camera ID<span class="opt">(optional)</span></label>
-          <input type="text" id="c-cameraId" autocomplete="off" placeholder="e.g. WILSONR">
+          <input type="text" id="c-cameraId" autocomplete="off" placeholder="e.g. WILSONR" maxlength="10">
           <div class="hint">The camera's email subject key (last name + first initial, no spaces). Set this to link that camera's photos &amp; health to this customer.</div>
         </div>
 
@@ -3097,7 +3103,7 @@ import {
 import {
   initializeFirestore, persistentLocalCache, persistentMultipleTabManager,
   collection, doc, getDoc, getDocs, addDoc, setDoc, deleteDoc,
-  query, orderBy, onSnapshot, writeBatch, arrayUnion, arrayRemove, updateDoc, collectionGroup, where
+  query, orderBy, onSnapshot, writeBatch, arrayUnion, arrayRemove, updateDoc, collectionGroup, where, runTransaction
 } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import {
   getStorage, ref as storageRef, uploadBytes, getDownloadURL
@@ -4404,7 +4410,9 @@ function subscribeToPesticideRecords() {
     renderLandingCounts();
     if (appMode === 'pesticide' && !$('#app').classList.contains('hidden')) {
       renderDashboard();
-      renderRecords();
+      /* M1: this is the pesticide stream — refresh the pesticide list (and
+         its unlinked banner), not the trap one. */
+      renderPesticideRecordsList();
     }
   }, (err) => console.error('Pesticide records subscription error', err));
 }
@@ -5229,7 +5237,7 @@ function fieldGroups() {
   const groups = new Map();
   const get = (key) => {
     const k = key || '(unknown)';
-    if (!groups.has(k)) groups.set(k, { key: k, name: null, customerId: null, devices: [], photos: [] });
+    if (!groups.has(k)) groups.set(k, { key: k, name: null, customerId: null, propertyId: null, devices: [], photos: [] });
     return groups.get(k);
   };
   for (const h of cachedCameraHealth) {
@@ -5237,6 +5245,7 @@ function fieldGroups() {
     g.devices.push(h);
     if (!g.name && h.customerName) g.name = h.customerName;
     if (!g.customerId && h.customerId) g.customerId = h.customerId;
+    if (!g.propertyId && h.propertyId) g.propertyId = h.propertyId;   /* M25 */
   }
   for (const p of cachedCameraPhotos) {
     if (p.archived) continue;   /* cleared from the app; file persists in Storage */
@@ -5244,6 +5253,7 @@ function fieldGroups() {
     g.photos.push(p);
     if (!g.name && p.customerName) g.name = p.customerName;
     if (!g.customerId && p.customerId) g.customerId = p.customerId;
+    if (!g.propertyId && p.propertyId) g.propertyId = p.propertyId;   /* M25 */
   }
   const arr = [...groups.values()];
   for (const g of arr) {
@@ -5253,7 +5263,7 @@ function fieldGroups() {
        the customer was activated / its Camera ID was set. */
     if (!g.customerId) {
       const r = resolveCustomerForKey(g.key);
-      if (r) { g.customerId = r.id; g.name = r.name; }
+      if (r) { g.customerId = r.id; g.name = r.name; g.propertyId = r.propertyId || g.propertyId || null; }
     }
   }
   arr.sort((a, b) => (STATUS_RANK[a.status] - STATUS_RANK[b.status]) || (a.name || a.key).localeCompare(b.name || b.key));
@@ -5272,7 +5282,13 @@ function renderFieldDashboard() {
     return;
   }
   root.innerHTML = groups.map((g) => {
-    const label = g.name ? escapeHtml(g.name) : `${escapeHtml(g.key)}<span class="unlinked">unlinked</span>`;
+    /* M25: a customer with several camera sites used to render as identical
+       rows — surface the property nickname so the operator can tell them
+       apart. */
+    const gProp = g.propertyId ? cachedProperties.find((p) => p.id === g.propertyId) : null;
+    const label = g.name
+      ? escapeHtml([g.name, gProp && gProp.siteNickname].filter(Boolean).join(' · '))
+      : `${escapeHtml(g.key)}<span class="unlinked">unlinked</span>`;
     const nCam = g.devices.length, nPh = g.photos.length;
     return `<div class="field-row" data-field-key="${escapeHtml(g.key)}">
       <span class="cam-dot ${g.status}"></span>
@@ -5351,21 +5367,49 @@ function renderFieldDetail(key) {
 
 async function assignFieldPhotos(key, customer) {
   if (!customer || !customer.id) return;   /* M6: nothing to link to */
+  /* M25: cameras are assigned per property when the customer has them —
+     the customer-level link contradicted the hub's own guidance and left
+     multi-site customers ambiguous. Sole property → auto-target; several →
+     numbered pick (Cancel keeps the customer-level link). */
+  const props = propertiesForCustomer(customer.id);
+  let targetProp = null;
+  if (props.length === 1) {
+    targetProp = props[0];
+  } else if (props.length > 1) {
+    const menu = props.map((p, i) => `${i + 1}. ${p.siteNickname || p.address || p.id}`).join('\n');
+    const pick = prompt(`${customer.name || 'This customer'} has ${props.length} properties — which site is camera ${key} at?\n${menu}\n\nEnter a number (Cancel links at the customer level):`, '1');
+    if (pick !== null) {
+      const idx = parseInt(pick, 10) - 1;
+      if (!Number.isFinite(idx) || idx < 0 || idx >= props.length) {
+        toast('Not a valid property number — camera not linked', 'error');
+        return;
+      }
+      targetProp = props[idx];
+    }
+  }
+  const whereLabel = targetProp
+    ? `${customer.name || 'customer'} · ${targetProp.siteNickname || targetProp.address || 'property'}`
+    : (customer.name || 'this customer');
   const ok = await confirmDialog('Link camera?',
-    `Link camera ID ${key} to ${customer.name || 'this customer'}? This will reassign all matching photos.`);
+    `Link camera ID ${key} to ${whereLabel}? This will reassign all matching photos.`);
   if (!ok) return;
   try {
-    /* Persist the link on the customer (Camera ID) so this camera's current AND
-       future photos + health resolve to them automatically. */
-    await writeWithRetry(() => setDoc(doc(fbDb, 'customers', customer.id),
-      { cameraId: key, updatedAt: new Date().toISOString() }, { merge: true }));
+    /* Persist the link (property Camera IDs win at resolve time) so this
+       camera's current AND future photos + health resolve automatically. */
+    if (targetProp) {
+      await writeWithRetry(() => setDoc(doc(fbDb, 'customers', customer.id, 'properties', targetProp.id),
+        { cameraId: key, updatedAt: new Date().toISOString() }, { merge: true }));
+    } else {
+      await writeWithRetry(() => setDoc(doc(fbDb, 'customers', customer.id),
+        { cameraId: key, updatedAt: new Date().toISOString() }, { merge: true }));
+    }
     /* Also stamp any already-ingested unassigned photos for this key. */
     const photos = cachedCameraPhotos.filter((p) => (p.customerKey || '(unknown)') === key && !p.customerId);
     for (const p of photos) {
       await writeWithRetry(() => setDoc(doc(fbDb, 'cameraPhotos', p.id),
-        { customerId: customer.id, customerName: customer.name || '', assigned: true, updatedAt: new Date().toISOString() }, { merge: true }));
+        { customerId: customer.id, customerName: customer.name || '', propertyId: targetProp ? targetProp.id : null, assigned: true, updatedAt: new Date().toISOString() }, { merge: true }));
     }
-    toast(`Linked ${key} → ${customer.name}`);
+    toast(`Linked ${key} → ${whereLabel}`);
   } catch (err) {
     toast('Assign failed: ' + ((err && err.message) || 'error'), 'error');
   }
@@ -5413,6 +5457,13 @@ async function handleFieldSync() {
   try {
     const res = await httpsCallable(fbFunctions, 'fieldSyncNow')();
     const r = (res && res.data) || {};
+    /* M16: the server holds an ingest lease — a manual sync that overlaps
+       the scheduled poll reports busy instead of double-processing. */
+    if (r.busy) {
+      if (status) { status.style.color = 'var(--ink-soft)'; status.textContent = 'A sync is already running — try again in a minute.'; }
+      toast('Sync already in progress');
+      return;
+    }
     if (status) {
       status.style.color = 'var(--green-deep)';
       status.innerHTML = `✓ Processed ${r.processed ?? 0} email${r.processed === 1 ? '' : 's'} — ` +
@@ -5895,6 +5946,8 @@ function resetForm() {
     const el = document.getElementById(id);
     if (el) el.classList.add('hidden');
   });
+  document.querySelectorAll('#trapLocOptions .active, #releaseLocOptions .active')
+    .forEach((b) => b.classList.remove('active'));
   setCountyFallback('trapCountyGroup', false);
   setCountyFallback('releaseCountyGroup', false);
   const relAddr = $('#f-release-address'); if (relAddr) relAddr.value = '';
@@ -6065,6 +6118,17 @@ function readForm() {
     ? (silentReleaseCounty || r.releaseCounty || null)
     : null;
   r.releaseAddress = ($('#f-release-address') && $('#f-release-address').value.trim()) || '';
+  /* M18: only the county was gated — a euthanized/excluded record kept the
+     pre-filled release date (and any release pin dropped before the
+     disposal was changed). Null every release field on non-release
+     disposals, matching the county. */
+  if (!RELEASE_DISPOSALS.has(r.disposalMethod)) {
+    r.releaseDate = null;
+    r.releaseCounty = null;
+    r.releaseLat = null;
+    r.releaseLng = null;
+    r.releaseAddress = '';
+  }
   if (editingId) r.id = editingId;
   return r;
 }
@@ -6250,7 +6314,8 @@ async function confirmSave() {
       dateCollected: rec.dateCollected, trapper: rec.trapper,
       clientName: rec.clientName, clientPhone: rec.clientPhone,
       clientEmail: rec.clientEmail, clientBusiness: rec.clientBusiness,
-      address: rec.address, county: rec.county
+      address: rec.address, county: rec.county,
+      customerId: rec.customerId, propertyId: rec.propertyId   /* M26 */
     };
     closeSheet();
     resetForm();
@@ -6278,6 +6343,10 @@ async function confirmSave() {
       $('#f-client-business').value = carry.clientBusiness || '';
       $('#f-address').value = carry.address || '';
       if (carry.county) selectCountyIfKnown('f-county', carry.county);
+      /* M26: the reset nulled the customer/property link — the second record
+         of a multi-catch visit must not save customerId/propertyId as null. */
+      trapFormCustomerId = carry.customerId || null;
+      populatePropertySelect('f-property', 'f-property-group', carry.customerId || null, carry.propertyId || '');
       return;
     }
     recordsViewMode = 'list';
@@ -6453,12 +6522,16 @@ async function forwardGeocode(query) {
     const street = [a.house_number, a.road].filter(Boolean).join(' ').trim();
     const city = a.city || a.town || a.village || a.hamlet || '';
     const county = (a.county || '').replace(/\s+County$/i, '').trim();
+    /* Compose the same clean form reverseGeocode produces — since M17 this
+       result is stored directly for typed addresses, and Nominatim's
+       display_name is far too verbose for the record/KDFWR export. */
+    const composed = [street, city, a.state || '', a.postcode || ''].filter(Boolean).join(', ');
     return {
       lat: parseFloat(r.lat),
       lng: parseFloat(r.lon),
       streetAddress: street, city, county,
       state: a.state || '',
-      formattedAddress: r.display_name
+      formattedAddress: composed || r.display_name
     };
   } catch (e) { return null; }
 }
@@ -6603,14 +6676,16 @@ function setCountyFallback(groupId, show) {
   if (sel) { if (show) sel.removeAttribute('tabindex'); else sel.setAttribute('tabindex', '-1'); }
 }
 
-async function handleTrapLocationChange(lat, lng, source) {
+async function handleTrapLocationChange(lat, lng, source, geoHint) {
   $('#f-trap-lat').value = lat;
   $('#f-trap-lng').value = lng;
   const hint = $('#addressValidationHint');
   setMapStatus('trapMapStatus', 'Looking up address…', 'working');
   if (hint) { hint.textContent = 'Looking up address…'; hint.className = 'hint working'; }
   try {
-    const geo = await reverseGeocode(lat, lng);
+    /* M17: a forward-geocoded result passed in skips the redundant reverse
+       lookup for typed addresses. */
+    const geo = geoHint || await reverseGeocode(lat, lng);
     const addressInput = $('#f-address');
     if (geo.formattedAddress) {
       addressInput.value = geo.formattedAddress;
@@ -6652,14 +6727,15 @@ async function handleTrapLocationChange(lat, lng, source) {
    whichever of the three location methods the operator uses. */
 let silentPaCounty = null;
 
-async function handlePesticideLocationChange(lat, lng, source) {
+async function handlePesticideLocationChange(lat, lng, source, geoHint) {
   $('#pa-site-lat').value = lat;
   $('#pa-site-lng').value = lng;
   const paHint = $('#paLocHint');
   setMapStatus('paMapStatus', 'Looking up address…', 'working');
   if (paHint) { paHint.textContent = 'Looking up address…'; paHint.className = 'hint working'; }
   try {
-    const geo = await reverseGeocode(lat, lng);
+    /* M17: reuse the forward-geocode result for typed addresses. */
+    const geo = geoHint || await reverseGeocode(lat, lng);
     const formatted = geo.formattedAddress || '';
     const useTreatment = (document.querySelector('input[name="pa-different-site"]:checked') || {}).value === 'yes';
     const force = source === 'locate';
@@ -6725,14 +6801,15 @@ async function handlePesticideLocationChange(lat, lng, source) {
    synced quietly so validation and the KDFWR export keep working. */
 let silentReleaseCounty = null;
 
-async function handleReleaseLocationChange(lat, lng, source) {
+async function handleReleaseLocationChange(lat, lng, source, geoHint) {
   $('#f-release-lat').value = lat;
   $('#f-release-lng').value = lng;
   const hint = $('#releaseLocHint');
   setMapStatus('releaseMapStatus', 'Looking up location…', 'working');
   if (hint) { hint.textContent = 'Looking up location…'; hint.className = 'hint working'; }
   try {
-    const geo = await reverseGeocode(lat, lng);
+    /* M17: reuse the forward-geocode result for typed addresses. */
+    const geo = geoHint || await reverseGeocode(lat, lng);
     const display = $('#f-release-address');
     if (display) display.value = geo.formattedAddress || `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
     /* County of release: extracted and stored silently (Items 10 & 15). */
@@ -6776,17 +6853,17 @@ function parseCoordsInput(text) {
 
 /* Set a site location from coordinates: run the site handler and sync the
    pin if that site's map is open. */
-function setTrapLocation(lat, lng) {
+function setTrapLocation(lat, lng, geo) {
   if (trapMapInstance) trapMapInstance.setLocation(lat, lng, { notify: false });
-  handleTrapLocationChange(lat, lng, 'locate');
+  handleTrapLocationChange(lat, lng, 'locate', geo);
 }
-function setReleaseLocation(lat, lng) {
+function setReleaseLocation(lat, lng, geo) {
   if (releaseMapInstance) releaseMapInstance.setLocation(lat, lng, { notify: false });
-  handleReleaseLocationChange(lat, lng, 'locate');
+  handleReleaseLocationChange(lat, lng, 'locate', geo);
 }
-function setPaLocation(lat, lng) {
+function setPaLocation(lat, lng, geo) {
   if (paMapInstance) paMapInstance.setLocation(lat, lng, { notify: false });
-  handlePesticideLocationChange(lat, lng, 'locate');
+  handlePesticideLocationChange(lat, lng, 'locate', geo);
 }
 
 /* Option A: device GPS → the site handler (reverse geocode + silent county). */
@@ -6816,7 +6893,11 @@ async function resolveTypedLocation(text, applyFn, hintEl) {
     if (hintEl) { hintEl.textContent = '⚠ Address not found — check the spelling or use the map.'; hintEl.className = 'hint error'; }
     return false;
   }
-  applyFn(geo.lat, geo.lng);
+  /* M17: the forward geocode already carries street/city/county — hand it
+     to the site handler so it doesn't immediately reverse-geocode the same
+     point (double Nominatim hit, and a failure there used to overwrite the
+     typed address with raw coordinates). */
+  applyFn(geo.lat, geo.lng, geo);
   return true;
 }
 
@@ -7799,6 +7880,7 @@ function resetPesticideRecordForm() {
     const el = document.getElementById(id);
     if (el) el.classList.add('hidden');
   });
+  document.querySelectorAll('#paLocOptions .active').forEach((b) => b.classList.remove('active'));
   setCountyFallback('paCountyGroup', false);
   const paIn = $('#paLocInput'); if (paIn) paIn.value = '';
   const paHint = $('#paLocHint'); if (paHint) { paHint.textContent = ''; paHint.className = 'hint'; }
@@ -8151,7 +8233,8 @@ async function confirmSavePesticide() {
       appliedAt: rec.appliedAt, applicator: rec.applicator,
       clientName: rec.clientName, clientPhone: rec.clientPhone,
       clientEmail: rec.clientEmail, clientAddress: rec.clientAddress,
-      clientCity: rec.clientCity, clientZip: rec.clientZip
+      clientCity: rec.clientCity, clientZip: rec.clientZip,
+      customerId: rec.customerId, propertyId: rec.propertyId   /* M26 */
     };
     closeSheet();
     resetPesticideRecordForm();
@@ -8174,6 +8257,10 @@ async function confirmSavePesticide() {
       $('#pa-client-address').value = carry.clientAddress || '';
       $('#pa-client-city').value = carry.clientCity || '';
       $('#pa-client-zip').value = carry.clientZip || '';
+      /* M26: the reset nulled the customer/property link — the second record
+         of the same visit must not save customerId/propertyId as null. */
+      pestFormCustomerId = carry.customerId || null;
+      populatePropertySelect('pa-property', 'pa-property-group', carry.customerId || null, carry.propertyId || '');
       return;
     }
     setView('records');
@@ -9239,9 +9326,7 @@ function jobLifeStatusClass(s) {
   if (s === 'Cancelled') return 'cancelled';
   return 'lead';
 }
-function generateJobNumber() {
-  const year = new Date().getFullYear();
-  const prefix = `SWR-JOB-${year}-`;
+function localMaxJobSequence(prefix) {
   let max = 0;
   for (const j of cachedJobs) {
     if (j.jobNumber && j.jobNumber.startsWith(prefix)) {
@@ -9249,7 +9334,12 @@ function generateJobNumber() {
       if (Number.isFinite(n) && n > max) max = n;
     }
   }
-  let candidate = `${prefix}${String(max + 1).padStart(3, '0')}`;
+  return max;
+}
+function generateJobNumber() {
+  const year = new Date().getFullYear();
+  const prefix = `SWR-JOB-${year}-`;
+  let candidate = `${prefix}${String(localMaxJobSequence(prefix) + 1).padStart(3, '0')}`;
   /* Offline, the local cache can be hours stale — another device may mint
      the same sequence number. A short random suffix keeps offline-created
      numbers unique; the readable sequence (and the parseInt scan above)
@@ -9258,6 +9348,36 @@ function generateJobNumber() {
     candidate += '-' + Math.random().toString(36).slice(2, 4).toUpperCase();
   }
   return candidate;
+}
+/* M4: online, sequence numbers are reserved atomically on a counter doc so
+   two devices creating jobs at the same moment can't mint the same number.
+   The counter self-seeds from (and never falls below) the local cache max,
+   so it coexists with numbers minted before it existed. Offline or if the
+   transaction is slow/rejected (e.g. rules not yet deployed), fall back to
+   the local scheme above. */
+async function allocateJobNumber() {
+  const year = new Date().getFullYear();
+  const prefix = `SWR-JOB-${year}-`;
+  if (navigator.onLine) {
+    try {
+      const seq = await Promise.race([
+        runTransaction(fbDb, async (tx) => {
+          const ref = doc(fbDb, 'counters', 'jobNumber');
+          const snap = await tx.get(ref);
+          const data = snap.exists() ? snap.data() : null;
+          const stored = (data && data.year === year && Number.isFinite(data.next)) ? data.next : 1;
+          const next = Math.max(stored, localMaxJobSequence(prefix) + 1);
+          tx.set(ref, { year, next: next + 1 }, { merge: true });
+          return next;
+        }),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('counter timeout')), 6000))
+      ]);
+      return `${prefix}${String(seq).padStart(3, '0')}`;
+    } catch (e) {
+      console.warn('Job number counter unavailable — using local fallback', e);
+    }
+  }
+  return generateJobNumber();
 }
 /* Transitions are controlled: forward through the progression, or Cancelled
    from any stage. Never backward, never out of Cancelled. */
@@ -9302,6 +9422,17 @@ function advanceJobStatusAuto(jobId, atLeast) {
   const want = JOB_STATUSES.indexOf(atLeast);
   if (j.status === 'Cancelled' || want < 0 || cur >= want) return;
   setDoc(doc(fbDb, 'jobs', jobId), { status: atLeast, updatedAt: new Date().toISOString() }, { merge: true })
+    .then(() => {
+      /* M14: teammates get the same in-app notice as manual transitions —
+         chained on the write so a rules-rejected stale advance doesn't
+         announce a transition that never happened. */
+      notifyOperatorsInApp(j.assignedOperators || [], {
+        type: 'job',
+        title: `${j.jobNumber || 'Job'} → ${atLeast}`,
+        body: [j.customerName, `moved to ${atLeast}`].filter(Boolean).join(' · '),
+        relatedId: jobId
+      });
+    })
     .catch((err) => console.error('auto status advance failed', err));
 }
 
@@ -9419,24 +9550,31 @@ function populateLifecycleJobEstimates(customerId) {
     o.textContent = `${e.estimateNumber || 'Estimate'} · ${fmtUSD(e.grandTotal)} · ${e.status || ''}`;
     sel.appendChild(o);
   }
-  if (cur && list.some((e) => e.id === cur)) sel.value = cur;
-}
-
-/* Property selector (populated for real in Item 9; hidden until the customer
-   has property records). */
-function populateLifecycleJobProperties(customerId) {
-  const group = $('#lj-property-group');
-  const sel = $('#lj-property');
-  if (!group || !sel) return;
-  sel.innerHTML = '<option value="">— main address —</option>';
-  const props = customerId ? propertiesForCustomer(customerId) : [];
-  group.classList.toggle('hidden', !props.length);
-  for (const p of props) {
+  /* M2: keep the job's currently linked estimate selectable even when it's
+     missing from the filtered list (stale cache, corrected customer) —
+     otherwise assigning it falls back to "— none yet —" and the next save
+     silently writes estimateId: null. */
+  const linkedId = editingLifecycleJobId
+    ? ((cachedJobs.find((j) => j.id === editingLifecycleJobId) || {}).estimateId || null)
+    : null;
+  if (linkedId && !list.some((e) => e.id === linkedId)) {
+    const est = cachedEstimates.find((e) => e.id === linkedId);
     const o = document.createElement('option');
-    o.value = p.id;
-    o.textContent = [p.siteNickname, p.address].filter(Boolean).join(' · ') || p.id;
+    o.value = linkedId;
+    o.textContent = est
+      ? `${est.estimateNumber || 'Estimate'} · ${fmtUSD(est.grandTotal)} · ${est.status || ''}`
+      : `[linked estimate] ${linkedId}`;
     sel.appendChild(o);
   }
+  if (cur && Array.from(sel.options).some((o) => o.value === cur)) sel.value = cur;
+}
+
+/* Property selector for the job form. M22: delegates to the orphan-aware
+   populate so editing a job can never silently drop its saved propertyId
+   (the old local version left the select on "— main address —" when the
+   property was missing from the cache, and the next save wrote null). */
+function populateLifecycleJobProperties(customerId, selectedId) {
+  populatePropertySelect('lj-property', 'lj-property-group', customerId, selectedId || '');
 }
 /* Item 9 replaces this stub with the real properties cache. */
 function propertiesForCustomer(customerId) {
@@ -9505,8 +9643,10 @@ async function handleSaveLifecycleJob(e) {
     } else {
       const est = cachedEstimates.find((x) => x.id === estimateId);
       const ref = doc(jobsCol());
+      /* M4: reserved atomically when online; local fallback offline. */
+      const jobNumber = await allocateJobNumber();
       const data = {
-        jobNumber: generateJobNumber(),
+        jobNumber,
         customerId: lifecycleJobCustomer.id,
         customerName: lifecycleJobCustomer.name,
         propertyId,
@@ -9558,8 +9698,7 @@ function editLifecycleJob(id) {
   if (hint) { hint.textContent = j.customerName ? `✓ ${j.customerName}` : ''; hint.className = j.customerName ? 'hint success' : 'hint'; }
   populateLifecycleJobEstimates(j.customerId);
   $('#lj-estimate').value = j.estimateId || '';
-  populateLifecycleJobProperties(j.customerId);
-  if ($('#lj-property')) $('#lj-property').value = j.propertyId || '';
+  populateLifecycleJobProperties(j.customerId, j.propertyId || '');
   renderOperatorChecks('lj-operators', j.assignedOperators || []);
   $('#lj-notes').value = j.notes || '';
   $('#saveLifecycleJobBtn').textContent = 'Save Changes';
@@ -9632,12 +9771,19 @@ function renderLifecycleJobDetail(id) {
   const canInvoice = (j.status === 'Pending Close') && !j.qbInvoiceId;
   const canMarkPaid = (j.status === 'Invoiced') || (!!j.qbInvoiceId && j.status !== 'Paid' && j.status !== 'Cancelled');
 
-  let actions = `<button class="btn btn-amber" data-ljob-action="schedule-visit" data-id="${escapeHtml(id)}">Schedule Next Visit</button>`;
+  /* M3: closed jobs (Paid/Cancelled) must not accept new visits or work
+     logs — only estimate creation was gated before. */
+  let actions = '';
+  if (jobIsActive(j)) {
+    actions += `<button class="btn btn-amber" data-ljob-action="schedule-visit" data-id="${escapeHtml(id)}">Schedule Next Visit</button>`;
+  }
   if (!j.estimateId && j.status !== 'Cancelled' && j.status !== 'Paid') {
     actions += `<button class="btn btn-primary" data-ljob-action="create-estimate" data-id="${escapeHtml(id)}">Create Estimate</button>`;
   }
-  actions += `<button class="btn btn-primary" data-ljob-action="log-trap" data-id="${escapeHtml(id)}">Log Trap Activity</button>`;
-  actions += `<button class="btn btn-primary" data-ljob-action="log-pesticide" data-id="${escapeHtml(id)}">Log Pesticide Activity</button>`;
+  if (jobIsActive(j)) {
+    actions += `<button class="btn btn-primary" data-ljob-action="log-trap" data-id="${escapeHtml(id)}">Log Trap Activity</button>`;
+    actions += `<button class="btn btn-primary" data-ljob-action="log-pesticide" data-id="${escapeHtml(id)}">Log Pesticide Activity</button>`;
+  }
   actions += `<button class="btn btn-ghost" data-ljob-action="assign-camera" data-id="${escapeHtml(id)}">Assign Camera</button>`;
   if (canClose) actions += `<button class="btn btn-ghost" data-ljob-action="pending-close" data-id="${escapeHtml(id)}">Mark Pending Close</button>`;
   if (canInvoice) actions += `<button class="btn btn-amber" data-ljob-action="generate-invoice" data-id="${escapeHtml(id)}">Generate Invoice</button>`;
@@ -9970,8 +10116,11 @@ function createRebaitAppointments(jobId, template, intervalDays, endDate, dates)
   if (!dates.length) return 0;
   const now = new Date().toISOString();
   const batch = writeBatch(fbDb);
+  let firstRef = null;
   dates.forEach((date, i) => {
-    batch.set(doc(collection(fbDb, 'jobs', jobId, 'appointments')), {
+    const ref = doc(collection(fbDb, 'jobs', jobId, 'appointments'));
+    if (!firstRef) firstRef = ref;
+    batch.set(ref, {
       jobId,
       jobNumber: template.jobNumber || '',
       customerId: template.customerId || null,
@@ -9996,10 +10145,17 @@ function createRebaitAppointments(jobId, template, intervalDays, endDate, dates)
       updatedAt: now
     });
   });
-  batch.commit().catch((err) => {
-    console.error('Rebait series write failed', err);
-    toast('Rebait check visits failed to sync: ' + ((err && err.message) || 'error'), 'error');
-  });
+  batch.commit()
+    .then(() =>
+      /* M9: one summary push/feed notice to the assigned operators for the
+         generated series (server callable, chained on the committed batch
+         so the function finds the appointment doc). */
+      httpsCallable(fbFunctions, 'notifyJobAssignment')({ jobId, appointmentId: firstRef.id })
+        .catch((err) => console.warn('rebait series notify failed', err)))
+    .catch((err) => {
+      console.error('Rebait series write failed', err);
+      toast('Rebait check visits failed to sync: ' + ((err && err.message) || 'error'), 'error');
+    });
   return dates.length;
 }
 
@@ -10020,6 +10176,12 @@ function confirmRebaitSequence() {
   let d = addDaysISO(start, interval);
   while (d <= endDate) { dates.push(d); d = addDaysISO(d, interval); }
   if (!dates.length) { toast('That interval and end date produce no check visits', 'error'); return; }
+  /* M8: everything goes in one atomic batch (limit 500 writes) — cap the
+     series well below that instead of failing with a generic error. */
+  if (dates.length > 100) {
+    toast(`That's ${dates.length} check visits — the cap is 100. Use a shorter window or a longer interval.`, 'error');
+    return;
+  }
   rebaitCreateInFlight = true;
   try {
     createRebaitAppointments(ctx.jobId, ctx.appt, interval, endDate, dates);
@@ -10042,7 +10204,11 @@ async function promptRebaitExtension(jobId, appt) {
   const curEnd = appt.rebaitEndDate || appt.scheduledDate || todayISO();
   const newEnd = addDaysISO(curEnd, 30);
   const dates = [];
-  let d = addDaysISO(curEnd, 1);   /* starts the day after the current end date */
+  /* M10: keep the cadence anchored to the completed visit — stepping from
+     the end date + 1 could put the first extension check the very next day
+     after a visit that landed on the end date itself. */
+  let d = addDaysISO(appt.scheduledDate || curEnd, interval);
+  while (d <= curEnd) d = addDaysISO(d, interval);
   while (d <= newEnd) { dates.push(d); d = addDaysISO(d, interval); }
   if (!dates.length) return;
   try {
@@ -10084,6 +10250,15 @@ function renderAppointmentDetail(jobId, apptId) {
     actions += `<button class="btn btn-primary" data-appt-action="complete" data-id="${escapeHtml(apptId)}" data-job="${escapeHtml(jobId)}">Mark Completed</button>`;
     actions += `<button class="btn btn-ghost" data-appt-action="edit" data-id="${escapeHtml(apptId)}" data-job="${escapeHtml(jobId)}">Edit</button>`;
     actions += `<button class="btn btn-ghost" data-appt-action="cancel" data-id="${escapeHtml(apptId)}" data-job="${escapeHtml(jobId)}">Cancel Appointment</button>`;
+  }
+  /* M7: the rebait prompt used to be reachable only in the seconds after
+     saving a Trap Set — a stray backdrop tap killed it for good. Offer it
+     again from the Trap Set appointment itself while the job has no
+     scheduled rebait series. */
+  const hasRebaitSeries = cachedAppointments.some((x) =>
+    x.jobId === jobId && x.visitType === 'Check Visit / Rebait' && x.status === 'Scheduled');
+  if (a.visitType === 'Trap Set / Treatment' && a.status !== 'Cancelled' && !hasRebaitSeries) {
+    actions += `<button class="btn btn-amber" data-appt-action="rebait-schedule" data-id="${escapeHtml(apptId)}" data-job="${escapeHtml(jobId)}">Set Up Rebait Schedule</button>`;
   }
   actions += `<button class="btn btn-ghost" data-appt-action="open-job" data-job="${escapeHtml(jobId)}">Open Job ${escapeHtml(a.jobNumber || '')}</button>`;
   box.innerHTML = `
@@ -10128,6 +10303,7 @@ async function completeAppointment(jobId, apptId) {
 
 async function cancelAppointment(jobId, apptId) {
   if (!confirm('Cancel this appointment?')) return;
+  const a = cachedAppointments.find((x) => x.id === apptId && x.jobId === jobId);
   /* Optimistic write (H1): fire without awaiting so it works offline. */
   writeWithRetry(() => setDoc(doc(fbDb, 'jobs', jobId, 'appointments', apptId), {
     status: 'Cancelled', updatedAt: new Date().toISOString()
@@ -10136,6 +10312,23 @@ async function cancelAppointment(jobId, apptId) {
     toast('Cancellation failed to sync: ' + ((err && err.message) || 'error'), 'error');
   });
   toast('Appointment cancelled');
+  /* M11: cancelling the flagged last rebait check would silently kill the
+     30-day extension prompt — pass the flag to the latest remaining
+     scheduled check of the series. */
+  if (a && a.isLastRebait) {
+    const heir = cachedAppointments
+      .filter((x) => x.jobId === jobId && x.id !== apptId &&
+        x.visitType === 'Check Visit / Rebait' && x.status === 'Scheduled')
+      .sort((p, q) => (q.scheduledDate || '').localeCompare(p.scheduledDate || ''))[0];
+    if (heir) {
+      setDoc(doc(fbDb, 'jobs', jobId, 'appointments', heir.id), {
+        isLastRebait: true,
+        rebaitIntervalDays: heir.rebaitIntervalDays || a.rebaitIntervalDays || null,
+        rebaitEndDate: heir.rebaitEndDate || a.rebaitEndDate || null,
+        updatedAt: new Date().toISOString()
+      }, { merge: true }).catch((err) => console.error('rebait flag hand-off failed', err));
+    }
+  }
 }
 
 function editAppointment(jobId, apptId) {
@@ -10290,10 +10483,12 @@ async function createJobForLegacyGroup(index) {
   try {
     const now = new Date().toISOString();
     const ref = doc(jobsCol());
+    /* M4: reserved atomically when online; local fallback offline. */
+    const jobNumber = await allocateJobNumber();
     /* Optimistic writes (H1): fire the job create and the record links
        without awaiting so the flow works offline. */
     writeWithRetry(() => setDoc(ref, {
-      jobNumber: generateJobNumber(),
+      jobNumber,
       customerId: match ? match.id : null,
       customerName: match ? match.name : g.name,
       propertyId: null,
@@ -10422,8 +10617,13 @@ function renderCustomerList() {
   }
 }
 
+/* M6: serialized snapshot of the customer form as loaded — used by the
+   Action Hub to warn before discarding unsaved edits. */
+let customerFormBaseline = null;
+
 function resetCustomerForm() {
   editingCustomerId = null;
+  customerFormBaseline = null;
   $('#customerForm').reset();
   $('#c-id').value = '';
   $('#c-active').checked = false;
@@ -10466,6 +10666,9 @@ function loadCustomerIntoForm(c) {
   if (hub) hub.classList.remove('hidden');
   closePropertyEditor();
   renderPropertiesCard();
+  /* M6: snapshot the just-loaded form so hub actions can detect unsaved
+     edits before navigating away. */
+  customerFormBaseline = JSON.stringify(readCustomerForm());
 }
 
 /* =====================================================================
@@ -10477,9 +10680,18 @@ function customerActiveJobs(customerId) {
   return lifecycleJobs().filter((j) => j.customerId === customerId && jobIsActive(j));
 }
 
-function handleHubAction(action) {
+async function handleHubAction(action) {
   const c = cachedCustomers.find((x) => x.id === editingCustomerId);
   if (!c) return;
+  /* M6: hub actions navigate away from the customer form — unsaved edits
+     would be silently discarded (and the destination pre-fills from the
+     saved doc, not the edited fields). Confirm before leaving. */
+  if (customerFormBaseline && JSON.stringify(readCustomerForm()) !== customerFormBaseline) {
+    const ok = await confirmDialog('Discard unsaved edits?',
+      `You have unsaved changes to ${c.name || 'this customer'}. Leaving now discards them (the next screen uses the saved customer).`,
+      { okText: 'Discard & Continue' });
+    if (!ok) return;
+  }
   const needsJob = action === 'schedule-appointment' || action === 'log-trap' || action === 'log-pesticide' || action === 'create-estimate';
   if (!needsJob) { hubProceed(action, null, c); return; }
   const jobs = customerActiveJobs(c.id);
@@ -10525,6 +10737,14 @@ function hubProceed(action, jobId, c) {
   } else if (action === 'create-estimate') {
     const j = jobId ? cachedJobs.find((x) => x.id === jobId) : null;
     if (j && !j.estimateId) { startEstimateForJob(jobId); return; }
+    if (j && j.estimateId) {
+      /* M5: one estimate per job — open the existing estimate instead of
+         silently building a new, unlinked one. */
+      toast('This job already has an estimate — one estimate per job. Opening it.');
+      setAppModeQuiet('pricing');
+      showEstimateDetail(j.estimateId);
+      return;
+    }
     editingEstimateId = null;
     setAppModeQuiet('pricing');
     setView('add');                  /* resets the builder… */
@@ -10641,12 +10861,33 @@ function closePropertyEditor() {
   $('#propertyForm').classList.add('hidden');
 }
 
+/* M23: Camera IDs route photos — a duplicate across properties/customers
+   silently sends every photo to an arbitrary one of the owners. */
+function cameraIdOwner(cameraId, opts = {}) {
+  const K = (cameraId || '').trim().toUpperCase();
+  if (!K) return null;
+  const prop = cachedProperties.find((p) =>
+    p.id !== (opts.excludePropertyId || null) &&
+    (p.cameraId || '').trim().toUpperCase() === K);
+  if (prop) {
+    const owner = cachedCustomers.find((c) => c.id === prop.customerId);
+    return { label: [owner && owner.name, prop.siteNickname].filter(Boolean).join(' · ') || 'another property' };
+  }
+  const cust = cachedCustomers.find((c) =>
+    c.id !== (opts.excludeCustomerId || null) &&
+    (c.cameraId || '').trim().toUpperCase() === K);
+  if (cust) return { label: cust.name || 'another customer' };
+  return null;
+}
+
 async function saveProperty() {
   if (!editingCustomerId) return;
   const siteNickname = $('#pr-nickname').value.trim();
   if (!siteNickname) { toast('Give the property a site nickname', 'error'); $('#pr-nickname').focus(); return; }
   const cameraId = $('#pr-cameraId').value.trim().toUpperCase().replace(/\s+/g, '');
   if (cameraId && cameraId.length > 10) { toast('Camera ID can\'t exceed 10 characters', 'error'); $('#pr-cameraId').focus(); return; }
+  const dup = cameraIdOwner(cameraId, { excludePropertyId: editingPropertyId });
+  if (dup) { toast(`Camera ID ${cameraId} is already assigned to ${dup.label}`, 'error'); $('#pr-cameraId').focus(); return; }
   const data = {
     customerId: editingCustomerId,
     siteNickname,
@@ -10701,14 +10942,18 @@ function populatePropertySelect(selectId, groupId, customerId, selectedId) {
     const orphan = cachedProperties.find((p) => p.id === selectedId);
     if (orphan) props = [...props, orphan];
   }
-  group.classList.toggle('hidden', !props.length);
+  /* M21: the selector is a disambiguator — show it only when the customer
+     actually has MULTIPLE sites (the labels already say so). */
+  group.classList.toggle('hidden', props.length < 2);
   for (const p of props) {
     const o = document.createElement('option');
     o.value = p.id;
     o.textContent = [p.siteNickname, p.address].filter(Boolean).join(' · ') || p.id;
     sel.appendChild(o);
   }
-  sel.value = selectedId || '';
+  /* M21: a single-property customer's sole property is auto-linked —
+     server-side photo routing already stamps it, so records must agree. */
+  sel.value = selectedId || (props.length === 1 ? props[0].id : '');
 }
 
 function editCustomer(id) {
@@ -10741,6 +10986,11 @@ async function handleSaveCustomer(e) {
   const c = readCustomerForm();
   if (!c.name) { toast('Customer name is required', 'error'); $('#c-name').focus(); return; }
   if (c.email && !EMAIL_RE.test(c.email)) { toast('Enter a valid email or leave it blank', 'error'); return; }
+  /* M24: same 10-char Camera ID rule as the property editor. */
+  if (c.cameraId && c.cameraId.length > 10) { toast('Camera ID can\'t exceed 10 characters', 'error'); $('#c-cameraId').focus(); return; }
+  /* M23: no duplicate Camera IDs across customers/properties. */
+  const camDup = cameraIdOwner(c.cameraId, { excludeCustomerId: editingCustomerId });
+  if (camDup) { toast(`Camera ID ${c.cameraId} is already assigned to ${camDup.label}`, 'error'); $('#c-cameraId').focus(); return; }
   if (c.phone && !isValidPhone(c.phone)) { toast('Phone must be 10 digits or left blank', 'error'); $('#c-phone').focus(); return; }
   if (c.zip && !/^\d{5}(-\d{4})?$/.test(c.zip)) { toast('ZIP must be 5 digits (or ZIP+4) or left blank', 'error'); $('#c-zip').focus(); return; }
   if (c.phone) c.phone = formatPhone(c.phone);
@@ -11213,29 +11463,20 @@ async function init() {
     const v = e.target.value.trim();
     if (v) e.target.value = titleCaseName(v);
   });
-  $('#pa-fetch-weather').addEventListener('click', fetchPesticideWeather);
-  /* Item 15 parity (H3): three-option location entry for the treatment site. */
-  $('#paLocOptions').addEventListener('click', (e) => {
-    const btn = e.target.closest('[data-pa-loc]');
-    if (!btn) return;
-    const mode = btn.dataset.paLoc;
-    if (mode === 'gps') {
-      locateAndSet(setPaLocation, $('#paLocHint'));
-    } else if (mode === 'address') {
-      const entry = $('#paLocEntry');
-      entry.classList.toggle('hidden');
-      if (!entry.classList.contains('hidden')) $('#paLocInput').focus();
-    } else if (mode === 'map') {
-      const g = $('#paMapGroup');
-      g.classList.toggle('hidden');
-      if (!g.classList.contains('hidden')) setTimeout(ensurePaMap, 60);
+  /* M27: mirror of the trap-form guard — overtyping the client name clears
+     the stale customer/property link. */
+  $('#pa-client-name').addEventListener('input', (e) => {
+    if (!pestFormCustomerId) return;
+    const c = cachedCustomers.find((x) => x.id === pestFormCustomerId);
+    if (!c || e.target.value.trim().toLowerCase() !== (c.name || '').trim().toLowerCase()) {
+      pestFormCustomerId = null;
+      populatePropertySelect('pa-property', 'pa-property-group', null, '');
     }
   });
-  $('#paLocGo').addEventListener('click', () =>
-    resolveTypedLocation($('#paLocInput').value, setPaLocation, $('#paLocHint')));
-  $('#paLocInput').addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') { e.preventDefault(); $('#paLocGo').click(); }
-  });
+  $('#pa-fetch-weather').addEventListener('click', fetchPesticideWeather);
+  /* Item 15 / H3: the three-option location pickers (trap, release, and
+     pesticide treatment site) are wired together further down via
+     wireLocOptions(). */
   $('#pa-client-address').addEventListener('blur', () => setTimeout(validatePesticideAddressOnBlur, 150));
   $('#pa-client-address').addEventListener('input', () => {
     const status = $('#pa-address-status');
@@ -11275,6 +11516,18 @@ async function init() {
     const v = e.target.value.trim();
     if (v) e.target.value = titleCaseName(v);
   });
+  /* M27: typing a different client over a picked customer must clear the
+     stale customerId (and that customer's property options) — otherwise the
+     record saves against the wrong customer. The job form already does this
+     at save time. */
+  $('#f-client-name').addEventListener('input', (e) => {
+    if (!trapFormCustomerId) return;
+    const c = cachedCustomers.find((x) => x.id === trapFormCustomerId);
+    if (!c || e.target.value.trim().toLowerCase() !== (c.name || '').trim().toLowerCase()) {
+      trapFormCustomerId = null;
+      populatePropertySelect('f-property', 'f-property-group', null, '');
+    }
+  });
   $('#f-client-business').addEventListener('blur', (e) => {
     const v = e.target.value.trim();
     if (v) e.target.value = titleCaseName(v);
@@ -11291,48 +11544,69 @@ async function init() {
   $('#photoRemoveBtn').addEventListener('click', handlePhotoRemove);
   $('#photoInput').addEventListener('change', handlePhotoSelected);
 
-  /* ---- Item 15: three-option location entry (capture + release) ---- */
-  $('#trapLocOptions').addEventListener('click', (e) => {
-    const btn = e.target.closest('[data-trap-loc]');
-    if (!btn) return;
-    const mode = btn.dataset.trapLoc;
-    if (mode === 'gps') {
-      locateAndSet(setTrapLocation, $('#addressValidationHint'));
-    } else if (mode === 'address') {
-      const entry = $('#trapLocEntry');
-      entry.classList.toggle('hidden');
-      if (!entry.classList.contains('hidden')) $('#trapLocInput').focus();
-    } else if (mode === 'map') {
-      const g = $('#trapMapGroup');
-      g.classList.toggle('hidden');
-      if (!g.classList.contains('hidden')) setTimeout(ensureTrapMap, 60);
-    }
+  /* ---- Item 15: three-option location entry (capture + release + pesticide
+     treatment site). One wiring for all three pickers, with (M20) mutually
+     exclusive sub-panels + an active state on the toggles, and (M19) the
+     map pre-seeded from coordinates already captured via GPS/address. */
+  function wireLocOptions(cfg) {
+    const opts = $(cfg.options);
+    const syncActive = () => {
+      const addrBtn = opts.querySelector(`[${cfg.attr}="address"]`);
+      const mapBtn = opts.querySelector(`[${cfg.attr}="map"]`);
+      if (addrBtn) addrBtn.classList.toggle('active', !$(cfg.entry).classList.contains('hidden'));
+      if (mapBtn) mapBtn.classList.toggle('active', !$(cfg.mapGroup).classList.contains('hidden'));
+    };
+    opts.addEventListener('click', (e) => {
+      const btn = e.target.closest(`[${cfg.attr}]`);
+      if (!btn) return;
+      const mode = btn.getAttribute(cfg.attr);
+      const entry = $(cfg.entry), mapGroup = $(cfg.mapGroup);
+      if (mode === 'gps') {
+        locateAndSet(cfg.apply, $(cfg.hint));
+      } else if (mode === 'address') {
+        entry.classList.toggle('hidden');
+        if (!entry.classList.contains('hidden')) {
+          mapGroup.classList.add('hidden');
+          $(cfg.input).focus();
+        }
+      } else if (mode === 'map') {
+        mapGroup.classList.toggle('hidden');
+        if (!mapGroup.classList.contains('hidden')) {
+          entry.classList.add('hidden');
+          setTimeout(() => {
+            const m = cfg.ensure();
+            /* M19: verifying a GPS/address fix must not show an empty
+               state-wide map (one stray tap would replace the fix). */
+            const lat = parseFloat($(cfg.lat).value), lng = parseFloat($(cfg.lng).value);
+            if (m && Number.isFinite(lat) && Number.isFinite(lng)) m.setLocation(lat, lng, { notify: false });
+          }, 60);
+        }
+      }
+      syncActive();
+    });
+    $(cfg.go).addEventListener('click', () =>
+      resolveTypedLocation($(cfg.input).value, cfg.apply, $(cfg.hint)));
+    $(cfg.input).addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); $(cfg.go).click(); }
+    });
+  }
+  wireLocOptions({
+    options: '#trapLocOptions', attr: 'data-trap-loc', entry: '#trapLocEntry',
+    mapGroup: '#trapMapGroup', input: '#trapLocInput', go: '#trapLocGo',
+    hint: '#addressValidationHint', lat: '#f-trap-lat', lng: '#f-trap-lng',
+    apply: setTrapLocation, ensure: ensureTrapMap
   });
-  $('#trapLocGo').addEventListener('click', () =>
-    resolveTypedLocation($('#trapLocInput').value, setTrapLocation, $('#addressValidationHint')));
-  $('#trapLocInput').addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') { e.preventDefault(); $('#trapLocGo').click(); }
+  wireLocOptions({
+    options: '#releaseLocOptions', attr: 'data-release-loc', entry: '#releaseLocEntry',
+    mapGroup: '#releaseMapGroup', input: '#releaseLocInput', go: '#releaseLocGo',
+    hint: '#releaseLocHint', lat: '#f-release-lat', lng: '#f-release-lng',
+    apply: setReleaseLocation, ensure: ensureReleaseMap
   });
-  $('#releaseLocOptions').addEventListener('click', (e) => {
-    const btn = e.target.closest('[data-release-loc]');
-    if (!btn) return;
-    const mode = btn.dataset.releaseLoc;
-    if (mode === 'gps') {
-      locateAndSet(setReleaseLocation, $('#releaseLocHint'));
-    } else if (mode === 'address') {
-      const entry = $('#releaseLocEntry');
-      entry.classList.toggle('hidden');
-      if (!entry.classList.contains('hidden')) $('#releaseLocInput').focus();
-    } else if (mode === 'map') {
-      const g = $('#releaseMapGroup');
-      g.classList.toggle('hidden');
-      if (!g.classList.contains('hidden')) setTimeout(ensureReleaseMap, 60);
-    }
-  });
-  $('#releaseLocGo').addEventListener('click', () =>
-    resolveTypedLocation($('#releaseLocInput').value, setReleaseLocation, $('#releaseLocHint')));
-  $('#releaseLocInput').addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') { e.preventDefault(); $('#releaseLocGo').click(); }
+  wireLocOptions({
+    options: '#paLocOptions', attr: 'data-pa-loc', entry: '#paLocEntry',
+    mapGroup: '#paMapGroup', input: '#paLocInput', go: '#paLocGo',
+    hint: '#paLocHint', lat: '#pa-site-lat', lng: '#pa-site-lng',
+    apply: setPaLocation, ensure: ensurePaMap
   });
 
 
@@ -11609,6 +11883,10 @@ async function init() {
     else if (action === 'complete') completeAppointment(jobId, id);
     else if (action === 'cancel') cancelAppointment(jobId, id);
     else if (action === 'edit') editAppointment(jobId, id);
+    else if (action === 'rebait-schedule') {
+      const appt = cachedAppointments.find((x) => x.id === id && x.jobId === jobId);
+      if (appt) promptRebaitSequence(jobId, appt);
+    }
     else if (action === 'open-job') openLifecycleJob(jobId);
   });
 
