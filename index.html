@@ -1017,6 +1017,16 @@
       color: var(--amber-soft);
       margin-top: 3px;
     }
+    /* Workflow summary badges on the Jobs module card: one small pill per
+       active lifecycle status, reusing the status-pill palette. */
+    .mode-card .mode-badges {
+      display: flex; flex-wrap: wrap; justify-content: center; gap: 4px;
+      margin-top: 2px; width: 100%;
+    }
+    .mode-card .mode-badges.hidden { display: none; }
+    .mode-card .mode-badges .status-pill.mode-badge {
+      margin-left: 0; padding: 1px 7px; font-size: 9.5px; white-space: nowrap;
+    }
 
     /* ===== Module label in header (replaces the trap/pest toggle) ===== */
     .module-label {
@@ -1199,6 +1209,14 @@
     .job-progress .jp-step.done { background: #DDEAD8; color: var(--released); }
     .job-progress .jp-step.current { background: var(--amber); color: #fff; }
     .job-progress.cancelled .jp-step { opacity: 0.45; }
+    .next-step-card { border-left: 4px solid var(--amber); }
+    .next-step-card.complete { border-left-color: var(--released); }
+    .next-step-card .ns-label {
+      font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
+      color: var(--amber); margin-bottom: 4px;
+    }
+    .next-step-card.complete .ns-label { color: var(--released); }
+    .next-step-card .ns-text { font-size: 15px; color: var(--green-deep); font-weight: 600; }
     .job-lc-row { display: flex; align-items: center; gap: 12px; padding: 12px 4px; border-bottom: 1px solid var(--rule, #e2e8e2); cursor: pointer; }
     .job-lc-row:last-child { border-bottom: none; }
     .job-lc-row .jl-body { flex: 1; min-width: 0; }
@@ -1583,6 +1601,7 @@
         <div class="mode-desc">Every engagement from lead to paid</div>
       </div>
       <div class="mode-count"><span class="n" id="landingJobsCount">0</span><span class="lbl">active</span></div>
+      <div class="mode-badges hidden" id="landingJobsBadges"></div>
     </button>
     <button type="button" class="mode-card" data-mode="field">
       <div class="icon-circle">
@@ -4130,6 +4149,20 @@ function renderLandingCounts() {
   set('landingFieldCount', alertN);
   set('landingScheduleCount', upcomingN);
   set('landingJobsCount', activeJobsN);
+  /* Workflow summary on the Jobs card: one badge per active status with at
+     least one job in it (e.g. "2 Active · 1 Pending Close"). */
+  const badgesEl = $('#landingJobsBadges');
+  if (badgesEl) {
+    const active = lifecycleJobs().filter(jobIsActive);
+    const badges = JOB_STATUSES
+      .filter((s) => s !== 'Paid')
+      .map((s) => ({ s, n: active.filter((j) => (j.status || 'Lead') === s).length }))
+      .filter((x) => x.n > 0)
+      .map((x) => `<span class="status-pill mode-badge ${jobLifeStatusClass(x.s)}">${x.n} ${escapeHtml(x.s)}</span>`)
+      .join('');
+    badgesEl.innerHTML = badges;
+    badgesEl.classList.toggle('hidden', !badges);
+  }
   const banner = $('#cameraAlertBanner');
   if (banner) {
     if (alertN > 0) {
@@ -9732,6 +9765,27 @@ function jobProgressHtml(j) {
   return `<div class="job-progress${cancelled ? ' cancelled' : ''}">${steps}</div>`;
 }
 
+/* Recommended operator action for each lifecycle status, shown on the Job
+   Detail screen just below the progress indicator. */
+const JOB_NEXT_STEPS = {
+  'Lead': 'Create an estimate or schedule an appointment.',
+  'Estimated': 'Awaiting customer approval — or schedule when ready.',
+  'Scheduled': 'Complete the first site visit and log activity.',
+  'Active': 'Check camera activity and log trap records.',
+  'Pending Close': 'Pick up equipment and generate invoice in QuickBooks.',
+  'Invoiced': 'Awaiting payment.',
+  'Paid': 'Job complete.'
+};
+function jobNextStepHtml(j) {
+  const step = JOB_NEXT_STEPS[j.status || 'Lead'];
+  if (!step) return ''; /* Cancelled: no recommended action */
+  const done = j.status === 'Paid';
+  return `<div class="card next-step-card${done ? ' complete' : ''}">
+    <div class="ns-label">${done ? 'Status' : 'Next Step'}</div>
+    <div class="ns-text">${escapeHtml(step)}</div>
+  </div>`;
+}
+
 function renderLifecycleJobDetail(id) {
   const j = cachedJobs.find((x) => x.id === id);
   const box = $('#lifecycleJobDetail');
@@ -9802,6 +9856,7 @@ function renderLifecycleJobDetail(id) {
         : cust && cust.address ? `<div class="muted" style="font-size:13px;">${escapeHtml([cust.address, cust.city].filter(Boolean).join(', '))}</div>` : ''}
       ${jobProgressHtml(j)}
     </div>
+    ${jobNextStepHtml(j)}
     <div class="card">
       <div class="job-stat-row"><span class="jsk">Estimate</span><span class="jsv">${est ? `${escapeHtml(est.estimateNumber || '')} · ${fmtUSD(est.grandTotal)} <button class="link-like" data-ljob-action="view-estimate" data-est="${escapeHtml(est.id)}">view</button>` : '—'}</span></div>
       <div class="job-stat-row"><span class="jsk">Trap records</span><span class="jsv">${trapRecs.length ? `${trapRecs.length} <button class="link-like" data-ljob-action="view-traps" data-id="${escapeHtml(id)}">view</button>` : '0'}</span></div>
