@@ -2891,6 +2891,21 @@
       <div id="assignLegacyView"></div>
     </section>
 
+    <!-- CLOSE OUT (Item 7, v2-patch-2): standalone sixth workflow step —
+         Active jobs whose tasks are all Completed or Cancelled. -->
+    <section id="view-closeout" class="view hidden">
+      <div class="greeting">
+        <h2>Close Out</h2>
+        <p class="muted">Active jobs with every task completed or cancelled — ready to close.</p>
+      </div>
+      <div class="card" id="closeoutList"></div>
+    </section>
+
+    <!-- CLOSE OUT: confirmation screen -->
+    <section id="view-closeout-confirm" class="view hidden">
+      <div id="closeoutConfirm"></div>
+    </section>
+
     <!-- NOTIFICATIONS (Items 12 & 17) — reachable from any screen via the bell -->
     <section id="view-notifications" class="view hidden">
       <div class="row" style="margin-bottom:12px;">
@@ -3234,6 +3249,7 @@
     <div class="fg-step"><span>📅</span><div><strong>Schedule</strong> — see the crew's tasks on the calendar and mark them complete as you go.</div></div>
     <div class="fg-step"><span>📷</span><div><strong>Monitoring</strong> — check trap site cameras and respond to activity and health alerts.</div></div>
     <div class="fg-step"><span>🦝</span><div><strong>Trapping Records</strong> — log every capture, release, or treatment while you're on site. Estimates live in the bottom bar; invoicing happens in QuickBooks Online.</div></div>
+    <div class="fg-step"><span>✅</span><div><strong>Close Out</strong> — once every task on a job is completed or cancelled, close it out here. The job moves to Complete and billing continues in QuickBooks.</div></div>
   </div>
   <button type="button" class="btn btn-primary" id="flowSheetCloseBtn" style="margin-top:16px;width:100%;">Got it</button>
 </div>
@@ -4183,7 +4199,7 @@ function showSignInScreen() {
 let modeSelected = false;
 
 /* Item 17 (v2-patch-1): Field Work -> Trapping Records; Cameras -> Monitoring. */
-const MODULE_LABELS = { trap: 'Trapping Records', pesticide: 'Pesticides', customer: 'Customers', pricing: 'Pricing', jobs: 'Jobs', field: 'Monitoring', schedule: 'Schedule', settings: 'Settings', allrecords: 'All Records' };
+const MODULE_LABELS = { trap: 'Trapping Records', pesticide: 'Pesticides', customer: 'Customers', pricing: 'Pricing', jobs: 'Jobs', field: 'Monitoring', schedule: 'Schedule', settings: 'Settings', allrecords: 'All Records', closeout: 'Close Out' };
 
 /* Bottom-nav layout per module. The main landing page has no bottom nav.
    `fab: true` renders the raised amber add button (kept from the original
@@ -4233,6 +4249,11 @@ const NAV_CONFIGS = {
   /* Items 8 & 9: unified records view opened from the landing banner. */
   allrecords: [
     { view: 'menu', label: 'Menu', icon: 'menu' }
+  ],
+  /* Item 7 (v2-patch-2): Close Out workflow step. */
+  closeout: [
+    { view: 'menu', label: 'Menu', icon: 'menu' },
+    { view: 'dashboard', label: 'Close Out', icon: 'check' }
   ]
 };
 
@@ -4246,7 +4267,8 @@ const NAV_ICONS = {
   users: '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
   camera: '<path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/>',
   calendar: '<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>',
-  briefcase: '<rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/>'
+  briefcase: '<rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/>',
+  check: '<path d="M20 6 9 17l-5-5"/>'
 };
 
 function renderBottomNav() {
@@ -4281,14 +4303,16 @@ function showModePicker() { showLanding(); }
  * phones, 4 from 768px up. Tapping a cell opens its module; steps where
  * an in-progress job currently sits are highlighted amber.
  * ===================================================================== */
-/* Item 14 (v2-patch-1): five steps, this exact order, no step numbers.
+/* Item 14 (v2-patch-1): no step numbers on cells; straight down arrows.
+   Item 7 (v2-patch-2): six steps — Close Out is the standalone final step.
    (Item 10: Estimates live in the bottom banner only; Item 13: no Invoice.) */
 const FLOW_STEPS = [
   { n: 1, icon: '👥', label: 'Customer',         desc: 'Find or add a client',     mode: 'customer' },
   { n: 2, icon: '💼', label: 'Jobs',             desc: 'Manage jobs and tasks',    mode: 'jobs' },
   { n: 3, icon: '📅', label: 'Schedule',         desc: 'View and complete tasks',  mode: 'schedule' },
   { n: 4, icon: '📷', label: 'Monitoring',       desc: 'Check trap site cameras',  mode: 'field' },
-  { n: 5, icon: '🦝', label: 'Trapping Records', desc: 'Log field activity',       mode: 'trap' }
+  { n: 5, icon: '🦝', label: 'Trapping Records', desc: 'Log field activity',       mode: 'trap' },
+  { n: 6, icon: '✅', label: 'Close Out',        desc: 'Complete finished jobs',   mode: 'closeout' }
 ];
 /* Job status → the workflow step where that job's next action lives. Any
    open job highlights the Jobs step; scheduled work highlights Schedule. */
@@ -4304,6 +4328,8 @@ function activeFlowSteps() {
     const step = JOB_STATUS_TO_FLOW_STEP[j.status || 'Lead'];
     if (step) steps.add(step);
   });
+  /* Item 7 (v2-patch-2): highlight Close Out when jobs are ready to close. */
+  if (jobsReadyToClose().length) steps.add(6);
   return steps;
 }
 
@@ -5950,6 +5976,7 @@ const VIEW_TITLES = {
   jobs:      { dashboard: 'Jobs', add: 'New Job', 'job-detail': 'Job', 'add-appointment': 'New Appointment', 'appointment-detail': 'Appointment', 'add-task': 'New Task', 'task-detail': 'Task' },
   field:     { dashboard: 'Monitoring' },
   schedule:  { dashboard: 'Calendar', add: 'New Task', 'edit-legacy': 'Edit Job', 'add-appointment': 'New Appointment', 'appointment-detail': 'Appointment', 'job-detail': 'Job', 'add-task': 'New Task', 'task-detail': 'Task' },
+  closeout:  { dashboard: 'Close Out', 'closeout-confirm': 'Confirm Close Out' },
   settings:  { dashboard: 'Settings', 'assign-legacy': 'Assign Legacy Records',
                'settings-contractors': 'Contractors', 'settings-business': 'Business Info',
                'settings-licensing': 'Licensing & Permits', 'settings-pesticide-db': 'Pesticide Database' },
@@ -5971,7 +5998,7 @@ function setView(name, opts) {
    'customers','add-customer','pricing','estimate-builder','estimate-detail',
    'field','field-detail','schedule','add-schedule','schedule-detail',
    'jobs','add-job','job-detail','add-appointment','appointment-detail','assign-legacy',
-   'add-task','task-detail',
+   'add-task','task-detail','closeout','closeout-confirm',
    'settings-contractors','settings-business','settings-licensing','settings-pesticide-db',
    'notifications','records-all','export','settings'].forEach((v) => {
     const el = document.getElementById(`view-${v}`);
@@ -5998,6 +6025,8 @@ function setView(name, opts) {
     if (name === 'add') actualId = 'add-job';
   } else if (appMode === 'settings') {
     if (name === 'dashboard') actualId = 'settings';
+  } else if (appMode === 'closeout') {
+    if (name === 'dashboard') actualId = 'closeout';   /* Item 7 */
   } else if (appMode === 'allrecords') {
     if (name === 'dashboard') actualId = 'records-all';   /* Items 8 & 9 */
   }
@@ -6049,6 +6078,9 @@ function setView(name, opts) {
   }
   if (appMode === 'allrecords' && name === 'dashboard') {
     renderAllRecords();   /* Items 8 & 9 */
+  }
+  if (appMode === 'closeout' && name === 'dashboard') {
+    renderCloseoutList();   /* Item 7 (v2-patch-2) */
   }
   if (name === 'assign-legacy') renderAssignLegacyView();
   if (name === 'settings' || appMode === 'settings') renderSettingsStatus();
@@ -9268,6 +9300,7 @@ function subscribeToJobs() {
     if (!$('#app').classList.contains('hidden')) {
       if (appMode === 'jobs' && !$('#view-jobs').classList.contains('hidden')) renderJobsList();
       if (currentLifecycleJobId && !$('#view-job-detail').classList.contains('hidden')) renderLifecycleJobDetail(currentLifecycleJobId);
+      if (appMode === 'closeout' && !$('#view-closeout').classList.contains('hidden')) renderCloseoutList();   /* Item 7 */
     }
   }, (err) => {
     console.error('Jobs subscription error', err);
@@ -10138,6 +10171,7 @@ function subscribeToTasks() {
       if (appMode === 'jobs' && !$('#view-jobs').classList.contains('hidden')) renderJobsList();
       if (currentLifecycleJobId && !$('#view-job-detail').classList.contains('hidden')) renderLifecycleJobDetail(currentLifecycleJobId);
       if (currentTaskId && !$('#view-task-detail').classList.contains('hidden')) renderTaskDetail(currentTaskId);
+      if (appMode === 'closeout' && !$('#view-closeout').classList.contains('hidden')) renderCloseoutList();   /* Item 7 */
     }
   }, (err) => {
     console.error('Tasks subscription error', err);
@@ -10529,10 +10563,8 @@ function renderTaskModelJobDetail(j) {
     actions += `<button class="btn btn-primary" data-ljob-action="log-pesticide" data-id="${escapeHtml(id)}">Log Pesticide Activity</button>`;
   }
   actions += `<button class="btn btn-ghost" data-ljob-action="edit" data-id="${escapeHtml(id)}">Edit Job</button>`;
-  /* Close Out: Jon/admin only — marks Complete and cancels remaining open tasks. */
-  if (isOpen && isAdmin()) {
-    actions += `<button class="btn btn-amber" data-ljob-action="close-out" data-id="${escapeHtml(id)}">Close Out Job</button>`;
-  }
+  /* Item 7 (v2-patch-2): the Close Out button moved off this screen — jobs
+     are closed through the dedicated Close Out workflow step. */
   if (isOpen) actions += `<button class="btn btn-danger" data-ljob-action="cancel-job" data-id="${escapeHtml(id)}" style="margin-top:10px;">Cancel Job</button>`;
 
   box.innerHTML = `
@@ -11013,24 +11045,116 @@ function cancelOpenTasksForJob(jobId) {
   return open.length;
 }
 
-/* Close Out (admin only): job → Complete, remaining open tasks cancelled,
-   rebait schedule switched off (Item 19). Jon marks a job Complete manually
-   after it's billed and paid in QBO. */
-async function closeOutJob(id) {
+/* =====================================================================
+ * Close Out (Item 7, v2-patch-2) — standalone sixth workflow step.
+ * ---------------------------------------------------------------------
+ * The module lists Active task-model jobs whose tasks are all Completed
+ * or Cancelled. Tapping Close Out opens a confirmation screen with the
+ * job summary; confirming marks the job Complete, cancels any remaining
+ * open tasks, switches the rebait schedule off, and records the closeout
+ * date + operator. After closeout the job moves to the Paid/Invoiced
+ * tracking flow in QuickBooks — no invoice is generated in the app.
+ * (Replaces the Close Out button that lived on the Job Detail screen.)
+ * ===================================================================== */
+let currentCloseoutJobId = null;
+
+/* Ready to close: Active, task-model, and no task still Open. Legacy
+   lifecycle jobs keep their own Pending Close → Paid flow on Job Detail. */
+function jobsReadyToClose() {
+  return lifecycleJobs().filter((j) =>
+    isTaskModelJob(j)
+    && (j.status || 'Active') === 'Active'
+    && tasksForJob(j.id).every((t) => t.status !== 'Open'));
+}
+
+function renderCloseoutList() {
+  const el = $('#closeoutList');
+  if (!el) return;
+  const list = jobsReadyToClose().slice().sort((a, b) =>
+    (b.startDate || b.createdAt || '').localeCompare(a.startDate || a.createdAt || ''));
+  if (!list.length) {
+    el.innerHTML = '<div style="padding:16px;color:var(--ink-soft);">Nothing ready to close. A job appears here once it is Active and every one of its tasks is Completed or Cancelled.</div>';
+    return;
+  }
+  el.innerHTML = list.map((j) => `<div class="job-lc-row" style="cursor:default;">
+      <div class="jl-body">
+        <div class="jl-num">${escapeHtml(j.jobNumber || '')}${j.jobType ? ` <span class="job-type-tag">${escapeHtml(j.jobType)}</span>` : ''}</div>
+        <div class="jl-name">${escapeHtml(j.customerName || '(no customer)')}</div>
+        <div class="jl-meta">Started ${escapeHtml(fmtDate(j.startDate) || '—')}</div>
+      </div>
+      <button type="button" class="btn btn-amber btn-compact" data-closeout-open="${escapeHtml(j.id)}" style="flex-shrink:0;">Close Out</button>
+    </div>`).join('');
+}
+
+function openCloseoutConfirm(id) {
+  currentCloseoutJobId = id;
+  setView('closeout-confirm');
+  renderCloseoutConfirm(id);
+}
+
+function renderCloseoutConfirm(id) {
+  const box = $('#closeoutConfirm');
+  if (!box) return;
+  const j = cachedJobs.find((x) => x.id === id);
+  if (!j) {
+    box.innerHTML = '<div class="card">Job not found.</div>' +
+      '<div class="form-actions"><button class="btn btn-cancel btn-ghost" data-closeout-action="back">Back</button></div>';
+    return;
+  }
+  const est = j.estimateId ? cachedEstimates.find((e) => e.id === j.estimateId) : null;
+  const tasks = tasksForJob(id);
+  const done = tasks.filter((t) => t.status === 'Completed');
+  const open = tasks.filter((t) => t.status === 'Open');
+  const taskRows = done.length ? done.map((t) => `<div class="job-stat-row">
+      <span class="jsk">${escapeHtml(fmtShortDate(t.scheduledDate))}</span>
+      <span class="jsv">${escapeHtml(taskTypeLabel(t))}${t.completedBy ? ` · ${escapeHtml(t.completedBy)}` : ''}</span>
+    </div>`).join('') : '<div class="muted" style="padding:6px 0;">No completed tasks on this job.</div>';
+  box.innerHTML = `
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;">
+        <h3 style="margin:0;font-family:ui-monospace,'SF Mono',monospace;font-size:16px;">${escapeHtml(j.jobNumber || 'Job')}</h3>
+        <span class="status-pill ${jobLifeStatusClass(j.status)}">${escapeHtml(j.status || 'Active')}</span>
+      </div>
+      ${j.jobType ? `<div style="margin-top:8px;"><span class="job-type-tag" style="font-size:13px;padding:3px 10px;">${escapeHtml(j.jobType)}</span></div>` : ''}
+      <div style="margin-top:6px;font-weight:600;color:var(--green-deep);font-size:17px;">${escapeHtml(j.customerName || '')}</div>
+      <div class="muted" style="font-size:13px;margin-top:4px;">${escapeHtml(fmtShortDate(j.startDate))} – ${escapeHtml(fmtShortDate(j.endDate) || 'open')}</div>
+    </div>
+    <div class="card">
+      <h3 style="margin:0 0 8px;">Completed tasks</h3>
+      ${taskRows}
+      ${open.length ? `<div class="hint" style="margin-top:8px;">${open.length} still-open task${open.length === 1 ? '' : 's'} will be cancelled on closeout.</div>` : ''}
+    </div>
+    <div class="card">
+      <div class="job-stat-row"><span class="jsk">Linked estimate</span><span class="jsv">${est ? `${escapeHtml(est.estimateNumber || '')} · ${fmtUSD(est.grandTotal)}` : '—'}</span></div>
+    </div>
+    <div class="hint" style="margin:0 4px 12px;">Closing out marks the job Complete and switches off its rebait schedule. Invoicing and payment tracking continue in QuickBooks — no invoice is generated in the app.</div>
+    <div class="form-actions">
+      <button type="button" class="btn btn-amber" data-closeout-action="confirm" data-id="${escapeHtml(id)}">Confirm Close Out</button>
+      <button type="button" class="btn btn-cancel btn-ghost" data-closeout-action="back">Back</button>
+    </div>`;
+}
+
+/* The confirmation screen IS the confirmation — no extra dialog. Marks the
+   job Complete, cancels remaining open tasks, turns the rebait schedule
+   off, and stamps the closeout date + operator. */
+async function confirmCloseOutJob(id) {
   if (!isAdmin()) { toast('Only an administrator can close out a job.', 'error'); return; }
   const j = cachedJobs.find((x) => x.id === id);
-  if (!j) return;
-  const nOpen = tasksForJob(id).filter((t) => t.status === 'Open').length;
-  const ok = await confirmDialog('Close out this job?',
-    `${j.jobNumber || 'This job'} moves to Complete${nOpen ? ` and its ${nOpen} remaining open task${nOpen === 1 ? '' : 's'} will be cancelled` : ''}. Do this after the job is billed and paid in QuickBooks.`,
-    { okText: 'Close Out' });
-  if (!ok) return;
-  const moved = await setJobLifecycleStatus(id, 'Complete', { rebaitActive: false });
+  if (!j || (j.status || 'Active') !== 'Active') { toast('This job is no longer Active.', 'error'); setView('dashboard'); return; }
+  const now = new Date().toISOString();
+  const me = currentUser ? (EMAIL_TO_TRAPPER[currentUser.email.toLowerCase()] || currentUser.email) : '';
+  const moved = await setJobLifecycleStatus(id, 'Complete', {
+    rebaitActive: false,
+    closedOutAt: now,
+    closedOutBy: me,
+    closedOutByEmail: currentUser ? currentUser.email : null
+  });
   if (!moved) return;
   const jdx = cachedJobs.findIndex((x) => x.id === id);
-  if (jdx >= 0) cachedJobs[jdx] = { ...cachedJobs[jdx], status: 'Complete', rebaitActive: false };
+  if (jdx >= 0) cachedJobs[jdx] = { ...cachedJobs[jdx], status: 'Complete', rebaitActive: false, closedOutAt: now, closedOutBy: me };
   cancelOpenTasksForJob(id);
-  renderLifecycleJobDetail(id);
+  currentCloseoutJobId = null;
+  setView('dashboard');   /* back to the Close Out list */
 }
 
 async function cancelTaskModelJob(id) {
@@ -11901,6 +12025,10 @@ async function refreshAll() {
   }
   if (appMode === 'allrecords') {
     renderAllRecords();
+    return;
+  }
+  if (appMode === 'closeout') {
+    renderCloseoutList();
     return;
   }
   renderDashboard();
@@ -13374,7 +13502,7 @@ async function init() {
     }
     else if (action === 'add-contractor') addContractorToJob(id);
     else if (action === 'extend-end') extendJobEndDate(id);
-    else if (action === 'close-out') closeOutJob(id);
+    /* Item 7 (v2-patch-2): 'close-out' removed — see the Close Out module. */
     else if (action === 'cancel-job') {
       const j = cachedJobs.find((x) => x.id === id);
       if (j && isTaskModelJob(j)) { cancelTaskModelJob(id); return; }
@@ -13442,6 +13570,18 @@ async function init() {
       if (appt) promptRebaitSequence(jobId, appt);
     }
     else if (action === 'open-job') openLifecycleJob(jobId);
+  });
+
+  /* ---- Close Out wiring (Item 7, v2-patch-2) ---- */
+  $('#closeoutList').addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-closeout-open]');
+    if (btn) openCloseoutConfirm(btn.dataset.closeoutOpen);
+  });
+  $('#closeoutConfirm').addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-closeout-action]');
+    if (!btn) return;
+    if (btn.dataset.closeoutAction === 'back') { currentCloseoutJobId = null; setView('dashboard'); }
+    else if (btn.dataset.closeoutAction === 'confirm') confirmCloseOutJob(btn.dataset.id);
   });
 
   /* ---- Unified records view wiring (Items 8 & 9) ---- */
