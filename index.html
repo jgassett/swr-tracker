@@ -122,7 +122,8 @@
     /* Item 14: straight down arrow at each row break. */
     .flow-turn svg { width: 24px; height: 24px; stroke: var(--amber); fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
     .flow-help-row { text-align: center; }
-    .landing-sync { display: flex; justify-content: flex-end; margin-bottom: 6px; }
+    /* Item 6 (v2-patch-2): sync status centered just beneath the landing logo. */
+    .landing-sync { display: flex; justify-content: center; margin: -4px 0 8px; }
     .flow-help {
       background: none; border: none; color: var(--amber-soft);
       font-size: 11.5px; text-decoration: underline; white-space: nowrap;
@@ -964,6 +965,17 @@
       .sync-indicator { min-width: 0; padding: 6px; }
       .sync-indicator .label { font-size: 8px; }
     }
+    /* Item 6 (v2-patch-2): small subtle status line under the SWR branding —
+       dot + text in a row, no pill background, must not compete with the
+       header content. */
+    .brand-col { display: flex; flex-direction: column; align-items: center; gap: 1px; flex-shrink: 0; min-width: 0; }
+    .sync-indicator.under-brand {
+      flex-direction: row; gap: 4px;
+      padding: 1px 4px; min-width: 0; border-radius: 6px;
+      background: transparent; font-size: 8.5px;
+    }
+    .sync-indicator.under-brand .dot { width: 7px; height: 7px; }
+    .sync-indicator.under-brand:active { background: rgba(255,255,255,0.1); }
 
     /* View-mode toggle (List / Single) */
     .view-mode-toggle {
@@ -1600,12 +1612,13 @@
 <!-- Mode picker (after sign-in) -->
 <div id="modePicker" class="hidden">
   <div class="mode-picker-wrap">
-    <!-- Item 12 (v2-patch-1): the bell moved to the bottom banner. -->
-    <div class="landing-sync">
-      <button type="button" class="sync-indicator" id="syncIndicatorLanding" data-state="offline" title="Sync status"><span class="dot"></span><span class="label">Offline</span></button>
-    </div>
+    <!-- Item 12 (v2-patch-1): the bell moved to the bottom banner.
+         Item 6 (v2-patch-2): sync status sits beneath the SWR logo. -->
     <img class="brand-logo" src="logo.png" alt="SWR"
          onload="this.classList.add('loaded');" onerror="this.remove();">
+    <div class="landing-sync">
+      <button type="button" class="sync-indicator under-brand" id="syncIndicatorLanding" data-state="offline" title="Sync status"><span class="dot"></span><span class="label">Offline</span></button>
+    </div>
     <h1>What are you doing today?</h1>
     <div class="mode-sub">Follow the job from first call to paid invoice — tap a step to open it. Return here any time with the ← button.</div>
     <!-- Item 4 (v2-patch-2): camera alert banner removed — camera health
@@ -1642,19 +1655,27 @@
 <div id="app" class="hidden">
   <header id="appHeader">
     <div class="header-left">
-      <img class="brand-logo" src="logo.png" alt="SWR"
-           onload="this.classList.add('loaded'); this.parentElement.classList.add('has-logo');"
-           onerror="this.remove();">
-      <div class="paw-mark">
-        <svg viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
-          <g fill="#C4772A">
-            <ellipse cx="256" cy="342" rx="108" ry="90"/>
-            <ellipse cx="138" cy="228" rx="46" ry="58"/>
-            <ellipse cx="220" cy="150" rx="42" ry="56"/>
-            <ellipse cx="292" cy="150" rx="42" ry="56"/>
-            <ellipse cx="374" cy="228" rx="46" ry="58"/>
-          </g>
-        </svg>
+      <!-- Item 6 (v2-patch-2): sync status sits directly beneath the SWR
+           branding as a small subtle status line. -->
+      <div class="brand-col">
+        <img class="brand-logo" src="logo.png" alt="SWR"
+             onload="this.classList.add('loaded'); this.parentElement.classList.add('has-logo');"
+             onerror="this.remove();">
+        <div class="paw-mark">
+          <svg viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+            <g fill="#C4772A">
+              <ellipse cx="256" cy="342" rx="108" ry="90"/>
+              <ellipse cx="138" cy="228" rx="46" ry="58"/>
+              <ellipse cx="220" cy="150" rx="42" ry="56"/>
+              <ellipse cx="292" cy="150" rx="42" ry="56"/>
+              <ellipse cx="374" cy="228" rx="46" ry="58"/>
+            </g>
+          </svg>
+        </div>
+        <button type="button" class="sync-indicator under-brand" id="syncIndicator" data-state="offline" title="Tap for sync status">
+          <span class="dot"></span>
+          <span class="label">Offline</span>
+        </button>
       </div>
       <div class="titlebox">
         <h1 id="viewTitle">Dashboard</h1>
@@ -1664,12 +1685,8 @@
     <div class="header-right">
       <span id="pendingPhotoIndicator" class="hidden" style="font-size:12px;color:var(--amber,#c4772a);align-self:center;margin-right:8px;white-space:nowrap;" title="Photos waiting to upload">📷 <span class="label">pending</span></span>
       <!-- Item 12 (v2-patch-1): bell removed — Notifications live in the
-           landing page's bottom banner. Header stays clean: title +
-           online/offline indicator. -->
-      <button type="button" class="sync-indicator" id="syncIndicator" data-state="offline" title="Tap for sync status">
-        <span class="dot"></span>
-        <span class="label">Offline</span>
-      </button>
+           landing page's bottom banner. Item 6 (v2-patch-2): the sync
+           indicator moved under the SWR logo in header-left. -->
     </div>
   </header>
 
