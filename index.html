@@ -90,7 +90,8 @@
     /* Snake workflow grid — the landing page's only navigation. Rows
        alternate direction (row 1 →, row 2 ←, …); a curved arrow at each
        row's end carries the path down to the next row. Rendered by
-       renderFlowGrid(): 3 columns on phones, 4 from 768px up. */
+       renderFlowGrid(): 3 columns (3+3) on phones and tablets, all 6 in
+       one row from 1200px up. */
     .flow-grid { width: 100%; display: flex; flex-direction: column; gap: 2px; margin-top: 4px; }
     .flow-row { display: flex; align-items: stretch; gap: 2px; }
     .flow-cell {
@@ -4332,9 +4333,10 @@ function showModePicker() { showLanding(); }
 /* =====================================================================
  * Snake workflow grid — the landing page's only navigation. Steps trace
  * the job lifecycle; rows alternate direction (row 1 →, row 2 ←) with a
- * curved arrow carrying the path down at each row's end. 3 columns on
- * phones, 4 from 768px up. Tapping a cell opens its module; steps where
- * an in-progress job currently sits are highlighted amber.
+ * curved arrow carrying the path down at each row's end. 3 columns (3+3)
+ * on phones and tablets, all 6 in one row from 1200px up. Tapping a cell
+ * opens its module; steps where an in-progress job currently sits are
+ * highlighted amber.
  * ===================================================================== */
 /* Item 14 (v2-patch-1): no step numbers on cells; straight down arrows.
    Item 7 (v2-patch-2): six steps — Close Out is the standalone final step.
@@ -4353,7 +4355,7 @@ const JOB_STATUS_TO_FLOW_STEP = {
   'Lead': 2, 'Estimated': 2, 'Scheduled': 3, 'Active': 2,
   'Pending Close': 2, 'Invoiced': 2
 };
-const flowGridMedia = window.matchMedia('(min-width: 768px)');
+const flowGridMedia = window.matchMedia('(min-width: 1200px)');
 
 function activeFlowSteps() {
   const steps = new Set();
@@ -4375,7 +4377,7 @@ const FLOW_TURN_SVGS = {
 function renderFlowGrid() {
   const root = $('#flowGrid');
   if (!root) return;
-  const cols = flowGridMedia.matches ? 4 : 3;
+  const cols = flowGridMedia.matches ? 6 : 3;
   const current = activeFlowSteps();
   /* Item 14: no step numbers — icon (40px), bold label, one-line description. */
   /* Admin-only steps (Close Out) render grayed-out and inert for everyone
@@ -4422,7 +4424,7 @@ function renderFlowGrid() {
   });
   root.innerHTML = html;
 }
-/* Re-lay the snake when crossing the 3↔4 column breakpoint (e.g. iPad rotation). */
+/* Re-lay the snake when crossing the 3↔6 column breakpoint (e.g. window resize). */
 flowGridMedia.addEventListener('change', renderFlowGrid);
 
 /* 'How it works' sheet — workflow explainer opened from the landing grid. */
