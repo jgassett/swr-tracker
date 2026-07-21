@@ -1291,15 +1291,8 @@
       background: var(--cream-deep); color: var(--ink); cursor: default;
     }
 
-    /* ---- Notifications (Items 12 & 17) ---- */
-    .header-bell {
-      position: relative; background: transparent; border: none;
-      color: var(--amber-soft); padding: 8px; border-radius: 10px;
-      display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0;
-      cursor: pointer;
-    }
-    .header-bell:active { background: rgba(255,255,255,0.1); }
-    .header-bell svg { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+    /* ---- Notifications (Items 12 & 17; header bells removed v2-patch-1
+       Item 12 — the unread badge lives on the landing banner now) ---- */
     .bell-badge {
       position: absolute; top: 2px; right: 0;
       min-width: 17px; height: 17px; padding: 0 4px;
@@ -1547,11 +1540,8 @@
 <!-- Mode picker (after sign-in) -->
 <div id="modePicker" class="hidden">
   <div class="mode-picker-wrap">
-    <div class="landing-sync" style="gap:8px;">
-      <button type="button" class="header-bell" id="headerBellLanding" aria-label="Notifications" title="Notifications">
-        <svg viewBox="0 0 24 24"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
-        <span class="bell-badge hidden" id="bellBadgeLanding">0</span>
-      </button>
+    <!-- Item 12 (v2-patch-1): the bell moved to the bottom banner. -->
+    <div class="landing-sync">
       <button type="button" class="sync-indicator" id="syncIndicatorLanding" data-state="offline" title="Sync status"><span class="dot"></span><span class="label">Offline</span></button>
     </div>
     <img class="brand-logo" src="logo.png" alt="SWR"
@@ -1612,10 +1602,9 @@
     </div>
     <div class="header-right">
       <span id="pendingPhotoIndicator" class="hidden" style="font-size:12px;color:var(--amber,#c4772a);align-self:center;margin-right:8px;white-space:nowrap;" title="Photos waiting to upload">📷 <span class="label">pending</span></span>
-      <button type="button" class="header-bell" id="headerBell" aria-label="Notifications" title="Notifications">
-        <svg viewBox="0 0 24 24"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
-        <span class="bell-badge hidden" id="bellBadge">0</span>
-      </button>
+      <!-- Item 12 (v2-patch-1): bell removed — Notifications live in the
+           landing page's bottom banner. Header stays clean: title +
+           online/offline indicator. -->
       <button type="button" class="sync-indicator" id="syncIndicator" data-state="offline" title="Tap for sync status">
         <span class="dot"></span>
         <span class="label">Offline</span>
@@ -9499,7 +9488,8 @@ function unreadNotifCount() { return cachedNotifications.filter((n) => !n.read).
 
 function updateBellBadge() {
   const n = unreadNotifCount();
-  ['bellBadge', 'bellBadgeLanding', 'bannerNotifBadge'].forEach((id) => {
+  /* Item 12: the only badge left lives on the landing banner. */
+  ['bannerNotifBadge'].forEach((id) => {
     const el = document.getElementById(id);
     if (!el) return;
     el.textContent = n > 99 ? '99+' : String(n);
@@ -9622,10 +9612,8 @@ function notifyOperatorsInApp(emails, payload) {
   }
 }
 
-function openNotifications() {
-  notifReturnView = currentView === 'notifications' ? notifReturnView : currentView;
-  setView('notifications');
-}
+/* Item 12: openNotifications() removed with the header bells — the
+   Notifications page opens from the landing banner only. */
 
 /* =====================================================================
  * Job Lifecycle (v2, Item 3) — the central Job container.
@@ -12443,15 +12431,9 @@ async function init() {
   $('#forgotPinBtn').addEventListener('click', handleForgotPin);
   $('#signOutBtn').addEventListener('click', handleSignOut);
 
-  /* ---- Notifications wiring (Items 12 & 17) ---- */
-  $('#headerBell').addEventListener('click', openNotifications);
-  /* Bell on the landing page (Item 17): enter the app shell straight onto
-     the Notifications page; Back returns to the landing page. */
-  $('#headerBellLanding').addEventListener('click', () => {
-    notifReturnView = '__landing__';
-    setAppModeQuiet(appMode || 'trap');
-    setView('notifications');
-  });
+  /* ---- Notifications wiring ----
+     Item 12 (v2-patch-1): header bells removed — Notifications open from
+     the landing banner (wired in the #modePicker handler above). */
   $('#notifsBackBtn').addEventListener('click', () => {
     const back = notifReturnView;
     notifReturnView = null;
