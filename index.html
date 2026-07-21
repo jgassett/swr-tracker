@@ -6929,8 +6929,10 @@ async function forwardGeocode(query) {
  * getMapboxToken callable, which reads it from Firebase Secret Manager.
  * TODO: the Mapbox public token still needs to be added to Firebase
  * Secret Manager (MAPBOX_PUBLIC_TOKEN) — value provided separately.
- * If the token or the Mapbox API is unavailable, autocomplete silently
- * disables itself and manual entry keeps working unchanged.
+ * If the token or the Mapbox API is unavailable, that lookup silently
+ * falls back to manual entry and the token fetch is retried on the next
+ * keystroke — a transient failure never disables autocomplete for the
+ * whole session.
  * ===================================================================== */
 const MAPBOX_GEOCODE_BASE = 'https://api.mapbox.com/geocoding/v5/mapbox.places';
 const MAPBOX_PROXIMITY = '-84.5,37.8';   /* longitude,latitude — central KY */
@@ -6943,10 +6945,14 @@ function ensureMapboxToken() {
     mapboxTokenPromise = httpsCallable(fbFunctions, 'getMapboxToken')()
       .then((res) => {
         mapboxToken = (res && res.data && res.data.token) || null;
+        /* No token in the response: clear the cached promise so the next
+           lookup retries instead of disabling autocomplete for the session. */
+        if (!mapboxToken) mapboxTokenPromise = null;
         return mapboxToken;
       })
       .catch((err) => {
-        console.warn('Mapbox token unavailable — address autocomplete disabled; manual entry unaffected', err);
+        console.warn('Mapbox token fetch failed — manual entry unaffected; will retry on the next lookup', err);
+        mapboxTokenPromise = null;
         return null;
       });
   }
