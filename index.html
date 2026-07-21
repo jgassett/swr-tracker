@@ -7952,6 +7952,10 @@ function readRptSelectors(prefix) {
   const d = parseInt($(`#rpt${prefix}Day`).value, 10);
   const y = parseInt($(`#rpt${prefix}Year`).value, 10);
   if (!m || !d || !y) return null;
+  /* The day list always offers 1–31 — reject combinations that don't
+     exist (e.g. Feb 31) instead of storing an ISO string that rolls over. */
+  const roundTrip = new Date(y, m - 1, d);
+  if (roundTrip.getFullYear() !== y || roundTrip.getMonth() !== m - 1 || roundTrip.getDate() !== d) return null;
   return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
 }
 function renderReportingCard() {
@@ -9187,7 +9191,7 @@ async function handleSaveReporting() {
   const start = readRptSelectors('Start');
   const end = readRptSelectors('End');
   if (!start || !end) {
-    toast('Pick both start and end dates.', 'error');
+    toast('Pick valid start and end dates (that day doesn’t exist in that month).', 'error');
     return;
   }
   if (start > end) {
