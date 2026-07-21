@@ -11571,9 +11571,28 @@ async function assignLegacyGroup(index, jobId) {
       customerName: j.customerName || '', updatedAt: now
     }, { merge: true });
   }
+  /* Item 3 (v2-patch-2) — double-tap fix: the re-render below reads the
+     local record caches, which the snapshot hasn't refreshed yet, so the
+     group used to reappear as unassigned and invite a second tap. Patch
+     the caches optimistically BEFORE re-rendering (H1 pattern used by the
+     job/task writes); a failed commit reverts them and shows a toast. */
+  const patchLocalCaches = (jobIdVal) => {
+    for (const it of g.items) {
+      const cache = it.col === 'records' ? cachedRecords : cachedPesticideRecords;
+      const idx = cache.findIndex((r) => r.id === it.id);
+      if (idx >= 0) {
+        cache[idx] = jobIdVal
+          ? { ...cache[idx], jobId: jobIdVal, jobTitle: j.jobNumber || '', customerId: j.customerId || null, customerName: j.customerName || '' }
+          : { ...cache[idx], jobId: null };
+      }
+    }
+  };
+  patchLocalCaches(jobId);
   /* Optimistic write (H1): fire without awaiting so linking works offline. */
   batch.commit().catch((err) => {
     console.error('Legacy assign failed', err);
+    patchLocalCaches(null);   /* revert so the group shows as unassigned again */
+    if (!$('#view-assign-legacy').classList.contains('hidden')) renderAssignLegacyView();
     toast('Assign failed to sync: ' + ((err && err.message) || 'error'), 'error');
   });
   toast(`Linked ${g.items.length} record${g.items.length === 1 ? '' : 's'} to ${j.jobNumber}`);
@@ -11593,9 +11612,7 @@ async function createJobForLegacyGroup(index) {
     const ref = doc(jobsCol());
     /* M4: reserved atomically when online; local fallback offline. */
     const jobNumber = await allocateJobNumber();
-    /* Optimistic writes (H1): fire the job create and the record links
-       without awaiting so the flow works offline. */
-    writeWithRetry(() => setDoc(ref, {
+    const jobData = {
       jobNumber,
       customerId: match ? match.id : null,
       customerName: match ? match.name : g.name,
@@ -11609,7 +11626,10 @@ async function createJobForLegacyGroup(index) {
       createdByEmail: currentUser ? currentUser.email : null,
       createdAt: now, updatedAt: now,
       notes: `Created from legacy records (${g.date || 'no date'}).`
-    })).catch((err) => {
+    };
+    /* Optimistic writes (H1): fire the job create and the record links
+       without awaiting so the flow works offline. */
+    writeWithRetry(() => setDoc(ref, jobData)).catch((err) => {
       console.error('Legacy job create failed', err);
       toast('Job failed to sync: ' + ((err && err.message) || 'error'), 'error');
     });
@@ -11621,8 +11641,22 @@ async function createJobForLegacyGroup(index) {
         customerName: match ? match.name : g.name, updatedAt: now
       }, { merge: true });
     }
+    /* Item 3 (v2-patch-2) — double-tap fix: seed the job and record caches
+       before re-rendering so the group leaves the list on the FIRST tap
+       (the re-render reads these caches, not the not-yet-arrived snapshot). */
+    if (!cachedJobs.some((x) => x.id === ref.id)) cachedJobs.push({ id: ref.id, ...jobData });
+    const patchLocalCaches = (jobIdVal) => {
+      for (const it of g.items) {
+        const cache = it.col === 'records' ? cachedRecords : cachedPesticideRecords;
+        const idx = cache.findIndex((r) => r.id === it.id);
+        if (idx >= 0) cache[idx] = { ...cache[idx], jobId: jobIdVal };
+      }
+    };
+    patchLocalCaches(ref.id);
     batch.commit().catch((err) => {
       console.error('Legacy link failed', err);
+      patchLocalCaches(null);   /* revert so the group shows as unassigned again */
+      if (!$('#view-assign-legacy').classList.contains('hidden')) renderAssignLegacyView();
       toast('Record links failed to sync: ' + ((err && err.message) || 'error'), 'error');
     });
     toast(`Job created and ${g.items.length} record${g.items.length === 1 ? '' : 's'} linked`);
