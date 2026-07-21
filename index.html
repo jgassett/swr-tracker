@@ -106,6 +106,8 @@
     .flow-cell:active { transform: scale(0.97); }
     .flow-cell:hover, .flow-cell:focus { background: rgba(196,119,42,0.18); border-color: var(--amber); }
     .flow-cell.spacer { visibility: hidden; pointer-events: none; }
+    /* Admin-only step, non-admin operator: visible but grayed out and inert. */
+    .flow-cell.locked { opacity: 0.4; cursor: default; pointer-events: none; }
     /* Item 14: step numbers removed from the grid cells. */
     .flow-cell .fc-icon { font-size: 40px; line-height: 1; }
     .flow-cell .fc-label { font-family: 'Playfair Display', serif; font-size: 14px; font-weight: 700; color: var(--cream); white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
@@ -4343,7 +4345,7 @@ const FLOW_STEPS = [
   { n: 3, icon: '📅', label: 'Schedule',         desc: 'View and complete tasks',  mode: 'schedule' },
   { n: 4, icon: '📷', label: 'Monitoring',       desc: 'Check trap site cameras',  mode: 'field' },
   { n: 5, icon: '🦝', label: 'Field Work',       desc: 'Trapping & pesticide logs', mode: 'fieldwork' },
-  { n: 6, icon: '✅', label: 'Close Out',        desc: 'Complete finished jobs',   mode: 'closeout' }
+  { n: 6, icon: '✅', label: 'Close Out',        desc: 'Complete finished jobs',   mode: 'closeout', adminOnly: true }
 ];
 /* Job status → the workflow step where that job's next action lives. Any
    open job highlights the Jobs step; scheduled work highlights Schedule. */
@@ -4376,12 +4378,22 @@ function renderFlowGrid() {
   const cols = flowGridMedia.matches ? 4 : 3;
   const current = activeFlowSteps();
   /* Item 14: no step numbers — icon (40px), bold label, one-line description. */
-  const cell = (st) => st
-    ? `<button type="button" class="flow-cell${current.has(st.n) ? ' current' : ''}" data-mode="${st.mode}" aria-label="${st.label}">` +
-      `<span class="fc-icon" aria-hidden="true">${st.icon}</span>` +
-      `<span class="fc-label">${st.label}</span>` +
-      `<span class="fc-desc">${st.desc}</span></button>`
-    : '<div class="flow-cell spacer" aria-hidden="true"></div>';
+  /* Admin-only steps (Close Out) render grayed-out and inert for everyone
+     else — no data-mode, so the grid's click handler ignores them. The
+     Firestore rules enforce the same restriction server-side. */
+  const cell = (st) => {
+    if (!st) return '<div class="flow-cell spacer" aria-hidden="true"></div>';
+    const locked = st.adminOnly && !isAdmin();
+    return locked
+      ? `<button type="button" class="flow-cell locked" disabled aria-disabled="true" aria-label="${st.label} (admin only)">` +
+        `<span class="fc-icon" aria-hidden="true">${st.icon}</span>` +
+        `<span class="fc-label">${st.label}</span>` +
+        `<span class="fc-desc">${st.desc}</span></button>`
+      : `<button type="button" class="flow-cell${current.has(st.n) ? ' current' : ''}" data-mode="${st.mode}" aria-label="${st.label}">` +
+        `<span class="fc-icon" aria-hidden="true">${st.icon}</span>` +
+        `<span class="fc-label">${st.label}</span>` +
+        `<span class="fc-desc">${st.desc}</span></button>`;
+  };
   const rows = [];
   for (let i = 0; i < FLOW_STEPS.length; i += cols) rows.push(FLOW_STEPS.slice(i, i + cols));
   let html = '';
@@ -11198,7 +11210,9 @@ function renderCloseoutConfirm(id) {
     </div>
     <div class="hint" style="margin:0 4px 12px;">Closing out marks the job Complete and switches off its rebait schedule. Invoicing and payment tracking continue in QuickBooks — no invoice is generated in the app.</div>
     <div class="form-actions">
-      <button type="button" class="btn btn-amber" data-closeout-action="confirm" data-id="${escapeHtml(id)}">Confirm Close Out</button>
+      ${isAdmin()
+        ? `<button type="button" class="btn btn-amber" data-closeout-action="confirm" data-id="${escapeHtml(id)}">Confirm Close Out</button>`
+        : '<div class="hint" style="margin:0 4px;">Only an administrator can close out a job.</div>'}
       <button type="button" class="btn btn-cancel btn-ghost" data-closeout-action="back">Back</button>
     </div>`;
 }
