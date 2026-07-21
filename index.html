@@ -122,7 +122,8 @@
     /* Item 14: straight down arrow at each row break. */
     .flow-turn svg { width: 24px; height: 24px; stroke: var(--amber); fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
     .flow-help-row { text-align: center; }
-    .landing-sync { display: flex; justify-content: flex-end; margin-bottom: 6px; }
+    /* Item 6 (v2-patch-2): sync status centered just beneath the landing logo. */
+    .landing-sync { display: flex; justify-content: center; margin: -4px 0 8px; }
     .flow-help {
       background: none; border: none; color: var(--amber-soft);
       font-size: 11.5px; text-decoration: underline; white-space: nowrap;
@@ -162,11 +163,84 @@
     .lb-btn .bell-badge { top: 0; right: calc(50% - 24px); }
     /* Keep the workflow grid clear of the fixed banner. */
     #modePicker { padding-bottom: calc(var(--safe-bot) + 96px); }
-    .settings-group { font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-soft); margin: 20px 4px 8px; }
+    .settings-group { font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-soft); margin: 16px 4px 6px; }
     .settings-group.first { margin-top: 4px; }
     .conn-status { font-size: 13px; font-weight: 600; margin-top: 4px; }
     .conn-status.ok { color: var(--green-deep); }
     .conn-status.off { color: var(--ink-soft); }
+
+    /* ---- Item 5 (v2-patch-2): compact admin-panel Settings ---- */
+    #view-settings .card { padding: 12px 14px; margin-bottom: 10px; line-height: 1.35; }
+    /* Quick Controls: four switches in one row. */
+    .qc-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+    .qc-item { display: flex; flex-direction: column; align-items: center; gap: 5px; min-width: 0; }
+    .qc-label { font-size: 10.5px; font-weight: 600; color: var(--ink-soft); text-align: center; line-height: 1.2; }
+    .qc-switch {
+      position: relative; width: 42px; height: 24px; border-radius: 12px;
+      border: 1px solid var(--line); background: var(--cream-deep);
+      cursor: pointer; padding: 0; transition: background 0.15s, border-color 0.15s;
+      flex-shrink: 0;
+    }
+    .qc-switch .knob {
+      position: absolute; top: 2px; left: 2px; width: 18px; height: 18px;
+      border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.25);
+      transition: left 0.15s;
+    }
+    .qc-switch[aria-checked="true"] { background: var(--green); border-color: var(--green); }
+    .qc-switch[aria-checked="true"] .knob { left: 20px; }
+    .qc-switch.busy { background: var(--amber); border-color: var(--amber); }
+    .qc-switch:disabled { opacity: 0.5; cursor: default; }
+    .qc-card .sync-now-status { font-size: 12px; margin-top: 6px; }
+    .qc-card .sync-now-status:empty { display: none; }
+    /* Configuration rows: label left, compact control right. */
+    .cfg-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    .cfg-row > label { font-size: 13px; font-weight: 600; color: var(--green-deep); flex-shrink: 0; }
+    .cfg-select { max-width: 130px; padding: 7px 10px; font-size: 13.5px; }
+    .rpt-selectors { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+    .rpt-line { display: flex; align-items: center; gap: 5px; justify-content: flex-end; }
+    .rpt-line .rpt-k { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--ink-soft); width: 34px; text-align: right; flex-shrink: 0; }
+    .rpt-line select { padding: 6px 6px; font-size: 13px; }
+    .cfg-card .hint { font-size: 11.5px; margin-top: 4px; }
+    .cfg-card .hint:empty { display: none; }
+    .btn-compact { padding: 8px 14px; font-size: 13.5px; }
+    /* Management / Data Management: compact nav rows to sub-screens. */
+    .settings-nav { padding: 2px 14px !important; }
+    .snav-btn {
+      display: flex; align-items: center; justify-content: space-between; width: 100%;
+      background: none; border: none; border-bottom: 1px solid var(--line);
+      padding: 11px 0; font-size: 14px; font-weight: 600; color: var(--green-deep);
+      cursor: pointer; text-align: left;
+    }
+    .snav-btn:last-of-type { border-bottom: none; }
+    .snav-btn .chev { color: var(--ink-soft); font-size: 17px; line-height: 1; }
+    .snav-btn.danger { color: var(--danger); }
+    .snav-btn:active { background: var(--cream-deep); }
+    /* Sign Out: standalone, full width, unmistakably red. */
+    .signout-btn {
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+      width: 100%; margin-top: 16px; padding: 13px;
+      background: rgba(178,58,58,0.08); color: var(--danger);
+      border: 1px solid rgba(178,58,58,0.35); border-radius: var(--radius);
+      font-size: 15px; font-weight: 700; cursor: pointer;
+    }
+    .signout-btn svg { width: 18px; height: 18px; }
+    .signout-btn:active { background: rgba(178,58,58,0.16); }
+
+    /* Item 8 (v2-patch-2): Field Work module tabs (Trapping | Pesticides). */
+    .fw-tabs {
+      display: flex; gap: 0;
+      background: #fff; border: 1px solid var(--line); border-radius: 12px;
+      padding: 3px; margin-bottom: 14px;
+    }
+    .fw-tabs.hidden { display: none; }
+    .fw-tabs button {
+      flex: 1; padding: 9px 6px; border: none; background: transparent;
+      border-radius: 9px; font-weight: 700; font-size: 13.5px;
+      color: var(--ink-soft); cursor: pointer;
+      transition: background 0.15s, color 0.15s;
+    }
+    .fw-tabs button.active { background: var(--green); color: #fff; }
+    body.in-add .fw-tabs { display: none; }
 
     /* Mode toggle in header */
     .mode-toggle {
@@ -907,6 +981,17 @@
       .sync-indicator { min-width: 0; padding: 6px; }
       .sync-indicator .label { font-size: 8px; }
     }
+    /* Item 6 (v2-patch-2): small subtle status line under the SWR branding —
+       dot + text in a row, no pill background, must not compete with the
+       header content. */
+    .brand-col { display: flex; flex-direction: column; align-items: center; gap: 1px; flex-shrink: 0; min-width: 0; }
+    .sync-indicator.under-brand {
+      flex-direction: row; gap: 4px;
+      padding: 1px 4px; min-width: 0; border-radius: 6px;
+      background: transparent; font-size: 8.5px;
+    }
+    .sync-indicator.under-brand .dot { width: 7px; height: 7px; }
+    .sync-indicator.under-brand:active { background: rgba(255,255,255,0.1); }
 
     /* View-mode toggle (List / Single) */
     .view-mode-toggle {
@@ -1140,9 +1225,8 @@
     .cam-photo-grid a { display: block; }
     .cam-photo-grid img { width: 100%; aspect-ratio: 1 / 1; object-fit: cover; border-radius: 8px; background: var(--cream-deep); }
     .cam-photo-cap { font-size: 10px; color: var(--ink-soft); margin-top: 2px; text-align: center; }
-    .camera-alert-banner { display: block; width: 100%; text-align: left; border: none; cursor: pointer; margin: 0 0 14px; padding: 12px 14px; border-radius: 10px; font-size: 14px; font-weight: 600; background: #FBEED0; color: #8a6d1f; }
-    .camera-alert-banner.urgent { background: #F6DADA; color: var(--danger); }
-    .camera-alert-banner.hidden { display: none; }
+    /* Item 4 (v2-patch-2): .camera-alert-banner styles removed with the
+       landing-page banner — camera alerts live in Notifications only. */
     .customer-toggle-row {
       display: flex; align-items: center; justify-content: space-between; gap: 12px;
       padding: 12px 14px; background: var(--cream-deep); border-radius: 12px; margin-bottom: 14px;
@@ -1224,6 +1308,12 @@
     .job-lc-row .jl-num { font-weight: 600; color: var(--green-deep); font-family: ui-monospace, 'SF Mono', monospace; font-size: 13px; }
     .job-lc-row .jl-name { font-weight: 600; color: var(--green-deep); }
     .job-lc-row .jl-meta { font-size: 12px; color: var(--ink-soft); margin-top: 2px; }
+    /* Item 2 (v2-patch-2): job type label — amber tag on job cards + detail. */
+    .job-type-tag {
+      display: inline-block; background: rgba(196,119,42,0.14); color: var(--amber);
+      border-radius: 6px; padding: 1px 7px; font-size: 11px; font-weight: 700;
+      letter-spacing: 0.03em; text-transform: uppercase; vertical-align: middle;
+    }
     .job-stat-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--line); }
     .job-stat-row:last-child { border-bottom: none; }
     .job-stat-row .jsk { font-size: 12px; letter-spacing: 0.05em; text-transform: uppercase; color: var(--ink-soft); }
@@ -1368,6 +1458,7 @@
       .nav-fab { width: 64px; height: 64px; margin-top: -26px; }
       #appMain { padding-left: 28px; padding-right: 28px; }
       #appMain > section.view { max-width: 940px; margin-left: auto; margin-right: auto; }
+      #appMain > .fw-tabs { max-width: 480px; margin-left: auto; margin-right: auto; }
 
       /* Dashboard: full-width banner + stats, then two columns. */
       #view-dashboard { display: grid; grid-template-columns: 1fr 1fr; column-gap: 18px; align-items: start; }
@@ -1424,6 +1515,7 @@
       #appHeader { padding-left: calc(224px + 28px); padding-right: 28px; }
       #appMain { padding-left: calc(224px + 28px); padding-right: 28px; }
       #appMain > section.view { max-width: 1100px; margin-left: auto; margin-right: auto; }
+      #appMain > .fw-tabs { max-width: 480px; margin-left: auto; margin-right: auto; }
       #toast { bottom: 32px; }
 
       /* Dashboards: three-column grid. */
@@ -1460,8 +1552,11 @@
       #view-add form, #view-add-pesticide form, #view-add-customer form,
       #view-add-schedule form, #view-add-job form, #view-add-appointment form,
       #view-estimate-builder, #view-add-customer .card, #view-export .card,
-      #view-settings .card { max-width: 640px; margin-left: auto; margin-right: auto; }
-      #view-export .card, #view-settings .card { margin-bottom: 14px; }
+      #view-settings .card, #view-settings .settings-group, #view-settings .signout-btn,
+      #view-settings-contractors .card, #view-settings-business .card,
+      #view-settings-licensing .card, #view-settings-pesticide-db .card
+      { max-width: 640px; margin-left: auto; margin-right: auto; }
+      #view-export .card { margin-bottom: 14px; }
 
       /* Landing page scales up for big screens. */
       .mode-picker-wrap { max-width: 760px; }
@@ -1535,15 +1630,17 @@
 <!-- Mode picker (after sign-in) -->
 <div id="modePicker" class="hidden">
   <div class="mode-picker-wrap">
-    <!-- Item 12 (v2-patch-1): the bell moved to the bottom banner. -->
-    <div class="landing-sync">
-      <button type="button" class="sync-indicator" id="syncIndicatorLanding" data-state="offline" title="Sync status"><span class="dot"></span><span class="label">Offline</span></button>
-    </div>
+    <!-- Item 12 (v2-patch-1): the bell moved to the bottom banner.
+         Item 6 (v2-patch-2): sync status sits beneath the SWR logo. -->
     <img class="brand-logo" src="logo.png" alt="SWR"
          onload="this.classList.add('loaded');" onerror="this.remove();">
+    <div class="landing-sync">
+      <button type="button" class="sync-indicator under-brand" id="syncIndicatorLanding" data-state="offline" title="Sync status"><span class="dot"></span><span class="label">Offline</span></button>
+    </div>
     <h1>What are you doing today?</h1>
     <div class="mode-sub">Follow the job from first call to paid invoice — tap a step to open it. Return here any time with the ← button.</div>
-    <button type="button" id="cameraAlertBanner" class="camera-alert-banner hidden"></button>
+    <!-- Item 4 (v2-patch-2): camera alert banner removed — camera health
+         alerts live exclusively in the Notifications page. -->
     <!-- Snake workflow grid (rendered by renderFlowGrid) — the only
          navigation on the landing page. Tap a step to open its module. -->
     <div class="flow-grid" id="flowGrid" role="navigation" aria-label="Job workflow"></div>
@@ -1576,19 +1673,27 @@
 <div id="app" class="hidden">
   <header id="appHeader">
     <div class="header-left">
-      <img class="brand-logo" src="logo.png" alt="SWR"
-           onload="this.classList.add('loaded'); this.parentElement.classList.add('has-logo');"
-           onerror="this.remove();">
-      <div class="paw-mark">
-        <svg viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
-          <g fill="#C4772A">
-            <ellipse cx="256" cy="342" rx="108" ry="90"/>
-            <ellipse cx="138" cy="228" rx="46" ry="58"/>
-            <ellipse cx="220" cy="150" rx="42" ry="56"/>
-            <ellipse cx="292" cy="150" rx="42" ry="56"/>
-            <ellipse cx="374" cy="228" rx="46" ry="58"/>
-          </g>
-        </svg>
+      <!-- Item 6 (v2-patch-2): sync status sits directly beneath the SWR
+           branding as a small subtle status line. -->
+      <div class="brand-col">
+        <img class="brand-logo" src="logo.png" alt="SWR"
+             onload="this.classList.add('loaded'); this.parentElement.classList.add('has-logo');"
+             onerror="this.remove();">
+        <div class="paw-mark">
+          <svg viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+            <g fill="#C4772A">
+              <ellipse cx="256" cy="342" rx="108" ry="90"/>
+              <ellipse cx="138" cy="228" rx="46" ry="58"/>
+              <ellipse cx="220" cy="150" rx="42" ry="56"/>
+              <ellipse cx="292" cy="150" rx="42" ry="56"/>
+              <ellipse cx="374" cy="228" rx="46" ry="58"/>
+            </g>
+          </svg>
+        </div>
+        <button type="button" class="sync-indicator under-brand" id="syncIndicator" data-state="offline" title="Tap for sync status">
+          <span class="dot"></span>
+          <span class="label">Offline</span>
+        </button>
       </div>
       <div class="titlebox">
         <h1 id="viewTitle">Dashboard</h1>
@@ -1598,16 +1703,20 @@
     <div class="header-right">
       <span id="pendingPhotoIndicator" class="hidden" style="font-size:12px;color:var(--amber,#c4772a);align-self:center;margin-right:8px;white-space:nowrap;" title="Photos waiting to upload">📷 <span class="label">pending</span></span>
       <!-- Item 12 (v2-patch-1): bell removed — Notifications live in the
-           landing page's bottom banner. Header stays clean: title +
-           online/offline indicator. -->
-      <button type="button" class="sync-indicator" id="syncIndicator" data-state="offline" title="Tap for sync status">
-        <span class="dot"></span>
-        <span class="label">Offline</span>
-      </button>
+           landing page's bottom banner. Item 6 (v2-patch-2): the sync
+           indicator moved under the SWR logo in header-left. -->
     </div>
   </header>
 
   <main id="appMain">
+    <!-- FIELD WORK tabs (Item 8, v2-patch-2): Trapping | Pesticides at the
+         top of the Field Work module. Hidden outside trap/pesticide modes
+         and while an entry form is open (body.in-add). -->
+    <div id="fieldWorkTabs" class="fw-tabs hidden" role="tablist" aria-label="Field Work">
+      <button type="button" data-fw-tab="trap" role="tab">Trapping</button>
+      <button type="button" data-fw-tab="pesticide" role="tab">Pesticides</button>
+    </div>
+
     <!-- DASHBOARD -->
     <section id="view-dashboard" class="view">
       <div class="card period-banner">
@@ -2645,6 +2754,8 @@
           <option value="Complete">Complete</option>
           <option value="Cancelled">Cancelled</option>
         </select>
+        <!-- Item 2 (v2-patch-2): filter by job type. -->
+        <select id="jobsFilterType"><option value="">All job types</option></select>
       </div>
       <button class="btn btn-amber" id="newLifecycleJobBtn" style="margin-bottom:14px;">+ Start New Job</button>
       <div class="card" id="jobsList"></div>
@@ -2668,6 +2779,11 @@
           <select id="lj-property"><option value="">— main address —</option></select>
         </div>
         <h3 class="form-section">Job</h3>
+        <!-- Item 2 (v2-patch-2): required job type. -->
+        <div class="form-group">
+          <label for="lj-jobtype">Job Type<span class="req">*</span></label>
+          <select id="lj-jobtype" required><option value="">— select job type —</option></select>
+        </div>
         <!-- Item 15 (v2-patch-1): start/end dates on the job container. -->
         <div class="field-row two">
           <div class="form-group">
@@ -2801,6 +2917,21 @@
       <div id="assignLegacyView"></div>
     </section>
 
+    <!-- CLOSE OUT (Item 7, v2-patch-2): standalone sixth workflow step —
+         Active jobs whose tasks are all Completed or Cancelled. -->
+    <section id="view-closeout" class="view hidden">
+      <div class="greeting">
+        <h2>Close Out</h2>
+        <p class="muted">Active jobs with every task completed or cancelled — ready to close.</p>
+      </div>
+      <div class="card" id="closeoutList"></div>
+    </section>
+
+    <!-- CLOSE OUT: confirmation screen -->
+    <section id="view-closeout-confirm" class="view hidden">
+      <div id="closeoutConfirm"></div>
+    </section>
+
     <!-- NOTIFICATIONS (Items 12 & 17) — reachable from any screen via the bell -->
     <section id="view-notifications" class="view hidden">
       <div class="row" style="margin-bottom:12px;">
@@ -2886,56 +3017,149 @@
       </div>
     </section>
 
-    <!-- SETTINGS -->
+    <!-- SETTINGS (Item 5, v2-patch-2): compact admin panel — small uppercase
+         section headers, no large icons, no verbose copy. -->
     <section id="view-settings" class="view hidden">
-      <div class="settings-group first">Connections</div>
 
-      <div class="card" id="customerSyncCard">
-        <h3 style="margin-bottom:6px;">QuickBooks</h3>
-        <div class="conn-status" id="qbConnStatus"></div>
-        <p class="muted" style="font-size:14px;">One-way sync from QuickBooks into the shared customer directory. Contact details are updated from QuickBooks; the in-app <strong>Active</strong> flag is never changed by the sync. <strong>Connect</strong> once to authorize; after that the list syncs automatically every day, on app open, and on demand via <strong>Sync Now</strong>.</p>
-        <div class="btn-row" style="margin-top:12px;">
-          <a class="btn btn-primary" id="qbConnectBtn" href="https://us-central1-swr-tracker-54dfd.cloudfunctions.net/qbConnect" target="_blank" rel="noopener">Connect QuickBooks</a>
-          <button class="btn btn-ghost" id="syncNowBtn">Sync Now</button>
+      <!-- Section 1: Quick Controls -->
+      <div class="settings-group first">Quick Controls</div>
+      <div class="card qc-card">
+        <div class="qc-row">
+          <div class="qc-item">
+            <button type="button" class="qc-switch" id="qcQboReconnect" role="switch" aria-checked="false" aria-label="QBO Reconnect"><span class="knob"></span></button>
+            <span class="qc-label">QBO Reconnect</span>
+          </div>
+          <div class="qc-item">
+            <button type="button" class="qc-switch" id="qcQboSync" role="switch" aria-checked="false" aria-label="QBO Sync"><span class="knob"></span></button>
+            <span class="qc-label">QBO Sync</span>
+          </div>
+          <div class="qc-item">
+            <button type="button" class="qc-switch" id="qcEnablePush" role="switch" aria-checked="false" aria-label="Enable Notifications"><span class="knob"></span></button>
+            <span class="qc-label">Enable Notifications</span>
+          </div>
+          <div class="qc-item">
+            <button type="button" class="qc-switch" id="qcTestPush" role="switch" aria-checked="false" aria-label="Test Notifications"><span class="knob"></span></button>
+            <span class="qc-label">Test Notifications</span>
+          </div>
         </div>
         <div class="sync-now-status" id="syncNowStatus"></div>
-      </div>
-
-      <div class="card" id="notificationsCard">
-        <h3 style="margin-bottom:6px;">Notifications</h3>
-        <div class="conn-status" id="pushConnStatus"></div>
-        <p class="muted" style="font-size:14px;">Push notifications on this device for things like new job assignments. Tap <strong>Enable</strong> once per device and allow notifications when prompted — after that it stays on automatically.</p>
-        <div class="btn-row" style="margin-top:12px;">
-          <button class="btn btn-primary" id="enablePushBtn">Enable on this device</button>
-          <button class="btn btn-ghost" id="pushTestBtn" style="display:none;">Send test</button>
-        </div>
         <div class="sync-now-status" id="pushStatus"></div>
       </div>
 
-      <div class="card" id="photoRetentionCard">
-        <h3 style="margin-bottom:6px;">Camera Photos</h3>
-        <p class="muted" style="font-size:14px;">How long to keep camera photos in the app before they're automatically deleted.</p>
-        <div class="form-group" style="margin-top:10px; max-width:220px;">
-          <label for="photoRetentionDays">Keep photos for</label>
-          <select id="photoRetentionDays"></select>
+      <!-- Section 2: Configuration -->
+      <div class="settings-group">Configuration</div>
+      <div class="card cfg-card">
+        <div class="cfg-row">
+          <label for="photoRetentionDays">Days to Keep Photos</label>
+          <select id="photoRetentionDays" class="cfg-select"></select>
         </div>
         <div class="hint" id="photoRetentionHint"></div>
+        <hr class="div" style="margin:10px 0;">
+        <div class="cfg-row" style="align-items:flex-start;">
+          <label style="padding-top:6px;">Reporting Period</label>
+          <div class="rpt-selectors">
+            <div class="rpt-line">
+              <span class="rpt-k">Start</span>
+              <select id="rptStartMonth" aria-label="Start month"></select>
+              <select id="rptStartDay" aria-label="Start day"></select>
+              <select id="rptStartYear" aria-label="Start year"></select>
+            </div>
+            <div class="rpt-line">
+              <span class="rpt-k">End</span>
+              <select id="rptEndMonth" aria-label="End month"></select>
+              <select id="rptEndDay" aria-label="End day"></select>
+              <select id="rptEndYear" aria-label="End year"></select>
+            </div>
+          </div>
+        </div>
+        <div class="hint" id="rptHint"></div>
+        <div class="btn-row" id="rptActions" style="margin-top:8px;">
+          <button class="btn btn-primary btn-compact" id="saveRptBtn">Save Period</button>
+          <button class="btn btn-ghost btn-compact" id="resetRptBtn">KDFWR Default</button>
+        </div>
       </div>
 
-      <div class="settings-group">Business</div>
+      <!-- Section 3: Management -->
+      <div class="settings-group">Management</div>
+      <div class="card settings-nav">
+        <button type="button" class="snav-btn" data-settings-nav="settings-contractors">Contractors<span class="chev">›</span></button>
+        <button type="button" class="snav-btn" data-settings-nav="settings-business">Business Info<span class="chev">›</span></button>
+        <button type="button" class="snav-btn" data-settings-nav="settings-licensing">Licensing &amp; Permit Info<span class="chev">›</span></button>
+        <button type="button" class="snav-btn" id="pesticideDbNavBtn" data-settings-nav="settings-pesticide-db">Pesticide Database<span class="chev">›</span></button>
+      </div>
 
-      <div class="card" id="bizCard">
-        <h3 style="margin-bottom:10px;">Business</h3>
+      <!-- Section 4: Data Management -->
+      <div class="settings-group">Data Management</div>
+      <div class="card settings-nav">
+        <button type="button" class="snav-btn" id="assignLegacyBtn">Assign Legacy Records<span class="chev">›</span></button>
+        <button type="button" class="snav-btn" id="restoreBtn">Restore from JSON Backup<span class="chev">›</span></button>
+        <input type="file" id="restoreFile" accept="application/json" style="display:none">
+        <button type="button" class="snav-btn danger" id="wipeBtn">Clear All Records<span class="chev">›</span></button>
+      </div>
+
+      <!-- Section 5: Sign Out — standalone at the very bottom -->
+      <button type="button" class="signout-btn" id="signOutBtn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5"/><path d="M21 12H9"/></svg>
+        Sign Out
+      </button>
+      <div class="center muted" style="font-size:11.5px; line-height:1.5; margin:10px 0 4px;">
+        <span id="accountInfo">Not signed in</span><br>
+        Southern Wildlife Tracker · <span id="footerVersion">v1.28</span> · KDFWR Commercial NWCO compliance
+      </div>
+    </section>
+
+    <!-- SETTINGS → Contractors (Item 5) -->
+    <section id="view-settings-contractors" class="view hidden">
+      <div class="card">
+        <div id="operatorsList" class="biz-info"></div>
+      </div>
+      <div class="hint" style="margin:0 4px 12px;">Pending operators are sub-permitted under Jon Gassett's NWCO permit; their records are excluded from the annual KDFWR report until certified.</div>
+      <div class="form-actions"><button type="button" class="btn btn-cancel btn-ghost" data-settings-back>Back to Settings</button></div>
+    </section>
+
+    <!-- SETTINGS → Business Info (Item 5) -->
+    <section id="view-settings-business" class="view hidden">
+      <div class="card">
         <div id="bizDisplay" class="biz-info">
           <div class="biz-row"><span class="biz-label">Business</span><span class="biz-value" id="bizName">—</span></div>
-          <div class="biz-row"><span class="biz-label">NWCO Permit Holder</span><span class="biz-value" id="bizHolder">—</span></div>
-          <div class="biz-row"><span class="biz-label">NWCO Permit #</span><span class="biz-value mono" id="bizPermit">—</span></div>
+          <div class="biz-row"><span class="biz-label">Address</span><span class="biz-value" id="bizAddress">—</span></div>
+          <div class="biz-row"><span class="biz-label">Phone</span><span class="biz-value" id="bizPhone">—</span></div>
+          <div class="biz-row"><span class="biz-label">Email</span><span class="biz-value" id="bizEmail">—</span></div>
         </div>
         <div id="bizEdit" class="hidden">
           <div class="form-group">
             <label for="editBizName">Business Name</label>
             <input type="text" id="editBizName">
           </div>
+          <div class="form-group">
+            <label for="editBizAddress">Address</label>
+            <input type="text" id="editBizAddress" autocomplete="off">
+          </div>
+          <div class="field-row two">
+            <div class="form-group">
+              <label for="editBizPhone">Phone</label>
+              <input type="tel" id="editBizPhone" autocomplete="off">
+            </div>
+            <div class="form-group">
+              <label for="editBizEmail">Email</label>
+              <input type="email" id="editBizEmail" autocomplete="off">
+            </div>
+          </div>
+          <button class="btn btn-primary" id="saveBizBtn">Save Business Info</button>
+        </div>
+      </div>
+      <div class="form-actions"><button type="button" class="btn btn-cancel btn-ghost" data-settings-back>Back to Settings</button></div>
+    </section>
+
+    <!-- SETTINGS → Licensing & Permit Info (Item 5) -->
+    <section id="view-settings-licensing" class="view hidden">
+      <div class="card">
+        <h3 style="margin-bottom:8px; font-size:15px;">NWCO Permit (KDFWR)</h3>
+        <div id="permitDisplay" class="biz-info">
+          <div class="biz-row"><span class="biz-label">Permit Holder</span><span class="biz-value" id="bizHolder">—</span></div>
+          <div class="biz-row"><span class="biz-label">Permit #</span><span class="biz-value mono" id="bizPermit">—</span></div>
+        </div>
+        <div id="permitEdit" class="hidden">
           <div class="form-group">
             <label for="editBizHolder">NWCO Permit Holder</label>
             <input type="text" id="editBizHolder">
@@ -2944,18 +3168,11 @@
             <label for="editBizPermit">NWCO Permit Number</label>
             <input type="text" id="editBizPermit">
           </div>
-          <button class="btn btn-primary" id="saveBizBtn">Save Business Info</button>
+          <button class="btn btn-primary" id="savePermitBtn">Save Permit Info</button>
         </div>
       </div>
-
-      <div class="card" id="operatorsCard">
-        <h3 style="margin-bottom:10px;">Operators</h3>
-        <p class="muted" style="font-size:13px; margin-bottom:8px;">KDFWR WCO certification status. Pending operators are sub-permitted under Jon Gassett's permit — they can work and log records, but their records can't be submitted on the annual KDFWR report until they're certified.</p>
-        <div id="operatorsList" class="biz-info"></div>
-      </div>
-
-      <div class="card" id="certCard">
-        <h3 style="margin-bottom:10px;">Pesticide License Number</h3>
+      <div class="card">
+        <h3 style="margin-bottom:8px; font-size:15px;">Pesticide Applicator Licenses (KY Dept. of Agriculture)</h3>
         <div id="certDisplay" class="biz-info">
           <div class="biz-row"><span class="biz-label">Jon Gassett</span><span class="biz-value mono" id="certJon">—</span></div>
           <div class="biz-row"><span class="biz-label">Robin Gassett</span><span class="biz-value mono" id="certRobin">—</span></div>
@@ -2963,79 +3180,41 @@
           <div class="biz-row"><span class="biz-label">Tanya Clark</span><span class="biz-value mono" id="certTanya">—</span></div>
         </div>
         <div id="certEdit" class="hidden">
-          <p class="muted" style="font-size:13px; margin-bottom:10px;">KY Department of Agriculture pesticide applicator certification numbers. Leave a field blank to mark that applicator as not yet certified (their option will be disabled in the pesticide form).</p>
-          <div class="form-group">
-            <label for="editCertJon">Jon Gassett</label>
-            <input type="text" id="editCertJon" autocomplete="off">
-          </div>
-          <div class="form-group">
-            <label for="editCertRobin">Robin Gassett</label>
-            <input type="text" id="editCertRobin" autocomplete="off">
-          </div>
-          <div class="form-group">
-            <label for="editCertChris">Chris Griffith</label>
-            <input type="text" id="editCertChris" autocomplete="off" placeholder="(not yet certified)">
-          </div>
-          <div class="form-group">
-            <label for="editCertTanya">Tanya Clark</label>
-            <input type="text" id="editCertTanya" autocomplete="off" placeholder="(not yet certified)">
-          </div>
-          <button class="btn btn-primary" id="saveCertBtn">Save Certifications</button>
-        </div>
-      </div>
-
-      <div class="card" id="reportCard">
-        <h3 style="margin-bottom:10px;">Reporting Period</h3>
-        <div id="reportDisplay" class="biz-info">
-          <div class="biz-row"><span class="biz-label">Start</span><span class="biz-value" id="rptStart">—</span></div>
-          <div class="biz-row"><span class="biz-label">End</span><span class="biz-value" id="rptEnd">—</span></div>
-          <div class="biz-row"><span class="biz-label">Source</span><span class="biz-value muted" id="rptSource">KDFWR default</span></div>
-        </div>
-        <div id="reportEdit" class="hidden">
-          <p class="muted" style="font-size:13px; margin-bottom:10px;">Leave both fields blank to revert to the KDFWR default (Feb 1 – Jan 31). Any change is saved to the shared org config and applies to every trapper.</p>
+          <div class="hint" style="margin-bottom:8px;">Blank = not yet certified (disabled in the pesticide form).</div>
           <div class="field-row two">
             <div class="form-group">
-              <label for="editRptStart">Start Date</label>
-              <input type="date" id="editRptStart">
+              <label for="editCertJon">Jon Gassett</label>
+              <input type="text" id="editCertJon" autocomplete="off">
             </div>
             <div class="form-group">
-              <label for="editRptEnd">End Date</label>
-              <input type="date" id="editRptEnd">
+              <label for="editCertRobin">Robin Gassett</label>
+              <input type="text" id="editCertRobin" autocomplete="off">
             </div>
           </div>
-          <button class="btn btn-primary" id="saveRptBtn">Save Reporting Period</button>
+          <div class="field-row two">
+            <div class="form-group">
+              <label for="editCertChris">Chris Griffith</label>
+              <input type="text" id="editCertChris" autocomplete="off" placeholder="(not certified)">
+            </div>
+            <div class="form-group">
+              <label for="editCertTanya">Tanya Clark</label>
+              <input type="text" id="editCertTanya" autocomplete="off" placeholder="(not certified)">
+            </div>
+          </div>
+          <button class="btn btn-primary" id="saveCertBtn">Save Licenses</button>
         </div>
       </div>
+      <div class="form-actions"><button type="button" class="btn btn-cancel btn-ghost" data-settings-back>Back to Settings</button></div>
+    </section>
 
-      <div class="settings-group">Admin &amp; Data</div>
-
+    <!-- SETTINGS → Pesticide Database (Item 5) -->
+    <section id="view-settings-pesticide-db" class="view hidden">
       <div class="card hidden" id="pesticideDbCard">
-        <h3 style="margin-bottom:10px;">Pesticide Database</h3>
-        <p class="muted" style="font-size:13px; margin-bottom:14px;">Catalog of products available in the Pesticide Application form. Adds propagate to every device. Admin only.</p>
         <div id="pesticideList" style="margin-bottom: 14px;"></div>
         <button class="btn btn-amber" id="addPesticideBtn">+ Add Pesticide</button>
       </div>
-
-      <div class="card">
-        <h3 style="margin-bottom:10px;">Data Management</h3>
-        <button class="btn btn-ghost" id="assignLegacyBtn">Assign Legacy Records to Jobs</button>
-        <div class="hint" style="margin:4px 0 10px;">Group old trapping &amp; pesticide records that predate the Jobs module and attach them to job containers.</div>
-        <button class="btn btn-ghost" id="restoreBtn">Restore From JSON Backup</button>
-        <input type="file" id="restoreFile" accept="application/json" style="display:none">
-        <div style="height:10px"></div>
-        <button class="btn btn-danger" id="wipeBtn">Clear All Records</button>
-      </div>
-
-      <div class="card">
-        <h3 style="margin-bottom:10px;">Account</h3>
-        <div id="accountInfo" class="muted" style="font-size:13px; margin-bottom: 12px;">Not signed in</div>
-        <button class="btn btn-ghost" id="signOutBtn">Sign Out</button>
-      </div>
-
-      <div class="card center muted" style="font-size:12px;">
-        Southern Wildlife Tracker · <span id="footerVersion">v1.28</span><br>
-        Designed for KDFWR Commercial NWCO compliance.
-      </div>
+      <div class="hint" id="pesticideDbHint" style="margin:0 4px 12px;">Products, SDS and label PDFs offered in the Pesticide Application form. Admin only.</div>
+      <div class="form-actions"><button type="button" class="btn btn-cancel btn-ghost" data-settings-back>Back to Settings</button></div>
     </section>
   </main>
 
@@ -3095,7 +3274,8 @@
     <div class="fg-step"><span>💼</span><div><strong>Jobs</strong> — open a job for the engagement and manage its tasks from set to pull.</div></div>
     <div class="fg-step"><span>📅</span><div><strong>Schedule</strong> — see the crew's tasks on the calendar and mark them complete as you go.</div></div>
     <div class="fg-step"><span>📷</span><div><strong>Monitoring</strong> — check trap site cameras and respond to activity and health alerts.</div></div>
-    <div class="fg-step"><span>🦝</span><div><strong>Trapping Records</strong> — log every capture, release, or treatment while you're on site. Estimates live in the bottom bar; invoicing happens in QuickBooks Online.</div></div>
+    <div class="fg-step"><span>🦝</span><div><strong>Field Work</strong> — log every capture, release, or pesticide treatment while you're on site: the Trapping and Pesticides tabs live here. Estimates live in the bottom bar; invoicing happens in QuickBooks Online.</div></div>
+    <div class="fg-step"><span>✅</span><div><strong>Close Out</strong> — once every task on a job is completed or cancelled, close it out here. The job moves to Complete and billing continues in QuickBooks.</div></div>
   </div>
   <button type="button" class="btn btn-primary" id="flowSheetCloseBtn" style="margin-top:16px;width:100%;">Got it</button>
 </div>
@@ -3495,7 +3675,7 @@ let orgSettings = {
 };
 
 const PESTICIDE_EMAILJS_TEMPLATE_ID = 'template_4aa3u5a';
-const APP_VERSION = 'v2.1';  /* bump in lockstep with the SW cache version */
+const APP_VERSION = 'v2.2';  /* bump in lockstep with the SW cache version */
 /* Single source of truth: keep the footer label in sync with APP_VERSION so
    the two version displays can't drift apart again. */
 { const _fv = document.getElementById('footerVersion'); if (_fv) _fv.textContent = APP_VERSION; }
@@ -4044,8 +4224,11 @@ function showSignInScreen() {
 }
 let modeSelected = false;
 
-/* Item 17 (v2-patch-1): Field Work -> Trapping Records; Cameras -> Monitoring. */
-const MODULE_LABELS = { trap: 'Trapping Records', pesticide: 'Pesticides', customer: 'Customers', pricing: 'Pricing', jobs: 'Jobs', field: 'Monitoring', schedule: 'Schedule', settings: 'Settings', allrecords: 'All Records' };
+/* Item 8 (v2-patch-2): the Trapping Records module is now Field Work, with
+   Trapping and Pesticides as tabs inside it — both appModes ('trap' and
+   'pesticide') present as the Field Work module in the header. Cameras ->
+   Monitoring (Item 17, v2-patch-1). */
+const MODULE_LABELS = { trap: 'Field Work', pesticide: 'Field Work', customer: 'Customers', pricing: 'Pricing', jobs: 'Jobs', field: 'Monitoring', schedule: 'Schedule', settings: 'Settings', allrecords: 'All Records', closeout: 'Close Out' };
 
 /* Bottom-nav layout per module. The main landing page has no bottom nav.
    `fab: true` renders the raised amber add button (kept from the original
@@ -4095,6 +4278,11 @@ const NAV_CONFIGS = {
   /* Items 8 & 9: unified records view opened from the landing banner. */
   allrecords: [
     { view: 'menu', label: 'Menu', icon: 'menu' }
+  ],
+  /* Item 7 (v2-patch-2): Close Out workflow step. */
+  closeout: [
+    { view: 'menu', label: 'Menu', icon: 'menu' },
+    { view: 'dashboard', label: 'Close Out', icon: 'check' }
   ]
 };
 
@@ -4108,7 +4296,8 @@ const NAV_ICONS = {
   users: '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
   camera: '<path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/>',
   calendar: '<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>',
-  briefcase: '<rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/>'
+  briefcase: '<rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/>',
+  check: '<path d="M20 6 9 17l-5-5"/>'
 };
 
 function renderBottomNav() {
@@ -4143,14 +4332,16 @@ function showModePicker() { showLanding(); }
  * phones, 4 from 768px up. Tapping a cell opens its module; steps where
  * an in-progress job currently sits are highlighted amber.
  * ===================================================================== */
-/* Item 14 (v2-patch-1): five steps, this exact order, no step numbers.
+/* Item 14 (v2-patch-1): no step numbers on cells; straight down arrows.
+   Item 7 (v2-patch-2): six steps — Close Out is the standalone final step.
    (Item 10: Estimates live in the bottom banner only; Item 13: no Invoice.) */
 const FLOW_STEPS = [
   { n: 1, icon: '👥', label: 'Customer',         desc: 'Find or add a client',     mode: 'customer' },
   { n: 2, icon: '💼', label: 'Jobs',             desc: 'Manage jobs and tasks',    mode: 'jobs' },
   { n: 3, icon: '📅', label: 'Schedule',         desc: 'View and complete tasks',  mode: 'schedule' },
   { n: 4, icon: '📷', label: 'Monitoring',       desc: 'Check trap site cameras',  mode: 'field' },
-  { n: 5, icon: '🦝', label: 'Trapping Records', desc: 'Log field activity',       mode: 'trap' }
+  { n: 5, icon: '🦝', label: 'Field Work',       desc: 'Trapping & pesticide logs', mode: 'fieldwork' },
+  { n: 6, icon: '✅', label: 'Close Out',        desc: 'Complete finished jobs',   mode: 'closeout' }
 ];
 /* Job status → the workflow step where that job's next action lives. Any
    open job highlights the Jobs step; scheduled work highlights Schedule. */
@@ -4166,6 +4357,8 @@ function activeFlowSteps() {
     const step = JOB_STATUS_TO_FLOW_STEP[j.status || 'Lead'];
     if (step) steps.add(step);
   });
+  /* Item 7 (v2-patch-2): highlight Close Out when jobs are ready to close. */
+  if (jobsReadyToClose().length) steps.add(6);
   return steps;
 }
 
@@ -4245,6 +4438,34 @@ function updateModuleUI() {
   if (lbl) lbl.textContent = MODULE_LABELS[appMode] || '';
   document.body.classList.toggle('mode-pesticide', appMode === 'pesticide');
   document.body.classList.toggle('mode-customer', appMode === 'customer');
+  /* Item 8 (v2-patch-2): Field Work tab bar — shown in both Field Work
+     tabs ('trap' and 'pesticide'); the last-used tab is remembered so the
+     module reopens where the operator left off. */
+  const isFieldWork = appMode === 'trap' || appMode === 'pesticide';
+  const tabs = $('#fieldWorkTabs');
+  if (tabs) {
+    tabs.classList.toggle('hidden', !isFieldWork);
+    $$('#fieldWorkTabs button').forEach((b) => b.classList.toggle('active', b.dataset.fwTab === appMode));
+  }
+  if (isFieldWork) {
+    try { localStorage.setItem('swrFieldWorkTab', appMode); } catch (e) { /* private mode */ }
+  }
+}
+
+/* Item 8: which Field Work tab the operator used last ('trap' default). */
+function lastFieldWorkTab() {
+  try { return localStorage.getItem('swrFieldWorkTab') === 'pesticide' ? 'pesticide' : 'trap'; }
+  catch (e) { return 'trap'; }
+}
+
+/* Item 8: switch tabs in place — keeps the current sub-view (dashboard /
+   records / export exist in both tabs); data is untouched, UI only. */
+function switchFieldWorkTab(mode) {
+  if (appMode === mode || (mode !== 'trap' && mode !== 'pesticide')) return;
+  const keep = ['dashboard', 'records', 'export'].includes(currentView) ? currentView : 'dashboard';
+  setAppModeQuiet(mode);
+  setView(keep);
+  refreshAll();
 }
 /* No-op kept so any lingering references don't throw. */
 function updateModeToggleUI() { updateModuleUI(); }
@@ -4260,47 +4481,29 @@ function showApp() {
   refreshAll();
 }
 
-/* Persistent connection/notification status shown on the Settings screen so the
-   setup buttons read as one-time actions, not chores. */
+/* Item 5 (v2-patch-2): Quick Controls switch states. Stateful switches show
+   real status (QBO connected, push permission); the momentary ones (Sync,
+   Test) flip on while running and settle back off. */
+function setQuickSwitch(id, on) {
+  const el = $('#' + id);
+  if (el) el.setAttribute('aria-checked', on ? 'true' : 'false');
+}
 function renderSettingsStatus() {
-  const qb = $('#qbConnStatus');
-  if (qb) {
-    const connected = cachedCustomers.some((c) => c.qbId);
-    qb.textContent = connected ? '✓ Connected — customers sync automatically' : 'Not connected yet — tap Connect QuickBooks below.';
-    qb.className = 'conn-status ' + (connected ? 'ok' : 'off');
-    const btn = $('#qbConnectBtn');
-    if (btn) btn.textContent = connected ? 'Reconnect QuickBooks' : 'Connect QuickBooks';
-  }
-  const pc = $('#pushConnStatus');
-  if (pc) {
-    const granted = ('Notification' in window) && Notification.permission === 'granted';
-    pc.textContent = granted ? '✓ Enabled on this device' : 'Not enabled on this device';
-    pc.className = 'conn-status ' + (granted ? 'ok' : 'off');
-    const testBtn = $('#pushTestBtn');
-    if (testBtn) testBtn.style.display = granted ? '' : 'none';
-    const enableBtn = $('#enablePushBtn');
-    if (enableBtn) enableBtn.textContent = granted ? 'Re-enable on this device' : 'Enable on this device';
-  }
+  setQuickSwitch('qcQboReconnect', cachedCustomers.some((c) => c.qbId));
+  setQuickSwitch('qcEnablePush', ('Notification' in window) && Notification.permission === 'granted');
+  /* Pesticide Database management is admin-only. */
+  const dbBtn = $('#pesticideDbNavBtn');
+  if (dbBtn) dbBtn.style.display = isAdmin() ? '' : 'none';
 }
 
 /* Live counts on the three landing-page module cards. */
 /* Landing page live state: the snake workflow grid (with amber highlights
-   on steps that have an in-progress job) and the camera alert banner. Called
-   from every subscription that feeds either, so both stay current. */
+   on steps that have an in-progress job). Called from every subscription
+   that feeds it, so it stays current. Item 4 (v2-patch-2): the camera
+   alert banner is gone — camera health alerts belong exclusively to the
+   Notifications page (the cameraWatchdog function still writes them). */
 function renderLandingCounts() {
   renderFlowGrid();
-  const alertN = cachedCameraHealth.filter((h) => { const s = deviceStatusLive(h); return s === 'red' || s === 'yellow'; }).length;
-  const redN = cachedCameraHealth.filter((h) => deviceStatusLive(h) === 'red').length;
-  const banner = $('#cameraAlertBanner');
-  if (banner) {
-    if (alertN > 0) {
-      banner.textContent = `⚠ ${alertN} camera${alertN === 1 ? '' : 's'} not showing green — tap to review`;
-      banner.classList.remove('hidden');
-      banner.classList.toggle('urgent', redN > 0);
-    } else {
-      banner.classList.add('hidden');
-    }
-  }
 }
 
 /* ---------- Sync indicator ---------- */
@@ -4522,20 +4725,22 @@ function subscribeToOrg() {
   }, (err) => console.error('Org subscription error', err));
 }
 
-/* Camera-photo retention control (1–30 days). Admin sets it; everyone sees it. */
+/* Camera-photo retention control. Item 5 (v2-patch-2): options are 1–14
+   days per spec (values previously stored above 14 display clamped until
+   the admin re-saves). Admin sets it; everyone sees it. */
 function renderPhotoRetentionCard() {
   const sel = $('#photoRetentionDays');
   if (!sel) return;
   if (!sel.options.length) {
-    for (let d = 1; d <= 30; d++) {
+    for (let d = 1; d <= 14; d++) {
       const o = document.createElement('option');
       o.value = String(d);
       o.textContent = d === 1 ? '1 day' : `${d} days`;
       sel.appendChild(o);
     }
   }
-  const days = Number(orgSettings && orgSettings.photoRetentionDays) || 30;
-  sel.value = String(Math.min(30, Math.max(1, days)));
+  const days = Number(orgSettings && orgSettings.photoRetentionDays) || 14;
+  sel.value = String(Math.min(14, Math.max(1, days)));
   const admin = isAdmin();
   sel.disabled = !admin;
   const hint = $('#photoRetentionHint');
@@ -5828,7 +6033,10 @@ const VIEW_TITLES = {
   jobs:      { dashboard: 'Jobs', add: 'New Job', 'job-detail': 'Job', 'add-appointment': 'New Appointment', 'appointment-detail': 'Appointment', 'add-task': 'New Task', 'task-detail': 'Task' },
   field:     { dashboard: 'Monitoring' },
   schedule:  { dashboard: 'Calendar', add: 'New Task', 'edit-legacy': 'Edit Job', 'add-appointment': 'New Appointment', 'appointment-detail': 'Appointment', 'job-detail': 'Job', 'add-task': 'New Task', 'task-detail': 'Task' },
-  settings:  { dashboard: 'Settings', 'assign-legacy': 'Assign Legacy Records' },
+  closeout:  { dashboard: 'Close Out', 'closeout-confirm': 'Confirm Close Out' },
+  settings:  { dashboard: 'Settings', 'assign-legacy': 'Assign Legacy Records',
+               'settings-contractors': 'Contractors', 'settings-business': 'Business Info',
+               'settings-licensing': 'Licensing & Permits', 'settings-pesticide-db': 'Pesticide Database' },
   allrecords: { dashboard: 'View Records' }
 };
 
@@ -5847,7 +6055,8 @@ function setView(name, opts) {
    'customers','add-customer','pricing','estimate-builder','estimate-detail',
    'field','field-detail','schedule','add-schedule','schedule-detail',
    'jobs','add-job','job-detail','add-appointment','appointment-detail','assign-legacy',
-   'add-task','task-detail',
+   'add-task','task-detail','closeout','closeout-confirm',
+   'settings-contractors','settings-business','settings-licensing','settings-pesticide-db',
    'notifications','records-all','export','settings'].forEach((v) => {
     const el = document.getElementById(`view-${v}`);
     if (el) el.classList.add('hidden');
@@ -5873,6 +6082,8 @@ function setView(name, opts) {
     if (name === 'add') actualId = 'add-job';
   } else if (appMode === 'settings') {
     if (name === 'dashboard') actualId = 'settings';
+  } else if (appMode === 'closeout') {
+    if (name === 'dashboard') actualId = 'closeout';   /* Item 7 */
   } else if (appMode === 'allrecords') {
     if (name === 'dashboard') actualId = 'records-all';   /* Items 8 & 9 */
   }
@@ -5925,8 +6136,16 @@ function setView(name, opts) {
   if (appMode === 'allrecords' && name === 'dashboard') {
     renderAllRecords();   /* Items 8 & 9 */
   }
+  if (appMode === 'closeout' && name === 'dashboard') {
+    renderCloseoutList();   /* Item 7 (v2-patch-2) */
+  }
   if (name === 'assign-legacy') renderAssignLegacyView();
   if (name === 'settings' || appMode === 'settings') renderSettingsStatus();
+  /* Item 5 (v2-patch-2): settings sub-screens re-render on open so the
+     admin edit/display toggle is always current. */
+  if (name === 'settings-contractors') renderOperatorsCard();
+  if (name === 'settings-business' || name === 'settings-licensing') { renderBusinessCard(); renderCertCard(); }
+  if (name === 'settings-pesticide-db') renderPesticideAdminList();
   /* Pesticide-form map: lazy, only when its group is already visible
      (Item 15 parity, H3 — the map opens exclusively via "Locate on Map"
      or when editing a record that has coordinates). */
@@ -7668,36 +7887,104 @@ async function loadSettings() {
   currentSettings = { ...SETTINGS_DEFAULTS };
 }
 
+/* Item 5 (v2-patch-2): Business Info and Licensing/Permit sub-screens. */
 function renderBusinessCard() {
   $('#bizName').textContent = orgSettings.businessName;
+  $('#bizAddress').textContent = orgSettings.businessAddress || '—';
+  $('#bizPhone').textContent = orgSettings.businessPhone || '—';
+  $('#bizEmail').textContent = orgSettings.businessEmail || '—';
+  $('#editBizName').value = orgSettings.businessName;
+  $('#editBizAddress').value = orgSettings.businessAddress || '';
+  $('#editBizPhone').value = orgSettings.businessPhone || '';
+  $('#editBizEmail').value = orgSettings.businessEmail || '';
   $('#bizHolder').textContent = orgSettings.permitHolder;
   $('#bizPermit').textContent = orgSettings.permitNumber;
-  $('#editBizName').value = orgSettings.businessName;
   $('#editBizHolder').value = orgSettings.permitHolder;
   $('#editBizPermit').value = orgSettings.permitNumber;
   /* Toggle edit vs display based on admin. */
   $('#bizDisplay').classList.toggle('hidden', isAdmin());
   $('#bizEdit').classList.toggle('hidden', !isAdmin());
+  $('#permitDisplay').classList.toggle('hidden', isAdmin());
+  $('#permitEdit').classList.toggle('hidden', !isAdmin());
 }
 
+/* Item 5 (v2-patch-2): reporting period as compact day/month/year dropdowns
+   on the Settings Configuration card. Defaults to the KDFWR Feb 1 – Jan 31
+   period; admin-set custom dates are stored in the same org fields as
+   before, so dashboard stats and CSV exports (both Trapping and Pesticide
+   modules) keep using reportPeriod() unchanged. */
+const RPT_MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+function fillRptSelectors(prefix, iso) {
+  const [y, m, d] = (iso || '').split('-').map(Number);
+  const mSel = $(`#rpt${prefix}Month`), dSel = $(`#rpt${prefix}Day`), ySel = $(`#rpt${prefix}Year`);
+  if (!mSel || !dSel || !ySel) return;
+  if (!mSel.options.length) {
+    RPT_MONTHS.forEach((name, i) => {
+      const o = document.createElement('option');
+      o.value = String(i + 1); o.textContent = name;
+      mSel.appendChild(o);
+    });
+    for (let day = 1; day <= 31; day++) {
+      const o = document.createElement('option');
+      o.value = String(day); o.textContent = String(day);
+      dSel.appendChild(o);
+    }
+  }
+  /* Years re-fill each render so the range tracks the current period. */
+  const thisYear = new Date().getFullYear();
+  ySel.innerHTML = '';
+  for (let yr = thisYear - 2; yr <= thisYear + 2; yr++) {
+    const o = document.createElement('option');
+    o.value = String(yr); o.textContent = String(yr);
+    ySel.appendChild(o);
+  }
+  if (y && !Array.from(ySel.options).some((o) => o.value === String(y))) {
+    const o = document.createElement('option');
+    o.value = String(y); o.textContent = String(y);
+    ySel.appendChild(o);
+  }
+  if (m) mSel.value = String(m);
+  if (d) dSel.value = String(d);
+  if (y) ySel.value = String(y);
+}
+function readRptSelectors(prefix) {
+  const m = parseInt($(`#rpt${prefix}Month`).value, 10);
+  const d = parseInt($(`#rpt${prefix}Day`).value, 10);
+  const y = parseInt($(`#rpt${prefix}Year`).value, 10);
+  if (!m || !d || !y) return null;
+  /* The day list always offers 1–31 — reject combinations that don't
+     exist (e.g. Feb 31) instead of storing an ISO string that rolls over. */
+  const roundTrip = new Date(y, m - 1, d);
+  if (roundTrip.getFullYear() !== y || roundTrip.getMonth() !== m - 1 || roundTrip.getDate() !== d) return null;
+  return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+}
 function renderReportingCard() {
   const p = reportPeriod();
-  $('#rptStart').textContent = fmtDate(p.start);
-  $('#rptEnd').textContent = fmtDate(p.end);
-  $('#rptSource').textContent = (orgSettings.reportingPeriodStart && orgSettings.reportingPeriodEnd)
-    ? 'Custom (admin set)' : 'KDFWR default (Feb 1 – Jan 31)';
-  $('#editRptStart').value = orgSettings.reportingPeriodStart || '';
-  $('#editRptEnd').value = orgSettings.reportingPeriodEnd || '';
-  $('#reportDisplay').classList.toggle('hidden', isAdmin());
-  $('#reportEdit').classList.toggle('hidden', !isAdmin());
+  fillRptSelectors('Start', p.start);
+  fillRptSelectors('End', p.end);
+  const custom = !!(orgSettings.reportingPeriodStart && orgSettings.reportingPeriodEnd);
+  const hint = $('#rptHint');
+  if (hint) {
+    hint.textContent = isAdmin()
+      ? (custom ? 'Custom period (admin set) — applies to dashboards and CSV exports for both modules.'
+                : 'KDFWR default (Feb 1 – Jan 31).')
+      : 'Only an admin can change the reporting period.';
+  }
+  const admin = isAdmin();
+  ['rptStartMonth', 'rptStartDay', 'rptStartYear', 'rptEndMonth', 'rptEndDay', 'rptEndYear'].forEach((id) => {
+    const el = $('#' + id); if (el) el.disabled = !admin;
+  });
+  const actions = $('#rptActions');
+  if (actions) actions.style.display = admin ? '' : 'none';
 }
 
 async function handleSaveBusiness() {
   if (!isAdmin()) return;
   const newBiz = {
     businessName: $('#editBizName').value.trim() || BUSINESS_NAME,
-    permitHolder: $('#editBizHolder').value.trim() || PERMIT_HOLDER,
-    permitNumber: $('#editBizPermit').value.trim() || PERMIT_NUMBER
+    businessAddress: $('#editBizAddress').value.trim(),
+    businessPhone: $('#editBizPhone').value.trim(),
+    businessEmail: $('#editBizEmail').value.trim()
   };
   const ok = await confirmDialog(
     'Save business info?',
@@ -7708,6 +7995,27 @@ async function handleSaveBusiness() {
   try {
     await saveOrgConfig(newBiz);
     toast('Business info saved');
+  } catch (err) {
+    toast(`Save failed: ${err.message || err}`, 'error');
+  }
+}
+
+/* Item 5: NWCO permit holder/number moved to the Licensing sub-screen. */
+async function handleSavePermit() {
+  if (!isAdmin()) return;
+  const newPermit = {
+    permitHolder: $('#editBizHolder').value.trim() || PERMIT_HOLDER,
+    permitNumber: $('#editBizPermit').value.trim() || PERMIT_NUMBER
+  };
+  const ok = await confirmDialog(
+    'Save permit info?',
+    `This updates the shared NWCO permit record used on reports. Type CONFIRM to proceed.`,
+    { sentinel: 'CONFIRM', okText: 'Save' }
+  );
+  if (!ok) return;
+  try {
+    await saveOrgConfig(newPermit);
+    toast('Permit info saved');
   } catch (err) {
     toast(`Save failed: ${err.message || err}`, 'error');
   }
@@ -8876,30 +9184,44 @@ async function deletePesticide(id) {
   }
 }
 
+/* Item 5 (v2-patch-2): reads the day/month/year dropdowns; storage fields
+   and reportPeriod() semantics are unchanged. */
 async function handleSaveReporting() {
   if (!isAdmin()) return;
-  const start = $('#editRptStart').value;
-  const end = $('#editRptEnd').value;
-  if ((start && !end) || (!start && end)) {
-    toast('Set both start and end, or leave both blank for the KDFWR default.', 'error');
+  const start = readRptSelectors('Start');
+  const end = readRptSelectors('End');
+  if (!start || !end) {
+    toast('Pick valid start and end dates (that day doesn’t exist in that month).', 'error');
     return;
   }
-  if (start && end && start > end) {
+  if (start > end) {
     toast('Start date must come before end date.', 'error');
     return;
   }
-  const reverting = !start && !end;
-  const body = reverting
-    ? 'This reverts the reporting period to the KDFWR default (Feb 1 – Jan 31, auto-computed). Type CONFIRM to proceed.'
-    : `Set reporting period to ${fmtDate(start)} – ${fmtDate(end)}. This applies to every trapper's dashboard and KDFWR export. Type CONFIRM to proceed.`;
+  const body = `Set reporting period to ${fmtDate(start)} – ${fmtDate(end)}. This applies to every trapper's dashboard stats and CSV exports (Trapping and Pesticide). Type CONFIRM to proceed.`;
   const ok = await confirmDialog('Save reporting period?', body, { sentinel: 'CONFIRM', okText: 'Save' });
   if (!ok) return;
   try {
     await saveOrgConfig({
-      reportingPeriodStart: start || null,
-      reportingPeriodEnd: end || null
+      reportingPeriodStart: start,
+      reportingPeriodEnd: end
     });
     toast('Reporting period saved');
+  } catch (err) {
+    toast(`Save failed: ${err.message || err}`, 'error');
+  }
+}
+
+/* Item 5: revert to the auto-computed KDFWR default (Feb 1 – Jan 31). */
+async function handleResetReporting() {
+  if (!isAdmin()) return;
+  const ok = await confirmDialog('Revert to KDFWR default?',
+    'This clears the custom period and returns to the auto-computed KDFWR default (Feb 1 – Jan 31). Type CONFIRM to proceed.',
+    { sentinel: 'CONFIRM', okText: 'Revert' });
+  if (!ok) return;
+  try {
+    await saveOrgConfig({ reportingPeriodStart: null, reportingPeriodEnd: null });
+    toast('Reporting period reset to KDFWR default');
   } catch (err) {
     toast(`Save failed: ${err.message || err}`, 'error');
   }
@@ -9039,6 +9361,7 @@ function subscribeToJobs() {
     if (!$('#app').classList.contains('hidden')) {
       if (appMode === 'jobs' && !$('#view-jobs').classList.contains('hidden')) renderJobsList();
       if (currentLifecycleJobId && !$('#view-job-detail').classList.contains('hidden')) renderLifecycleJobDetail(currentLifecycleJobId);
+      if (appMode === 'closeout' && !$('#view-closeout').classList.contains('hidden')) renderCloseoutList();   /* Item 7 */
     }
   }, (err) => {
     console.error('Jobs subscription error', err);
@@ -9705,6 +10028,8 @@ const VISIT_TYPES = [
  * lifecycle jobs (7-status) keep their existing behavior.
  * ===================================================================== */
 const TASK_MODEL_STATUSES = ['Active', 'Complete', 'Cancelled'];
+/* Item 2 (v2-patch-2): required Job Type on every new/edited job. */
+const JOB_TYPES = ['Inspection', 'Service Call', 'Cleanup', 'Repair', 'Exclusion', 'Trapping', 'Culling'];
 const TASK_TYPES = [
   'Set Trap', 'Re-bait Trap', 'Check Trap', 'Pull Trap', 'Check Camera',
   'Inspection', 'Service Call', 'Pesticide Application', 'Repair',
@@ -9907,6 +10232,7 @@ function subscribeToTasks() {
       if (appMode === 'jobs' && !$('#view-jobs').classList.contains('hidden')) renderJobsList();
       if (currentLifecycleJobId && !$('#view-job-detail').classList.contains('hidden')) renderLifecycleJobDetail(currentLifecycleJobId);
       if (currentTaskId && !$('#view-task-detail').classList.contains('hidden')) renderTaskDetail(currentTaskId);
+      if (appMode === 'closeout' && !$('#view-closeout').classList.contains('hidden')) renderCloseoutList();   /* Item 7 */
     }
   }, (err) => {
     console.error('Tasks subscription error', err);
@@ -9945,9 +10271,12 @@ function renderJobsList() {
   const el = $('#jobsList');
   if (!el) return;
   const filter = ($('#jobsFilterStatus') && $('#jobsFilterStatus').value) || 'active';
+  const typeFilter = ($('#jobsFilterType') && $('#jobsFilterType').value) || '';
   let list = lifecycleJobs();
   if (filter === 'active') list = list.filter(jobIsActive);
   else if (filter !== 'all') list = list.filter((j) => (j.status || 'Active') === filter);
+  /* Item 2: job-type filter. */
+  if (typeFilter) list = list.filter((j) => (j.jobType || '') === typeFilter);
   list = list.slice().sort((a, b) => (b.startDate || b.createdAt || '').localeCompare(a.startDate || a.createdAt || ''));
   if (!list.length) {
     el.innerHTML = '<div style="padding:16px;color:var(--ink-soft);">No jobs here yet. Tap <strong>+ Start New Job</strong> to open a container for a customer engagement.</div>';
@@ -9962,7 +10291,7 @@ function renderJobsList() {
     const bits = [dates, `${nTasks} task${nTasks === 1 ? '' : 's'}`, who].filter(Boolean);
     return `<div class="job-lc-row" data-ljob-open="${escapeHtml(j.id)}">
       <div class="jl-body">
-        <div class="jl-num">${escapeHtml(j.jobNumber || '')}</div>
+        <div class="jl-num">${escapeHtml(j.jobNumber || '')}${j.jobType ? ` <span class="job-type-tag">${escapeHtml(j.jobType)}</span>` : ''}</div>
         <div class="jl-name">${escapeHtml(j.customerName || '(no customer)')}</div>
         <div class="jl-meta">${escapeHtml(bits.join(' · '))}</div>
         ${jobTaskProgressHtml(j.id)}
@@ -9978,6 +10307,9 @@ function resetLifecycleJobForm() {
   lifecycleJobCustomer = null;
   const f = $('#lifecycleJobForm'); if (f) f.reset();
   $('#lj-id').value = '';
+  /* Item 2: job type dropdown (required, no default). */
+  fillSelect('lj-jobtype', JOB_TYPES, true, '— select job type —');
+  $('#lj-jobtype').value = '';
   /* Item 15: start today, end 30 days out (adjustable). */
   $('#lj-start').value = todayISO();
   $('#lj-end').value = addDaysISO(todayISO(), 30);
@@ -10074,6 +10406,9 @@ async function handleSaveLifecycleJob(e) {
     lifecycleJobCustomer = null;
   }
   if (!lifecycleJobCustomer || !lifecycleJobCustomer.id) { toast('Pick a customer from the list for this job', 'error'); $('#lj-customer').focus(); return; }
+  /* Item 2: job type is required. */
+  const jobType = $('#lj-jobtype').value;
+  if (!jobType) { toast('Pick a job type', 'error'); $('#lj-jobtype').focus(); return; }
   /* Item 15: start/end dates on the job container. */
   const startDate = $('#lj-start').value;
   const endDate = $('#lj-end').value;
@@ -10094,6 +10429,7 @@ async function handleSaveLifecycleJob(e) {
         customerId: lifecycleJobCustomer.id,
         customerName: lifecycleJobCustomer.name,
         propertyId,
+        jobType,
         startDate,
         endDate,
         estimateId,
@@ -10130,6 +10466,7 @@ async function handleSaveLifecycleJob(e) {
         customerId: lifecycleJobCustomer.id,
         customerName: lifecycleJobCustomer.name,
         propertyId,
+        jobType,
         /* Item 15: a new job is Active until Jon closes it out (Complete)
            or it's cancelled. */
         status: 'Active',
@@ -10178,6 +10515,9 @@ function editLifecycleJob(id) {
   if (appMode !== 'jobs') setAppModeQuiet('jobs');
   setView('add');
   $('#lj-id').value = id;
+  /* Item 2: job type (jobs created before v2.2 have none until saved). */
+  fillSelect('lj-jobtype', JOB_TYPES, true, '— select job type —');
+  $('#lj-jobtype').value = j.jobType || '';
   /* Item 15: start/end dates (legacy jobs pick up defaults on first edit). */
   $('#lj-start').value = j.startDate || (j.createdAt ? j.createdAt.slice(0, 10) : todayISO());
   $('#lj-end').value = j.endDate || addDaysISO($('#lj-start').value, 30);
@@ -10284,10 +10624,8 @@ function renderTaskModelJobDetail(j) {
     actions += `<button class="btn btn-primary" data-ljob-action="log-pesticide" data-id="${escapeHtml(id)}">Log Pesticide Activity</button>`;
   }
   actions += `<button class="btn btn-ghost" data-ljob-action="edit" data-id="${escapeHtml(id)}">Edit Job</button>`;
-  /* Close Out: Jon/admin only — marks Complete and cancels remaining open tasks. */
-  if (isOpen && isAdmin()) {
-    actions += `<button class="btn btn-amber" data-ljob-action="close-out" data-id="${escapeHtml(id)}">Close Out Job</button>`;
-  }
+  /* Item 7 (v2-patch-2): the Close Out button moved off this screen — jobs
+     are closed through the dedicated Close Out workflow step. */
   if (isOpen) actions += `<button class="btn btn-danger" data-ljob-action="cancel-job" data-id="${escapeHtml(id)}" style="margin-top:10px;">Cancel Job</button>`;
 
   box.innerHTML = `
@@ -10296,6 +10634,7 @@ function renderTaskModelJobDetail(j) {
         <h3 style="margin:0;font-family:ui-monospace,'SF Mono',monospace;font-size:16px;">${escapeHtml(j.jobNumber || 'Job')}</h3>
         <span class="status-pill ${jobLifeStatusClass(j.status)}">${escapeHtml(j.status || 'Active')}</span>
       </div>
+      ${j.jobType ? `<div style="margin-top:8px;"><span class="job-type-tag" style="font-size:13px;padding:3px 10px;">${escapeHtml(j.jobType)}</span></div>` : ''}
       <div style="margin-top:6px;font-weight:600;color:var(--green-deep);font-size:17px;">${escapeHtml(j.customerName || '')}</div>
       ${prop ? `<div class="muted" style="font-size:13px;">${escapeHtml([prop.siteNickname, prop.address].filter(Boolean).join(' · '))}</div>`
         : cust && cust.address ? `<div class="muted" style="font-size:13px;">${escapeHtml([cust.address, cust.city].filter(Boolean).join(', '))}</div>` : ''}
@@ -10385,6 +10724,7 @@ function renderLifecycleJobDetail(id) {
         <h3 style="margin:0;font-family:ui-monospace,'SF Mono',monospace;font-size:16px;">${escapeHtml(j.jobNumber || 'Job')}</h3>
         <span class="status-pill ${jobLifeStatusClass(j.status)}">${escapeHtml(j.status || 'Lead')}</span>
       </div>
+      ${j.jobType ? `<div style="margin-top:8px;"><span class="job-type-tag" style="font-size:13px;padding:3px 10px;">${escapeHtml(j.jobType)}</span></div>` : ''}
       <div style="margin-top:6px;font-weight:600;color:var(--green-deep);font-size:17px;">${escapeHtml(j.customerName || '')}</div>
       ${prop ? `<div class="muted" style="font-size:13px;">${escapeHtml([prop.siteNickname, prop.address].filter(Boolean).join(' · '))}</div>`
         : cust && cust.address ? `<div class="muted" style="font-size:13px;">${escapeHtml([cust.address, cust.city].filter(Boolean).join(', '))}</div>` : ''}
@@ -10766,24 +11106,116 @@ function cancelOpenTasksForJob(jobId) {
   return open.length;
 }
 
-/* Close Out (admin only): job → Complete, remaining open tasks cancelled,
-   rebait schedule switched off (Item 19). Jon marks a job Complete manually
-   after it's billed and paid in QBO. */
-async function closeOutJob(id) {
+/* =====================================================================
+ * Close Out (Item 7, v2-patch-2) — standalone sixth workflow step.
+ * ---------------------------------------------------------------------
+ * The module lists Active task-model jobs whose tasks are all Completed
+ * or Cancelled. Tapping Close Out opens a confirmation screen with the
+ * job summary; confirming marks the job Complete, cancels any remaining
+ * open tasks, switches the rebait schedule off, and records the closeout
+ * date + operator. After closeout the job moves to the Paid/Invoiced
+ * tracking flow in QuickBooks — no invoice is generated in the app.
+ * (Replaces the Close Out button that lived on the Job Detail screen.)
+ * ===================================================================== */
+let currentCloseoutJobId = null;
+
+/* Ready to close: Active, task-model, and no task still Open. Legacy
+   lifecycle jobs keep their own Pending Close → Paid flow on Job Detail. */
+function jobsReadyToClose() {
+  return lifecycleJobs().filter((j) =>
+    isTaskModelJob(j)
+    && (j.status || 'Active') === 'Active'
+    && tasksForJob(j.id).every((t) => t.status !== 'Open'));
+}
+
+function renderCloseoutList() {
+  const el = $('#closeoutList');
+  if (!el) return;
+  const list = jobsReadyToClose().slice().sort((a, b) =>
+    (b.startDate || b.createdAt || '').localeCompare(a.startDate || a.createdAt || ''));
+  if (!list.length) {
+    el.innerHTML = '<div style="padding:16px;color:var(--ink-soft);">Nothing ready to close. A job appears here once it is Active and every one of its tasks is Completed or Cancelled.</div>';
+    return;
+  }
+  el.innerHTML = list.map((j) => `<div class="job-lc-row" style="cursor:default;">
+      <div class="jl-body">
+        <div class="jl-num">${escapeHtml(j.jobNumber || '')}${j.jobType ? ` <span class="job-type-tag">${escapeHtml(j.jobType)}</span>` : ''}</div>
+        <div class="jl-name">${escapeHtml(j.customerName || '(no customer)')}</div>
+        <div class="jl-meta">Started ${escapeHtml(fmtDate(j.startDate) || '—')}</div>
+      </div>
+      <button type="button" class="btn btn-amber btn-compact" data-closeout-open="${escapeHtml(j.id)}" style="flex-shrink:0;">Close Out</button>
+    </div>`).join('');
+}
+
+function openCloseoutConfirm(id) {
+  currentCloseoutJobId = id;
+  setView('closeout-confirm');
+  renderCloseoutConfirm(id);
+}
+
+function renderCloseoutConfirm(id) {
+  const box = $('#closeoutConfirm');
+  if (!box) return;
+  const j = cachedJobs.find((x) => x.id === id);
+  if (!j) {
+    box.innerHTML = '<div class="card">Job not found.</div>' +
+      '<div class="form-actions"><button class="btn btn-cancel btn-ghost" data-closeout-action="back">Back</button></div>';
+    return;
+  }
+  const est = j.estimateId ? cachedEstimates.find((e) => e.id === j.estimateId) : null;
+  const tasks = tasksForJob(id);
+  const done = tasks.filter((t) => t.status === 'Completed');
+  const open = tasks.filter((t) => t.status === 'Open');
+  const taskRows = done.length ? done.map((t) => `<div class="job-stat-row">
+      <span class="jsk">${escapeHtml(fmtShortDate(t.scheduledDate))}</span>
+      <span class="jsv">${escapeHtml(taskTypeLabel(t))}${t.completedBy ? ` · ${escapeHtml(t.completedBy)}` : ''}</span>
+    </div>`).join('') : '<div class="muted" style="padding:6px 0;">No completed tasks on this job.</div>';
+  box.innerHTML = `
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;">
+        <h3 style="margin:0;font-family:ui-monospace,'SF Mono',monospace;font-size:16px;">${escapeHtml(j.jobNumber || 'Job')}</h3>
+        <span class="status-pill ${jobLifeStatusClass(j.status)}">${escapeHtml(j.status || 'Active')}</span>
+      </div>
+      ${j.jobType ? `<div style="margin-top:8px;"><span class="job-type-tag" style="font-size:13px;padding:3px 10px;">${escapeHtml(j.jobType)}</span></div>` : ''}
+      <div style="margin-top:6px;font-weight:600;color:var(--green-deep);font-size:17px;">${escapeHtml(j.customerName || '')}</div>
+      <div class="muted" style="font-size:13px;margin-top:4px;">${escapeHtml(fmtShortDate(j.startDate))} – ${escapeHtml(fmtShortDate(j.endDate) || 'open')}</div>
+    </div>
+    <div class="card">
+      <h3 style="margin:0 0 8px;">Completed tasks</h3>
+      ${taskRows}
+      ${open.length ? `<div class="hint" style="margin-top:8px;">${open.length} still-open task${open.length === 1 ? '' : 's'} will be cancelled on closeout.</div>` : ''}
+    </div>
+    <div class="card">
+      <div class="job-stat-row"><span class="jsk">Linked estimate</span><span class="jsv">${est ? `${escapeHtml(est.estimateNumber || '')} · ${fmtUSD(est.grandTotal)}` : '—'}</span></div>
+    </div>
+    <div class="hint" style="margin:0 4px 12px;">Closing out marks the job Complete and switches off its rebait schedule. Invoicing and payment tracking continue in QuickBooks — no invoice is generated in the app.</div>
+    <div class="form-actions">
+      <button type="button" class="btn btn-amber" data-closeout-action="confirm" data-id="${escapeHtml(id)}">Confirm Close Out</button>
+      <button type="button" class="btn btn-cancel btn-ghost" data-closeout-action="back">Back</button>
+    </div>`;
+}
+
+/* The confirmation screen IS the confirmation — no extra dialog. Marks the
+   job Complete, cancels remaining open tasks, turns the rebait schedule
+   off, and stamps the closeout date + operator. */
+async function confirmCloseOutJob(id) {
   if (!isAdmin()) { toast('Only an administrator can close out a job.', 'error'); return; }
   const j = cachedJobs.find((x) => x.id === id);
-  if (!j) return;
-  const nOpen = tasksForJob(id).filter((t) => t.status === 'Open').length;
-  const ok = await confirmDialog('Close out this job?',
-    `${j.jobNumber || 'This job'} moves to Complete${nOpen ? ` and its ${nOpen} remaining open task${nOpen === 1 ? '' : 's'} will be cancelled` : ''}. Do this after the job is billed and paid in QuickBooks.`,
-    { okText: 'Close Out' });
-  if (!ok) return;
-  const moved = await setJobLifecycleStatus(id, 'Complete', { rebaitActive: false });
+  if (!j || (j.status || 'Active') !== 'Active') { toast('This job is no longer Active.', 'error'); setView('dashboard'); return; }
+  const now = new Date().toISOString();
+  const me = currentUser ? (EMAIL_TO_TRAPPER[currentUser.email.toLowerCase()] || currentUser.email) : '';
+  const moved = await setJobLifecycleStatus(id, 'Complete', {
+    rebaitActive: false,
+    closedOutAt: now,
+    closedOutBy: me,
+    closedOutByEmail: currentUser ? currentUser.email : null
+  });
   if (!moved) return;
   const jdx = cachedJobs.findIndex((x) => x.id === id);
-  if (jdx >= 0) cachedJobs[jdx] = { ...cachedJobs[jdx], status: 'Complete', rebaitActive: false };
+  if (jdx >= 0) cachedJobs[jdx] = { ...cachedJobs[jdx], status: 'Complete', rebaitActive: false, closedOutAt: now, closedOutBy: me };
   cancelOpenTasksForJob(id);
-  renderLifecycleJobDetail(id);
+  currentCloseoutJobId = null;
+  setView('dashboard');   /* back to the Close Out list */
 }
 
 async function cancelTaskModelJob(id) {
@@ -11540,9 +11972,28 @@ async function assignLegacyGroup(index, jobId) {
       customerName: j.customerName || '', updatedAt: now
     }, { merge: true });
   }
+  /* Item 3 (v2-patch-2) — double-tap fix: the re-render below reads the
+     local record caches, which the snapshot hasn't refreshed yet, so the
+     group used to reappear as unassigned and invite a second tap. Patch
+     the caches optimistically BEFORE re-rendering (H1 pattern used by the
+     job/task writes); a failed commit reverts them and shows a toast. */
+  const patchLocalCaches = (jobIdVal) => {
+    for (const it of g.items) {
+      const cache = it.col === 'records' ? cachedRecords : cachedPesticideRecords;
+      const idx = cache.findIndex((r) => r.id === it.id);
+      if (idx >= 0) {
+        cache[idx] = jobIdVal
+          ? { ...cache[idx], jobId: jobIdVal, jobTitle: j.jobNumber || '', customerId: j.customerId || null, customerName: j.customerName || '' }
+          : { ...cache[idx], jobId: null };
+      }
+    }
+  };
+  patchLocalCaches(jobId);
   /* Optimistic write (H1): fire without awaiting so linking works offline. */
   batch.commit().catch((err) => {
     console.error('Legacy assign failed', err);
+    patchLocalCaches(null);   /* revert so the group shows as unassigned again */
+    if (!$('#view-assign-legacy').classList.contains('hidden')) renderAssignLegacyView();
     toast('Assign failed to sync: ' + ((err && err.message) || 'error'), 'error');
   });
   toast(`Linked ${g.items.length} record${g.items.length === 1 ? '' : 's'} to ${j.jobNumber}`);
@@ -11562,13 +12013,12 @@ async function createJobForLegacyGroup(index) {
     const ref = doc(jobsCol());
     /* M4: reserved atomically when online; local fallback offline. */
     const jobNumber = await allocateJobNumber();
-    /* Optimistic writes (H1): fire the job create and the record links
-       without awaiting so the flow works offline. */
-    writeWithRetry(() => setDoc(ref, {
+    const jobData = {
       jobNumber,
       customerId: match ? match.id : null,
       customerName: match ? match.name : g.name,
       propertyId: null,
+      jobType: null,               /* Item 2: legacy container — no type on record */
       status: 'Active',            /* legacy work is by definition underway/past */
       estimateId: null, qbInvoiceId: null, qbInvoiceNumber: null, paymentStatus: null,
       assignedOperators: [], assigneeNames: [],
@@ -11577,7 +12027,10 @@ async function createJobForLegacyGroup(index) {
       createdByEmail: currentUser ? currentUser.email : null,
       createdAt: now, updatedAt: now,
       notes: `Created from legacy records (${g.date || 'no date'}).`
-    })).catch((err) => {
+    };
+    /* Optimistic writes (H1): fire the job create and the record links
+       without awaiting so the flow works offline. */
+    writeWithRetry(() => setDoc(ref, jobData)).catch((err) => {
       console.error('Legacy job create failed', err);
       toast('Job failed to sync: ' + ((err && err.message) || 'error'), 'error');
     });
@@ -11589,8 +12042,22 @@ async function createJobForLegacyGroup(index) {
         customerName: match ? match.name : g.name, updatedAt: now
       }, { merge: true });
     }
+    /* Item 3 (v2-patch-2) — double-tap fix: seed the job and record caches
+       before re-rendering so the group leaves the list on the FIRST tap
+       (the re-render reads these caches, not the not-yet-arrived snapshot). */
+    if (!cachedJobs.some((x) => x.id === ref.id)) cachedJobs.push({ id: ref.id, ...jobData });
+    const patchLocalCaches = (jobIdVal) => {
+      for (const it of g.items) {
+        const cache = it.col === 'records' ? cachedRecords : cachedPesticideRecords;
+        const idx = cache.findIndex((r) => r.id === it.id);
+        if (idx >= 0) cache[idx] = { ...cache[idx], jobId: jobIdVal };
+      }
+    };
+    patchLocalCaches(ref.id);
     batch.commit().catch((err) => {
       console.error('Legacy link failed', err);
+      patchLocalCaches(null);   /* revert so the group shows as unassigned again */
+      if (!$('#view-assign-legacy').classList.contains('hidden')) renderAssignLegacyView();
       toast('Record links failed to sync: ' + ((err && err.message) || 'error'), 'error');
     });
     toast(`Job created and ${g.items.length} record${g.items.length === 1 ? '' : 's'} linked`);
@@ -11619,6 +12086,10 @@ async function refreshAll() {
   }
   if (appMode === 'allrecords') {
     renderAllRecords();
+    return;
+  }
+  if (appMode === 'closeout') {
+    renderCloseoutList();
     return;
   }
   renderDashboard();
@@ -12551,8 +13022,17 @@ async function init() {
   $('#exportRange').addEventListener('click', exportRange);
 
   $('#saveBizBtn').addEventListener('click', handleSaveBusiness);
+  $('#savePermitBtn').addEventListener('click', handleSavePermit);   /* Item 5 */
   $('#saveRptBtn').addEventListener('click', handleSaveReporting);
+  $('#resetRptBtn').addEventListener('click', handleResetReporting); /* Item 5 */
   $('#saveCertBtn').addEventListener('click', handleSaveCerts);
+
+  /* Item 5 (v2-patch-2): Settings sub-screen navigation. */
+  $('#view-settings').addEventListener('click', (e) => {
+    const nav = e.target.closest('[data-settings-nav]');
+    if (nav) setView(nav.dataset.settingsNav);
+  });
+  $$('[data-settings-back]').forEach((b) => b.addEventListener('click', () => setView('dashboard')));
 
   /* Pesticide DB CRUD wiring */
   $('#addPesticideBtn').addEventListener('click', () => openPesticideEditor(null));
@@ -12648,7 +13128,16 @@ async function init() {
     }
     if (e.target.closest('#flowHelpBtn')) { openHowItWorksSheet(); return; }
     const step = e.target.closest('.flow-cell');
-    if (step && step.dataset.mode) setAppMode(step.dataset.mode);
+    if (step && step.dataset.mode) {
+      /* Item 8: the Field Work step opens whichever tab was used last. */
+      setAppMode(step.dataset.mode === 'fieldwork' ? lastFieldWorkTab() : step.dataset.mode);
+    }
+  });
+
+  /* Item 8 (v2-patch-2): Field Work tab bar. */
+  $('#fieldWorkTabs').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-fw-tab]');
+    if (b) switchFieldWorkTab(b.dataset.fwTab);
   });
   $('#flowSheetBackdrop').addEventListener('click', closeHowItWorksSheet);
   $('#flowSheetCloseBtn').addEventListener('click', closeHowItWorksSheet);
@@ -12816,9 +13305,39 @@ async function init() {
   /* Item 1: Get Directions — follows the address field live. */
   $('#getDirectionsBtn').addEventListener('click', openDirectionsToCustomer);
   $('#c-address').addEventListener('input', updateGetDirectionsBtn);
-  $('#syncNowBtn').addEventListener('click', handleSyncNow);
-  $('#enablePushBtn').addEventListener('click', enablePushNotifications);
-  $('#pushTestBtn').addEventListener('click', sendTestNotification);
+  /* Item 5 (v2-patch-2): Quick Controls switches. QBO Sync and Test
+     Notifications are momentary — they flip on while running and settle
+     back off; QBO Reconnect and Enable Notifications reflect real state. */
+  const qcMomentary = async (id, fn) => {
+    const sw = $('#' + id);
+    if (!sw || sw.disabled) return;
+    sw.disabled = true;
+    sw.setAttribute('aria-checked', 'true');
+    sw.classList.add('busy');
+    try { await fn(); } finally {
+      sw.classList.remove('busy');
+      sw.disabled = false;
+      sw.setAttribute('aria-checked', 'false');
+      renderSettingsStatus();
+    }
+  };
+  $('#qcQboReconnect').addEventListener('click', () => {
+    window.open('https://us-central1-swr-tracker-54dfd.cloudfunctions.net/qbConnect', '_blank', 'noopener');
+    toast('Finish the QuickBooks authorization in the new tab, then run QBO Sync.');
+  });
+  $('#qcQboSync').addEventListener('click', () => qcMomentary('qcQboSync', handleSyncNow));
+  $('#qcEnablePush').addEventListener('click', async () => {
+    const sw = $('#qcEnablePush');
+    if (sw.disabled) return;
+    sw.disabled = true;
+    sw.classList.add('busy');
+    try { await enablePushNotifications(); } finally {
+      sw.classList.remove('busy');
+      sw.disabled = false;
+      renderSettingsStatus();
+    }
+  });
+  $('#qcTestPush').addEventListener('click', () => qcMomentary('qcTestPush', sendTestNotification));
   $('#photoRetentionDays').addEventListener('change', async (e) => {
     const days = parseInt(e.target.value, 10);
     if (!Number.isFinite(days)) return;
@@ -13001,6 +13520,9 @@ async function init() {
   /* ---- Job Lifecycle wiring (v2, Item 3) ---- */
   $('#newLifecycleJobBtn').addEventListener('click', () => { editingLifecycleJobId = null; resetLifecycleJobForm(); setView('add'); });
   $('#jobsFilterStatus').addEventListener('change', renderJobsList);
+  /* Item 2 (v2-patch-2): job-type filter on the Jobs list. */
+  fillSelect('jobsFilterType', JOB_TYPES, true, 'All job types');
+  $('#jobsFilterType').addEventListener('change', renderJobsList);
   $('#jobsList').addEventListener('click', (e) => {
     const row = e.target.closest('[data-ljob-open]');
     if (row) openLifecycleJob(row.dataset.ljobOpen);
@@ -13050,7 +13572,7 @@ async function init() {
     }
     else if (action === 'add-contractor') addContractorToJob(id);
     else if (action === 'extend-end') extendJobEndDate(id);
-    else if (action === 'close-out') closeOutJob(id);
+    /* Item 7 (v2-patch-2): 'close-out' removed — see the Close Out module. */
     else if (action === 'cancel-job') {
       const j = cachedJobs.find((x) => x.id === id);
       if (j && isTaskModelJob(j)) { cancelTaskModelJob(id); return; }
@@ -13120,6 +13642,18 @@ async function init() {
     else if (action === 'open-job') openLifecycleJob(jobId);
   });
 
+  /* ---- Close Out wiring (Item 7, v2-patch-2) ---- */
+  $('#closeoutList').addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-closeout-open]');
+    if (btn) openCloseoutConfirm(btn.dataset.closeoutOpen);
+  });
+  $('#closeoutConfirm').addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-closeout-action]');
+    if (!btn) return;
+    if (btn.dataset.closeoutAction === 'back') { currentCloseoutJobId = null; setView('dashboard'); }
+    else if (btn.dataset.closeoutAction === 'confirm') confirmCloseOutJob(btn.dataset.id);
+  });
+
   /* ---- Unified records view wiring (Items 8 & 9) ---- */
   ['allRecSearch', 'allRecFrom', 'allRecTo', 'allRecCustomer', 'allRecContractor', 'allRecType'].forEach((id) => {
     const el = $('#' + id);
@@ -13157,10 +13691,7 @@ async function init() {
   });
 
   /* ---- Monitoring (camera) wiring ---- */
-  $('#cameraAlertBanner').addEventListener('click', () => {
-    const f = $('#fieldFilter'); if (f) f.value = 'alerts';
-    setAppMode('field');
-  });
+  /* Item 4 (v2-patch-2): landing-page camera alert banner removed. */
   $('#fieldSyncBtn').addEventListener('click', handleFieldSync);
   $('#fieldFilter').addEventListener('change', renderFieldDashboard);
   $('#fieldList').addEventListener('click', (e) => {
@@ -13268,7 +13799,7 @@ async function init() {
       $('#accountInfo').innerHTML = `Signed in as <strong>${escapeHtml(user.email)}</strong>${adminFlag}` +
         (trapper ? `<br><span class="muted">Trapper: ${escapeHtml(trapper)}</span>` : '') +
         `<br><span class="muted" style="font-size:12px;">App version: ${escapeHtml(APP_VERSION)}</span>`;
-      $('#wipeBtn').style.display = isAdmin() ? 'block' : 'none';
+      $('#wipeBtn').style.display = isAdmin() ? 'flex' : 'none';   /* Item 5: snav row */
       $('#pesticideDbCard').classList.toggle('hidden', !isAdmin());
       try { await maybeMigrateLocalRecords(); } catch (e) { console.error('Migration error', e); }
       subscribeToRecords();
