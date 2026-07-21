@@ -106,13 +106,7 @@
     .flow-cell:active { transform: scale(0.97); }
     .flow-cell:hover, .flow-cell:focus { background: rgba(196,119,42,0.18); border-color: var(--amber); }
     .flow-cell.spacer { visibility: hidden; pointer-events: none; }
-    .flow-cell .fc-num {
-      position: absolute; top: 6px; left: 6px;
-      width: 20px; height: 20px; border-radius: 50%;
-      background: var(--amber); color: #fff;
-      font-size: 11px; font-weight: 700;
-      display: flex; align-items: center; justify-content: center;
-    }
+    /* Item 14: step numbers removed from the grid cells. */
     .flow-cell .fc-icon { font-size: 40px; line-height: 1; }
     .flow-cell .fc-label { font-family: 'Playfair Display', serif; font-size: 14px; font-weight: 700; color: var(--cream); white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
     .flow-cell .fc-desc { font-size: 10.5px; color: var(--amber-soft); line-height: 1.25; text-align: center; white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
@@ -125,7 +119,8 @@
     .flow-turn { display: flex; padding: 2px 14px; }
     .flow-turn.right { justify-content: flex-end; }
     .flow-turn.left { justify-content: flex-start; }
-    .flow-turn svg { width: 36px; height: 24px; stroke: var(--amber); fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+    /* Item 14: straight down arrow at each row break. */
+    .flow-turn svg { width: 24px; height: 24px; stroke: var(--amber); fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
     .flow-help-row { text-align: center; }
     .landing-sync { display: flex; justify-content: flex-end; margin-bottom: 6px; }
     .flow-help {
@@ -144,22 +139,29 @@
       background: var(--cream-deep); display: flex; align-items: center; justify-content: center; font-size: 16px;
     }
     .flow-guide .fg-step strong { color: var(--green-deep); }
-    /* Settings gear on the landing page (Item 16): 24px icon, bottom-right,
-       above the safe-area inset. */
-    .landing-gear {
-      position: fixed;
-      right: 16px;
-      bottom: calc(var(--safe-bot) + 14px);
-      width: 44px; height: 44px;              /* comfortable tap target */
-      background: rgba(255,255,255,0.07);
-      border: 1px solid rgba(196,119,42,0.3);
-      border-radius: 50%;
-      color: var(--amber-soft);
-      display: flex; align-items: center; justify-content: center;
-      cursor: pointer; z-index: 97;
+    /* Items 8 & 9 (v2-patch-1): persistent bottom banner on the landing page —
+       View Records, Estimates, Notifications, Settings. Sits below the
+       workflow grid, above the safe-area inset. Replaces the old floating
+       settings gear. */
+    .landing-banner {
+      position: fixed; left: 0; right: 0; bottom: 0;
+      padding: 8px 10px calc(var(--safe-bot) + 8px);
+      background: var(--green-deep);
+      border-top: 1px solid rgba(196,119,42,0.35);
+      display: grid; grid-template-columns: repeat(4, 1fr);
+      z-index: 98;
     }
-    .landing-gear svg { width: 24px; height: 24px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
-    .landing-gear:active { background: rgba(196,119,42,0.25); }
+    .lb-btn {
+      background: transparent; border: none; color: var(--amber-soft);
+      display: flex; flex-direction: column; align-items: center; gap: 3px;
+      font-size: 11px; font-weight: 600; padding: 6px 0; position: relative;
+      cursor: pointer;
+    }
+    .lb-btn svg { width: 24px; height: 24px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+    .lb-btn:active, .lb-btn:hover { color: var(--amber); }
+    .lb-btn .bell-badge { top: 0; right: calc(50% - 24px); }
+    /* Keep the workflow grid clear of the fixed banner. */
+    #modePicker { padding-bottom: calc(var(--safe-bot) + 96px); }
     .settings-group { font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-soft); margin: 20px 4px 8px; }
     .settings-group.first { margin-top: 4px; }
     .conn-status { font-size: 13px; font-weight: 600; margin-top: 4px; }
@@ -1119,7 +1121,7 @@
     .est-detail-line .d-sub { color: var(--ink-soft); font-size: 12px; }
     .cust-active-toggle { flex-shrink: 0; align-self: center; border: 1px solid var(--line); background: #fff; color: var(--ink-soft); border-radius: 999px; padding: 6px 14px; font-size: 12px; font-weight: 700; cursor: pointer; white-space: nowrap; }
     .cust-active-toggle.on { background: #DDEAD8; color: var(--released); border-color: #cfe3c7; }
-    /* Field Information module */
+    /* Monitoring module (formerly Field Information / Cameras) */
     .cam-dot { width: 13px; height: 13px; border-radius: 50%; flex-shrink: 0; display: inline-block; }
     .cam-dot.green { background: #2e9e5b; } .cam-dot.yellow { background: #e0a800; }
     .cam-dot.red { background: var(--danger); } .cam-dot.none { background: #bbb; }
@@ -1275,22 +1277,17 @@
       box-shadow: inset 0 0 0 2px var(--amber);
       border-radius: 8px;
     }
-    .loc-entry { display: flex; gap: 8px; margin-top: 8px; align-items: stretch; }
+    .loc-entry { display: flex; gap: 8px; margin-top: 8px; align-items: stretch; position: relative; }
+    /* Item 3: Mapbox suggestion list under the address-entry inputs. */
+    .loc-entry .autocomplete-list { top: calc(100% + 2px); }
     .loc-entry input { flex: 1; min-width: 0; }
     .loc-entry .map-btn { flex-shrink: 0; }
     input[readonly]#f-address, input[readonly]#f-release-address {
       background: var(--cream-deep); color: var(--ink); cursor: default;
     }
 
-    /* ---- Notifications (Items 12 & 17) ---- */
-    .header-bell {
-      position: relative; background: transparent; border: none;
-      color: var(--amber-soft); padding: 8px; border-radius: 10px;
-      display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0;
-      cursor: pointer;
-    }
-    .header-bell:active { background: rgba(255,255,255,0.1); }
-    .header-bell svg { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+    /* ---- Notifications (Items 12 & 17; header bells removed v2-patch-1
+       Item 12 — the unread badge lives on the landing banner now) ---- */
     .bell-badge {
       position: absolute; top: 2px; right: 0;
       min-width: 17px; height: 17px; padding: 0 4px;
@@ -1321,7 +1318,7 @@
     @media (min-width: 600px) {
       #view-add, #view-dashboard, #view-records, #view-export, #view-settings,
       #view-customers, #view-add-customer, #view-records-pesticide, #view-add-pesticide,
-      #view-notifications {
+      #view-notifications, #view-records-all {
         max-width: 760px; margin: 0 auto;
       }
       .field-row.two { grid-template-columns: 1fr 1fr; gap: 14px; }
@@ -1538,11 +1535,8 @@
 <!-- Mode picker (after sign-in) -->
 <div id="modePicker" class="hidden">
   <div class="mode-picker-wrap">
-    <div class="landing-sync" style="gap:8px;">
-      <button type="button" class="header-bell" id="headerBellLanding" aria-label="Notifications" title="Notifications">
-        <svg viewBox="0 0 24 24"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
-        <span class="bell-badge hidden" id="bellBadgeLanding">0</span>
-      </button>
+    <!-- Item 12 (v2-patch-1): the bell moved to the bottom banner. -->
+    <div class="landing-sync">
       <button type="button" class="sync-indicator" id="syncIndicatorLanding" data-state="offline" title="Sync status"><span class="dot"></span><span class="label">Offline</span></button>
     </div>
     <img class="brand-logo" src="logo.png" alt="SWR"
@@ -1555,10 +1549,27 @@
     <div class="flow-grid" id="flowGrid" role="navigation" aria-label="Job workflow"></div>
     <div class="flow-help-row"><button type="button" class="flow-help" id="flowHelpBtn">How it works</button></div>
   </div>
-  <!-- Settings demoted to a small gear (Item 16): bottom-right, above the safe area. -->
-  <button type="button" id="landingGearBtn" class="landing-gear" aria-label="Settings" title="Settings">
-    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3h.1a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8v.1a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z"/></svg>
-  </button>
+  <!-- Items 8 & 9 (v2-patch-1): persistent bottom banner — the direct
+       records/estimates/notifications/settings access from v1. -->
+  <nav class="landing-banner" aria-label="Quick access">
+    <button type="button" class="lb-btn" data-banner="records" aria-label="View Records">
+      <svg viewBox="0 0 24 24"><path d="M3 5h18M3 12h18M3 19h18"/></svg>
+      <span>View Records</span>
+    </button>
+    <button type="button" class="lb-btn" data-banner="estimates" aria-label="Estimates">
+      <svg viewBox="0 0 24 24"><path d="M4 4h16v4H4z"/><path d="M4 12h10"/><path d="M4 16h10"/><path d="M4 20h7"/><path d="M18 13v7"/><path d="M15 16l3-3 3 3"/></svg>
+      <span>Estimates</span>
+    </button>
+    <button type="button" class="lb-btn" data-banner="notifications" aria-label="Notifications">
+      <svg viewBox="0 0 24 24"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+      <span>Notifications</span>
+      <span class="bell-badge hidden" id="bannerNotifBadge">0</span>
+    </button>
+    <button type="button" class="lb-btn" data-banner="settings" aria-label="Settings">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3h.1a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8v.1a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z"/></svg>
+      <span>Settings</span>
+    </button>
+  </nav>
 </div>
 
 <!-- App -->
@@ -1586,10 +1597,9 @@
     </div>
     <div class="header-right">
       <span id="pendingPhotoIndicator" class="hidden" style="font-size:12px;color:var(--amber,#c4772a);align-self:center;margin-right:8px;white-space:nowrap;" title="Photos waiting to upload">📷 <span class="label">pending</span></span>
-      <button type="button" class="header-bell" id="headerBell" aria-label="Notifications" title="Notifications">
-        <svg viewBox="0 0 24 24"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
-        <span class="bell-badge hidden" id="bellBadge">0</span>
-      </button>
+      <!-- Item 12 (v2-patch-1): bell removed — Notifications live in the
+           landing page's bottom banner. Header stays clean: title +
+           online/offline indicator. -->
       <button type="button" class="sync-indicator" id="syncIndicator" data-state="offline" title="Tap for sync status">
         <span class="dot"></span>
         <span class="label">Offline</span>
@@ -1801,7 +1811,9 @@
         <div class="form-group">
           <label for="f-address">Location<span class="req">*</span></label>
           <div class="autocomplete-wrap">
-            <input type="text" id="f-address" placeholder="Set the capture location with an option below" autocomplete="off" readonly required>
+            <!-- Item 5 (v2-patch-1): editable — typing locks it against
+                 customer/property prefill overwrites for this form session. -->
+            <input type="text" id="f-address" placeholder="Type an address, or set the location with an option below" autocomplete="off" required>
             <div class="autocomplete-list hidden" id="f-address-ac" data-ac-target="trap"></div>
           </div>
           <div class="loc-options" id="trapLocOptions">
@@ -1821,6 +1833,7 @@
           <div class="loc-entry hidden" id="trapLocEntry">
             <input type="text" id="trapLocInput" placeholder="123 Main St, Lexington — or 38.02, -84.50" autocomplete="off">
             <button type="button" class="map-btn" id="trapLocGo">Set</button>
+            <div class="autocomplete-list hidden" id="trapLocInput-ac"></div>
           </div>
           <div class="hint" id="addressValidationHint"></div>
           <div class="customer-suggest-banner" id="trapCustomerSuggest">
@@ -1898,6 +1911,7 @@
             <div class="loc-entry hidden" id="releaseLocEntry">
               <input type="text" id="releaseLocInput" placeholder="Address — or 38.02, -84.50" autocomplete="off">
               <button type="button" class="map-btn" id="releaseLocGo">Set</button>
+              <div class="autocomplete-list hidden" id="releaseLocInput-ac"></div>
             </div>
             <div class="hint" id="releaseLocHint"></div>
           </div>
@@ -2271,7 +2285,7 @@
           </button>
           <button type="button" class="hub-btn" data-hub-action="schedule-appointment">
             <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
-            Schedule Appointment
+            Schedule Task
           </button>
           <button type="button" class="hub-btn" data-hub-action="create-estimate">
             <svg viewBox="0 0 24 24"><path d="M4 4h16v4H4z"/><path d="M4 12h10"/><path d="M4 16h10"/><path d="M4 20h7"/><path d="M18 13v7"/><path d="M15 16l3-3 3 3"/></svg>
@@ -2362,7 +2376,10 @@
         <h3 class="form-section">Address</h3>
         <div class="form-group">
           <label for="c-address">Street Address</label>
-          <input type="text" id="c-address" autocomplete="off">
+          <div class="autocomplete-wrap">
+            <input type="text" id="c-address" autocomplete="off">
+            <div class="autocomplete-list hidden" id="c-address-ac"></div>
+          </div>
         </div>
         <div class="field-row two">
           <div class="form-group">
@@ -2378,6 +2395,12 @@
           <label for="c-county">County</label>
           <select id="c-county"><option value="">— select county —</option></select>
         </div>
+        <!-- Item 1 (v2-patch-1): Get Directions — shown only when the customer
+             has a street address on file. Opens the device's map app. -->
+        <button type="button" class="btn btn-amber" id="getDirectionsBtn" style="display:none;">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="3 11 22 2 13 21 11 13 3 11"/></svg>
+          Get Directions
+        </button>
 
         <h3 class="form-section">Trap Camera</h3>
         <div class="form-group">
@@ -2483,7 +2506,7 @@
     <!-- FIELD INFO: dashboard -->
     <section id="view-field" class="view hidden">
       <div class="greeting">
-        <h2>Cameras</h2>
+        <h2>Monitoring</h2>
         <p class="muted">Camera health &amp; photos by customer, pulled from the trap cameras.</p>
       </div>
       <div class="conn-status" id="graphConnStatus" style="margin-bottom:8px;"></div>
@@ -2509,9 +2532,10 @@
     <section id="view-schedule" class="view hidden">
       <div class="greeting">
         <h2>Schedule</h2>
-        <p class="muted">Assign jobs to your crew and keep them off each other's toes.</p>
+        <!-- Item 16 (v2-patch-1): the calendar shows tasks from the Jobs module. -->
+        <p class="muted">The crew's tasks by date — tap one to open and complete it.</p>
       </div>
-      <button class="btn btn-amber" id="newJobBtn" style="margin-bottom:12px;">+ New Appointment</button>
+      <button class="btn btn-amber" id="newJobBtn" style="margin-bottom:12px;">+ New Task</button>
       <div style="display:flex;justify-content:center;margin-bottom:8px;">
         <div class="sched-toggle" id="schedViewToggle">
           <button type="button" data-sched-view="month" class="active">Month</button>
@@ -2612,17 +2636,13 @@
         <h2>Jobs</h2>
         <p class="muted">Every customer engagement, from lead to paid.</p>
       </div>
+      <!-- Item 15 (v2-patch-1): job statuses are Active / Complete / Cancelled.
+           Legacy lifecycle jobs remain reachable under "All jobs". -->
       <div class="filter-row">
         <select id="jobsFilterStatus">
           <option value="active">Active jobs</option>
           <option value="all">All jobs</option>
-          <option value="Lead">Lead</option>
-          <option value="Estimated">Estimated</option>
-          <option value="Scheduled">Scheduled</option>
-          <option value="Active">Active (in progress)</option>
-          <option value="Pending Close">Pending Close</option>
-          <option value="Invoiced">Invoiced</option>
-          <option value="Paid">Paid</option>
+          <option value="Complete">Complete</option>
           <option value="Cancelled">Cancelled</option>
         </select>
       </div>
@@ -2648,10 +2668,21 @@
           <select id="lj-property"><option value="">— main address —</option></select>
         </div>
         <h3 class="form-section">Job</h3>
+        <!-- Item 15 (v2-patch-1): start/end dates on the job container. -->
+        <div class="field-row two">
+          <div class="form-group">
+            <label for="lj-start">Start date<span class="req">*</span></label>
+            <input type="date" id="lj-start" required>
+          </div>
+          <div class="form-group">
+            <label for="lj-end">End date<span class="req">*</span></label>
+            <input type="date" id="lj-end" required>
+            <div class="hint">Defaults to 30 days out — adjust as needed.</div>
+          </div>
+        </div>
         <div class="form-group">
           <label for="lj-estimate">Linked estimate<span class="opt">(optional — one per job)</span></label>
           <select id="lj-estimate"><option value="">— none yet —</option></select>
-          <div class="hint">Linking an estimate moves the job to <strong>Estimated</strong>.</div>
         </div>
         <h3 class="form-section">Assigned operators</h3>
         <div class="assignee-grid" id="lj-operators"></div>
@@ -2669,6 +2700,54 @@
     <!-- JOBS (v2): job detail — the central operational screen -->
     <section id="view-job-detail" class="view hidden">
       <div id="lifecycleJobDetail"></div>
+    </section>
+
+    <!-- TASKS (v2-patch-1, Items 15 & 18): task builder -->
+    <section id="view-add-task" class="view hidden">
+      <form id="taskForm" autocomplete="off" novalidate>
+        <input type="hidden" id="t-id">
+        <h3 class="form-section">Job</h3>
+        <div class="form-group">
+          <label for="t-job">Job<span class="req">*</span></label>
+          <select id="t-job"><option value="">— select a job —</option></select>
+          <div class="hint">Tasks live inside a job. Start one in the Jobs module if none fits.</div>
+        </div>
+        <h3 class="form-section">Task</h3>
+        <div class="form-group">
+          <label for="t-type">Task type<span class="req">*</span></label>
+          <select id="t-type"><option value="">— select task type —</option></select>
+          <div class="hint" id="t-type-hint"></div>
+        </div>
+        <div class="form-group conditional" id="cg-t-typeOther">
+          <label for="t-type-other">Specify exclusion type<span class="req">*</span></label>
+          <input type="text" id="t-type-other" placeholder="e.g. Chimney swifts">
+        </div>
+        <div class="field-row two">
+          <div class="form-group">
+            <label for="t-date">Scheduled date<span class="req">*</span></label>
+            <input type="date" id="t-date" required>
+          </div>
+          <div class="form-group">
+            <label for="t-time">Time<span class="req">*</span></label>
+            <input type="time" id="t-time" required>
+          </div>
+        </div>
+        <h3 class="form-section">Assign to<span class="req">*</span></h3>
+        <div class="assignee-grid" id="t-operators"></div>
+        <h3 class="form-section">Notes</h3>
+        <div class="form-group">
+          <textarea id="t-notes" placeholder="Equipment, access, reminders…"></textarea>
+        </div>
+        <div class="form-actions">
+          <button type="submit" class="btn btn-primary" id="saveTaskBtn">Save Task</button>
+          <button type="button" class="btn btn-cancel btn-ghost" id="cancelTaskBtn">Cancel</button>
+        </div>
+      </form>
+    </section>
+
+    <!-- TASKS (v2-patch-1, Items 15 & 16): task detail -->
+    <section id="view-task-detail" class="view hidden">
+      <div id="taskDetail"></div>
     </section>
 
     <!-- SCHEDULE (v2): appointment builder -->
@@ -2735,6 +2814,38 @@
       <div class="form-actions">
         <button type="button" class="btn btn-cancel btn-ghost" id="notifsBackBtn">Back</button>
       </div>
+    </section>
+
+    <!-- UNIFIED RECORDS (Items 8 & 9, v2-patch-1) — every trapping and
+         pesticide record in one searchable, filterable list. Restores the
+         direct records access from v1; opened from the landing banner. -->
+    <section id="view-records-all" class="view hidden">
+      <div class="search-bar">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+        <input type="text" id="allRecSearch" placeholder="Search record #, customer, species, address…" autocomplete="off">
+      </div>
+      <div class="filter-row">
+        <div class="form-group" style="margin-bottom:0;">
+          <label for="allRecFrom" style="font-size:11px;margin-bottom:3px;">From</label>
+          <input type="date" id="allRecFrom" style="padding:9px 10px;font-size:14px;">
+        </div>
+        <div class="form-group" style="margin-bottom:0;">
+          <label for="allRecTo" style="font-size:11px;margin-bottom:3px;">To</label>
+          <input type="date" id="allRecTo" style="padding:9px 10px;font-size:14px;">
+        </div>
+      </div>
+      <div class="filter-row">
+        <select id="allRecCustomer"><option value="">All customers</option></select>
+        <select id="allRecContractor"><option value="">All contractors</option></select>
+      </div>
+      <div class="filter-row">
+        <select id="allRecType">
+          <option value="">All record types</option>
+          <option value="trap">Trapping</option>
+          <option value="pest">Pesticide</option>
+        </select>
+      </div>
+      <div class="card" id="allRecordsList"></div>
     </section>
 
     <!-- EXPORT -->
@@ -2978,15 +3089,13 @@
 <div class="sheet" id="howItWorksSheet">
   <div class="sheet-handle"></div>
   <h2>How a job works</h2>
-  <p class="muted">Every job moves through the same numbered steps — follow the arrows through the grid.</p>
+  <p class="muted">Every job moves through the same steps — follow the arrows through the grid.</p>
   <div class="flow-guide">
-    <div class="fg-step"><span>👥</span><div><strong>Customer</strong> — start in Customers: add the client and the property. Every job hangs off a customer.</div></div>
-    <div class="fg-step"><span>💰</span><div><strong>Estimate</strong> — build the price in Pricing and send it for approval. Approved estimates push to QuickBooks.</div></div>
-    <div class="fg-step"><span>📅</span><div><strong>Schedule</strong> — put the visits on the calendar and assign the crew. Assignees get a notification.</div></div>
-    <div class="fg-step"><span>🦝</span><div><strong>Field Work</strong> — log every capture, release, or treatment in Trapping (or Pesticides) while you're on site.</div></div>
-    <div class="fg-step"><span>📷</span><div><strong>Cameras</strong> — watch trap cameras by customer and respond to activity and health alerts.</div></div>
-    <div class="fg-step"><span>📦</span><div><strong>Close Out</strong> — in Jobs, pick up equipment and move the job to Pending Close when the work is done.</div></div>
-    <div class="fg-step"><span>🧾</span><div><strong>Invoice</strong> — convert the estimate to a QuickBooks invoice, then mark the job Paid. Done.</div></div>
+    <div class="fg-step"><span>👥</span><div><strong>Customer</strong> — find or add the client and their property. Every job hangs off a customer.</div></div>
+    <div class="fg-step"><span>💼</span><div><strong>Jobs</strong> — open a job for the engagement and manage its tasks from set to pull.</div></div>
+    <div class="fg-step"><span>📅</span><div><strong>Schedule</strong> — see the crew's tasks on the calendar and mark them complete as you go.</div></div>
+    <div class="fg-step"><span>📷</span><div><strong>Monitoring</strong> — check trap site cameras and respond to activity and health alerts.</div></div>
+    <div class="fg-step"><span>🦝</span><div><strong>Trapping Records</strong> — log every capture, release, or treatment while you're on site. Estimates live in the bottom bar; invoicing happens in QuickBooks Online.</div></div>
   </div>
   <button type="button" class="btn btn-primary" id="flowSheetCloseBtn" style="margin-top:16px;width:100%;">Got it</button>
 </div>
@@ -3386,12 +3495,25 @@ let orgSettings = {
 };
 
 const PESTICIDE_EMAILJS_TEMPLATE_ID = 'template_4aa3u5a';
-const APP_VERSION = 'v2.0';  /* bump in lockstep with the SW cache version */
+const APP_VERSION = 'v2.1';  /* bump in lockstep with the SW cache version */
 /* Single source of truth: keep the footer label in sync with APP_VERSION so
    the two version displays can't drift apart again. */
 { const _fv = document.getElementById('footerVersion'); if (_fv) _fv.textContent = APP_VERSION; }
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+/* Item 7 (v2-patch-1): customer records sometimes hold several addresses
+   separated by semicolons ("a@x.com; b@y.com"). Every processing path —
+   validation, QB push, CSV export, notification sends — must use only the
+   first valid address. The stored value is left untouched. */
+function extractPrimaryEmail(emailString) {
+  if (!emailString) return '';
+  const parts = String(emailString).split(';').map((s) => s.trim()).filter(Boolean);
+  for (const p of parts) {
+    if (EMAIL_RE.test(p)) return p;
+  }
+  return parts[0] || '';
+}
 
 /* ---------- IndexedDB ---------- */
 const DB_NAME = 'swrTrackerDB';
@@ -3743,7 +3865,7 @@ async function sendRecordEmail(rec) {
       trapper: rec.trapper || '',
       client_name: rec.clientName || '',
       client_phone: rec.clientPhone || '',
-      client_email: rec.clientEmail || '',
+      client_email: extractPrimaryEmail(rec.clientEmail),   /* Item 7 */
       client_business: rec.clientBusiness || '',
       species: speciesDisplay(rec),
       animal_count: rec.animalCount != null ? String(rec.animalCount) : '1',
@@ -3922,7 +4044,8 @@ function showSignInScreen() {
 }
 let modeSelected = false;
 
-const MODULE_LABELS = { trap: 'Trapping', pesticide: 'Pesticides', customer: 'Customers', pricing: 'Pricing', jobs: 'Jobs', field: 'Cameras', schedule: 'Schedule', settings: 'Settings' };
+/* Item 17 (v2-patch-1): Field Work -> Trapping Records; Cameras -> Monitoring. */
+const MODULE_LABELS = { trap: 'Trapping Records', pesticide: 'Pesticides', customer: 'Customers', pricing: 'Pricing', jobs: 'Jobs', field: 'Monitoring', schedule: 'Schedule', settings: 'Settings', allrecords: 'All Records' };
 
 /* Bottom-nav layout per module. The main landing page has no bottom nav.
    `fab: true` renders the raised amber add button (kept from the original
@@ -3959,7 +4082,7 @@ const NAV_CONFIGS = {
   ],
   field: [
     { view: 'menu', label: 'Menu', icon: 'menu' },
-    { view: 'dashboard', label: 'Cameras', icon: 'camera' }
+    { view: 'dashboard', label: 'Monitoring', icon: 'camera' }
   ],
   schedule: [
     { view: 'menu', label: 'Menu', icon: 'menu' },
@@ -3968,6 +4091,10 @@ const NAV_CONFIGS = {
   ],
   settings: [
     { view: 'menu', label: 'Home', icon: 'menu' }
+  ],
+  /* Items 8 & 9: unified records view opened from the landing banner. */
+  allrecords: [
+    { view: 'menu', label: 'Menu', icon: 'menu' }
   ]
 };
 
@@ -4016,19 +4143,20 @@ function showModePicker() { showLanding(); }
  * phones, 4 from 768px up. Tapping a cell opens its module; steps where
  * an in-progress job currently sits are highlighted amber.
  * ===================================================================== */
+/* Item 14 (v2-patch-1): five steps, this exact order, no step numbers.
+   (Item 10: Estimates live in the bottom banner only; Item 13: no Invoice.) */
 const FLOW_STEPS = [
-  { n: 1, icon: '👥', label: 'Customer',   desc: 'Client & property',   mode: 'customer' },
-  { n: 2, icon: '💰', label: 'Estimate',   desc: 'Price the job',       mode: 'pricing' },
-  { n: 3, icon: '📅', label: 'Schedule',   desc: 'Book the crew',       mode: 'schedule' },
-  { n: 4, icon: '🦝', label: 'Field Work', desc: 'On-site work',        mode: 'trap' },
-  { n: 5, icon: '📷', label: 'Cameras',    desc: 'Watch trap activity', mode: 'field' },
-  { n: 6, icon: '📦', label: 'Close Out',  desc: 'Wrap up the job',     mode: 'jobs' },
-  { n: 7, icon: '🧾', label: 'Invoice',    desc: 'Bill & get paid',     mode: 'pricing' }
+  { n: 1, icon: '👥', label: 'Customer',         desc: 'Find or add a client',     mode: 'customer' },
+  { n: 2, icon: '💼', label: 'Jobs',             desc: 'Manage jobs and tasks',    mode: 'jobs' },
+  { n: 3, icon: '📅', label: 'Schedule',         desc: 'View and complete tasks',  mode: 'schedule' },
+  { n: 4, icon: '📷', label: 'Monitoring',       desc: 'Check trap site cameras',  mode: 'field' },
+  { n: 5, icon: '🦝', label: 'Trapping Records', desc: 'Log field activity',       mode: 'trap' }
 ];
-/* Job status → the workflow step where that job's next action lives. */
+/* Job status → the workflow step where that job's next action lives. Any
+   open job highlights the Jobs step; scheduled work highlights Schedule. */
 const JOB_STATUS_TO_FLOW_STEP = {
-  'Lead': 2, 'Estimated': 3, 'Scheduled': 4, 'Active': 4,
-  'Pending Close': 6, 'Invoiced': 7
+  'Lead': 2, 'Estimated': 2, 'Scheduled': 3, 'Active': 2,
+  'Pending Close': 2, 'Invoiced': 2
 };
 const flowGridMedia = window.matchMedia('(min-width: 768px)');
 
@@ -4041,9 +4169,10 @@ function activeFlowSteps() {
   return steps;
 }
 
+/* Item 14 (v2-patch-1): straight down arrows at the row breaks (was curved). */
 const FLOW_TURN_SVGS = {
-  right: '<svg viewBox="0 0 34 24"><path d="M3 4h16c7 0 10 3 10 9v4"/><path d="m25 14 4 4 4-4"/></svg>',
-  left: '<svg viewBox="0 0 34 24"><path d="M31 4H15C8 4 5 7 5 13v4"/><path d="m1 14 4 4 4-4"/></svg>'
+  right: '<svg viewBox="0 0 24 24"><path d="M12 3v13"/><path d="m6 12 6 6 6-6"/></svg>',
+  left: '<svg viewBox="0 0 24 24"><path d="M12 3v13"/><path d="m6 12 6 6 6-6"/></svg>'
 };
 
 function renderFlowGrid() {
@@ -4051,9 +4180,9 @@ function renderFlowGrid() {
   if (!root) return;
   const cols = flowGridMedia.matches ? 4 : 3;
   const current = activeFlowSteps();
+  /* Item 14: no step numbers — icon (40px), bold label, one-line description. */
   const cell = (st) => st
-    ? `<button type="button" class="flow-cell${current.has(st.n) ? ' current' : ''}" data-mode="${st.mode}" aria-label="Step ${st.n}: ${st.label}">` +
-      `<span class="fc-num" aria-hidden="true">${st.n}</span>` +
+    ? `<button type="button" class="flow-cell${current.has(st.n) ? ' current' : ''}" data-mode="${st.mode}" aria-label="${st.label}">` +
       `<span class="fc-icon" aria-hidden="true">${st.icon}</span>` +
       `<span class="fc-label">${st.label}</span>` +
       `<span class="fc-desc">${st.desc}</span></button>`
@@ -4077,7 +4206,8 @@ function renderFlowGrid() {
       parts.push(cell(st));
     });
     html += `<div class="flow-row">${parts.join('')}</div>`;
-    /* Curved turn arrow: down-right after → rows, down-left after ← rows. */
+    /* Straight down arrow at the row break (Item 14): under the right edge
+       after → rows, under the left edge after ← rows. */
     if (ri < rows.length - 1) {
       const dir = rtl ? 'left' : 'right';
       html += `<div class="flow-turn ${dir}" aria-hidden="true">${FLOW_TURN_SVGS[dir]}</div>`;
@@ -4346,6 +4476,8 @@ function subscribeToRecords() {
       renderDashboard();
       renderRecords();
     }
+    /* Items 8 & 9: keep the unified records view live. */
+    if (appMode === 'allrecords' && !$('#view-records-all').classList.contains('hidden')) renderAllRecords();
   }, (err) => {
     lastSyncError = err;
     updateSyncIndicator('error');
@@ -4445,6 +4577,8 @@ function subscribeToPesticideRecords() {
          its unlinked banner), not the trap one. */
       renderPesticideRecordsList();
     }
+    /* Items 8 & 9: keep the unified records view live. */
+    if (appMode === 'allrecords' && !$('#view-records-all').classList.contains('hidden')) renderAllRecords();
   }, (err) => console.error('Pesticide records subscription error', err));
 }
 function unsubscribeFromPesticideRecords() {
@@ -4943,13 +5077,12 @@ function renderEstimateDetail(id) {
     actions += `<button class="btn btn-primary" data-est-action="edit" data-id="${escapeHtml(e.id)}">Edit &amp; Resubmit</button>`;
     actions += `<button class="btn btn-danger" data-est-action="delete" data-id="${escapeHtml(e.id)}" style="margin-top:10px;">Delete Estimate</button>`;
   } else if (e.status === 'Pushed to QB') {
-    actions += `<div class="hint success">Pushed to QuickBooks${e.qbEstimateId ? ' (QB #' + escapeHtml(String(e.qbEstimateId)) + ')' : ''}.</div>`;
-    if (admin) actions += `<button class="btn btn-primary" data-est-action="invoice" data-id="${escapeHtml(e.id)}" style="margin-top:10px;">Convert to Invoice</button>`;
+    /* Item 13 (v2-patch-1): invoicing happens exclusively in QuickBooks
+       Online — the in-app Convert to Invoice button is gone. The QB
+       estimate push above is the app's last step. */
+    actions += `<div class="hint success">Pushed to QuickBooks${e.qbEstimateId ? ' (QB #' + escapeHtml(String(e.qbEstimateId)) + ')' : ''}. Invoicing happens in QuickBooks Online.</div>`;
   } else if (e.status === 'Invoiced') {
     actions += `<div class="hint success">Invoiced in QuickBooks${e.qbInvoiceNumber ? ' (Invoice #' + escapeHtml(String(e.qbInvoiceNumber)) + ')' : ''}.</div>`;
-  }
-  if (e.invoiceError && admin) {
-    actions += `<div class="hint" style="color:var(--amber);margin-top:8px;">Last invoice attempt failed: ${escapeHtml(e.invoiceError)}</div>`;
   }
   if (e.pushError && admin) {
     actions += `<div class="hint" style="color:var(--amber);margin-top:8px;">Last push failed: ${escapeHtml(e.pushError)}</div>`;
@@ -5055,26 +5188,8 @@ async function approveAndPushEstimate(id, btn) {
   }
 }
 
-async function convertEstimateToInvoice(id, btn) {
-  const e = cachedEstimates.find((x) => x.id === id);
-  if (!e) return;
-  if (!confirm(`Create a QuickBooks invoice from ${e.estimateNumber || 'this estimate'} for ${e.customerName || 'this customer'}?`)) return;
-  if (btn) btn.disabled = true;   /* block a double-tap before any async call fires */
-  toast('Creating invoice…');
-  try {
-    const res = await httpsCallable(fbFunctions, 'qbConvertToInvoice', { timeout: 120000 })({ estimateId: id });
-    const r = (res && res.data) || {};
-    toast(r.qbInvoiceNumber ? `Invoiced (QB #${r.qbInvoiceNumber})` : 'Invoice created in QuickBooks');
-    /* Success re-renders the detail and replaces this button; leave it disabled. */
-  } catch (err) {
-    const code = (err && err.code) || '';
-    let msg = (err && err.message) || 'Invoice failed';
-    if (code === 'functions/permission-denied') msg = 'Only an administrator can create invoices.';
-    else if (code === 'functions/deadline-exceeded') msg = 'QuickBooks is taking longer than expected — check QuickBooks before retrying to avoid a duplicate.';
-    toast('Invoice failed: ' + msg, 'error');
-    if (btn) btn.disabled = false;   /* re-enable so a genuine failure can be retried */
-  }
-}
+/* Item 13 (v2-patch-1): convertEstimateToInvoice removed — invoicing happens
+   exclusively in QuickBooks Online. */
 
 function sendEstimateApprovedEmail(e, pushResult) {
   if (typeof emailjs === 'undefined' || !ESTIMATE_EMAILJS_TEMPLATE_ID) return; // no-op until a template id is set
@@ -5122,7 +5237,8 @@ async function seedPriceListIfNeeded() {
 }
 
 /* =====================================================================
- * Field Information (Phase 3) — camera photos + health by customer
+ * Monitoring (Phase 3, renamed from Cameras/Field Information — Item 17)
+ * — camera photos + health by customer
  * Reads cameraPhotos / cameraHealth (written server-side by the Cuddeback
  * ingestion function). Sync Now calls the fieldSyncNow callable.
  * ===================================================================== */
@@ -5380,7 +5496,7 @@ function renderFieldDetail(key) {
     <div class="card"><h3 style="margin-top:0;">Photos (${g.photos.length})</h3>${photos}</div>
     <div class="form-actions">
       <button class="btn btn-danger" id="fieldClearBtn">Delete Photos From App</button>
-      <button class="btn btn-cancel btn-ghost" id="fieldBackBtn">Back to Cameras</button>
+      <button class="btn btn-cancel btn-ghost" id="fieldBackBtn">Back to Monitoring</button>
     </div>`;
 
   /* Resolve each photo through the Firebase Storage SDK (getDownloadURL) rather
@@ -5709,10 +5825,11 @@ const VIEW_TITLES = {
   pesticide: { dashboard: 'Dashboard', records: 'Records', add: 'Add Application', export: 'Export', settings: 'Settings' },
   customer:  { dashboard: 'Customers', add: 'Add Customer', settings: 'Settings' },
   pricing:   { dashboard: 'Estimates', add: 'New Estimate', 'estimate-detail': 'Estimate', settings: 'Settings' },
-  jobs:      { dashboard: 'Jobs', add: 'New Job', 'job-detail': 'Job', 'add-appointment': 'New Appointment', 'appointment-detail': 'Appointment' },
-  field:     { dashboard: 'Cameras' },
-  schedule:  { dashboard: 'Calendar', add: 'New Appointment', 'edit-legacy': 'Edit Job', 'add-appointment': 'New Appointment', 'appointment-detail': 'Appointment', 'job-detail': 'Job' },
-  settings:  { dashboard: 'Settings', 'assign-legacy': 'Assign Legacy Records' }
+  jobs:      { dashboard: 'Jobs', add: 'New Job', 'job-detail': 'Job', 'add-appointment': 'New Appointment', 'appointment-detail': 'Appointment', 'add-task': 'New Task', 'task-detail': 'Task' },
+  field:     { dashboard: 'Monitoring' },
+  schedule:  { dashboard: 'Calendar', add: 'New Task', 'edit-legacy': 'Edit Job', 'add-appointment': 'New Appointment', 'appointment-detail': 'Appointment', 'job-detail': 'Job', 'add-task': 'New Task', 'task-detail': 'Task' },
+  settings:  { dashboard: 'Settings', 'assign-legacy': 'Assign Legacy Records' },
+  allrecords: { dashboard: 'View Records' }
 };
 
 function backToLanding() {
@@ -5730,7 +5847,8 @@ function setView(name, opts) {
    'customers','add-customer','pricing','estimate-builder','estimate-detail',
    'field','field-detail','schedule','add-schedule','schedule-detail',
    'jobs','add-job','job-detail','add-appointment','appointment-detail','assign-legacy',
-   'notifications','export','settings'].forEach((v) => {
+   'add-task','task-detail',
+   'notifications','records-all','export','settings'].forEach((v) => {
     const el = document.getElementById(`view-${v}`);
     if (el) el.classList.add('hidden');
   });
@@ -5748,13 +5866,15 @@ function setView(name, opts) {
     if (name === 'dashboard') actualId = 'field';
   } else if (appMode === 'schedule') {
     if (name === 'dashboard') actualId = 'schedule';
-    if (name === 'add') actualId = 'add-appointment';       /* v2: appointments, not standalone jobs */
+    if (name === 'add') actualId = 'add-task';              /* Item 16: tasks */
     if (name === 'edit-legacy') actualId = 'add-schedule';  /* legacy Phase-4 entries stay editable */
   } else if (appMode === 'jobs') {
     if (name === 'dashboard') actualId = 'jobs';
     if (name === 'add') actualId = 'add-job';
   } else if (appMode === 'settings') {
     if (name === 'dashboard') actualId = 'settings';
+  } else if (appMode === 'allrecords') {
+    if (name === 'dashboard') actualId = 'records-all';   /* Items 8 & 9 */
   }
   const showEl = document.getElementById(`view-${actualId}`);
   if (showEl) showEl.classList.remove('hidden');
@@ -5766,7 +5886,7 @@ function setView(name, opts) {
   $('#viewTitle').textContent = name === 'notifications' ? 'Notifications' : (titles[name] || '');
   if (name === 'notifications') renderNotificationsPage();
   $('#appMain').scrollTop = 0;
-  document.body.classList.toggle('in-add', name === 'add' || name === 'edit-legacy' || name === 'add-appointment');
+  document.body.classList.toggle('in-add', name === 'add' || name === 'edit-legacy' || name === 'add-appointment' || name === 'add-task');
 
   if (name === 'add' && !preserveForm) {
     if (appMode === 'trap') {
@@ -5778,12 +5898,13 @@ function setView(name, opts) {
     } else if (appMode === 'pricing') {
       if (!editingEstimateId) resetEstimateBuilder();
     } else if (appMode === 'schedule') {
-      if (!editingAppointment) resetAppointmentForm();
+      if (!editingTaskId) resetTaskForm();   /* Item 16: schedule adds tasks */
     } else if (appMode === 'jobs') {
       if (!editingLifecycleJobId) resetLifecycleJobForm();
     }
   }
   if (name === 'add-appointment' && !editingAppointment && !preserveForm) resetAppointmentForm();
+  if (name === 'add-task' && !editingTaskId && !preserveForm) resetTaskForm();   /* Item 15 */
   if (appMode === 'customer' && name === 'dashboard') {
     fillCustomerCountyFilter();
     renderCustomerList();
@@ -5800,6 +5921,9 @@ function setView(name, opts) {
   }
   if (appMode === 'jobs' && name === 'dashboard') {
     renderJobsList();
+  }
+  if (appMode === 'allrecords' && name === 'dashboard') {
+    renderAllRecords();   /* Items 8 & 9 */
   }
   if (name === 'assign-legacy') renderAssignLegacyView();
   if (name === 'settings' || appMode === 'settings') renderSettingsStatus();
@@ -5958,6 +6082,12 @@ let pendingPhotoBlob = null;     /* compressed Blob, ready to upload */
 let pendingPhotoUrl = null;      /* object URL for preview only */
 let removeExistingPhoto = false; /* user tapped Remove on a saved photo */
 let releaseDateDirty = false;    /* true once the operator hand-edits Date of Release */
+/* Item 5 (v2-patch-1): true once the operator TYPES in the trap-site address
+   field. While set, customer/property selection may no longer overwrite the
+   address (their prefill is a convenience only). Cleared by resetForm() —
+   which also runs on Submit & New. Programmatic .value writes don't fire
+   'input', so location-method fills never trip it. */
+let addressManuallyEdited = false;
 /* Which submit button was pressed on an entry form: 'new' reopens a fresh
    pre-filled form after saving; 'close' returns to the records list. */
 let submitIntent = 'close';
@@ -5970,6 +6100,7 @@ function resetForm() {
   editingId = null;
   pendingRecord = null;
   releaseDateDirty = false;
+  addressManuallyEdited = false;   /* Item 5: fresh session — prefill allowed again */
   silentReleaseCounty = null;
   silentTrapCounty = null;
   /* Item 15: collapse the location widgets back to the three-option row. */
@@ -6171,7 +6302,8 @@ function validateRecord(r) {
   if (!r.clientName) errs.push('Client name');
   if (!r.clientPhone) errs.push('Phone');
   else if (!isValidPhone(r.clientPhone)) errs.push('Valid phone (10 digits)');
-  if (r.clientEmail && !EMAIL_RE.test(r.clientEmail)) errs.push('Valid email');
+  /* Item 7: multi-address values validate on the first address only. */
+  if (r.clientEmail && !EMAIL_RE.test(extractPrimaryEmail(r.clientEmail))) errs.push('Valid email');
   if (!r.species) errs.push('Species');
   if (SPECIFY_SPECIES.has(r.species) && !r.speciesOther) errs.push('Specify species');
   if (needsAnimalCount(r.species) && (!r.animalCount || r.animalCount < 1)) errs.push('Number of animals');
@@ -6567,6 +6699,137 @@ async function forwardGeocode(query) {
   } catch (e) { return null; }
 }
 
+/* =====================================================================
+ * Item 3 (v2-patch-1): Mapbox address autocomplete.
+ * ---------------------------------------------------------------------
+ * As the operator types a street address, the Mapbox Geocoding API is
+ * queried with a Kentucky proximity bias (-84.5, 37.8) and up to five
+ * matches are offered in a dropdown. Picking one fills the field and
+ * silently extracts the county from the response context. The public
+ * token is NEVER hardcoded here — it's fetched once per session from the
+ * getMapboxToken callable, which reads it from Firebase Secret Manager.
+ * TODO: the Mapbox public token still needs to be added to Firebase
+ * Secret Manager (MAPBOX_PUBLIC_TOKEN) — value provided separately.
+ * If the token or the Mapbox API is unavailable, autocomplete silently
+ * disables itself and manual entry keeps working unchanged.
+ * ===================================================================== */
+const MAPBOX_GEOCODE_BASE = 'https://api.mapbox.com/geocoding/v5/mapbox.places';
+const MAPBOX_PROXIMITY = '-84.5,37.8';   /* longitude,latitude — central KY */
+let mapboxToken = null;
+let mapboxTokenPromise = null;
+
+function ensureMapboxToken() {
+  if (mapboxToken) return Promise.resolve(mapboxToken);
+  if (!mapboxTokenPromise) {
+    mapboxTokenPromise = httpsCallable(fbFunctions, 'getMapboxToken')()
+      .then((res) => {
+        mapboxToken = (res && res.data && res.data.token) || null;
+        return mapboxToken;
+      })
+      .catch((err) => {
+        console.warn('Mapbox token unavailable — address autocomplete disabled; manual entry unaffected', err);
+        return null;
+      });
+  }
+  return mapboxTokenPromise;
+}
+
+function mapboxCtx(f, prefix) {
+  const hit = (Array.isArray(f.context) ? f.context : [])
+    .find((c) => String(c.id || '').startsWith(prefix + '.'));
+  return hit ? (hit.text || '') : '';
+}
+
+/* County lives in the `district` context entry for US results; fall back to
+   scanning the place_name components. */
+function mapboxCounty(f) {
+  const district = mapboxCtx(f, 'district');
+  if (district) return district.replace(/\s+County$/i, '').trim();
+  const m = String(f.place_name || '').match(/([A-Za-z .'-]+?)\s+County/);
+  return m ? m[1].trim() : '';
+}
+
+async function mapboxSuggest(query) {
+  const q = (query || '').trim();
+  if (q.length < 3) return [];
+  const token = await ensureMapboxToken();
+  if (!token) return [];
+  const url = `${MAPBOX_GEOCODE_BASE}/${encodeURIComponent(q)}.json` +
+    `?access_token=${encodeURIComponent(token)}&autocomplete=true&limit=5` +
+    `&country=us&types=address&proximity=${MAPBOX_PROXIMITY}`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`Mapbox geocoding ${res.status}`);
+  const data = await res.json();
+  return (data.features || []).map((f) => ({
+    placeName: String(f.place_name || '').replace(/,\s*United States$/i, ''),
+    street: f.address ? `${f.address} ${f.text || ''}`.trim() : (f.text || ''),
+    city: mapboxCtx(f, 'place'),
+    zip: mapboxCtx(f, 'postcode'),
+    state: mapboxCtx(f, 'region'),
+    county: mapboxCounty(f),
+    lat: Array.isArray(f.center) ? f.center[1] : null,
+    lng: Array.isArray(f.center) ? f.center[0] : null
+  }));
+}
+
+/* Shape a Mapbox suggestion like reverseGeocode()'s result so the existing
+   site handlers (silent county capture etc.) can consume it directly. */
+function mapboxGeoHint(s) {
+  return {
+    streetAddress: s.street || '',
+    city: s.city || '',
+    county: s.county || '',
+    state: s.state || '',
+    formattedAddress: s.placeName || ''
+  };
+}
+
+/* Debounced dropdown on an address input. onPick(suggestion) applies it. */
+function wireMapboxAutocomplete(inputId, listId, onPick) {
+  const input = document.getElementById(inputId);
+  const listEl = document.getElementById(listId);
+  if (!input || !listEl) return;
+  let timer = null;
+  let seq = 0;
+  const hide = () => { listEl.classList.add('hidden'); listEl.innerHTML = ''; };
+  const render = (items) => {
+    if (!items.length) { hide(); return; }
+    listEl.innerHTML = items.map((s, i) => `
+      <div class="autocomplete-item" data-mb-index="${i}">
+        <div class="ac-name">${escapeHtml(s.street || s.placeName)}</div>
+        <div class="ac-sub">${escapeHtml([s.city, s.state, s.zip].filter(Boolean).join(', '))}</div>
+      </div>`).join('');
+    listEl.classList.remove('hidden');
+    listEl._mbItems = items;
+  };
+  input.addEventListener('input', () => {
+    const q = input.value;
+    clearTimeout(timer);
+    if (q.trim().length < 3) { hide(); return; }
+    timer = setTimeout(async () => {
+      const mySeq = ++seq;
+      try {
+        const items = await mapboxSuggest(q);
+        if (mySeq !== seq) return;               /* a newer query superseded this one */
+        if (document.activeElement !== input) return;
+        render(items);
+      } catch (err) {
+        /* Mapbox unavailable — fall back gracefully to manual entry. */
+        if (mySeq === seq) hide();
+      }
+    }, 250);
+  });
+  input.addEventListener('blur', () => setTimeout(hide, 180));
+  listEl.addEventListener('mousedown', (e) => {
+    const item = e.target.closest('[data-mb-index]');
+    if (!item) return;
+    e.preventDefault();   /* fires before blur — keep the list from closing first */
+    const s = (listEl._mbItems || [])[parseInt(item.dataset.mbIndex, 10)];
+    hide();
+    if (s && onPick) onPick(s);
+  });
+}
+
 function setMapStatus(id, text, type = '') {
   const el = $('#' + id);
   if (!el) return;
@@ -6599,94 +6862,11 @@ function matchingOptionValue(selectId, value) {
   return match ? match.value : null;
 }
 
-async function maybeConfirmCounty(selectId, detectedCounty, fieldLabel) {
-  /* Returns true if county was set (either now or already matching). */
-  if (!detectedCounty) return false;
-  const sel = $('#' + selectId);
-  if (!sel) return false;
-  const match = matchingOptionValue(selectId, detectedCounty);
-  if (!match) return false;
-  if (sel.value === match) return true;  /* already set, no dialog needed */
-  const ok = await confirmDialog(
-    `Detected: ${match} County`,
-    `Use "${match}" for ${fieldLabel}?`,
-    { okText: 'Yes, use it' }
-  );
-  if (ok) {
-    sel.value = match;
-    return true;
-  }
-  return false;
-}
-
-function autoScrollPastMap(targetFieldId) {
-  setTimeout(() => {
-    const el = document.getElementById(targetFieldId);
-    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-  }, 250);
-}
-
-async function validateAddressOnBlur() {
-  const addressInput = $('#f-address');
-  const hint = $('#addressValidationHint');
-  if (!hint) return;
-  const addr = addressInput.value.trim();
-  if (!addr) {
-    hint.textContent = '';
-    hint.className = 'hint';
-    return;
-  }
-  /* If the address was auto-filled by a map pin, it's already verified. */
-  if (addressInput.dataset.fromMap === '1') {
-    hint.textContent = '✓ Verified via map pin';
-    hint.className = 'hint success';
-    return;
-  }
-  /* Skip if we've already validated this exact value. */
-  if (addressInput.dataset.lastValidated === addr) return;
-
-  hint.textContent = 'Validating address…';
-  hint.className = 'hint working';
-
-  const lower = addr.toLowerCase();
-  const query = (lower.includes(' ky') || lower.includes('kentucky')) ? addr : addr + ', Kentucky';
-
-  let geo;
-  try { geo = await forwardGeocode(query); }
-  catch (e) {
-    hint.textContent = 'Validator offline — address not checked.';
-    hint.className = 'hint error';
-    return;
-  }
-  if (!geo) {
-    hint.textContent = '⚠ Address not found. Verify the spelling, or drop a pin on the map below.';
-    hint.className = 'hint error';
-    return;
-  }
-  addressInput.dataset.lastValidated = addr;
-  /* Store coords so they flow into the CSV / KDFWR export. */
-  $('#f-trap-lat').value = geo.lat;
-  $('#f-trap-lng').value = geo.lng;
-  const summary = [geo.streetAddress, geo.city, geo.state].filter(Boolean).join(', ');
-  hint.textContent = `✓ Verified: ${summary || geo.formattedAddress}`;
-  hint.className = 'hint success';
-  /* Drop the pin on the map for visual confirmation (only if no pin yet). */
-  if (trapMapInstance && !trapMapInstance.getLocation()) {
-    trapMapInstance.setLocation(geo.lat, geo.lng, { notify: false });
-  }
-  /* Offer to auto-select the county. */
-  if (geo.county) {
-    const match = matchingOptionValue('f-county', geo.county);
-    if (match && $('#f-county').value !== match) {
-      const ok = await confirmDialog(
-        `Detected: ${match} County`,
-        `Address resolved to ${match} County. Use it for County of Collection?`,
-        { okText: 'Yes, use it' }
-      );
-      if (ok) $('#f-county').value = match;
-    }
-  }
-}
+/* Item 2 (v2-patch-1): the county-confirmation dialogs (maybeConfirmCounty,
+   validateAddressOnBlur) were removed — dead code since Item 15, and they
+   surfaced the county as a user-facing question. County capture is silent
+   everywhere; the manual dropdown appears only when geocoding returns no
+   county at all. */
 
 /* Item 15: the capture-site county is captured SILENTLY from whichever of
    the three location methods the operator uses — no confirmation dialog, no
@@ -6731,9 +6911,16 @@ async function handleTrapLocationChange(lat, lng, source, geoHint) {
     if (geo.county) {
       silentTrapCounty = geo.county;
       const match = matchingOptionValue('f-county', geo.county);
-      if (match) $('#f-county').value = match;
+      /* Sync the hidden value holder; clear it when the derived county has
+         no dropdown match so a stale previous pick can't shadow the silent
+         value (Item 2). */
+      $('#f-county').value = match || '';
       setCountyFallback('trapCountyGroup', false);
     } else {
+      /* No county for the NEW location — a silent county from a previous
+         location must not override the manual fallback pick (Item 2). */
+      silentTrapCounty = null;
+      $('#f-county').value = '';
       setCountyFallback('trapCountyGroup', true);
     }
     const okText = `✓ ${geo.formattedAddress || `Location saved (${lat.toFixed(5)}, ${lng.toFixed(5)})`}`;
@@ -6747,6 +6934,9 @@ async function handleTrapLocationChange(lat, lng, source, geoHint) {
     if (addressInput && !addressInput.value.trim()) {
       addressInput.value = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
     }
+    /* Geocoder failed for the NEW location — drop any silent county from a
+       previous location so the manual pick below actually wins (Item 2). */
+    silentTrapCounty = null;
     setCountyFallback('trapCountyGroup', true);
     const failText = `Coordinates saved (${lat.toFixed(5)}, ${lng.toFixed(5)}) — address lookup failed. Pick the County of Collection below.`;
     setMapStatus('trapMapStatus', failText, 'error');
@@ -6847,9 +7037,15 @@ async function handleReleaseLocationChange(lat, lng, source, geoHint) {
     if (geo.county) {
       silentReleaseCounty = geo.county;
       const match = matchingOptionValue('f-release-county', geo.county);
-      if (match) $('#f-release-county').value = match;
+      /* Sync the hidden value holder; clear on no match so a stale previous
+         pick can't shadow the silent value (Item 2). */
+      $('#f-release-county').value = match || '';
       setCountyFallback('releaseCountyGroup', false);
     } else {
+      /* No county for the NEW location — clear the stale silent county so
+         the manual fallback pick wins (Item 2). */
+      silentReleaseCounty = null;
+      $('#f-release-county').value = '';
       setCountyFallback('releaseCountyGroup', true);
     }
     const okText = `✓ ${geo.formattedAddress || `Release location saved (${lat.toFixed(5)}, ${lng.toFixed(5)})`}`;
@@ -6862,6 +7058,9 @@ async function handleReleaseLocationChange(lat, lng, source, geoHint) {
     if (display && !display.value.trim()) {
       display.value = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
     }
+    /* Geocoder failed — drop any silent county from a previous location so
+       the manual pick below actually wins (Item 2). */
+    silentReleaseCounty = null;
     setCountyFallback('releaseCountyGroup', true);
     const failText = `Coordinates saved (${lat.toFixed(5)}, ${lng.toFixed(5)}) — location lookup failed. Pick the County of Release below.`;
     setMapStatus('releaseMapStatus', failText, 'error');
@@ -7196,6 +7395,25 @@ let sheetMode = 'detail';     /* 'detail' or 'review' */
 let sheetRecordType = 'trap'; /* 'trap' or 'pesticide' */
 let detailRecordId = null;
 
+/* Item 11 (v2-patch-1): shared renderer — data rows only; a group head with
+   no data rows after it is dropped entirely (no label, no placeholder). */
+function detailRowsHtml(rows) {
+  const kept = [];
+  for (let i = 0; i < rows.length; i++) {
+    if (rows[i][0] === '__head__') {
+      const next = rows[i + 1];
+      if (!next || next[0] === '__head__') continue;   /* empty group — skip */
+    }
+    kept.push(rows[i]);
+  }
+  return kept.map(([k, v]) => {
+    if (k === '__head__') {
+      return `<div class="dr group-head"><div class="dk">${escapeHtml(v)}</div></div>`;
+    }
+    return `<div class="dr"><div class="dk">${escapeHtml(k)}</div><div class="dv">${escapeHtml(String(v))}</div></div>`;
+  }).join('');
+}
+
 function buildDetailRows(r) {
   const rows = [];
   const push = (k, v) => { if (v != null && v !== '') rows.push([k, v]); };
@@ -7227,10 +7445,13 @@ function buildDetailRows(r) {
   if (EUTHANIZE_DISPOSALS.has(r.disposalMethod)) push('Dispatch', r.dispatchMethod);
   if (RELEASE_DISPOSALS.has(r.disposalMethod)) {
     push('Release County', releaseCountyDisplay(r));
+    /* Item 6 (v2-patch-1): show the full release address when present. */
+    push('Release Address', r.releaseAddress);
     push('Release Date', fmtDate(r.releaseDate));
   }
   if (EXCLUDE_DISPOSALS.has(r.disposalMethod) && !isBatOrBird(r.species) && r.species !== OTHER_ANIMAL) {
-    if (r.excludedNumber != null) push('Number Excluded', r.excludedNumber);
+    /* Item 11: optional numeric — zero renders nothing. */
+    if (r.excludedNumber) push('Number Excluded', r.excludedNumber);
   }
 
   if (r.notes) {
@@ -7238,12 +7459,7 @@ function buildDetailRows(r) {
     push('Notes', r.notes);
   }
 
-  return rows.map(([k, v]) => {
-    if (k === '__head__') {
-      return `<div class="dr group-head"><div class="dk">${escapeHtml(v)}</div></div>`;
-    }
-    return `<div class="dr"><div class="dk">${escapeHtml(k)}</div><div class="dv">${escapeHtml(String(v))}</div></div>`;
-  }).join('');
+  return detailRowsHtml(rows);
 }
 
 function openSheet(rec, mode, recordType) {
@@ -7373,7 +7589,8 @@ function fullCSV(records) {
   for (const r of records) {
     lines.push(csvLine([
       r.recordNumber || '', r.id, r.dateCollected, r.trapper,
-      r.clientName, r.clientPhone, r.clientBusiness, r.clientEmail,
+      r.clientName, r.clientPhone, r.clientBusiness,
+      extractPrimaryEmail(r.clientEmail),   /* Item 7 */
       r.species, r.speciesOther, r.animalCount == null ? '' : r.animalCount,
       countyDisplay(r), r.countyOther || '', r.address,
       r.trapLat == null ? '' : r.trapLat, r.trapLng == null ? '' : r.trapLng,
@@ -8113,7 +8330,8 @@ function validatePesticideRecord(r) {
   if (!r.clientName) errs.push('Client name');
   if (!r.clientPhone) errs.push('Phone');
   else if (!isValidPhone(r.clientPhone)) errs.push('Valid phone');
-  if (r.clientEmail && !EMAIL_RE.test(r.clientEmail)) errs.push('Valid email');
+  /* Item 7: multi-address values validate on the first address only. */
+  if (r.clientEmail && !EMAIL_RE.test(extractPrimaryEmail(r.clientEmail))) errs.push('Valid email');
   if (!r.clientAddress) errs.push('Client address');
   if (!r.clientCity) errs.push('Client city');
   if (!r.clientZip) errs.push('Client ZIP');
@@ -8384,10 +8602,7 @@ function buildPesticideDetailRows(r) {
 
   if (r.notes) { head('Notes'); push('Notes', r.notes); }
 
-  return rows.map(([k, v]) => {
-    if (k === '__head__') return `<div class="dr group-head"><div class="dk">${escapeHtml(v)}</div></div>`;
-    return `<div class="dr"><div class="dk">${escapeHtml(k)}</div><div class="dv">${escapeHtml(String(v))}</div></div>`;
-  }).join('');
+  return detailRowsHtml(rows);   /* Item 11: drops empty rows + empty groups */
 }
 
 function filteredPesticideRecords() {
@@ -8439,6 +8654,87 @@ function openPesticideDetail(id) {
   const r = cachedPesticideRecords.find((x) => x.id === id);
   if (!r) return;
   openSheet(r, 'detail', 'pesticide');
+}
+
+/* =====================================================================
+ * Items 8 & 9 (v2-patch-1): unified records view.
+ * ---------------------------------------------------------------------
+ * Every trapping and pesticide application record in one list, searchable
+ * and filterable by date range, customer, contractor, and record type.
+ * Opened from the landing page's bottom banner ("View Records").
+ * ===================================================================== */
+function allRecordsEntries() {
+  const trap = cachedRecords.map((r) => ({
+    kind: 'trap',
+    id: r.id,
+    date: r.dateCollected || '',
+    customer: r.clientName || '',
+    contractor: r.trapper || '',
+    title: speciesDisplay(r) + (r.animalCount && r.animalCount > 1 ? ` ×${r.animalCount}` : ''),
+    sub: [r.recordNumber, r.clientName, countyDisplay(r), r.trapper].filter(Boolean).join(' · '),
+    hay: [r.recordNumber, r.clientName, r.clientBusiness, r.address, r.species, r.speciesOther,
+      r.captureMethod, r.disposalMethod, countyDisplay(r), r.trapper, r.notes]
+      .filter(Boolean).join(' ').toLowerCase()
+  }));
+  const pest = cachedPesticideRecords.map((r) => {
+    const brand = (r.products && r.products[0]) ? brandLabel(r.products[0]) : '(no product)';
+    return {
+      kind: 'pest',
+      id: r.id,
+      date: (r.appliedAt || '').slice(0, 10),
+      customer: r.clientName || '',
+      contractor: r.applicator || '',
+      title: brand,
+      sub: [r.recordNumber, r.clientName, r.purpose, r.applicator].filter(Boolean).join(' · '),
+      hay: [r.recordNumber, r.clientName, r.clientAddress, r.clientCity, r.purpose, r.areaType,
+        r.applicationMethod, r.applicator, r.notes,
+        ...(r.products || []).flatMap((p) => [brandLabel(p), p.epaReg])]
+        .filter(Boolean).join(' ').toLowerCase()
+    };
+  });
+  return [...trap, ...pest].sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+}
+
+function fillAllRecordsFilters() {
+  const names = new Set();
+  cachedRecords.forEach((r) => { if (r.clientName) names.add(r.clientName); });
+  cachedPesticideRecords.forEach((r) => { if (r.clientName) names.add(r.clientName); });
+  /* fillSelect preserves the current selection when still present. */
+  fillSelect('allRecCustomer', [...names].sort((a, b) => a.localeCompare(b)), true, 'All customers');
+  fillSelect('allRecContractor', TRAPPERS, true, 'All contractors');
+}
+
+function renderAllRecords() {
+  const root = $('#allRecordsList');
+  if (!root) return;
+  fillAllRecordsFilters();
+  const q = ($('#allRecSearch').value || '').trim().toLowerCase();
+  const from = $('#allRecFrom').value;
+  const to = $('#allRecTo').value;
+  const cust = $('#allRecCustomer').value;
+  const who = $('#allRecContractor').value;
+  const type = $('#allRecType').value;
+  const list = allRecordsEntries().filter((e) => {
+    if (type && e.kind !== type) return false;
+    if (from && e.date < from) return false;
+    if (to && e.date > to) return false;
+    if (cust && e.customer !== cust) return false;
+    if (who && e.contractor !== who) return false;
+    if (q && !e.hay.includes(q)) return false;
+    return true;
+  });
+  if (!list.length) {
+    root.innerHTML = '<div class="empty"><div class="em-title">No matching records</div><div>Adjust the search or filters above.</div></div>';
+    return;
+  }
+  root.innerHTML = list.map((e) => `
+    <div class="rec" data-allrec-kind="${e.kind}" data-allrec-id="${escapeHtml(e.id)}">
+      <div class="rec-thumb">${e.kind === 'pest' ? 'PA' : escapeHtml(speciesInitial(e.title))}</div>
+      <div class="rec-body">
+        <div class="rec-title">${escapeHtml(e.title)}<span class="rec-tag ${e.kind === 'pest' ? 'tag-X' : 'tag-R'}">${e.kind === 'pest' ? 'Pesticide' : 'Trapping'}</span></div>
+        <div class="rec-meta">${escapeHtml(fmtShortDate(e.date) || 'no date')} · ${escapeHtml(e.sub)}</div>
+      </div>
+    </div>`).join('');
 }
 
 async function fetchPesticideWeather() {
@@ -8533,7 +8829,7 @@ async function sendPesticideEmail(rec) {
       weather_humidity: rec.weatherHumidity != null ? String(rec.weatherHumidity) : '',
       client_name: rec.clientName || '',
       client_phone: rec.clientPhone || '',
-      client_email: rec.clientEmail || '',
+      client_email: extractPrimaryEmail(rec.clientEmail),   /* Item 7 */
       client_address: rec.clientAddress || '',
       client_city: rec.clientCity || '',
       client_zip: rec.clientZip || '',
@@ -8797,16 +9093,42 @@ function allCalendarEntries() {
     ...cachedAppointments.map(calendarEntryFromAppt)
   ];
 }
+
+/* =====================================================================
+ * Item 16 (v2-patch-1): the Schedule module reads TASKS, not appointments.
+ * The calendar and agenda views are unchanged — only the data source moved.
+ * Each entry shows task type, job number, customer, operators, and time.
+ * Contractors (non-admins) see only the tasks assigned to them.
+ * ===================================================================== */
+function calendarEntryFromTask(t) {
+  return {
+    kind: 'task', id: t.id, date: t.scheduledDate || '', startTime: t.scheduledTime || '',
+    durationMins: 60,
+    title: taskTypeLabel(t),
+    sub: [t.jobNumber, t.customerName, (t.assigneeNames || []).join(', ')].filter(Boolean).join(' · '),
+    status: t.status || 'Open'
+  };
+}
+function visibleScheduleTasks() {
+  if (isAdmin()) return cachedTasks;
+  const me = currentUser ? currentUser.email.toLowerCase() : '';
+  return cachedTasks.filter((t) =>
+    (t.assignedOperators || []).some((e) => String(e).toLowerCase() === me));
+}
+function scheduleEntries() { return visibleScheduleTasks().map(calendarEntryFromTask); }
+
 function jobsOnDate(dateStr) {
-  return allCalendarEntries()
+  return scheduleEntries()
     .filter((e) => e.date === dateStr && e.status !== 'Cancelled')
     .sort((a, b) => (a.startTime || '').localeCompare(b.startTime || ''));
 }
 
 function jobRowHtml(e) {
-  const open = e.kind === 'appt'
-    ? `data-appt-open="${escapeHtml(e.id)}" data-appt-job="${escapeHtml(e.jobId || '')}"`
-    : `data-job-open="${escapeHtml(e.id)}"`;
+  const open = e.kind === 'task'
+    ? `data-task-open="${escapeHtml(e.id)}"`
+    : e.kind === 'appt'
+      ? `data-appt-open="${escapeHtml(e.id)}" data-appt-job="${escapeHtml(e.jobId || '')}"`
+      : `data-job-open="${escapeHtml(e.id)}"`;
   return `<div class="job-row" ${open}>
     <div class="job-time">${escapeHtml(fmtTime12(e.startTime))}</div>
     <div class="job-body"><div>${escapeHtml(e.title)}</div>
@@ -8856,7 +9178,7 @@ function renderCalDayList(dateStr) {
   if (!el) return;
   $$('#calendarWrap .cal-cell').forEach((c) => c.style.background = c.dataset.calDate === dateStr ? 'rgba(196,119,42,0.12)' : '');
   const jobs = jobsOnDate(dateStr);
-  const rows = jobs.length ? jobs.map(jobRowHtml).join('') : '<div class="muted" style="padding:10px 4px;">No jobs scheduled.</div>';
+  const rows = jobs.length ? jobs.map(jobRowHtml).join('') : '<div class="muted" style="padding:10px 4px;">No tasks scheduled.</div>';
   el.innerHTML = `<h4 style="font-size:13px;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px;">${escapeHtml(longDate(dateStr))}</h4>${rows}`;
 }
 
@@ -8864,10 +9186,11 @@ function renderAgenda() {
   const wrap = $('#agendaWrap');
   if (!wrap) return;
   const todayKey = dateKey(new Date());
-  const upcoming = allCalendarEntries()
-    .filter((e) => e.status !== 'Cancelled' && (e.date || '') >= todayKey)
+  /* Item 16: the agenda lists upcoming OPEN tasks, sorted by date. */
+  const upcoming = scheduleEntries()
+    .filter((e) => e.status === 'Open' && (e.date || '') >= todayKey)
     .sort((a, b) => ((a.date || '') + (a.startTime || '')).localeCompare((b.date || '') + (b.startTime || '')));
-  if (!upcoming.length) { wrap.innerHTML = '<div class="muted" style="padding:16px;">No upcoming appointments. Tap <strong>+ New Appointment</strong> to schedule one.</div>'; return; }
+  if (!upcoming.length) { wrap.innerHTML = '<div class="muted" style="padding:16px;">No upcoming open tasks. Tap <strong>+ New Task</strong> to schedule one.</div>'; return; }
   const byDay = new Map();
   for (const e of upcoming) { if (!byDay.has(e.date)) byDay.set(e.date, []); byDay.get(e.date).push(e); }
   let html = '';
@@ -9228,7 +9551,8 @@ function unreadNotifCount() { return cachedNotifications.filter((n) => !n.read).
 
 function updateBellBadge() {
   const n = unreadNotifCount();
-  ['bellBadge', 'bellBadgeLanding'].forEach((id) => {
+  /* Item 12: the only badge left lives on the landing banner. */
+  ['bannerNotifBadge'].forEach((id) => {
     const el = document.getElementById(id);
     if (!el) return;
     el.textContent = n > 99 ? '99+' : String(n);
@@ -9351,10 +9675,8 @@ function notifyOperatorsInApp(emails, payload) {
   }
 }
 
-function openNotifications() {
-  notifReturnView = currentView === 'notifications' ? notifReturnView : currentView;
-  setView('notifications');
-}
+/* Item 12: openNotifications() removed with the header bells — the
+   Notifications page opens from the landing banner only. */
 
 /* =====================================================================
  * Job Lifecycle (v2, Item 3) — the central Job container.
@@ -9373,10 +9695,32 @@ const VISIT_TYPES = [
   'Trap Clear', 'Equipment Pickup / Job Closeout', 'Follow-up Treatment'
 ];
 
+/* =====================================================================
+ * Item 15 (v2-patch-1): task-model Jobs.
+ * ---------------------------------------------------------------------
+ * A Job is created once per customer engagement (status Active → Complete
+ * or Cancelled only; Complete is set manually by Jon after it's billed and
+ * paid in QBO). Tasks belong to a job and live in the top-level `tasks`
+ * collection. New-model jobs are marked by carrying a startDate; older
+ * lifecycle jobs (7-status) keep their existing behavior.
+ * ===================================================================== */
+const TASK_MODEL_STATUSES = ['Active', 'Complete', 'Cancelled'];
+const TASK_TYPES = [
+  'Set Trap', 'Re-bait Trap', 'Check Trap', 'Pull Trap', 'Check Camera',
+  'Inspection', 'Service Call', 'Pesticide Application', 'Repair',
+  'Exclusion – Bats', 'Exclusion – Birds', 'Exclusion – Squirrels',
+  'Exclusion – Other'
+];
+const TASK_STATUSES = ['Open', 'Completed', 'Cancelled'];
+
 function isLifecycleJob(j) { return !!(j && j.jobNumber); }
+function isTaskModelJob(j) { return isLifecycleJob(j) && !!j.startDate; }   /* Item 15 */
 function lifecycleJobs() { return cachedJobs.filter(isLifecycleJob); }
 function legacyScheduleJobs() { return cachedJobs.filter((j) => !isLifecycleJob(j)); }
-function jobIsActive(j) { return isLifecycleJob(j) && j.status !== 'Paid' && j.status !== 'Cancelled'; }
+function jobIsActive(j) {
+  return isLifecycleJob(j)
+    && j.status !== 'Paid' && j.status !== 'Cancelled' && j.status !== 'Complete';
+}
 function jobLifeStatusClass(s) {
   if (s === 'Lead') return 'lead';
   if (s === 'Estimated') return 'estimated';
@@ -9385,6 +9729,7 @@ function jobLifeStatusClass(s) {
   if (s === 'Pending Close') return 'pendingclose';
   if (s === 'Invoiced') return 'invoiced';
   if (s === 'Paid') return 'paid';
+  if (s === 'Complete') return 'completed';   /* Item 15 */
   if (s === 'Cancelled') return 'cancelled';
   return 'lead';
 }
@@ -9398,18 +9743,16 @@ function localMaxJobSequence(prefix) {
   }
   return max;
 }
+/* Item 15: job numbers are SWR-JOB-YYYY-NNN plus a short random suffix —
+   the suffix is now ALWAYS appended (it keeps offline-created numbers
+   unique; the parseInt sequence scan above ignores it). */
+function jobNumberSuffix() {
+  return '-' + Math.random().toString(36).slice(2, 4).toUpperCase();
+}
 function generateJobNumber() {
   const year = new Date().getFullYear();
   const prefix = `SWR-JOB-${year}-`;
-  let candidate = `${prefix}${String(localMaxJobSequence(prefix) + 1).padStart(3, '0')}`;
-  /* Offline, the local cache can be hours stale — another device may mint
-     the same sequence number. A short random suffix keeps offline-created
-     numbers unique; the readable sequence (and the parseInt scan above)
-     still work. */
-  if (!navigator.onLine) {
-    candidate += '-' + Math.random().toString(36).slice(2, 4).toUpperCase();
-  }
-  return candidate;
+  return `${prefix}${String(localMaxJobSequence(prefix) + 1).padStart(3, '0')}${jobNumberSuffix()}`;
 }
 /* M4: online, sequence numbers are reserved atomically on a counter doc so
    two devices creating jobs at the same moment can't mint the same number.
@@ -9434,7 +9777,7 @@ async function allocateJobNumber() {
         }),
         new Promise((_, reject) => setTimeout(() => reject(new Error('counter timeout')), 6000))
       ]);
-      return `${prefix}${String(seq).padStart(3, '0')}`;
+      return `${prefix}${String(seq).padStart(3, '0')}${jobNumberSuffix()}`;
     } catch (e) {
       console.warn('Job number counter unavailable — using local fallback', e);
     }
@@ -9450,10 +9793,20 @@ function canTransitionJobStatus(from, to) {
   const a = JOB_STATUSES.indexOf(from), b = JOB_STATUSES.indexOf(to);
   return a >= 0 && b >= 0 && b > a;
 }
+/* Item 15: task-model transitions — Active → Complete or Cancelled only. */
+function canTransitionTaskModelJob(from, to) {
+  return (from || 'Active') === 'Active' && (to === 'Complete' || to === 'Cancelled');
+}
 async function setJobLifecycleStatus(id, status, extra = {}) {
   const j = cachedJobs.find((x) => x.id === id);
   if (!j) return false;
-  if (!canTransitionJobStatus(j.status || 'Lead', status)) {
+  /* Item 15: task-model jobs only move Active → Complete / Cancelled. */
+  if (isTaskModelJob(j)) {
+    if (!canTransitionTaskModelJob(j.status, status)) {
+      toast(`Can’t move this job from ${j.status || 'Active'} to ${status}.`, 'error');
+      return false;
+    }
+  } else if (!canTransitionJobStatus(j.status || 'Lead', status)) {
     toast(`Can’t move this job from ${j.status || 'Lead'} to ${status} — jobs only move forward.`, 'error');
     return false;
   }
@@ -9480,6 +9833,9 @@ async function setJobLifecycleStatus(id, status, extra = {}) {
 function advanceJobStatusAuto(jobId, atLeast) {
   const j = cachedJobs.find((x) => x.id === jobId);
   if (!j || !isLifecycleJob(j)) return;
+  /* Item 15: task-model jobs have no lifecycle progression — they stay
+     Active until Jon closes them out (or they're cancelled). */
+  if (isTaskModelJob(j)) return;
   const cur = JOB_STATUSES.indexOf(j.status || 'Lead');
   const want = JOB_STATUSES.indexOf(atLeast);
   if (j.status === 'Cancelled' || want < 0 || cur >= want) return;
@@ -9530,10 +9886,60 @@ function appointmentsForJob(jobId) {
   return cachedAppointments.filter((a) => a.jobId === jobId);
 }
 
+/* ---- Tasks (Item 15, v2-patch-1): top-level `tasks` collection ---- */
+let cachedTasks = [];
+let tasksUnsub = null;
+let tasksRetryTimer = null;
+
+function tasksCol() { return collection(fbDb, 'tasks'); }
+function tasksForJob(jobId) { return cachedTasks.filter((t) => t.jobId === jobId); }
+
+function subscribeToTasks() {
+  if (tasksUnsub) return;
+  /* No orderBy — sorted client-side, so no composite index is needed. */
+  tasksUnsub = onSnapshot(query(tasksCol()), (snap) => {
+    cachedTasks = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    cachedTasks.sort((a, b) =>
+      ((a.scheduledDate || '') + (a.scheduledTime || '')).localeCompare((b.scheduledDate || '') + (b.scheduledTime || '')));
+    renderLandingCounts();
+    if (!$('#app').classList.contains('hidden')) {
+      if (appMode === 'schedule' && !$('#view-schedule').classList.contains('hidden')) renderSchedule();
+      if (appMode === 'jobs' && !$('#view-jobs').classList.contains('hidden')) renderJobsList();
+      if (currentLifecycleJobId && !$('#view-job-detail').classList.contains('hidden')) renderLifecycleJobDetail(currentLifecycleJobId);
+      if (currentTaskId && !$('#view-task-detail').classList.contains('hidden')) renderTaskDetail(currentTaskId);
+    }
+  }, (err) => {
+    console.error('Tasks subscription error', err);
+    tasksUnsub = null;
+    if (tasksRetryTimer) clearTimeout(tasksRetryTimer);
+    tasksRetryTimer = setTimeout(() => { if (currentUser) subscribeToTasks(); }, 5000);
+  });
+}
+function unsubscribeFromTasks() {
+  if (tasksUnsub) { tasksUnsub(); tasksUnsub = null; }
+  cachedTasks = [];
+}
+
 /* ---- Jobs list ---- */
 let currentLifecycleJobId = null;
 let editingLifecycleJobId = null;
 let lifecycleJobCustomer = null;
+
+/* Item 15: jobs landing — Active jobs with customer, job number, start/end
+   dates, assigned operators, task count, and a completed-tasks progress bar. */
+function jobTaskProgressHtml(jobId) {
+  const tasks = tasksForJob(jobId);
+  const live = tasks.filter((t) => t.status !== 'Cancelled');
+  if (!live.length) return '';
+  const done = live.filter((t) => t.status === 'Completed').length;
+  const pct = Math.round((done / live.length) * 100);
+  return `<div style="display:flex;align-items:center;gap:8px;margin-top:5px;">
+    <div style="flex:1;height:6px;border-radius:999px;background:var(--cream-deep);overflow:hidden;">
+      <div style="width:${pct}%;height:100%;background:${pct === 100 ? 'var(--released)' : 'var(--amber)'};border-radius:999px;"></div>
+    </div>
+    <span class="muted" style="font-size:11px;white-space:nowrap;">${done}/${live.length} done</span>
+  </div>`;
+}
 
 function renderJobsList() {
   const el = $('#jobsList');
@@ -9541,26 +9947,27 @@ function renderJobsList() {
   const filter = ($('#jobsFilterStatus') && $('#jobsFilterStatus').value) || 'active';
   let list = lifecycleJobs();
   if (filter === 'active') list = list.filter(jobIsActive);
-  else if (filter !== 'all') list = list.filter((j) => (j.status || 'Lead') === filter);
-  list = list.slice().sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
+  else if (filter !== 'all') list = list.filter((j) => (j.status || 'Active') === filter);
+  list = list.slice().sort((a, b) => (b.startDate || b.createdAt || '').localeCompare(a.startDate || a.createdAt || ''));
   if (!list.length) {
     el.innerHTML = '<div style="padding:16px;color:var(--ink-soft);">No jobs here yet. Tap <strong>+ Start New Job</strong> to open a container for a customer engagement.</div>';
     return;
   }
   el.innerHTML = list.map((j) => {
-    const nAppt = appointmentsForJob(j.id).length;
-    const nTrap = cachedRecords.filter((r) => r.jobId === j.id).length;
-    const nPest = cachedPesticideRecords.filter((r) => r.jobId === j.id).length;
-    const bits = [`${nAppt} appt${nAppt === 1 ? '' : 's'}`];
-    if (nTrap) bits.push(`${nTrap} trap`);
-    if (nPest) bits.push(`${nPest} pesticide`);
+    const nTasks = tasksForJob(j.id).filter((t) => t.status !== 'Cancelled').length;
+    const dates = j.startDate
+      ? `${fmtShortDate(j.startDate)} – ${fmtShortDate(j.endDate) || 'open'}`
+      : (j.createdAt ? 'opened ' + fmtShortDate(j.createdAt.slice(0, 10)) : '');
+    const who = (j.assigneeNames || []).join(', ');
+    const bits = [dates, `${nTasks} task${nTasks === 1 ? '' : 's'}`, who].filter(Boolean);
     return `<div class="job-lc-row" data-ljob-open="${escapeHtml(j.id)}">
       <div class="jl-body">
         <div class="jl-num">${escapeHtml(j.jobNumber || '')}</div>
         <div class="jl-name">${escapeHtml(j.customerName || '(no customer)')}</div>
-        <div class="jl-meta">${escapeHtml(bits.join(' · '))}${j.createdAt ? ' · opened ' + escapeHtml(fmtShortDate(j.createdAt.slice(0, 10))) : ''}</div>
+        <div class="jl-meta">${escapeHtml(bits.join(' · '))}</div>
+        ${jobTaskProgressHtml(j.id)}
       </div>
-      <span class="status-pill ${jobLifeStatusClass(j.status)}">${escapeHtml(j.status || 'Lead')}</span>
+      <span class="status-pill ${jobLifeStatusClass(j.status)}">${escapeHtml(j.status || 'Active')}</span>
     </div>`;
   }).join('');
 }
@@ -9571,6 +9978,9 @@ function resetLifecycleJobForm() {
   lifecycleJobCustomer = null;
   const f = $('#lifecycleJobForm'); if (f) f.reset();
   $('#lj-id').value = '';
+  /* Item 15: start today, end 30 days out (adjustable). */
+  $('#lj-start').value = todayISO();
+  $('#lj-end').value = addDaysISO(todayISO(), 30);
   const hint = $('#lj-customer-hint');
   if (hint) { hint.textContent = 'Pick a customer already on file — add them in Customers first if needed.'; hint.className = 'hint'; }
   populateLifecycleJobEstimates(null);
@@ -9664,6 +10074,12 @@ async function handleSaveLifecycleJob(e) {
     lifecycleJobCustomer = null;
   }
   if (!lifecycleJobCustomer || !lifecycleJobCustomer.id) { toast('Pick a customer from the list for this job', 'error'); $('#lj-customer').focus(); return; }
+  /* Item 15: start/end dates on the job container. */
+  const startDate = $('#lj-start').value;
+  const endDate = $('#lj-end').value;
+  if (!startDate) { toast('Start date is required', 'error'); $('#lj-start').focus(); return; }
+  if (!endDate) { toast('End date is required', 'error'); $('#lj-end').focus(); return; }
+  if (endDate < startDate) { toast('End date can’t be before the start date', 'error'); $('#lj-end').focus(); return; }
   const operators = checkedEmails('lj-operators');
   const estimateId = $('#lj-estimate').value || null;
   const propertyId = ($('#lj-property') && $('#lj-property').value) || null;
@@ -9678,6 +10094,8 @@ async function handleSaveLifecycleJob(e) {
         customerId: lifecycleJobCustomer.id,
         customerName: lifecycleJobCustomer.name,
         propertyId,
+        startDate,
+        endDate,
         estimateId,
         estimateNumber: est ? (est.estimateNumber || '') : '',
         assignedOperators: operators,
@@ -9712,12 +10130,18 @@ async function handleSaveLifecycleJob(e) {
         customerId: lifecycleJobCustomer.id,
         customerName: lifecycleJobCustomer.name,
         propertyId,
-        status: estimateId ? 'Estimated' : 'Lead',
+        /* Item 15: a new job is Active until Jon closes it out (Complete)
+           or it's cancelled. */
+        status: 'Active',
+        startDate,
+        endDate,
         estimateId,
         estimateNumber: est ? (est.estimateNumber || '') : '',
-        qbInvoiceId: null,
         qbInvoiceNumber: null,
-        paymentStatus: null,
+        /* Item 19: rebait schedule config lives on the job. */
+        rebaitInterval: null,
+        rebaitEndDate: null,
+        rebaitActive: false,
         assignedOperators: operators,
         assigneeNames: operators.map((em) => nameByEmail[em] || em),
         createdBy: (currentUser && (EMAIL_TO_TRAPPER[currentUser.email.toLowerCase()] || currentUser.email)) || '',
@@ -9754,6 +10178,9 @@ function editLifecycleJob(id) {
   if (appMode !== 'jobs') setAppModeQuiet('jobs');
   setView('add');
   $('#lj-id').value = id;
+  /* Item 15: start/end dates (legacy jobs pick up defaults on first edit). */
+  $('#lj-start').value = j.startDate || (j.createdAt ? j.createdAt.slice(0, 10) : todayISO());
+  $('#lj-end').value = j.endDate || addDaysISO($('#lj-start').value, 30);
   lifecycleJobCustomer = j.customerId ? { id: j.customerId, name: j.customerName || '' } : null;
   $('#lj-customer').value = j.customerName || '';
   const hint = $('#lj-customer-hint');
@@ -9815,6 +10242,82 @@ function jobNextStepHtml(j) {
   </div>`;
 }
 
+/* Item 15 (v2-patch-1): task-model Job Detail — job header, all tasks in
+   chronological order, and the operator actions: add task, complete task,
+   add contractor, extend end date, Close Out (admin only). */
+function renderTaskModelJobDetail(j) {
+  const box = $('#lifecycleJobDetail');
+  const id = j.id;
+  const cust = cachedCustomers.find((c) => c.id === j.customerId);
+  const prop = j.propertyId ? propertiesForCustomer(j.customerId).find((p) => p.id === j.propertyId) : null;
+  const est = j.estimateId ? cachedEstimates.find((e) => e.id === j.estimateId) : null;
+  const tasks = tasksForJob(id);   /* cachedTasks is already chronological */
+  const trapRecs = cachedRecords.filter((r) => r.jobId === id);
+  const pestRecs = cachedPesticideRecords.filter((r) => r.jobId === id);
+  const cameraId = (prop && prop.cameraId) || (cust && cust.cameraId) || '';
+  const isOpen = j.status === 'Active';
+
+  const taskRows = tasks.length ? tasks.map((t) => {
+    const label = t.taskType === 'Exclusion – Other' && t.taskTypeOther
+      ? `Exclusion – Other: ${t.taskTypeOther}` : (t.taskType || 'Task');
+    const who = (t.assigneeNames || []).join(', ');
+    const doneBtn = (t.status === 'Open' && isOpen)
+      ? `<button type="button" class="pill-btn" data-task-complete="${escapeHtml(t.id)}" style="background:#DDEAD8;color:var(--released);flex-shrink:0;" aria-label="Mark complete">✓ Done</button>`
+      : '';
+    return `<div class="at-row" data-task-open="${escapeHtml(t.id)}" style="align-items:center;">
+      <div class="at-date">${escapeHtml(fmtShortDate(t.scheduledDate))}<br><span style="font-weight:400;color:var(--ink-soft);">${escapeHtml(fmtTime12(t.scheduledTime))}</span></div>
+      <div class="at-body">
+        <div>${escapeHtml(label)} <span class="status-pill ${t.status === 'Completed' ? 'completed' : t.status === 'Cancelled' ? 'cancelled' : 'scheduled'}">${escapeHtml(t.status || 'Open')}</span></div>
+        ${who ? `<div class="job-sub">${escapeHtml(who)}</div>` : ''}
+        ${t.completedDate ? `<div class="at-outcome">Completed ${escapeHtml(fmtShortDate(t.completedDate))}${t.completedBy ? ' by ' + escapeHtml(t.completedBy) : ''}</div>` : ''}
+      </div>
+      ${doneBtn}
+    </div>`;
+  }).join('') : '<div class="muted" style="padding:8px 0;">No tasks yet — add the first one below.</div>';
+
+  let actions = '';
+  if (isOpen) {
+    actions += `<button class="btn btn-amber" data-ljob-action="add-task" data-id="${escapeHtml(id)}">+ Add Task</button>`;
+    actions += `<button class="btn btn-ghost" data-ljob-action="add-contractor" data-id="${escapeHtml(id)}">Add Contractor</button>`;
+    actions += `<button class="btn btn-ghost" data-ljob-action="extend-end" data-id="${escapeHtml(id)}">Extend End Date</button>`;
+    actions += `<button class="btn btn-primary" data-ljob-action="log-trap" data-id="${escapeHtml(id)}">Log Trap Activity</button>`;
+    actions += `<button class="btn btn-primary" data-ljob-action="log-pesticide" data-id="${escapeHtml(id)}">Log Pesticide Activity</button>`;
+  }
+  actions += `<button class="btn btn-ghost" data-ljob-action="edit" data-id="${escapeHtml(id)}">Edit Job</button>`;
+  /* Close Out: Jon/admin only — marks Complete and cancels remaining open tasks. */
+  if (isOpen && isAdmin()) {
+    actions += `<button class="btn btn-amber" data-ljob-action="close-out" data-id="${escapeHtml(id)}">Close Out Job</button>`;
+  }
+  if (isOpen) actions += `<button class="btn btn-danger" data-ljob-action="cancel-job" data-id="${escapeHtml(id)}" style="margin-top:10px;">Cancel Job</button>`;
+
+  box.innerHTML = `
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;">
+        <h3 style="margin:0;font-family:ui-monospace,'SF Mono',monospace;font-size:16px;">${escapeHtml(j.jobNumber || 'Job')}</h3>
+        <span class="status-pill ${jobLifeStatusClass(j.status)}">${escapeHtml(j.status || 'Active')}</span>
+      </div>
+      <div style="margin-top:6px;font-weight:600;color:var(--green-deep);font-size:17px;">${escapeHtml(j.customerName || '')}</div>
+      ${prop ? `<div class="muted" style="font-size:13px;">${escapeHtml([prop.siteNickname, prop.address].filter(Boolean).join(' · '))}</div>`
+        : cust && cust.address ? `<div class="muted" style="font-size:13px;">${escapeHtml([cust.address, cust.city].filter(Boolean).join(', '))}</div>` : ''}
+      <div class="muted" style="font-size:13px;margin-top:4px;">${escapeHtml(fmtShortDate(j.startDate))} – ${escapeHtml(fmtShortDate(j.endDate) || 'open')} · ${escapeHtml((j.assigneeNames || []).join(', ') || 'unassigned')}</div>
+      ${jobTaskProgressHtml(id)}
+    </div>
+    <div class="card">
+      <div class="job-stat-row"><span class="jsk">Estimate</span><span class="jsv">${est ? `${escapeHtml(est.estimateNumber || '')} · ${fmtUSD(est.grandTotal)} <button class="link-like" data-ljob-action="view-estimate" data-est="${escapeHtml(est.id)}">view</button>` : '—'}</span></div>
+      <div class="job-stat-row"><span class="jsk">Trap records</span><span class="jsv">${trapRecs.length ? `${trapRecs.length} <button class="link-like" data-ljob-action="view-traps" data-id="${escapeHtml(id)}">view</button>` : '0'}</span></div>
+      <div class="job-stat-row"><span class="jsk">Pesticide applications</span><span class="jsv">${pestRecs.length ? `${pestRecs.length} <button class="link-like" data-ljob-action="view-pests" data-id="${escapeHtml(id)}">view</button>` : '0'}</span></div>
+      <div class="job-stat-row"><span class="jsk">Camera</span><span class="jsv">${cameraId ? escapeHtml(cameraId) : 'Not assigned'}</span></div>
+      <div class="job-stat-row"><span class="jsk">QB Invoice #</span><span class="jsv">${escapeHtml(String(j.qbInvoiceNumber || '—'))}</span></div>
+      ${j.rebaitActive ? `<div class="job-stat-row"><span class="jsk">Rebait schedule</span><span class="jsv">every ${escapeHtml(String(j.rebaitInterval || '?'))} day${j.rebaitInterval === 1 ? '' : 's'} through ${escapeHtml(fmtShortDate(j.rebaitEndDate) || '—')}</span></div>` : ''}
+    </div>
+    <div class="card">
+      <h3 style="margin:0 0 6px;">Tasks</h3>
+      <div class="appt-timeline">${taskRows}</div>
+    </div>
+    ${j.notes ? `<div class="card"><h3 style="margin-top:0;">Notes</h3><div>${escapeHtml(j.notes)}</div></div>` : ''}
+    <div class="form-actions">${actions}<button class="btn btn-cancel btn-ghost" data-ljob-action="back">Back to Jobs</button></div>`;
+}
+
 function renderLifecycleJobDetail(id) {
   const j = cachedJobs.find((x) => x.id === id);
   const box = $('#lifecycleJobDetail');
@@ -9824,6 +10327,9 @@ function renderLifecycleJobDetail(id) {
       '<div class="form-actions"><button class="btn btn-cancel btn-ghost" data-ljob-action="back">Back to Jobs</button></div>';
     return;
   }
+  /* Item 15: task-model jobs get the task-based screen; legacy lifecycle
+     jobs keep the original appointment-based screen. */
+  if (isTaskModelJob(j)) { renderTaskModelJobDetail(j); return; }
   const cust = cachedCustomers.find((c) => c.id === j.customerId);
   const prop = j.propertyId ? propertiesForCustomer(j.customerId).find((p) => p.id === j.propertyId) : null;
   const est = j.estimateId ? cachedEstimates.find((e) => e.id === j.estimateId) : null;
@@ -9851,7 +10357,7 @@ function renderLifecycleJobDetail(id) {
     : 'Not invoiced';
 
   const canClose = canTransitionJobStatus(j.status || 'Lead', 'Pending Close');
-  const canInvoice = (j.status === 'Pending Close') && !j.qbInvoiceId;
+  /* Item 13: invoice generation removed — invoicing happens in QBO. */
   const canMarkPaid = (j.status === 'Invoiced') || (!!j.qbInvoiceId && j.status !== 'Paid' && j.status !== 'Cancelled');
 
   /* M3: closed jobs (Paid/Cancelled) must not accept new visits or work
@@ -9869,7 +10375,6 @@ function renderLifecycleJobDetail(id) {
   }
   actions += `<button class="btn btn-ghost" data-ljob-action="assign-camera" data-id="${escapeHtml(id)}">Assign Camera</button>`;
   if (canClose) actions += `<button class="btn btn-ghost" data-ljob-action="pending-close" data-id="${escapeHtml(id)}">Mark Pending Close</button>`;
-  if (canInvoice) actions += `<button class="btn btn-amber" data-ljob-action="generate-invoice" data-id="${escapeHtml(id)}">Generate Invoice</button>`;
   if (canMarkPaid) actions += `<button class="btn btn-ghost" data-ljob-action="mark-paid" data-id="${escapeHtml(id)}">Mark Payment Received</button>`;
   actions += `<button class="btn btn-ghost" data-ljob-action="edit" data-id="${escapeHtml(id)}">Edit Job</button>`;
   if (j.status !== 'Cancelled' && j.status !== 'Paid') actions += `<button class="btn btn-danger" data-ljob-action="cancel-job" data-id="${escapeHtml(id)}" style="margin-top:10px;">Cancel Job</button>`;
@@ -9902,49 +10407,9 @@ function renderLifecycleJobDetail(id) {
     <div class="form-actions">${actions}<button class="btn btn-cancel btn-ghost" data-ljob-action="back">Back to Jobs</button></div>`;
 }
 
-/* ---- Job invoicing + payment (Items 3 & 5) ---- */
-/* Generate a QB invoice from the job's linked estimate (qbConvertToInvoice
-   Cloud Function), then stamp qbInvoiceId/qbInvoiceNumber on the job and move
-   it to Invoiced. Only offered while the job is Pending Close. */
-async function generateJobInvoice(id, btn) {
-  const j = cachedJobs.find((x) => x.id === id);
-  if (!j) return;
-  if (!j.estimateId) {
-    toast('This job has no linked estimate — link one first (Edit Job); invoices are generated from the job’s estimate.', 'error');
-    return;
-  }
-  const est = cachedEstimates.find((e) => e.id === j.estimateId);
-  /* Estimate already invoiced in QB (e.g. via the Pricing module) — just copy
-     the invoice ids onto the job instead of creating a duplicate. */
-  if (est && est.qbInvoiceId) {
-    const moved = await setJobLifecycleStatus(id, 'Invoiced', {
-      qbInvoiceId: est.qbInvoiceId, qbInvoiceNumber: est.qbInvoiceNumber || null
-    });
-    if (moved) toast(`Linked existing QB invoice #${est.qbInvoiceNumber || est.qbInvoiceId}`);
-    return;
-  }
-  if (!confirm(`Create a QuickBooks invoice from ${j.estimateNumber || 'the linked estimate'} for ${j.customerName || 'this customer'}?`)) return;
-  if (btn) btn.disabled = true;
-  toast('Creating invoice…');
-  try {
-    const res = await httpsCallable(fbFunctions, 'qbConvertToInvoice', { timeout: 120000 })({ estimateId: j.estimateId });
-    const r = (res && res.data) || {};
-    await writeWithRetry(() => setDoc(doc(fbDb, 'jobs', id), {
-      qbInvoiceId: r.qbInvoiceId || null,
-      qbInvoiceNumber: r.qbInvoiceNumber || null,
-      status: 'Invoiced',
-      updatedAt: new Date().toISOString()
-    }, { merge: true }));
-    toast(r.qbInvoiceNumber ? `Invoiced (QB #${r.qbInvoiceNumber})` : 'Invoice created in QuickBooks');
-  } catch (err) {
-    const code = (err && err.code) || '';
-    let msg = (err && err.message) || 'Invoice failed';
-    if (code === 'functions/permission-denied') msg = 'Only an administrator can create invoices.';
-    else if (code === 'functions/deadline-exceeded') msg = 'QuickBooks is taking longer than expected — check QuickBooks before retrying to avoid a duplicate.';
-    toast('Invoice failed: ' + msg, 'error');
-    if (btn) btn.disabled = false;
-  }
-}
+/* ---- Job payment (Items 3 & 5) ----
+   Item 13 (v2-patch-1): generateJobInvoice removed — invoicing happens
+   exclusively in QuickBooks Online. */
 
 /* Manual payment-received flag (Item 5): moves the job to Paid. */
 async function markJobPaid(id) {
@@ -9956,6 +10421,533 @@ async function markJobPaid(id) {
   await setJobLifecycleStatus(id, 'Paid', {
     paymentStatus: 'Paid',
     paymentReceivedAt: new Date().toISOString()
+  });
+}
+
+/* =====================================================================
+ * Tasks (Items 15, 16 & 18, v2-patch-1) — create, view, complete.
+ * ===================================================================== */
+let editingTaskId = null;
+let pendingTaskJobId = null;    /* job pre-selected (from Job Detail) */
+let taskReturnTo = null;        /* 'job-detail' to bounce back after save */
+let currentTaskId = null;
+
+function populateTaskJobSelect(selectedId) {
+  const sel = $('#t-job');
+  if (!sel) return;
+  sel.innerHTML = '<option value="">— select a job —</option>';
+  const jobs = lifecycleJobs().filter(jobIsActive)
+    .sort((a, b) => (b.startDate || b.createdAt || '').localeCompare(a.startDate || a.createdAt || ''));
+  for (const j of jobs) {
+    const o = document.createElement('option');
+    o.value = j.id;
+    o.textContent = `${j.jobNumber} · ${j.customerName || ''}`;
+    sel.appendChild(o);
+  }
+  /* Editing a task whose job is closed: keep it selectable. */
+  if (selectedId && !jobs.some((j) => j.id === selectedId)) {
+    const j = cachedJobs.find((x) => x.id === selectedId);
+    if (j) {
+      const o = document.createElement('option');
+      o.value = j.id;
+      o.textContent = `${j.jobNumber || 'Job'} · ${j.customerName || ''} (${j.status || 'closed'})`;
+      sel.appendChild(o);
+    }
+  }
+  if (selectedId) sel.value = selectedId;
+}
+
+/* Item 18: the type drives the form — Exclusion – Other reveals a specify
+   input; Set Trap / Pesticide Application note their linked activity forms. */
+function updateTaskTypeConditional() {
+  const type = $('#t-type').value;
+  toggleGroup('cg-t-typeOther', type === 'Exclusion – Other');
+  const hint = $('#t-type-hint');
+  if (hint) {
+    hint.textContent = type === 'Set Trap'
+      ? 'Linked to the trapping form — log the trap record from the task when the work is done.'
+      : type === 'Pesticide Application'
+        ? 'Linked to the pesticide form — log the application from the task when the work is done.'
+        : '';
+  }
+}
+
+function resetTaskForm() {
+  editingTaskId = null;
+  const f = $('#taskForm'); if (f) f.reset();
+  $('#t-id').value = '';
+  fillSelect('t-type', TASK_TYPES, true, '— select task type —');
+  populateTaskJobSelect(pendingTaskJobId || '');
+  $('#t-job').disabled = false;
+  const jsel = $('#t-job');
+  if (pendingTaskJobId && jsel) jsel.value = pendingTaskJobId;
+  pendingTaskJobId = null;
+  $('#t-date').value = todayISO();
+  const j = jsel && jsel.value ? cachedJobs.find((x) => x.id === jsel.value) : null;
+  renderOperatorChecks('t-operators', (j && j.assignedOperators) || (currentUser ? [currentUser.email.toLowerCase()] : []));
+  const btn = $('#saveTaskBtn'); if (btn) btn.textContent = 'Save Task';
+  updateTaskTypeConditional();
+}
+
+async function handleSaveTask(e) {
+  e.preventDefault();
+  const jobId = $('#t-job').value;
+  const j = cachedJobs.find((x) => x.id === jobId);
+  const taskType = $('#t-type').value;
+  const taskTypeOther = $('#t-type-other').value.trim();
+  const scheduledDate = $('#t-date').value;
+  const scheduledTime = $('#t-time').value;
+  const operators = checkedEmails('t-operators');
+  if (!jobId || !j) { toast('Pick the job this task belongs to', 'error'); $('#t-job').focus(); return; }
+  if (!taskType) { toast('Pick a task type', 'error'); $('#t-type').focus(); return; }
+  if (taskType === 'Exclusion – Other' && !taskTypeOther) { toast('Specify the exclusion type', 'error'); $('#t-type-other').focus(); return; }
+  if (!scheduledDate || !scheduledTime) { toast('Date and time are required', 'error'); return; }
+  if (!operators.length) { toast('Assign at least one operator', 'error'); return; }
+
+  const nameByEmail = Object.fromEntries(assignableUsers().map((u) => [u.email, u.name]));
+  const now = new Date().toISOString();
+  const btn = $('#saveTaskBtn'); btn.disabled = true;
+  try {
+    const data = {
+      jobId,
+      jobNumber: j.jobNumber || '',
+      customerId: j.customerId || null,
+      customerName: j.customerName || '',
+      taskType,
+      taskTypeOther: taskType === 'Exclusion – Other' ? taskTypeOther : '',
+      scheduledDate,
+      scheduledTime,
+      assignedOperators: operators,
+      assigneeNames: operators.map((em) => nameByEmail[em] || em),
+      notes: $('#t-notes').value.trim(),
+      updatedAt: now
+    };
+    let savedTask;
+    if (editingTaskId) {
+      /* Optimistic (H1 pattern): fire without awaiting so it works offline. */
+      writeWithRetry(() => setDoc(doc(fbDb, 'tasks', editingTaskId), data, { merge: true }))
+        .catch((err) => { console.error('Task update failed', err); toast('Task failed to sync: ' + ((err && err.message) || 'error'), 'error'); });
+      toast('Task updated');
+      savedTask = null;   /* edits never trigger the rebait prompt */
+    } else {
+      const ref = doc(tasksCol());
+      data.status = 'Open';
+      data.completedDate = null;
+      data.completedBy = null;
+      data.isLastRebait = false;
+      data.createdBy = (currentUser && (EMAIL_TO_TRAPPER[currentUser.email.toLowerCase()] || currentUser.email)) || '';
+      data.createdByUid = currentUser ? currentUser.uid : null;
+      data.createdByEmail = currentUser ? currentUser.email : null;
+      data.createdAt = now;
+      writeWithRetry(() => setDoc(ref, data))
+        .catch((err) => { console.error('Task create failed', err); toast('Task failed to sync: ' + ((err && err.message) || 'error'), 'error'); });
+      /* Seed the cache so the job detail shows it immediately. */
+      if (!cachedTasks.some((t) => t.id === ref.id)) cachedTasks.push({ id: ref.id, ...data });
+      toast('Task saved');
+      savedTask = { id: ref.id, ...data };
+    }
+    editingTaskId = null;
+    resetTaskForm();
+    if (taskReturnTo === 'job-detail') {
+      taskReturnTo = null;
+      openLifecycleJob(jobId);
+    } else {
+      setView('dashboard');
+    }
+    /* Item 19: a saved Set Trap task offers the rebait schedule. */
+    if (savedTask && savedTask.taskType === 'Set Trap' && typeof promptRebaitSetup === 'function') {
+      promptRebaitSetup(jobId, savedTask);
+    }
+  } catch (err) {
+    toast('Save failed: ' + ((err && err.message) || 'error'), 'error');
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function taskTypeLabel(t) {
+  return t.taskType === 'Exclusion – Other' && t.taskTypeOther
+    ? `Exclusion – Other: ${t.taskTypeOther}` : (t.taskType || 'Task');
+}
+
+function openTask(id) {
+  currentTaskId = id;
+  if (appMode !== 'jobs' && appMode !== 'schedule') setAppModeQuiet('jobs');
+  setView('task-detail');
+  renderTaskDetail(id);
+}
+
+function renderTaskDetail(id) {
+  const box = $('#taskDetail');
+  if (!box) return;
+  const t = cachedTasks.find((x) => x.id === id);
+  if (!t) {
+    box.innerHTML = '<div class="card">Task not found.</div>' +
+      '<div class="form-actions"><button class="btn btn-cancel btn-ghost" data-task-action="back">Back</button></div>';
+    return;
+  }
+  const detail = (label, val) => val ? `<div style="margin-top:8px;"><span class="muted" style="font-size:12px;text-transform:uppercase;letter-spacing:.04em;">${label}</span><div>${escapeHtml(val)}</div></div>` : '';
+  let actions = '';
+  if (t.status === 'Open') {
+    actions += `<button class="btn btn-primary" data-task-action="complete" data-id="${escapeHtml(id)}">Mark Completed</button>`;
+    actions += `<button class="btn btn-ghost" data-task-action="edit" data-id="${escapeHtml(id)}">Edit</button>`;
+    actions += `<button class="btn btn-ghost" data-task-action="cancel" data-id="${escapeHtml(id)}">Cancel Task</button>`;
+  }
+  /* Item 18: type-linked activity forms. */
+  if (t.taskType === 'Set Trap' || t.taskType === 'Check Trap' || t.taskType === 'Pull Trap' || t.taskType === 'Re-bait Trap') {
+    actions += `<button class="btn btn-amber" data-task-action="log-trap" data-job="${escapeHtml(t.jobId || '')}">Log Trapping Record</button>`;
+  }
+  if (t.taskType === 'Pesticide Application') {
+    actions += `<button class="btn btn-amber" data-task-action="log-pesticide" data-job="${escapeHtml(t.jobId || '')}">Log Pesticide Application</button>`;
+  }
+  if (t.jobId) actions += `<button class="btn btn-ghost" data-task-action="open-job" data-job="${escapeHtml(t.jobId)}">Open Job ${escapeHtml(t.jobNumber || '')}</button>`;
+  box.innerHTML = `
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;">
+        <h3 style="margin:0;">${escapeHtml(taskTypeLabel(t))}</h3>
+        <span class="status-pill ${t.status === 'Completed' ? 'completed' : t.status === 'Cancelled' ? 'cancelled' : 'scheduled'}">${escapeHtml(t.status || 'Open')}</span>
+      </div>
+      <div class="muted" style="margin-top:6px;">${escapeHtml(longDate(t.scheduledDate))} · ${escapeHtml(fmtTime12(t.scheduledTime))}</div>
+    </div>
+    <div class="card">
+      ${detail('Job', [t.jobNumber, t.customerName].filter(Boolean).join(' · '))}
+      ${detail('Assigned to', (t.assigneeNames || []).join(', '))}
+      ${detail('Completed', t.completedDate ? `${fmtDate(t.completedDate)}${t.completedBy ? ' by ' + t.completedBy : ''}` : '')}
+      ${detail('Notes', t.notes)}
+    </div>
+    <div class="form-actions">${actions}<button class="btn btn-cancel btn-ghost" data-task-action="back">Back</button></div>`;
+}
+
+/* Item 16: completion records who and when. Item 19 hooks rebait rolling
+   generation off completed Re-bait Trap tasks. */
+function completeTask(id) {
+  const t = cachedTasks.find((x) => x.id === id);
+  if (!t || t.status !== 'Open') return;
+  const me = currentUser ? (EMAIL_TO_TRAPPER[currentUser.email.toLowerCase()] || currentUser.email) : '';
+  const completedDate = todayISO();
+  /* Optimistic: fire without awaiting so it works offline. */
+  writeWithRetry(() => setDoc(doc(fbDb, 'tasks', id), {
+    status: 'Completed',
+    completedDate,
+    completedBy: me,
+    completedByEmail: currentUser ? currentUser.email : null,
+    updatedAt: new Date().toISOString()
+  }, { merge: true })).catch((err) => {
+    console.error('Task complete failed', err);
+    toast('Completion failed to sync: ' + ((err && err.message) || 'error'), 'error');
+  });
+  /* Keep the cache current for the immediate re-render + rebait logic. */
+  const idx = cachedTasks.findIndex((x) => x.id === id);
+  if (idx >= 0) cachedTasks[idx] = { ...cachedTasks[idx], status: 'Completed', completedDate, completedBy: me };
+  toast('Task completed');
+  if (currentLifecycleJobId && !$('#view-job-detail').classList.contains('hidden')) renderLifecycleJobDetail(currentLifecycleJobId);
+  if (currentTaskId === id && !$('#view-task-detail').classList.contains('hidden')) renderTaskDetail(id);
+  /* Item 19: rolling rebait generation. */
+  if (t.taskType === 'Re-bait Trap' && typeof handleRebaitTaskCompleted === 'function') {
+    handleRebaitTaskCompleted({ ...t, completedDate });
+  }
+  /* Item 18: type-linked activity forms — completing a linked task offers
+     the matching log immediately (also reachable any time from the task
+     detail's Log buttons). */
+  if (t.taskType === 'Pesticide Application' && t.jobId) {
+    confirmDialog('Log the application?',
+      'This task is linked to the pesticide form. Log the pesticide application for this job now?',
+      { okText: 'Log Application' }).then((ok) => { if (ok) startWorkLog(t.jobId, 'pesticide'); });
+  } else if (t.taskType === 'Set Trap' && t.jobId) {
+    confirmDialog('Log a trap record?',
+      'This task is linked to the trapping form. Log a trapping record for this job now?',
+      { okText: 'Log Record' }).then((ok) => { if (ok) startWorkLog(t.jobId, 'trap'); });
+  }
+}
+
+function cancelTask(id) {
+  const t = cachedTasks.find((x) => x.id === id);
+  if (!t || t.status !== 'Open') return;
+  if (!confirm('Cancel this task?')) return;
+  writeWithRetry(() => setDoc(doc(fbDb, 'tasks', id), {
+    status: 'Cancelled', updatedAt: new Date().toISOString()
+  }, { merge: true })).catch((err) => {
+    console.error('Task cancel failed', err);
+    toast('Cancellation failed to sync: ' + ((err && err.message) || 'error'), 'error');
+  });
+  const idx = cachedTasks.findIndex((x) => x.id === id);
+  if (idx >= 0) cachedTasks[idx] = { ...cachedTasks[idx], status: 'Cancelled' };
+  toast('Task cancelled');
+  if (currentTaskId === id && !$('#view-task-detail').classList.contains('hidden')) renderTaskDetail(id);
+}
+
+function editTask(id) {
+  const t = cachedTasks.find((x) => x.id === id);
+  if (!t) return;
+  editingTaskId = id;
+  if (appMode !== 'jobs' && appMode !== 'schedule') setAppModeQuiet('jobs');
+  setView('add-task');
+  $('#t-id').value = id;
+  fillSelect('t-type', TASK_TYPES, true, '— select task type —');
+  populateTaskJobSelect(t.jobId);
+  $('#t-job').value = t.jobId || '';
+  /* The job link is fixed once created — changing it would orphan the task. */
+  $('#t-job').disabled = true;
+  $('#t-type').value = t.taskType || '';
+  $('#t-type-other').value = t.taskTypeOther || '';
+  $('#t-date').value = t.scheduledDate || '';
+  $('#t-time').value = t.scheduledTime || '';
+  renderOperatorChecks('t-operators', t.assignedOperators || []);
+  $('#t-notes').value = t.notes || '';
+  $('#saveTaskBtn').textContent = 'Save Changes';
+  updateTaskTypeConditional();
+}
+
+/* ---- Item 15: job-level actions ---- */
+/* Add a contractor without a full edit: numbered pick of the operators not
+   yet on the job (same prompt pattern as the camera property picker). */
+function addContractorToJob(id) {
+  const j = cachedJobs.find((x) => x.id === id);
+  if (!j) return;
+  const have = new Set((j.assignedOperators || []).map((e) => String(e).toLowerCase()));
+  const candidates = assignableUsers().filter((u) => !have.has(u.email));
+  if (!candidates.length) { toast('Every operator is already on this job'); return; }
+  const menu = candidates.map((u, i) => `${i + 1}. ${u.name}`).join('\n');
+  const pick = prompt(`Add which contractor to ${j.jobNumber || 'this job'}?\n${menu}\n\nEnter a number:`, '1');
+  if (pick === null) return;
+  const idx = parseInt(pick, 10) - 1;
+  if (!Number.isFinite(idx) || idx < 0 || idx >= candidates.length) { toast('Not a valid number', 'error'); return; }
+  const u = candidates[idx];
+  const operators = [...(j.assignedOperators || []), u.email];
+  const nameByEmail = Object.fromEntries(assignableUsers().map((x) => [x.email, x.name]));
+  writeWithRetry(() => setDoc(doc(fbDb, 'jobs', id), {
+    assignedOperators: operators,
+    assigneeNames: operators.map((em) => nameByEmail[em] || em),
+    updatedAt: new Date().toISOString()
+  }, { merge: true })).catch((err) => {
+    console.error('Add contractor failed', err);
+    toast('Change failed to sync: ' + ((err && err.message) || 'error'), 'error');
+  });
+  const jdx = cachedJobs.findIndex((x) => x.id === id);
+  if (jdx >= 0) cachedJobs[jdx] = { ...cachedJobs[jdx], assignedOperators: operators, assigneeNames: operators.map((em) => nameByEmail[em] || em) };
+  toast(`${u.name} added to ${j.jobNumber || 'the job'}`);
+  renderLifecycleJobDetail(id);
+}
+
+function extendJobEndDate(id) {
+  const j = cachedJobs.find((x) => x.id === id);
+  if (!j) return;
+  const current = j.endDate || todayISO();
+  const suggestion = addDaysISO(current, 30);
+  const input = prompt(`New end date for ${j.jobNumber || 'this job'} (currently ${fmtShortDate(current)}):`, suggestion);
+  if (input === null) return;
+  const v = input.trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(v)) { toast('Enter the date as YYYY-MM-DD', 'error'); return; }
+  if (j.startDate && v < j.startDate) { toast('End date can’t be before the start date', 'error'); return; }
+  writeWithRetry(() => setDoc(doc(fbDb, 'jobs', id), { endDate: v, updatedAt: new Date().toISOString() }, { merge: true }))
+    .catch((err) => { console.error('End-date extend failed', err); toast('Change failed to sync: ' + ((err && err.message) || 'error'), 'error'); });
+  const jdx = cachedJobs.findIndex((x) => x.id === id);
+  if (jdx >= 0) cachedJobs[jdx] = { ...cachedJobs[jdx], endDate: v };
+  toast(`End date moved to ${fmtShortDate(v)}`);
+  renderLifecycleJobDetail(id);
+}
+
+/* Cancel every remaining Open task on a job (used by Close Out and Cancel).
+   Optimistic batch — offline-safe like the other job writes. */
+function cancelOpenTasksForJob(jobId) {
+  const open = tasksForJob(jobId).filter((t) => t.status === 'Open');
+  if (!open.length) return 0;
+  const now = new Date().toISOString();
+  const batch = writeBatch(fbDb);
+  for (const t of open) {
+    batch.set(doc(fbDb, 'tasks', t.id), { status: 'Cancelled', updatedAt: now }, { merge: true });
+    const idx = cachedTasks.findIndex((x) => x.id === t.id);
+    if (idx >= 0) cachedTasks[idx] = { ...cachedTasks[idx], status: 'Cancelled' };
+  }
+  batch.commit().catch((err) => {
+    console.error('Open-task cancellation failed', err);
+    toast('Task cancellations failed to sync: ' + ((err && err.message) || 'error'), 'error');
+  });
+  return open.length;
+}
+
+/* Close Out (admin only): job → Complete, remaining open tasks cancelled,
+   rebait schedule switched off (Item 19). Jon marks a job Complete manually
+   after it's billed and paid in QBO. */
+async function closeOutJob(id) {
+  if (!isAdmin()) { toast('Only an administrator can close out a job.', 'error'); return; }
+  const j = cachedJobs.find((x) => x.id === id);
+  if (!j) return;
+  const nOpen = tasksForJob(id).filter((t) => t.status === 'Open').length;
+  const ok = await confirmDialog('Close out this job?',
+    `${j.jobNumber || 'This job'} moves to Complete${nOpen ? ` and its ${nOpen} remaining open task${nOpen === 1 ? '' : 's'} will be cancelled` : ''}. Do this after the job is billed and paid in QuickBooks.`,
+    { okText: 'Close Out' });
+  if (!ok) return;
+  const moved = await setJobLifecycleStatus(id, 'Complete', { rebaitActive: false });
+  if (!moved) return;
+  const jdx = cachedJobs.findIndex((x) => x.id === id);
+  if (jdx >= 0) cachedJobs[jdx] = { ...cachedJobs[jdx], status: 'Complete', rebaitActive: false };
+  cancelOpenTasksForJob(id);
+  renderLifecycleJobDetail(id);
+}
+
+async function cancelTaskModelJob(id) {
+  const j = cachedJobs.find((x) => x.id === id);
+  if (!j) return;
+  const nOpen = tasksForJob(id).filter((t) => t.status === 'Open').length;
+  const ok = await confirmDialog('Cancel this job?',
+    `${j.jobNumber || 'This job'} moves to Cancelled${nOpen ? ` and its ${nOpen} open task${nOpen === 1 ? '' : 's'} will be cancelled` : ''}. Records already logged stay linked.`,
+    { okText: 'Cancel Job' });
+  if (!ok) return;
+  const moved = await setJobLifecycleStatus(id, 'Cancelled', { rebaitActive: false });
+  if (!moved) return;
+  const jdx = cachedJobs.findIndex((x) => x.id === id);
+  if (jdx >= 0) cachedJobs[jdx] = { ...cachedJobs[jdx], status: 'Cancelled', rebaitActive: false };
+  cancelOpenTasksForJob(id);
+  renderLifecycleJobDetail(id);
+}
+
+/* =====================================================================
+ * Item 19 (v2-patch-1): rebait scheduler with ROLLING generation.
+ * ---------------------------------------------------------------------
+ * Saving a Set Trap task prompts for a rebait schedule (interval default
+ * 2 days; end date default +30 days from the trap set). Confirming stores
+ * rebaitInterval / rebaitEndDate / rebaitActive on the JOB and generates
+ * only the FIRST Re-bait Trap task. Completing a rebait task generates
+ * the next one while the next interval date is on/before rebaitEndDate;
+ * past it, the operator is offered a 30-day extension (declining sets
+ * rebaitActive false). Close Out / Cancel Job set rebaitActive false and
+ * cancel open tasks, so no further rebaits are ever generated.
+ * ===================================================================== */
+let rebaitTaskCtx = null;   /* { jobId, task } while the setup sheet is open */
+
+function createRebaitTaskDoc(jobId, template, date) {
+  const now = new Date().toISOString();
+  const ref = doc(tasksCol());
+  const data = {
+    jobId,
+    jobNumber: template.jobNumber || '',
+    customerId: template.customerId || null,
+    customerName: template.customerName || '',
+    taskType: 'Re-bait Trap',
+    taskTypeOther: '',
+    scheduledDate: date,
+    scheduledTime: template.scheduledTime || '09:00',
+    assignedOperators: template.assignedOperators || [],
+    assigneeNames: template.assigneeNames || [],
+    status: 'Open',
+    completedDate: null,
+    completedBy: null,
+    isLastRebait: false,
+    notes: 'Auto-generated rebait task',
+    createdBy: (currentUser && (EMAIL_TO_TRAPPER[currentUser.email.toLowerCase()] || currentUser.email)) || '',
+    createdByUid: currentUser ? currentUser.uid : null,
+    createdByEmail: currentUser ? currentUser.email : null,
+    createdAt: now,
+    updatedAt: now
+  };
+  /* Optimistic write — offline-safe like every other task write. */
+  writeWithRetry(() => setDoc(ref, data)).catch((err) => {
+    console.error('Rebait task create failed', err);
+    toast('Rebait task failed to sync: ' + ((err && err.message) || 'error'), 'error');
+  });
+  cachedTasks.push({ id: ref.id, ...data });
+  cachedTasks.sort((a, b) =>
+    ((a.scheduledDate || '') + (a.scheduledTime || '')).localeCompare((b.scheduledDate || '') + (b.scheduledTime || '')));
+  return data;
+}
+
+/* Step 1: the yes/no prompt right after a Set Trap task is saved. */
+function promptRebaitSetup(jobId, setTask) {
+  rebaitTaskCtx = { jobId, task: setTask };
+  $('#rebaitTitle').textContent = 'Rebait schedule';
+  $('#rebaitBody').innerHTML = `
+    <p style="margin:6px 0 16px;">Trap set saved. Do you want to set up a rebait schedule for ${escapeHtml(setTask.customerName || 'this job')}?</p>
+    <div class="btn-row">
+      <button type="button" class="btn btn-ghost" data-rebait-task="no">No</button>
+      <button type="button" class="btn btn-primary" data-rebait-task="yes">Yes</button>
+    </div>`;
+  openRebaitSheet();
+}
+
+/* Step 2: interval + end date, both shown together. */
+function rebaitTaskStepConfig() {
+  const start = (rebaitTaskCtx && rebaitTaskCtx.task.scheduledDate) || todayISO();
+  $('#rebaitBody').innerHTML = `
+    <div class="form-group" style="margin-top:6px;">
+      <label for="rebait-task-interval">Interval (days between rebaits)</label>
+      <input type="number" id="rebait-task-interval" inputmode="numeric" min="1" max="30" step="1" value="2">
+    </div>
+    <div class="form-group">
+      <label for="rebait-task-end">End date</label>
+      <input type="date" id="rebait-task-end" value="${escapeHtml(addDaysISO(start, 30))}">
+      <div class="hint">Only the next rebait task is created at a time — completing it schedules the following one through this date.</div>
+    </div>
+    <div class="btn-row">
+      <button type="button" class="btn btn-ghost" data-rebait-task="cancel">Cancel</button>
+      <button type="button" class="btn btn-primary" data-rebait-task="create">Set Up Schedule</button>
+    </div>`;
+  setTimeout(() => { const el = $('#rebait-task-interval'); if (el) el.focus(); }, 150);
+}
+
+function confirmRebaitTaskSetup() {
+  const ctx = rebaitTaskCtx;
+  if (!ctx) return;
+  const interval = parseInt(($('#rebait-task-interval') || {}).value, 10);
+  const endDate = ($('#rebait-task-end') || {}).value;
+  const start = ctx.task.scheduledDate || todayISO();
+  if (!Number.isFinite(interval) || interval < 1) { toast('Enter an interval of at least 1 day', 'error'); return; }
+  if (!endDate || endDate <= start) { toast('Pick an end date after the trap set date', 'error'); return; }
+  const first = addDaysISO(start, interval);
+  if (first > endDate) { toast('The first rebait would fall after the end date — extend the date or shorten the interval', 'error'); return; }
+  /* Store the schedule config on the job. */
+  writeWithRetry(() => setDoc(doc(fbDb, 'jobs', ctx.jobId), {
+    rebaitInterval: interval,
+    rebaitEndDate: endDate,
+    rebaitActive: true,
+    updatedAt: new Date().toISOString()
+  }, { merge: true })).catch((err) => {
+    console.error('Rebait config write failed', err);
+    toast('Rebait schedule failed to sync: ' + ((err && err.message) || 'error'), 'error');
+  });
+  const jdx = cachedJobs.findIndex((x) => x.id === ctx.jobId);
+  if (jdx >= 0) cachedJobs[jdx] = { ...cachedJobs[jdx], rebaitInterval: interval, rebaitEndDate: endDate, rebaitActive: true };
+  /* Generate ONLY the first Re-bait Trap task. */
+  createRebaitTaskDoc(ctx.jobId, ctx.task, first);
+  toast(`Rebait schedule active — first rebait ${fmtShortDate(first)}`);
+  closeRebaitSheet();
+  if (currentLifecycleJobId === ctx.jobId && !$('#view-job-detail').classList.contains('hidden')) {
+    renderLifecycleJobDetail(ctx.jobId);
+  }
+}
+
+/* Rolling generation: called by completeTask() for Re-bait Trap tasks. */
+function handleRebaitTaskCompleted(t) {
+  const j = cachedJobs.find((x) => x.id === t.jobId);
+  if (!j || !isTaskModelJob(j) || !j.rebaitActive || j.status !== 'Active') return;
+  const interval = Number(j.rebaitInterval) || 2;
+  /* Cadence stays anchored to the scheduled date so a late completion
+     doesn't drift the whole series. */
+  const anchor = t.scheduledDate || t.completedDate || todayISO();
+  const next = addDaysISO(anchor, interval);
+  if (j.rebaitEndDate && next <= j.rebaitEndDate) {
+    createRebaitTaskDoc(j.id, t, next);
+    toast(`Next rebait scheduled ${fmtShortDate(next)}`);
+    return;
+  }
+  confirmDialog('Extend rebait schedule?',
+    `The rebait schedule ends on ${fmtDate(j.rebaitEndDate) || 'its end date'} — extend by 30 days?`,
+    { okText: 'Extend 30 Days' }).then((ok) => {
+    const now = new Date().toISOString();
+    const jdx = cachedJobs.findIndex((x) => x.id === j.id);
+    if (ok) {
+      const newEnd = addDaysISO(j.rebaitEndDate || anchor, 30);
+      writeWithRetry(() => setDoc(doc(fbDb, 'jobs', j.id), { rebaitEndDate: newEnd, updatedAt: now }, { merge: true }))
+        .catch((err) => { console.error('Rebait extension failed', err); toast('Extension failed to sync: ' + ((err && err.message) || 'error'), 'error'); });
+      if (jdx >= 0) cachedJobs[jdx] = { ...cachedJobs[jdx], rebaitEndDate: newEnd };
+      createRebaitTaskDoc(j.id, t, next);
+      toast(`Extended through ${fmtShortDate(newEnd)} — next rebait ${fmtShortDate(next)}`);
+    } else {
+      writeWithRetry(() => setDoc(doc(fbDb, 'jobs', j.id), { rebaitActive: false, updatedAt: now }, { merge: true }))
+        .catch((err) => console.error('Rebait deactivate failed', err));
+      if (jdx >= 0) cachedJobs[jdx] = { ...cachedJobs[jdx], rebaitActive: false };
+      toast('Rebait schedule ended');
+    }
   });
 }
 
@@ -10151,6 +11143,7 @@ function closeRebaitSheet() {
   $('#rebaitSheet').classList.remove('open');
   $('#sheetBackdrop').classList.remove('open');
   rebaitCtx = null;
+  rebaitTaskCtx = null;   /* Item 19: task-based rebait setup shares the sheet */
 }
 function rebaitSheetOpen() { return $('#rebaitSheet').classList.contains('open'); }
 
@@ -10624,6 +11617,10 @@ async function refreshAll() {
     renderSettingsStatus();
     return;
   }
+  if (appMode === 'allrecords') {
+    renderAllRecords();
+    return;
+  }
   renderDashboard();
   if (appMode === 'pesticide') {
     renderPesticideRecordsList();
@@ -10701,6 +11698,41 @@ function renderCustomerList() {
   }
 }
 
+/* ---- Item 1 (v2-patch-1): Get Directions ----
+   Builds a destination from the address fields currently on the form and
+   opens the device's native map handler. iOS gets the maps:// scheme (the
+   system hands it to the user's map app — Apple Maps, Google Maps, Waze);
+   Android/desktop fall back to Google Maps on the web. */
+function isIOSDevice() {
+  return /iPad|iPhone|iPod/.test(navigator.userAgent)
+    || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1); /* iPadOS reports MacIntel */
+}
+function customerFormDestination() {
+  const parts = [
+    $('#c-address').value.trim(),
+    $('#c-city').value.trim(),
+    $('#c-county').value ? 'KY' : '',   /* bias in-state when a KY county is set */
+    $('#c-zip').value.trim()
+  ].filter(Boolean);
+  return parts.join(', ');
+}
+function updateGetDirectionsBtn() {
+  const btn = $('#getDirectionsBtn');
+  if (!btn) return;
+  btn.style.display = $('#c-address').value.trim() ? '' : 'none';
+}
+function openDirectionsToCustomer() {
+  const dest = customerFormDestination();
+  if (!dest) { toast('No address on file for this customer', 'error'); return; }
+  const enc = encodeURIComponent(dest);
+  if (isIOSDevice()) {
+    /* maps:// lets iOS present the user's installed map apps. */
+    window.location.href = `maps://?daddr=${enc}`;
+  } else {
+    window.open(`https://maps.google.com/?daddr=${enc}`, '_blank', 'noopener');
+  }
+}
+
 /* M6: serialized snapshot of the customer form as loaded — used by the
    Action Hub to warn before discarding unsaved edits. */
 let customerFormBaseline = null;
@@ -10712,6 +11744,7 @@ function resetCustomerForm() {
   $('#c-id').value = '';
   $('#c-active').checked = false;
   fillGroupedSelect('c-county', COUNTY_GROUPS, '— select county —');
+  updateGetDirectionsBtn();   /* Item 1: no address yet → hidden */
   $('#deleteCustomerBtn').style.display = 'none';
   $('#retryQbPushBtn').style.display = 'none';
   $('#retryQbPushHint').style.display = 'none';
@@ -10740,6 +11773,7 @@ function loadCustomerIntoForm(c) {
   $('#c-county').value = c.county || '';
   $('#c-notes').value = c.notes || '';
   $('#c-cameraId').value = c.cameraId || '';
+  updateGetDirectionsBtn();   /* Item 1: show when the customer has an address */
   $('#deleteCustomerBtn').style.display = 'block';
   /* Existing customer never (or unsuccessfully) pushed to QuickBooks — offer a
      manual retry of the qbCreateCustomer call that fires on first save. */
@@ -10781,7 +11815,7 @@ async function handleHubAction(action) {
   const jobs = customerActiveJobs(c.id);
   if (!jobs.length) {
     if (action === 'schedule-appointment') {
-      toast('No active job for this customer — start one first; appointments live inside jobs.');
+      toast('No active job for this customer — start one first; tasks live inside jobs.');
       hubProceed('start-job', null, c);
     } else {
       hubProceed(action, null, c);   /* records + estimates work without a job */
@@ -10813,9 +11847,10 @@ function hubProceed(action, jobId, c) {
     setAppModeQuiet('jobs');
     setView('add');
   } else if (action === 'schedule-appointment') {
-    editingAppointment = null;
-    pendingAppointmentJobId = jobId; /* consumed by resetAppointmentForm in setView */
-    appointmentReturnTo = null;
+    /* Item 16: the Schedule module works in tasks now. */
+    editingTaskId = null;
+    pendingTaskJobId = jobId;        /* consumed by resetTaskForm in setView */
+    taskReturnTo = null;
     setAppModeQuiet('schedule');
     setView('add');
   } else if (action === 'create-estimate') {
@@ -11069,7 +12104,8 @@ async function handleSaveCustomer(e) {
   if (isSaving) return;              /* double-submit guard — prevents duplicate customers */
   const c = readCustomerForm();
   if (!c.name) { toast('Customer name is required', 'error'); $('#c-name').focus(); return; }
-  if (c.email && !EMAIL_RE.test(c.email)) { toast('Enter a valid email or leave it blank', 'error'); return; }
+  /* Item 7: multi-address values validate on the first address only. */
+  if (c.email && !EMAIL_RE.test(extractPrimaryEmail(c.email))) { toast('Enter a valid email or leave it blank', 'error'); return; }
   /* M24: same 10-char Camera ID rule as the property editor. */
   if (c.cameraId && c.cameraId.length > 10) { toast('Camera ID can\'t exceed 10 characters', 'error'); $('#c-cameraId').focus(); return; }
   /* M23: no duplicate Camera IDs across customers/properties. */
@@ -11246,13 +12282,15 @@ function applyCustomerToTrapForm(c) {
   if (c.phone) $('#f-client-phone').value = c.phone;
   if (c.email) $('#f-client-email').value = c.email;
   const fullAddr = [c.address, c.city].filter(Boolean).join(', ');
-  if (fullAddr) {
+  /* Item 5: prefill is a convenience only — a hand-edited address is locked
+     against any later customer selection in this form session. */
+  if (fullAddr && !addressManuallyEdited) {
     const a = $('#f-address');
     a.value = fullAddr;
     delete a.dataset.fromMap;
     delete a.dataset.lastValidated;
   }
-  if (c.county) selectCountyIfKnown('f-county', c.county);
+  if (c.county && !addressManuallyEdited) selectCountyIfKnown('f-county', c.county);
   const hint = $('#addressValidationHint');
   if (hint) { hint.textContent = `✓ Customer on file: ${c.name}`; hint.className = 'hint success'; }
   hideTrapCustomerSuggest();
@@ -11265,13 +12303,14 @@ function applyCustomerToTrapForm(c) {
 function applyPropertyToTrapForm(p) {
   if (!p) return;
   const fullAddr = [p.address, p.city].filter(Boolean).join(', ');
-  if (fullAddr) {
+  /* Item 5: a hand-edited address is never overwritten by property selection. */
+  if (fullAddr && !addressManuallyEdited) {
     const a = $('#f-address');
     a.value = fullAddr;
     delete a.dataset.fromMap;
     delete a.dataset.lastValidated;
   }
-  if (p.county) selectCountyIfKnown('f-county', p.county);
+  if (p.county && !addressManuallyEdited) selectCountyIfKnown('f-county', p.county);
 }
 
 /* Fill pesticide-form client fields from a chosen customer. */
@@ -11369,9 +12408,9 @@ async function init() {
       if (appMode === 'trap' && !pendingRecord) resetForm();
       if (appMode === 'pesticide' && !pendingPesticideRecord) resetPesticideRecordForm();
       /* An edit abandoned via the bottom nav must not leak into the next
-         "+" tap — that would silently overwrite the old appointment/job
-         instead of creating a new one. */
-      if (appMode === 'schedule') editingAppointment = null;
+         "+" tap — that would silently overwrite the old task/job instead
+         of creating a new one. */
+      if (appMode === 'schedule') { editingAppointment = null; editingTaskId = null; }
       if (appMode === 'jobs') editingLifecycleJobId = null;
       if (appMode === 'customer') editingCustomerId = null;
       if (appMode === 'pricing') editingEstimateId = null;
@@ -11463,6 +12502,16 @@ async function init() {
     }
     else if (a === 'create') confirmRebaitSequence();
   });
+  /* Item 19: task-based rebait setup (distinct data attribute so the legacy
+     appointment-based handler above never crosses wires). */
+  $('#rebaitSheet').addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-rebait-task]');
+    if (!btn || !rebaitTaskCtx) return;
+    const a = btn.dataset.rebaitTask;
+    if (a === 'no' || a === 'cancel') closeRebaitSheet();
+    else if (a === 'yes') rebaitTaskStepConfig();
+    else if (a === 'create') confirmRebaitTaskSetup();
+  });
   $('#detailClose').addEventListener('click', () => {
     /* In review mode: just close the sheet, the form still holds the data. */
     closeSheet();
@@ -11482,12 +12531,15 @@ async function init() {
       const r = cachedPesticideRecords.find((x) => x.id === detailRecordId);
       closeSheet();
       if (!r) return;
+      /* Items 8 & 9: from the unified view, hop into the right module first. */
+      if (appMode !== 'pesticide') setAppModeQuiet('pesticide');
       setView('add');
       loadPesticideRecordIntoForm(r);
     } else {
       const r = await dbGet(detailRecordId);
       closeSheet();
       if (!r) return;
+      if (appMode !== 'trap') setAppModeQuiet('trap');
       setView('add');
       loadIntoForm(r);
     }
@@ -11581,7 +12633,19 @@ async function init() {
   /* Mode picker + header toggle */
   /* Landing page — tapping a module card enters that module. */
   $('#modePicker').addEventListener('click', (e) => {
-    if (e.target.closest('#landingGearBtn')) { setAppMode('settings'); return; }   /* Item 16 */
+    /* Items 8 & 9: bottom banner. */
+    const lb = e.target.closest('[data-banner]');
+    if (lb) {
+      const which = lb.dataset.banner;
+      if (which === 'records') setAppMode('allrecords');
+      else if (which === 'estimates') setAppMode('pricing');
+      else if (which === 'notifications') {
+        notifReturnView = '__landing__';
+        setAppModeQuiet(appMode || 'trap');
+        setView('notifications');
+      } else if (which === 'settings') setAppMode('settings');
+      return;
+    }
     if (e.target.closest('#flowHelpBtn')) { openHowItWorksSheet(); return; }
     const step = e.target.closest('.flow-cell');
     if (step && step.dataset.mode) setAppMode(step.dataset.mode);
@@ -11749,6 +12813,9 @@ async function init() {
   });
   $('#c-phone').addEventListener('blur', (e) => { const v = e.target.value.trim(); if (v) e.target.value = formatPhone(v); });
   $('#c-name').addEventListener('blur', (e) => { const v = e.target.value.trim(); if (v) e.target.value = titleCaseName(v); });
+  /* Item 1: Get Directions — follows the address field live. */
+  $('#getDirectionsBtn').addEventListener('click', openDirectionsToCustomer);
+  $('#c-address').addEventListener('input', updateGetDirectionsBtn);
   $('#syncNowBtn').addEventListener('click', handleSyncNow);
   $('#enablePushBtn').addEventListener('click', enablePushNotifications);
   $('#pushTestBtn').addEventListener('click', sendTestNotification);
@@ -11780,8 +12847,38 @@ async function init() {
     });
   }
   wireAutocomplete('f-client-name', 'f-client-name-ac', applyCustomerToTrapForm);
-  /* f-address is a read-only location display now (Item 15) — no autocomplete. */
+  /* Item 5: typing in the trap-site address locks it against customer/property
+     prefill overwrites for the rest of this form session. */
+  $('#f-address').addEventListener('input', () => {
+    addressManuallyEdited = true;
+    delete $('#f-address').dataset.fromMap;
+  });
   wireAutocomplete('pa-client-name', 'pa-client-name-ac', applyCustomerToPesticideForm);
+
+  /* ---- Item 3: Mapbox address autocomplete ---- */
+  wireMapboxAutocomplete('c-address', 'c-address-ac', (s) => {
+    $('#c-address').value = s.street || s.placeName;
+    if (s.city) $('#c-city').value = s.city;
+    if (s.zip) $('#c-zip').value = s.zip;
+    /* County: silently stored via the county select (existing customer field). */
+    if (s.county) selectCountyIfKnown('c-county', s.county);
+    updateGetDirectionsBtn();
+  });
+  wireMapboxAutocomplete('trapLocInput', 'trapLocInput-ac', (s) => {
+    $('#trapLocInput').value = s.placeName;
+    /* Route through the site handler so the address, coordinates, and the
+       silently-captured county all land exactly as with the Set button. */
+    if (s.lat != null && s.lng != null) setTrapLocation(s.lat, s.lng, mapboxGeoHint(s));
+  });
+  /* Item 5 made #f-address directly editable — it gets autocomplete too. */
+  wireMapboxAutocomplete('f-address', 'f-address-ac', (s) => {
+    if (s.lat != null && s.lng != null) setTrapLocation(s.lat, s.lng, mapboxGeoHint(s));
+    else $('#f-address').value = s.placeName;
+  });
+  wireMapboxAutocomplete('releaseLocInput', 'releaseLocInput-ac', (s) => {
+    $('#releaseLocInput').value = s.placeName;
+    if (s.lat != null && s.lng != null) setReleaseLocation(s.lat, s.lng, mapboxGeoHint(s));
+  });
   wireAutocomplete('pa-client-address', 'pa-client-address-ac', applyCustomerToPesticideForm);
   wireAutocomplete('j-customer', 'j-customer-ac', applyJobCustomer);
 
@@ -11846,11 +12943,12 @@ async function init() {
     else if (action === 'delete') deleteEstimateDraft(id);
     else if (action === 'approve') approveAndPushEstimate(id, btn);
     else if (action === 'reject') rejectEstimate(id);
-    else if (action === 'invoice') convertEstimateToInvoice(id, btn);
+    /* Item 13: 'invoice' action removed — invoicing lives in QuickBooks. */
   });
 
   /* ---- Job Scheduling wiring ---- */
-  $('#newJobBtn').addEventListener('click', () => { editingAppointment = null; resetAppointmentForm(); setView('add'); });
+  /* Item 16: the Schedule module creates tasks now. */
+  $('#newJobBtn').addEventListener('click', () => { editingTaskId = null; resetTaskForm(); setView('add'); });
   $('#cancelJobBtn').addEventListener('click', () => { resetJobForm(); setView('dashboard'); });
   $('#jobForm').addEventListener('submit', handleSaveJob);
   ['j-date', 'j-start', 'j-duration'].forEach((id) => {
@@ -11877,6 +12975,9 @@ async function init() {
     if (cell) renderCalDayList(cell.dataset.calDate);
   });
   const onJobRowClick = (e) => {
+    /* Item 16: calendar/agenda rows are tasks — open the task detail. */
+    const taskRow = e.target.closest('[data-task-open]');
+    if (taskRow) { openTask(taskRow.dataset.taskOpen); return; }
     const apptRow = e.target.closest('[data-appt-open]');
     if (apptRow) { openAppointment(apptRow.dataset.apptJob, apptRow.dataset.apptOpen); return; }
     const row = e.target.closest('[data-job-open]');
@@ -11913,6 +13014,11 @@ async function init() {
   });
   wireAutocomplete('lj-customer', 'lj-customer-ac', applyLifecycleJobCustomer);
   $('#lifecycleJobDetail').addEventListener('click', (e) => {
+    /* Item 15: task rows + inline complete buttons on the new job detail. */
+    const doneBtn = e.target.closest('[data-task-complete]');
+    if (doneBtn) { completeTask(doneBtn.dataset.taskComplete); return; }
+    const taskRow = e.target.closest('[data-task-open]');
+    if (taskRow) { openTask(taskRow.dataset.taskOpen); return; }
     const btn = e.target.closest('[data-ljob-action], [data-appt-open]');
     if (!btn) return;
     if (btn.dataset.apptOpen) { openAppointment(btn.dataset.apptJob, btn.dataset.apptOpen); return; }
@@ -11933,16 +13039,54 @@ async function init() {
     }
     else if (action === 'create-estimate') startEstimateForJob(id);
     else if (action === 'pending-close') setJobLifecycleStatus(id, 'Pending Close');
-    else if (action === 'generate-invoice') generateJobInvoice(id, btn);
     else if (action === 'mark-paid') markJobPaid(id);
     else if (action === 'edit') editLifecycleJob(id);
+    /* Item 15: task-model job actions. */
+    else if (action === 'add-task') {
+      editingTaskId = null;
+      pendingTaskJobId = id;      /* consumed by resetTaskForm inside setView */
+      taskReturnTo = 'job-detail';
+      setView('add-task');
+    }
+    else if (action === 'add-contractor') addContractorToJob(id);
+    else if (action === 'extend-end') extendJobEndDate(id);
+    else if (action === 'close-out') closeOutJob(id);
     else if (action === 'cancel-job') {
+      const j = cachedJobs.find((x) => x.id === id);
+      if (j && isTaskModelJob(j)) { cancelTaskModelJob(id); return; }
       confirmDialog('Cancel this job?', 'The job moves to Cancelled and stops appearing in active lists. Records and appointments already logged stay linked.', { okText: 'Cancel Job' })
         .then((ok) => { if (ok) setJobLifecycleStatus(id, 'Cancelled'); });
     }
     else if (action === 'view-estimate') { setAppModeQuiet('pricing'); showEstimateDetail(btn.dataset.est); }
     else if (action === 'view-traps') viewJobRecords(id, 'trap');
     else if (action === 'view-pests') viewJobRecords(id, 'pesticide');
+  });
+
+  /* ---- Task form + detail wiring (Items 15, 16 & 18) ---- */
+  $('#taskForm').addEventListener('submit', handleSaveTask);
+  $('#cancelTaskBtn').addEventListener('click', () => {
+    const backToJob = taskReturnTo === 'job-detail' && currentLifecycleJobId;
+    editingTaskId = null;
+    taskReturnTo = null;
+    resetTaskForm();
+    if (backToJob) openLifecycleJob(currentLifecycleJobId); else setView('dashboard');
+  });
+  $('#t-type').addEventListener('change', updateTaskTypeConditional);
+  $('#t-job').addEventListener('change', () => {
+    const j = cachedJobs.find((x) => x.id === $('#t-job').value);
+    if (j && Array.isArray(j.assignedOperators) && j.assignedOperators.length) renderOperatorChecks('t-operators', j.assignedOperators);
+  });
+  $('#taskDetail').addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-task-action]');
+    if (!btn) return;
+    const action = btn.dataset.taskAction, id = btn.dataset.id, jobId = btn.dataset.job;
+    if (action === 'back') { currentTaskId = null; setView('dashboard'); }
+    else if (action === 'complete') completeTask(id);
+    else if (action === 'cancel') cancelTask(id);
+    else if (action === 'edit') editTask(id);
+    else if (action === 'log-trap') startWorkLog(jobId, 'trap');
+    else if (action === 'log-pesticide') startWorkLog(jobId, 'pesticide');
+    else if (action === 'open-job') openLifecycleJob(jobId);
   });
 
   /* Appointment form + detail */
@@ -11976,6 +13120,20 @@ async function init() {
     else if (action === 'open-job') openLifecycleJob(jobId);
   });
 
+  /* ---- Unified records view wiring (Items 8 & 9) ---- */
+  ['allRecSearch', 'allRecFrom', 'allRecTo', 'allRecCustomer', 'allRecContractor', 'allRecType'].forEach((id) => {
+    const el = $('#' + id);
+    if (!el) return;
+    el.addEventListener('input', renderAllRecords);
+    el.addEventListener('change', renderAllRecords);
+  });
+  $('#allRecordsList').addEventListener('click', (e) => {
+    const row = e.target.closest('[data-allrec-id]');
+    if (!row) return;
+    if (row.dataset.allrecKind === 'pest') openPesticideDetail(row.dataset.allrecId);
+    else openDetail(row.dataset.allrecId);
+  });
+
   /* Unlinked-record banners */
   $('#trapUnlinkedBanner').addEventListener('click', () => toggleRecFilter(trapRecFilter, renderRecords));
   $('#pestUnlinkedBanner').addEventListener('click', () => toggleRecFilter(pestRecFilter, renderPesticideRecordsList));
@@ -11998,7 +13156,7 @@ async function init() {
     if (newJob) createJobForLegacyGroup(parseInt(newJob.dataset.lgNewjob, 10));
   });
 
-  /* ---- Field Information wiring ---- */
+  /* ---- Monitoring (camera) wiring ---- */
   $('#cameraAlertBanner').addEventListener('click', () => {
     const f = $('#fieldFilter'); if (f) f.value = 'alerts';
     setAppMode('field');
@@ -12065,15 +13223,9 @@ async function init() {
   $('#forgotPinBtn').addEventListener('click', handleForgotPin);
   $('#signOutBtn').addEventListener('click', handleSignOut);
 
-  /* ---- Notifications wiring (Items 12 & 17) ---- */
-  $('#headerBell').addEventListener('click', openNotifications);
-  /* Bell on the landing page (Item 17): enter the app shell straight onto
-     the Notifications page; Back returns to the landing page. */
-  $('#headerBellLanding').addEventListener('click', () => {
-    notifReturnView = '__landing__';
-    setAppModeQuiet(appMode || 'trap');
-    setView('notifications');
-  });
+  /* ---- Notifications wiring ----
+     Item 12 (v2-patch-1): header bells removed — Notifications open from
+     the landing banner (wired in the #modePicker handler above). */
   $('#notifsBackBtn').addEventListener('click', () => {
     const back = notifReturnView;
     notifReturnView = null;
@@ -12128,6 +13280,7 @@ async function init() {
       subscribeToFieldData();
       subscribeToJobs();
       subscribeToAppointments();
+      subscribeToTasks();   /* Item 15 */
       subscribeToProperties();
       subscribeToNotifications();
       renderBusinessCard();
@@ -12137,6 +13290,7 @@ async function init() {
       showLanding();
       /* Persistent notifications + sync — no manual re-tapping each launch. */
       autoEnablePushIfGranted();
+      ensureMapboxToken();   /* Item 3: prefetch so the first keystroke isn't delayed */
       autoSyncOnOpen(true);
       flushPendingPhotos();
       updatePendingPhotoIndicator();
@@ -12150,6 +13304,7 @@ async function init() {
       unsubscribeFromFieldData();
       unsubscribeFromJobs();
       unsubscribeFromAppointments();
+      unsubscribeFromTasks();
       unsubscribeFromProperties();
       unsubscribeFromNotifications();
       modeSelected = false;

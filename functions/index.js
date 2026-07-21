@@ -67,7 +67,7 @@ const ALL_OPERATOR_EMAILS = Object.keys(EMAIL_TO_TRAPPER);
  * the human-readable category/species/detail goes in each line's Description. */
 const SERVICE_ITEM_NAME = 'Wildlife Services';
 
-/* ---- Field Information (Cuddeback CuddeLink) ingestion ---- */
+/* ---- Monitoring module (Cuddeback CuddeLink) ingestion — Item 17 rename ---- */
 const cb = require('./cuddeback-parse');
 const MS_SECRETS = ['MS_TENANT_ID', 'MS_CLIENT_ID', 'MS_CLIENT_SECRET'];
 const PHOTOS_MAILBOX = 'photos@southern-wildlife.com';
@@ -86,6 +86,19 @@ function escapeHtml(s) {
   return String(s == null ? '' : s)
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+/* Item 7 (v2-patch-1): customer records may hold several addresses separated
+ * by semicolons — every processing path (QB push, notifications) must use
+ * only the first valid address. Mirrors extractPrimaryEmail in the app. */
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+function extractPrimaryEmail(emailString) {
+  if (!emailString) return '';
+  const parts = String(emailString).split(';').map((s) => s.trim()).filter(Boolean);
+  for (const p of parts) {
+    if (EMAIL_RE.test(p)) return p;
+  }
+  return parts[0] || '';
 }
 
 function htmlPage(title, bodyHtml) {
@@ -566,121 +579,10 @@ exports.qbPushEstimate = functions
     }
   });
 
-/* Convert an estimate to a QuickBooks Invoice. Admin-only. Builds the invoice
- * from the estimate's line items and, when the estimate was already pushed to
- * QBO, links the two (LinkedTxn) so QuickBooks marks the estimate as invoiced. */
-exports.qbConvertToInvoice = functions
-  .region(REGION)
-  .runWith({ secrets: SECRETS, timeoutSeconds: 120, memory: '256MB' })
-  .https.onCall(async (data, context) => {
-    if (!context.auth) {
-      throw new functions.https.HttpsError('unauthenticated', 'Sign in required.');
-    }
-    const email = ((context.auth.token && context.auth.token.email) || '').toLowerCase();
-    if (!ADMIN_EMAILS.includes(email)) {
-      throw new functions.https.HttpsError('permission-denied', 'Only an administrator can create invoices.');
-    }
-    const estimateId = data && data.estimateId;
-    if (!estimateId) throw new functions.https.HttpsError('invalid-argument', 'estimateId is required.');
-
-    const estRef = db.doc(`estimates/${estimateId}`);
-
-    /* Atomically claim the invoice conversion so a double-tap can't create two
-       invoices (H7) and a retry after a completed conversion can't duplicate.
-       The Intuit POST runs AFTER this transaction commits (see qbPushEstimate). */
-    let est, qbId;
-    try {
-      const claim = await db.runTransaction(async (tx) => {
-        const snap = await tx.get(estRef);
-        if (!snap.exists) throw new functions.https.HttpsError('not-found', 'Estimate not found.');
-        const e = snap.data();
-        if (e.qbInvoiceId || e.qbInvoiceIdRecovery) {
-          throw new functions.https.HttpsError('failed-precondition', 'This estimate has already been invoiced.');
-        }
-        const inFlight = e.qbInvoiceInProgress ? Date.parse(e.qbInvoiceInProgress) : 0;
-        if (inFlight && (Date.now() - inFlight) < 2 * 60 * 1000) {
-          throw new functions.https.HttpsError('failed-precondition', 'An invoice for this estimate is already in progress — wait a moment before retrying.');
-        }
-        if (!e.customerId) throw new functions.https.HttpsError('failed-precondition', 'Estimate has no customer.');
-        const custSnap = await tx.get(db.doc(`customers/${e.customerId}`));
-        const cid = custSnap.exists ? custSnap.get('qbId') : null;
-        if (!cid) {
-          throw new functions.https.HttpsError('failed-precondition',
-            'This customer isn’t linked to QuickBooks yet (no qbId). Run a customer sync, then retry.');
-        }
-        tx.update(estRef, { qbInvoiceInProgress: new Date().toISOString() });
-        return { est: e, qbId: cid };
-      });
-      est = claim.est; qbId = claim.qbId;
-    } catch (err) {
-      if (err instanceof functions.https.HttpsError) throw err;
-      throw new functions.https.HttpsError('aborted', err.message || 'Could not start the invoice.');
-    }
-
-    const clearLock = () => ({ qbInvoiceInProgress: admin.firestore.FieldValue.delete() });
-
-    let accessToken, realmId;
-    try {
-      ({ accessToken, realmId } = await getValidAccessToken());
-    } catch (err) {
-      await estRef.set({ ...clearLock(), updatedAt: new Date().toISOString() }, { merge: true });
-      throw new functions.https.HttpsError('failed-precondition', err.message || 'QuickBooks not connected.');
-    }
-
-    try {
-      const itemId = await ensureServiceItemId(realmId, accessToken);
-      const lines = (est.lineItems || []).map((li) => ({
-        DetailType: 'SalesItemLineDetail',
-        Amount: Number(li.lineTotal) || 0,
-        Description: [li.category, li.species, li.description].filter(Boolean).join(' – '),
-        SalesItemLineDetail: {
-          ItemRef: { value: itemId },
-          Qty: Number(li.quantity) || 1,
-          UnitPrice: Number(li.unitPrice) || 0
-        }
-      }));
-      if (!lines.length) throw new Error('Estimate has no line items.');
-
-      const payload = { CustomerRef: { value: String(qbId) }, Line: lines };
-      /* Link back to the estimate so QBO shows it as invoiced. */
-      if (est.qbEstimateId) {
-        payload.LinkedTxn = [{ TxnId: String(est.qbEstimateId), TxnType: 'Estimate' }];
-      }
-
-      const result = await qboPost(realmId, accessToken, 'invoice', payload);
-      const qbInvoiceId = (result.Invoice && result.Invoice.Id) || null;
-      const qbInvoiceNumber = (result.Invoice && result.Invoice.DocNumber) || null;
-
-      /* C2 recovery: persist the QBO id BEFORE the full status write, so a
-         failure of that write can't cause a duplicate on retry (the transaction
-         above also checks qbInvoiceIdRecovery). */
-      if (qbInvoiceId) {
-        await estRef.set({ qbInvoiceIdRecovery: qbInvoiceId, updatedAt: new Date().toISOString() }, { merge: true });
-      }
-
-      await estRef.set({
-        status: 'Invoiced',
-        qbInvoiceId,
-        qbInvoiceNumber,
-        invoicedAt: new Date().toISOString(),
-        invoicedByEmail: email,
-        updatedAt: new Date().toISOString(),
-        ...clearLock(),
-        qbInvoiceIdRecovery: admin.firestore.FieldValue.delete(),
-        invoiceError: admin.firestore.FieldValue.delete()
-      }, { merge: true });
-
-      return { qbInvoiceId, qbInvoiceNumber, customerName: est.customerName || null };
-    } catch (err) {
-      console.error('Invoice creation failed', err);
-      await estRef.set({
-        invoiceError: String(err.message).slice(0, 500),
-        ...clearLock(),
-        updatedAt: new Date().toISOString()
-      }, { merge: true });
-      throw new functions.https.HttpsError('internal', err.message || 'QuickBooks invoice creation failed.');
-    }
-  });
+/* Item 13 (v2-patch-1): qbConvertToInvoice removed — invoicing happens
+ * exclusively in QuickBooks Online. The app only pushes estimates (quotes)
+ * via qbPushEstimate and syncs customers. Deploying this file deletes the
+ * qbConvertToInvoice function from the project. */
 
 /* Create a Firestore customer in QuickBooks and store the returned qbId back
  * on the record. Called when an operator adds a customer in the app. */
@@ -725,7 +627,9 @@ exports.qbCreateCustomer = functions
     }
 
     const payload = { DisplayName: c.name };
-    if (c.email) payload.PrimaryEmailAddr = { Address: c.email };
+    /* Item 7: QuickBooks gets only the first email of a semicolon list. */
+    const primaryEmail = extractPrimaryEmail(c.email);
+    if (primaryEmail) payload.PrimaryEmailAddr = { Address: primaryEmail };
     if (c.phone) payload.PrimaryPhone = { FreeFormNumber: c.phone };
     if (c.address || c.city || c.zip) {
       payload.BillAddr = {};
@@ -878,6 +782,28 @@ async function maybeSendCameraAlert(docRef, existingData, condKey, body, related
   return true;
 }
 
+/* Item 3 (v2-patch-1): Mapbox address autocomplete — the public token is
+ * served from Secret Manager so it is never hardcoded in the client bundle.
+ * The client fetches it once per session via this authenticated callable; if
+ * the secret is missing or the call fails, the app silently falls back to
+ * manual address entry.
+ *
+ * TODO: add the Mapbox public token to Firebase Secret Manager before the
+ * next functions deploy (token value to be provided separately):
+ *   firebase functions:secrets:set MAPBOX_PUBLIC_TOKEN
+ */
+exports.getMapboxToken = functions
+  .region(REGION)
+  .runWith({ secrets: ['MAPBOX_PUBLIC_TOKEN'], memory: '256MB' })
+  .https.onCall(async (data, context) => {
+    if (!context.auth) throw new functions.https.HttpsError('unauthenticated', 'Sign in required.');
+    const token = process.env.MAPBOX_PUBLIC_TOKEN || '';
+    if (!token) {
+      throw new functions.https.HttpsError('failed-precondition', 'Mapbox token not configured.');
+    }
+    return { token };
+  });
+
 /* Send a test push to the caller's own devices (verifies the whole pipeline). */
 exports.sendTestPush = functions
   .region(REGION)
@@ -969,35 +895,85 @@ exports.notifyJobAssignment = functions
     return { sent, tokens };
   });
 
-/* Daily cleanup: delete camera photos older than the in-app retention setting
- * (org/swr.photoRetentionDays, 1–30, default 30) — both the Storage file and
- * the Firestore record. */
+/* Daily cleanup (Item 4, v2-patch-1): delete camera photos older than the
+ * in-app retention setting (org/swr.photoRetentionDays, 1–30, default 30) —
+ * both the Storage file and the Firestore record.
+ *
+ * Audit fixes:
+ *  - Storage deletes were fire-and-forget and UNAWAITED — Cloud Functions
+ *    terminates background work once onRun resolves, so the files were
+ *    frequently never deleted (and errors were swallowed) while the
+ *    Firestore docs disappeared. Deletes are now awaited per file; a failed
+ *    file delete KEEPS the Firestore doc so the photo is retried next run
+ *    instead of orphaning the file forever.
+ *  - Pinned to a deterministic nightly slot (03:30 America/New_York)
+ *    instead of the floating "every 24 hours" interval.
+ *  - Retention setting is read from org/swr.photoRetentionDays (the exact
+ *    path Settings writes), coerced with Number(), clamped to 1–30, and
+ *    converted to an ISO cutoff compared against each photo's receivedAt.
+ *  - Every run writes a photoCleanupLog doc: timestamp, retention used,
+ *    count deleted, and any errors. */
 exports.cleanupCameraPhotos = functions
   .region(REGION)
-  .runWith({ timeoutSeconds: 300, memory: '256MB' })
-  .pubsub.schedule('every 24 hours')
+  .runWith({ timeoutSeconds: 540, memory: '256MB' })
+  .pubsub.schedule('every day 03:30')
   .timeZone(REPORT_TZ)
   .onRun(async () => {
+    const startedAt = new Date().toISOString();
+    const errors = [];
+    let deleted = 0;
+    let days = 30;
+    let candidates = 0;
     try {
       const orgSnap = await db.doc('org/swr').get();
-      let days = orgSnap.exists ? Number(orgSnap.get('photoRetentionDays')) : NaN;
+      const raw = orgSnap.exists ? orgSnap.get('photoRetentionDays') : null;
+      days = Number(raw);
       if (!Number.isFinite(days) || days < 1) days = 30;
       if (days > 30) days = 30;
-      const cutoff = new Date(Date.now() - days * 86400000).toISOString();
+      const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
       const snap = await db.collection('cameraPhotos').where('receivedAt', '<', cutoff).get();
-      if (snap.empty) { console.log('cleanupCameraPhotos: nothing older than', days, 'days'); return null; }
+      candidates = snap.size;
       const bucket = admin.storage().bucket();
-      let batch = db.batch(); let ops = 0; let deleted = 0;
+      let batch = db.batch();
+      let ops = 0;
       for (const d of snap.docs) {
         const path = d.get('storagePath');
-        if (path) bucket.file(path).delete().catch(() => {});  // best-effort file delete
-        batch.delete(d.ref); ops++; deleted++;
-        if (ops >= 450) { await batch.commit(); batch = db.batch(); ops = 0; }
+        if (path) {
+          try {
+            await bucket.file(path).delete();
+          } catch (err) {
+            const code = err && (err.code || (err.errors && err.errors[0] && err.errors[0].reason));
+            if (code === 404 || code === 'notFound') {
+              /* File already gone — still remove the metadata doc below. */
+            } else {
+              errors.push(`storage ${path}: ${String((err && err.message) || err).slice(0, 200)}`);
+              continue;   /* keep the doc; retried on the next run */
+            }
+          }
+        }
+        batch.delete(d.ref);
+        deleted++;
+        if (++ops >= 450) { await batch.commit(); batch = db.batch(); ops = 0; }
       }
       if (ops) await batch.commit();
-      console.log(`cleanupCameraPhotos: deleted ${deleted} photos older than ${days} days`);
+      console.log(`cleanupCameraPhotos: ${deleted}/${candidates} photos older than ${days} days deleted, ${errors.length} errors`);
     } catch (err) {
+      errors.push(`run: ${String((err && err.message) || err).slice(0, 300)}`);
       console.error('cleanupCameraPhotos failed', err);
+    }
+    /* Item 4: audit trail — one log doc per run, success or failure. */
+    try {
+      await db.collection('photoCleanupLog').add({
+        at: startedAt,
+        finishedAt: new Date().toISOString(),
+        retentionDays: days,
+        candidates,
+        deleted,
+        errorCount: errors.length,
+        errors: errors.slice(0, 20)
+      });
+    } catch (err) {
+      console.error('photoCleanupLog write failed', err);
     }
     return null;
   });
@@ -1047,7 +1023,7 @@ exports.qbDailySync = functions
   });
 
 /* =====================================================================
- * Field Information — Cuddeback photo + report ingestion (Microsoft Graph)
+ * Monitoring — Cuddeback photo + report ingestion (Microsoft Graph)
  * ---------------------------------------------------------------------
  * Polls the photos@ shared mailbox with an app-only Graph token. Photo
  * emails (images.cuddelink.com) → JPEG to Firebase Storage + a cameraPhotos
@@ -1435,8 +1411,8 @@ async function ingestMailbox() {
 }
 
 /* Poll the mailbox: process unread photo + report messages, mark them read.
- * Every successful run stamps org/graphStatus.lastPollAt so the app's Cameras
- * module can show a Graph connection indicator (Item 7). */
+ * Every successful run stamps org/graphStatus.lastPollAt so the app's
+ * Monitoring module can show a Graph connection indicator (Item 7). */
 async function ingestMailboxUnlocked() {
   let data;
   try {
@@ -1515,7 +1491,7 @@ exports.cuddebackIngest = functions
     return null;
   });
 
-/* Manual "Sync Now" for the Field Information module (authenticated). */
+/* Manual "Sync Now" for the Monitoring module (authenticated). */
 exports.fieldSyncNow = functions
   .region(REGION)
   .runWith({ secrets: MS_SECRETS, timeoutSeconds: 300, memory: '512MB' })

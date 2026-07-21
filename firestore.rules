@@ -99,10 +99,14 @@ service cloud.firestore {
        build the push payload. */
 
     /* Lifecycle position of a v2 job status. Mirrors JOB_STATUSES in the
-       app; unknown statuses rank -1 and so can never be written. */
+       app; unknown statuses rank -1 and so can never be written.
+       v2-patch-1 Item 15: task-model jobs use Active → Complete/Cancelled;
+       'Complete' ranks above every legacy status so the forward-only guard
+       admits it while still blocking regressions. */
     function jobStatusRank(s) {
       return {'Lead': 0, 'Estimated': 1, 'Scheduled': 2, 'Active': 3,
-              'Pending Close': 4, 'Invoiced': 5, 'Paid': 6}.get(s, -1);
+              'Pending Close': 4, 'Invoiced': 5, 'Paid': 6,
+              'Complete': 7}.get(s, -1);
     }
 
     /* Forward-only status guard for v2 lifecycle jobs (they carry a
@@ -132,6 +136,16 @@ service cloud.firestore {
                     && request.resource.data.createdByUid == request.auth.uid;
       allow update: if request.auth != null
                     && jobStatusMoveOk();
+      allow delete: if request.auth != null;
+    }
+
+    /* Tasks (v2-patch-1 Item 15) — top-level collection; each task belongs
+       to a job (jobId). Shared across the crew like the other collections. */
+    match /tasks/{taskId} {
+      allow read:   if request.auth != null;
+      allow create: if request.auth != null
+                    && request.resource.data.createdByUid == request.auth.uid;
+      allow update: if request.auth != null;
       allow delete: if request.auth != null;
     }
 
@@ -215,6 +229,13 @@ service cloud.firestore {
     /* Graph API 401 diagnostics (Item 7) — written server-side by the email
        pipeline (Admin SDK); clients read for visibility only. */
     match /graphErrors/{errorId} {
+      allow read:  if request.auth != null;
+      allow write: if false;
+    }
+
+    /* Photo retention audit log (v2-patch-1 Item 4) — written server-side by
+       cleanupCameraPhotos (Admin SDK); clients read for visibility only. */
+    match /photoCleanupLog/{logId} {
       allow read:  if request.auth != null;
       allow write: if false;
     }
