@@ -3571,7 +3571,7 @@ try {
 } catch (e) { console.warn('EmailJS init failed', e); }
 
 /* Admin accounts can perform destructive shared-data actions (Clear All Records). */
-const ADMIN_EMAILS = new Set(['jon@southern-wildlife.com', 'tanya.clark0071@gmail.com']);
+const ADMIN_EMAILS = new Set(['jon@southern-wildlife.com']);
 function isAdmin() {
   return currentUser && currentUser.email && ADMIN_EMAILS.has(currentUser.email.toLowerCase());
 }

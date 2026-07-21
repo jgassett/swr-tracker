@@ -52,7 +52,7 @@ const SECRETS = ['QBO_CLIENT_ID', 'QBO_CLIENT_SECRET'];
 
 /* Only these accounts may approve + push estimates to QuickBooks. Mirrors
  * ADMIN_EMAILS in the app. */
-const ADMIN_EMAILS = ['jon@southern-wildlife.com', 'tanya.clark0071@gmail.com'];
+const ADMIN_EMAILS = ['jon@southern-wildlife.com'];
 
 /* Operator email → display name. Mirrors EMAIL_TO_TRAPPER in the app. */
 const EMAIL_TO_TRAPPER = {
