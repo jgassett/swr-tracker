@@ -2378,6 +2378,12 @@
           <label for="c-county">County</label>
           <select id="c-county"><option value="">— select county —</option></select>
         </div>
+        <!-- Item 1 (v2-patch-1): Get Directions — shown only when the customer
+             has a street address on file. Opens the device's map app. -->
+        <button type="button" class="btn btn-amber" id="getDirectionsBtn" style="display:none;">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="3 11 22 2 13 21 11 13 3 11"/></svg>
+          Get Directions
+        </button>
 
         <h3 class="form-section">Trap Camera</h3>
         <div class="form-group">
@@ -10701,6 +10707,41 @@ function renderCustomerList() {
   }
 }
 
+/* ---- Item 1 (v2-patch-1): Get Directions ----
+   Builds a destination from the address fields currently on the form and
+   opens the device's native map handler. iOS gets the maps:// scheme (the
+   system hands it to the user's map app — Apple Maps, Google Maps, Waze);
+   Android/desktop fall back to Google Maps on the web. */
+function isIOSDevice() {
+  return /iPad|iPhone|iPod/.test(navigator.userAgent)
+    || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1); /* iPadOS reports MacIntel */
+}
+function customerFormDestination() {
+  const parts = [
+    $('#c-address').value.trim(),
+    $('#c-city').value.trim(),
+    $('#c-county').value ? 'KY' : '',   /* bias in-state when a KY county is set */
+    $('#c-zip').value.trim()
+  ].filter(Boolean);
+  return parts.join(', ');
+}
+function updateGetDirectionsBtn() {
+  const btn = $('#getDirectionsBtn');
+  if (!btn) return;
+  btn.style.display = $('#c-address').value.trim() ? '' : 'none';
+}
+function openDirectionsToCustomer() {
+  const dest = customerFormDestination();
+  if (!dest) { toast('No address on file for this customer', 'error'); return; }
+  const enc = encodeURIComponent(dest);
+  if (isIOSDevice()) {
+    /* maps:// lets iOS present the user's installed map apps. */
+    window.location.href = `maps://?daddr=${enc}`;
+  } else {
+    window.open(`https://maps.google.com/?daddr=${enc}`, '_blank', 'noopener');
+  }
+}
+
 /* M6: serialized snapshot of the customer form as loaded — used by the
    Action Hub to warn before discarding unsaved edits. */
 let customerFormBaseline = null;
@@ -10712,6 +10753,7 @@ function resetCustomerForm() {
   $('#c-id').value = '';
   $('#c-active').checked = false;
   fillGroupedSelect('c-county', COUNTY_GROUPS, '— select county —');
+  updateGetDirectionsBtn();   /* Item 1: no address yet → hidden */
   $('#deleteCustomerBtn').style.display = 'none';
   $('#retryQbPushBtn').style.display = 'none';
   $('#retryQbPushHint').style.display = 'none';
@@ -10740,6 +10782,7 @@ function loadCustomerIntoForm(c) {
   $('#c-county').value = c.county || '';
   $('#c-notes').value = c.notes || '';
   $('#c-cameraId').value = c.cameraId || '';
+  updateGetDirectionsBtn();   /* Item 1: show when the customer has an address */
   $('#deleteCustomerBtn').style.display = 'block';
   /* Existing customer never (or unsuccessfully) pushed to QuickBooks — offer a
      manual retry of the qbCreateCustomer call that fires on first save. */
@@ -11749,6 +11792,9 @@ async function init() {
   });
   $('#c-phone').addEventListener('blur', (e) => { const v = e.target.value.trim(); if (v) e.target.value = formatPhone(v); });
   $('#c-name').addEventListener('blur', (e) => { const v = e.target.value.trim(); if (v) e.target.value = titleCaseName(v); });
+  /* Item 1: Get Directions — follows the address field live. */
+  $('#getDirectionsBtn').addEventListener('click', openDirectionsToCustomer);
+  $('#c-address').addEventListener('input', updateGetDirectionsBtn);
   $('#syncNowBtn').addEventListener('click', handleSyncNow);
   $('#enablePushBtn').addEventListener('click', enablePushNotifications);
   $('#pushTestBtn').addEventListener('click', sendTestNotification);
