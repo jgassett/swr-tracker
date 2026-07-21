@@ -124,6 +124,17 @@ service cloud.firestore {
                      > jobStatusRank(resource.data.get('status', 'Lead'))));
     }
 
+    /* Close Out is admin-only (v2-patch-3 Fix 1) — mirrors the isAdmin()
+       gate the app puts on confirmCloseOutJob(). Any operator may update
+       other job fields or make other status moves; only an admin may
+       TRANSITION a job to Complete. Updates that leave an already-Complete
+       job's status untouched stay open to everyone. */
+    function completeTransitionIsAdmin() {
+      return request.resource.data.get('status', null) != 'Complete'
+        || resource.data.get('status', null) == 'Complete'
+        || isAdmin();
+    }
+
     /* Job-number allocation counter (M4) — read and bumped inside a client
        transaction by any signed-in operator. */
     match /counters/{counterId} {
@@ -135,7 +146,8 @@ service cloud.firestore {
       allow create: if request.auth != null
                     && request.resource.data.createdByUid == request.auth.uid;
       allow update: if request.auth != null
-                    && jobStatusMoveOk();
+                    && jobStatusMoveOk()
+                    && completeTransitionIsAdmin();
       allow delete: if request.auth != null;
     }
 
