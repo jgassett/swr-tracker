@@ -219,6 +219,13 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    /* Photo retention audit log (v2-patch-1 Item 4) — written server-side by
+       cleanupCameraPhotos (Admin SDK); clients read for visibility only. */
+    match /photoCleanupLog/{logId} {
+      allow read:  if request.auth != null;
+      allow write: if false;
+    }
+
     /* Web-push device tokens. Clients register/remove their own; only the
        Admin SDK (server) reads them to send notifications. */
     match /pushTokens/{tokenId} {

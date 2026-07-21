@@ -991,35 +991,85 @@ exports.notifyJobAssignment = functions
     return { sent, tokens };
   });
 
-/* Daily cleanup: delete camera photos older than the in-app retention setting
- * (org/swr.photoRetentionDays, 1–30, default 30) — both the Storage file and
- * the Firestore record. */
+/* Daily cleanup (Item 4, v2-patch-1): delete camera photos older than the
+ * in-app retention setting (org/swr.photoRetentionDays, 1–30, default 30) —
+ * both the Storage file and the Firestore record.
+ *
+ * Audit fixes:
+ *  - Storage deletes were fire-and-forget and UNAWAITED — Cloud Functions
+ *    terminates background work once onRun resolves, so the files were
+ *    frequently never deleted (and errors were swallowed) while the
+ *    Firestore docs disappeared. Deletes are now awaited per file; a failed
+ *    file delete KEEPS the Firestore doc so the photo is retried next run
+ *    instead of orphaning the file forever.
+ *  - Pinned to a deterministic nightly slot (03:30 America/New_York)
+ *    instead of the floating "every 24 hours" interval.
+ *  - Retention setting is read from org/swr.photoRetentionDays (the exact
+ *    path Settings writes), coerced with Number(), clamped to 1–30, and
+ *    converted to an ISO cutoff compared against each photo's receivedAt.
+ *  - Every run writes a photoCleanupLog doc: timestamp, retention used,
+ *    count deleted, and any errors. */
 exports.cleanupCameraPhotos = functions
   .region(REGION)
-  .runWith({ timeoutSeconds: 300, memory: '256MB' })
-  .pubsub.schedule('every 24 hours')
+  .runWith({ timeoutSeconds: 540, memory: '256MB' })
+  .pubsub.schedule('every day 03:30')
   .timeZone(REPORT_TZ)
   .onRun(async () => {
+    const startedAt = new Date().toISOString();
+    const errors = [];
+    let deleted = 0;
+    let days = 30;
+    let candidates = 0;
     try {
       const orgSnap = await db.doc('org/swr').get();
-      let days = orgSnap.exists ? Number(orgSnap.get('photoRetentionDays')) : NaN;
+      const raw = orgSnap.exists ? orgSnap.get('photoRetentionDays') : null;
+      days = Number(raw);
       if (!Number.isFinite(days) || days < 1) days = 30;
       if (days > 30) days = 30;
-      const cutoff = new Date(Date.now() - days * 86400000).toISOString();
+      const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
       const snap = await db.collection('cameraPhotos').where('receivedAt', '<', cutoff).get();
-      if (snap.empty) { console.log('cleanupCameraPhotos: nothing older than', days, 'days'); return null; }
+      candidates = snap.size;
       const bucket = admin.storage().bucket();
-      let batch = db.batch(); let ops = 0; let deleted = 0;
+      let batch = db.batch();
+      let ops = 0;
       for (const d of snap.docs) {
         const path = d.get('storagePath');
-        if (path) bucket.file(path).delete().catch(() => {});  // best-effort file delete
-        batch.delete(d.ref); ops++; deleted++;
-        if (ops >= 450) { await batch.commit(); batch = db.batch(); ops = 0; }
+        if (path) {
+          try {
+            await bucket.file(path).delete();
+          } catch (err) {
+            const code = err && (err.code || (err.errors && err.errors[0] && err.errors[0].reason));
+            if (code === 404 || code === 'notFound') {
+              /* File already gone — still remove the metadata doc below. */
+            } else {
+              errors.push(`storage ${path}: ${String((err && err.message) || err).slice(0, 200)}`);
+              continue;   /* keep the doc; retried on the next run */
+            }
+          }
+        }
+        batch.delete(d.ref);
+        deleted++;
+        if (++ops >= 450) { await batch.commit(); batch = db.batch(); ops = 0; }
       }
       if (ops) await batch.commit();
-      console.log(`cleanupCameraPhotos: deleted ${deleted} photos older than ${days} days`);
+      console.log(`cleanupCameraPhotos: ${deleted}/${candidates} photos older than ${days} days deleted, ${errors.length} errors`);
     } catch (err) {
+      errors.push(`run: ${String((err && err.message) || err).slice(0, 300)}`);
       console.error('cleanupCameraPhotos failed', err);
+    }
+    /* Item 4: audit trail — one log doc per run, success or failure. */
+    try {
+      await db.collection('photoCleanupLog').add({
+        at: startedAt,
+        finishedAt: new Date().toISOString(),
+        retentionDays: days,
+        candidates,
+        deleted,
+        errorCount: errors.length,
+        errors: errors.slice(0, 20)
+      });
+    } catch (err) {
+      console.error('photoCleanupLog write failed', err);
     }
     return null;
   });
