@@ -1140,9 +1140,8 @@
     .cam-photo-grid a { display: block; }
     .cam-photo-grid img { width: 100%; aspect-ratio: 1 / 1; object-fit: cover; border-radius: 8px; background: var(--cream-deep); }
     .cam-photo-cap { font-size: 10px; color: var(--ink-soft); margin-top: 2px; text-align: center; }
-    .camera-alert-banner { display: block; width: 100%; text-align: left; border: none; cursor: pointer; margin: 0 0 14px; padding: 12px 14px; border-radius: 10px; font-size: 14px; font-weight: 600; background: #FBEED0; color: #8a6d1f; }
-    .camera-alert-banner.urgent { background: #F6DADA; color: var(--danger); }
-    .camera-alert-banner.hidden { display: none; }
+    /* Item 4 (v2-patch-2): .camera-alert-banner styles removed with the
+       landing-page banner — camera alerts live in Notifications only. */
     .customer-toggle-row {
       display: flex; align-items: center; justify-content: space-between; gap: 12px;
       padding: 12px 14px; background: var(--cream-deep); border-radius: 12px; margin-bottom: 14px;
@@ -1549,7 +1548,8 @@
          onload="this.classList.add('loaded');" onerror="this.remove();">
     <h1>What are you doing today?</h1>
     <div class="mode-sub">Follow the job from first call to paid invoice — tap a step to open it. Return here any time with the ← button.</div>
-    <button type="button" id="cameraAlertBanner" class="camera-alert-banner hidden"></button>
+    <!-- Item 4 (v2-patch-2): camera alert banner removed — camera health
+         alerts live exclusively in the Notifications page. -->
     <!-- Snake workflow grid (rendered by renderFlowGrid) — the only
          navigation on the landing page. Tap a step to open its module. -->
     <div class="flow-grid" id="flowGrid" role="navigation" aria-label="Job workflow"></div>
@@ -4298,22 +4298,12 @@ function renderSettingsStatus() {
 
 /* Live counts on the three landing-page module cards. */
 /* Landing page live state: the snake workflow grid (with amber highlights
-   on steps that have an in-progress job) and the camera alert banner. Called
-   from every subscription that feeds either, so both stay current. */
+   on steps that have an in-progress job). Called from every subscription
+   that feeds it, so it stays current. Item 4 (v2-patch-2): the camera
+   alert banner is gone — camera health alerts belong exclusively to the
+   Notifications page (the cameraWatchdog function still writes them). */
 function renderLandingCounts() {
   renderFlowGrid();
-  const alertN = cachedCameraHealth.filter((h) => { const s = deviceStatusLive(h); return s === 'red' || s === 'yellow'; }).length;
-  const redN = cachedCameraHealth.filter((h) => deviceStatusLive(h) === 'red').length;
-  const banner = $('#cameraAlertBanner');
-  if (banner) {
-    if (alertN > 0) {
-      banner.textContent = `⚠ ${alertN} camera${alertN === 1 ? '' : 's'} not showing green — tap to review`;
-      banner.classList.remove('hidden');
-      banner.classList.toggle('urgent', redN > 0);
-    } else {
-      banner.classList.add('hidden');
-    }
-  }
 }
 
 /* ---------- Sync indicator ---------- */
@@ -13226,10 +13216,7 @@ async function init() {
   });
 
   /* ---- Monitoring (camera) wiring ---- */
-  $('#cameraAlertBanner').addEventListener('click', () => {
-    const f = $('#fieldFilter'); if (f) f.value = 'alerts';
-    setAppMode('field');
-  });
+  /* Item 4 (v2-patch-2): landing-page camera alert banner removed. */
   $('#fieldSyncBtn').addEventListener('click', handleFieldSync);
   $('#fieldFilter').addEventListener('change', renderFieldDashboard);
   $('#fieldList').addEventListener('click', (e) => {
