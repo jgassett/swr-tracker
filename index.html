@@ -113,8 +113,13 @@
     .flow-cell .fc-icon { font-size: 40px; line-height: 1; }
     .flow-cell .fc-label { font-family: 'Playfair Display', serif; font-size: 14px; font-weight: 700; color: var(--cream); white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
     .flow-cell .fc-desc { font-size: 10.5px; color: var(--amber-soft); line-height: 1.25; text-align: center; white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
-    /* Amber highlight: at least one in-progress job sits at this step. */
-    .flow-cell.current { background: rgba(196,119,42,0.3); border-color: var(--amber); }
+    /* Amber badge dot (top right): at least one in-progress job sits at
+       this step. Subtle — no number, no text; the cell itself is unchanged. */
+    .flow-cell .fc-dot {
+      position: absolute; top: 8px; right: 8px;
+      width: 8px; height: 8px; border-radius: 50%;
+      background: var(--amber);
+    }
     .flow-arrow-h {
       align-self: center; flex-shrink: 0; width: 14px; text-align: center;
       color: var(--amber); font-size: 15px; font-weight: 700; user-select: none;
@@ -4335,8 +4340,8 @@ function showModePicker() { showLanding(); }
  * the job lifecycle; rows alternate direction (row 1 →, row 2 ←) with a
  * curved arrow carrying the path down at each row's end. 3 columns (3+3)
  * on phones and tablets, all 6 in one row from 1200px up. Tapping a cell
- * opens its module; steps where an in-progress job currently sits are
- * highlighted amber.
+ * opens its module; steps where an in-progress job currently sits show a
+ * small amber badge dot in the top right corner.
  * ===================================================================== */
 /* Item 14 (v2-patch-1): no step numbers on cells; straight down arrows.
    Item 7 (v2-patch-2): six steps — Close Out is the standalone final step.
@@ -4391,7 +4396,8 @@ function renderFlowGrid() {
         `<span class="fc-icon" aria-hidden="true">${st.icon}</span>` +
         `<span class="fc-label">${st.label}</span>` +
         `<span class="fc-desc">${st.desc}</span></button>`
-      : `<button type="button" class="flow-cell${current.has(st.n) ? ' current' : ''}" data-mode="${st.mode}" aria-label="${st.label}">` +
+      : `<button type="button" class="flow-cell" data-mode="${st.mode}" aria-label="${st.label}">` +
+        `${current.has(st.n) ? '<span class="fc-dot" aria-hidden="true"></span>' : ''}` +
         `<span class="fc-icon" aria-hidden="true">${st.icon}</span>` +
         `<span class="fc-label">${st.label}</span>` +
         `<span class="fc-desc">${st.desc}</span></button>`;
@@ -4513,7 +4519,7 @@ function renderSettingsStatus() {
 }
 
 /* Live counts on the three landing-page module cards. */
-/* Landing page live state: the snake workflow grid (with amber highlights
+/* Landing page live state: the snake workflow grid (with amber badge dots
    on steps that have an in-progress job). Called from every subscription
    that feeds it, so it stays current. Item 4 (v2-patch-2): the camera
    alert banner is gone — camera health alerts belong exclusively to the
