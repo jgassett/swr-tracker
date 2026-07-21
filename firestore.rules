@@ -135,6 +135,18 @@ service cloud.firestore {
         || isAdmin();
     }
 
+    /* rebaitActive guard (v2-patch-3 Fix 2): a write may only leave
+       rebaitActive == true on a job whose resulting status is Active —
+       so no one can (re)activate the rebait schedule on a Complete or
+       Cancelled job, or keep it alive while closing the job out. Setting
+       or leaving it false is always fine. (jobStatusMoveOk already stops
+       Complete/Cancelled from regressing to Active, so the two checks
+       together make rebait reactivation on a closed job impossible.) */
+    function rebaitActiveOk() {
+      return request.resource.data.get('rebaitActive', false) != true
+        || request.resource.data.get('status', 'Active') == 'Active';
+    }
+
     /* Job-number allocation counter (M4) — read and bumped inside a client
        transaction by any signed-in operator. */
     match /counters/{counterId} {
@@ -147,7 +159,8 @@ service cloud.firestore {
                     && request.resource.data.createdByUid == request.auth.uid;
       allow update: if request.auth != null
                     && jobStatusMoveOk()
-                    && completeTransitionIsAdmin();
+                    && completeTransitionIsAdmin()
+                    && rebaitActiveOk();
       allow delete: if request.auth != null;
     }
 
