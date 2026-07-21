@@ -3045,8 +3045,7 @@
     <div class="fg-step"><span>📅</span><div><strong>Schedule</strong> — put the visits on the calendar and assign the crew. Assignees get a notification.</div></div>
     <div class="fg-step"><span>🦝</span><div><strong>Field Work</strong> — log every capture, release, or treatment in Trapping (or Pesticides) while you're on site.</div></div>
     <div class="fg-step"><span>📷</span><div><strong>Cameras</strong> — watch trap cameras by customer and respond to activity and health alerts.</div></div>
-    <div class="fg-step"><span>📦</span><div><strong>Close Out</strong> — in Jobs, pick up equipment and move the job to Pending Close when the work is done.</div></div>
-    <div class="fg-step"><span>🧾</span><div><strong>Invoice</strong> — convert the estimate to a QuickBooks invoice, then mark the job Paid. Done.</div></div>
+    <div class="fg-step"><span>📦</span><div><strong>Close Out</strong> — in Jobs, pick up equipment and wrap the job when the work is done. Invoicing happens in QuickBooks Online.</div></div>
   </div>
   <button type="button" class="btn btn-primary" id="flowSheetCloseBtn" style="margin-top:16px;width:100%;">Got it</button>
 </div>
@@ -4100,13 +4099,13 @@ const FLOW_STEPS = [
   { n: 2, icon: '📅', label: 'Schedule',   desc: 'Book the crew',       mode: 'schedule' },
   { n: 3, icon: '🦝', label: 'Field Work', desc: 'On-site work',        mode: 'trap' },
   { n: 4, icon: '📷', label: 'Cameras',    desc: 'Watch trap activity', mode: 'field' },
-  { n: 5, icon: '📦', label: 'Close Out',  desc: 'Wrap up the job',     mode: 'jobs' },
-  { n: 6, icon: '🧾', label: 'Invoice',    desc: 'Bill & get paid',     mode: 'pricing' }
+  { n: 5, icon: '📦', label: 'Close Out',  desc: 'Wrap up the job',     mode: 'jobs' }
 ];
-/* Job status → the workflow step where that job's next action lives. */
+/* Job status → the workflow step where that job's next action lives.
+   Item 13: Invoice step removed — invoicing happens in QuickBooks Online. */
 const JOB_STATUS_TO_FLOW_STEP = {
   'Lead': 2, 'Estimated': 2, 'Scheduled': 3, 'Active': 3,
-  'Pending Close': 5, 'Invoiced': 6
+  'Pending Close': 5, 'Invoiced': 5
 };
 const flowGridMedia = window.matchMedia('(min-width: 768px)');
 
@@ -5025,13 +5024,12 @@ function renderEstimateDetail(id) {
     actions += `<button class="btn btn-primary" data-est-action="edit" data-id="${escapeHtml(e.id)}">Edit &amp; Resubmit</button>`;
     actions += `<button class="btn btn-danger" data-est-action="delete" data-id="${escapeHtml(e.id)}" style="margin-top:10px;">Delete Estimate</button>`;
   } else if (e.status === 'Pushed to QB') {
-    actions += `<div class="hint success">Pushed to QuickBooks${e.qbEstimateId ? ' (QB #' + escapeHtml(String(e.qbEstimateId)) + ')' : ''}.</div>`;
-    if (admin) actions += `<button class="btn btn-primary" data-est-action="invoice" data-id="${escapeHtml(e.id)}" style="margin-top:10px;">Convert to Invoice</button>`;
+    /* Item 13 (v2-patch-1): invoicing happens exclusively in QuickBooks
+       Online — the in-app Convert to Invoice button is gone. The QB
+       estimate push above is the app's last step. */
+    actions += `<div class="hint success">Pushed to QuickBooks${e.qbEstimateId ? ' (QB #' + escapeHtml(String(e.qbEstimateId)) + ')' : ''}. Invoicing happens in QuickBooks Online.</div>`;
   } else if (e.status === 'Invoiced') {
     actions += `<div class="hint success">Invoiced in QuickBooks${e.qbInvoiceNumber ? ' (Invoice #' + escapeHtml(String(e.qbInvoiceNumber)) + ')' : ''}.</div>`;
-  }
-  if (e.invoiceError && admin) {
-    actions += `<div class="hint" style="color:var(--amber);margin-top:8px;">Last invoice attempt failed: ${escapeHtml(e.invoiceError)}</div>`;
   }
   if (e.pushError && admin) {
     actions += `<div class="hint" style="color:var(--amber);margin-top:8px;">Last push failed: ${escapeHtml(e.pushError)}</div>`;
@@ -5137,26 +5135,8 @@ async function approveAndPushEstimate(id, btn) {
   }
 }
 
-async function convertEstimateToInvoice(id, btn) {
-  const e = cachedEstimates.find((x) => x.id === id);
-  if (!e) return;
-  if (!confirm(`Create a QuickBooks invoice from ${e.estimateNumber || 'this estimate'} for ${e.customerName || 'this customer'}?`)) return;
-  if (btn) btn.disabled = true;   /* block a double-tap before any async call fires */
-  toast('Creating invoice…');
-  try {
-    const res = await httpsCallable(fbFunctions, 'qbConvertToInvoice', { timeout: 120000 })({ estimateId: id });
-    const r = (res && res.data) || {};
-    toast(r.qbInvoiceNumber ? `Invoiced (QB #${r.qbInvoiceNumber})` : 'Invoice created in QuickBooks');
-    /* Success re-renders the detail and replaces this button; leave it disabled. */
-  } catch (err) {
-    const code = (err && err.code) || '';
-    let msg = (err && err.message) || 'Invoice failed';
-    if (code === 'functions/permission-denied') msg = 'Only an administrator can create invoices.';
-    else if (code === 'functions/deadline-exceeded') msg = 'QuickBooks is taking longer than expected — check QuickBooks before retrying to avoid a duplicate.';
-    toast('Invoice failed: ' + msg, 'error');
-    if (btn) btn.disabled = false;   /* re-enable so a genuine failure can be retried */
-  }
-}
+/* Item 13 (v2-patch-1): convertEstimateToInvoice removed — invoicing happens
+   exclusively in QuickBooks Online. */
 
 function sendEstimateApprovedEmail(e, pushResult) {
   if (typeof emailjs === 'undefined' || !ESTIMATE_EMAILJS_TEMPLATE_ID) return; // no-op until a template id is set
@@ -10110,7 +10090,7 @@ function renderLifecycleJobDetail(id) {
     : 'Not invoiced';
 
   const canClose = canTransitionJobStatus(j.status || 'Lead', 'Pending Close');
-  const canInvoice = (j.status === 'Pending Close') && !j.qbInvoiceId;
+  /* Item 13: invoice generation removed — invoicing happens in QBO. */
   const canMarkPaid = (j.status === 'Invoiced') || (!!j.qbInvoiceId && j.status !== 'Paid' && j.status !== 'Cancelled');
 
   /* M3: closed jobs (Paid/Cancelled) must not accept new visits or work
@@ -10128,7 +10108,6 @@ function renderLifecycleJobDetail(id) {
   }
   actions += `<button class="btn btn-ghost" data-ljob-action="assign-camera" data-id="${escapeHtml(id)}">Assign Camera</button>`;
   if (canClose) actions += `<button class="btn btn-ghost" data-ljob-action="pending-close" data-id="${escapeHtml(id)}">Mark Pending Close</button>`;
-  if (canInvoice) actions += `<button class="btn btn-amber" data-ljob-action="generate-invoice" data-id="${escapeHtml(id)}">Generate Invoice</button>`;
   if (canMarkPaid) actions += `<button class="btn btn-ghost" data-ljob-action="mark-paid" data-id="${escapeHtml(id)}">Mark Payment Received</button>`;
   actions += `<button class="btn btn-ghost" data-ljob-action="edit" data-id="${escapeHtml(id)}">Edit Job</button>`;
   if (j.status !== 'Cancelled' && j.status !== 'Paid') actions += `<button class="btn btn-danger" data-ljob-action="cancel-job" data-id="${escapeHtml(id)}" style="margin-top:10px;">Cancel Job</button>`;
@@ -10161,49 +10140,9 @@ function renderLifecycleJobDetail(id) {
     <div class="form-actions">${actions}<button class="btn btn-cancel btn-ghost" data-ljob-action="back">Back to Jobs</button></div>`;
 }
 
-/* ---- Job invoicing + payment (Items 3 & 5) ---- */
-/* Generate a QB invoice from the job's linked estimate (qbConvertToInvoice
-   Cloud Function), then stamp qbInvoiceId/qbInvoiceNumber on the job and move
-   it to Invoiced. Only offered while the job is Pending Close. */
-async function generateJobInvoice(id, btn) {
-  const j = cachedJobs.find((x) => x.id === id);
-  if (!j) return;
-  if (!j.estimateId) {
-    toast('This job has no linked estimate — link one first (Edit Job); invoices are generated from the job’s estimate.', 'error');
-    return;
-  }
-  const est = cachedEstimates.find((e) => e.id === j.estimateId);
-  /* Estimate already invoiced in QB (e.g. via the Pricing module) — just copy
-     the invoice ids onto the job instead of creating a duplicate. */
-  if (est && est.qbInvoiceId) {
-    const moved = await setJobLifecycleStatus(id, 'Invoiced', {
-      qbInvoiceId: est.qbInvoiceId, qbInvoiceNumber: est.qbInvoiceNumber || null
-    });
-    if (moved) toast(`Linked existing QB invoice #${est.qbInvoiceNumber || est.qbInvoiceId}`);
-    return;
-  }
-  if (!confirm(`Create a QuickBooks invoice from ${j.estimateNumber || 'the linked estimate'} for ${j.customerName || 'this customer'}?`)) return;
-  if (btn) btn.disabled = true;
-  toast('Creating invoice…');
-  try {
-    const res = await httpsCallable(fbFunctions, 'qbConvertToInvoice', { timeout: 120000 })({ estimateId: j.estimateId });
-    const r = (res && res.data) || {};
-    await writeWithRetry(() => setDoc(doc(fbDb, 'jobs', id), {
-      qbInvoiceId: r.qbInvoiceId || null,
-      qbInvoiceNumber: r.qbInvoiceNumber || null,
-      status: 'Invoiced',
-      updatedAt: new Date().toISOString()
-    }, { merge: true }));
-    toast(r.qbInvoiceNumber ? `Invoiced (QB #${r.qbInvoiceNumber})` : 'Invoice created in QuickBooks');
-  } catch (err) {
-    const code = (err && err.code) || '';
-    let msg = (err && err.message) || 'Invoice failed';
-    if (code === 'functions/permission-denied') msg = 'Only an administrator can create invoices.';
-    else if (code === 'functions/deadline-exceeded') msg = 'QuickBooks is taking longer than expected — check QuickBooks before retrying to avoid a duplicate.';
-    toast('Invoice failed: ' + msg, 'error');
-    if (btn) btn.disabled = false;
-  }
-}
+/* ---- Job payment (Items 3 & 5) ----
+   Item 13 (v2-patch-1): generateJobInvoice removed — invoicing happens
+   exclusively in QuickBooks Online. */
 
 /* Manual payment-received flag (Item 5): moves the job to Paid. */
 async function markJobPaid(id) {
@@ -12198,7 +12137,7 @@ async function init() {
     else if (action === 'delete') deleteEstimateDraft(id);
     else if (action === 'approve') approveAndPushEstimate(id, btn);
     else if (action === 'reject') rejectEstimate(id);
-    else if (action === 'invoice') convertEstimateToInvoice(id, btn);
+    /* Item 13: 'invoice' action removed — invoicing lives in QuickBooks. */
   });
 
   /* ---- Job Scheduling wiring ---- */
@@ -12285,7 +12224,6 @@ async function init() {
     }
     else if (action === 'create-estimate') startEstimateForJob(id);
     else if (action === 'pending-close') setJobLifecycleStatus(id, 'Pending Close');
-    else if (action === 'generate-invoice') generateJobInvoice(id, btn);
     else if (action === 'mark-paid') markJobPaid(id);
     else if (action === 'edit') editLifecycleJob(id);
     else if (action === 'cancel-job') {
