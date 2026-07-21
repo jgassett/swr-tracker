@@ -935,17 +935,19 @@ exports.notifyJobAssignment = functions
     /* Reschedules/reassignments notify too — same payload, accurate title. */
     const title = (data && data.event === 'updated') ? 'Appointment updated' : 'New appointment scheduled';
 
-    try {
-      let sent = 0, tokens = 0;
-      /* One personalized push per contractor: "…Assigned to <name>". */
-      for (const email of emails) {
-        const name = EMAIL_TO_TRAPPER[String(email).toLowerCase()] || email;
-        const body = [
-          [dateStr, timeStr].filter(Boolean).join(' '),
-          jobType,
-          customerName,
-          `Assigned to ${name}`
-        ].filter(Boolean).join(' · ');
+    let sent = 0, tokens = 0;
+    /* One personalized push per contractor: "…Assigned to <name>". Push and
+       bell feed are independent: a push failure (expired tokens, FCM outage)
+       must not skip the feed write for this or any later recipient. */
+    for (const email of emails) {
+      const name = EMAIL_TO_TRAPPER[String(email).toLowerCase()] || email;
+      const body = [
+        [dateStr, timeStr].filter(Boolean).join(' '),
+        jobType,
+        customerName,
+        `Assigned to ${name}`
+      ].filter(Boolean).join(' · ');
+      try {
         const r = await sendPushToEmails([email], {
           title,
           body,
@@ -953,19 +955,18 @@ exports.notifyJobAssignment = functions
           tag: `appt-${appointmentId || jobId}`
         });
         sent += r.sent; tokens += r.tokens;
-        /* Mirror into the in-app bell feed (Item 12). */
-        await createNotifications([email], {
-          type: 'appointment',
-          title,
-          body,
-          relatedId: appointmentId || jobId
-        }).catch((e) => console.error('appointment feed notification failed', e));
+      } catch (err) {
+        console.error('appointment push failed', email, err);
       }
-      return { sent, tokens };
-    } catch (err) {
-      console.error('notifyJobAssignment failed', err);
-      throw new functions.https.HttpsError('internal', err.message || 'Push send failed');
+      /* Mirror into the in-app bell feed (Item 12). */
+      await createNotifications([email], {
+        type: 'appointment',
+        title,
+        body,
+        relatedId: appointmentId || jobId
+      }).catch((e) => console.error('appointment feed notification failed', e));
     }
+    return { sent, tokens };
   });
 
 /* Daily cleanup: delete camera photos older than the in-app retention setting

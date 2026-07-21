@@ -118,6 +118,46 @@
     .mode-grid .mode-card .mode-count { margin-left: 0; text-align: center; }
     .mode-grid .mode-card .mode-count .n { font-size: 20px; }
     .landing-sync { display: flex; justify-content: flex-end; margin-bottom: 6px; }
+    /* Workflow strip — the job progression at a glance, above the module
+       cards. Horizontally scrollable, ≤80px tall; tapping a step opens
+       that module. */
+    .flow-strip-wrap { width: 100%; }
+    .flow-strip {
+      display: flex; align-items: center; gap: 4px;
+      overflow-x: auto; -webkit-overflow-scrolling: touch;
+      max-height: 80px; padding: 6px 2px;
+      scrollbar-width: none;
+    }
+    .flow-strip::-webkit-scrollbar { display: none; }
+    .flow-step {
+      display: flex; flex-direction: column; align-items: center; gap: 3px;
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(196,119,42,0.25);
+      border-radius: 12px; padding: 7px 10px;
+      color: var(--cream); cursor: pointer; flex-shrink: 0;
+      transition: background 0.15s, border-color 0.15s, transform 0.05s;
+    }
+    .flow-step:active { transform: scale(0.96); }
+    .flow-step:hover, .flow-step:focus { background: rgba(196,119,42,0.18); border-color: var(--amber); }
+    .flow-step .fs-icon { font-size: 17px; line-height: 1; }
+    .flow-step .fs-label { font-size: 10.5px; font-weight: 600; letter-spacing: 0.02em; color: var(--amber-soft); white-space: nowrap; }
+    .flow-arrow { color: var(--amber); font-size: 14px; flex-shrink: 0; user-select: none; }
+    .flow-help {
+      background: none; border: none; color: var(--amber-soft);
+      font-size: 11.5px; text-decoration: underline; white-space: nowrap;
+      cursor: pointer; flex-shrink: 0; padding: 6px 4px 6px 8px;
+    }
+    /* The landing page (z-index 96) stacks above the standard sheet layers
+       (80/90), so the how-it-works sheet gets its own higher pair. */
+    #flowSheetBackdrop { z-index: 130; }
+    #howItWorksSheet { z-index: 131; }
+    .flow-guide { display: flex; flex-direction: column; gap: 12px; margin-top: 12px; }
+    .flow-guide .fg-step { display: flex; gap: 12px; align-items: flex-start; font-size: 14px; }
+    .flow-guide .fg-step > span {
+      width: 34px; height: 34px; border-radius: 10px; flex-shrink: 0;
+      background: var(--cream-deep); display: flex; align-items: center; justify-content: center; font-size: 16px;
+    }
+    .flow-guide .fg-step strong { color: var(--green-deep); }
     /* Settings gear on the landing page (Item 16): 24px icon, bottom-right,
        above the safe-area inset. */
     .landing-gear {
@@ -1551,6 +1591,25 @@
     <h1>What are you doing today?</h1>
     <div class="mode-sub">Pick a module. Return here any time with the ← button.</div>
     <button type="button" id="cameraAlertBanner" class="camera-alert-banner hidden"></button>
+    <!-- Workflow strip: the job progression at a glance; tap a step to open its module. -->
+    <div class="flow-strip-wrap" role="navigation" aria-label="Job workflow">
+      <div class="flow-strip" id="flowStrip">
+        <button type="button" class="flow-step" data-mode="customer"><span class="fs-icon">👥</span><span class="fs-label">Customer</span></button>
+        <span class="flow-arrow" aria-hidden="true">→</span>
+        <button type="button" class="flow-step" data-mode="pricing"><span class="fs-icon">💰</span><span class="fs-label">Estimate</span></button>
+        <span class="flow-arrow" aria-hidden="true">→</span>
+        <button type="button" class="flow-step" data-mode="schedule"><span class="fs-icon">📅</span><span class="fs-label">Schedule</span></button>
+        <span class="flow-arrow" aria-hidden="true">→</span>
+        <button type="button" class="flow-step" data-mode="trap"><span class="fs-icon">🦝</span><span class="fs-label">Field Work</span></button>
+        <span class="flow-arrow" aria-hidden="true">→</span>
+        <button type="button" class="flow-step" data-mode="field"><span class="fs-icon">📷</span><span class="fs-label">Cameras</span></button>
+        <span class="flow-arrow" aria-hidden="true">→</span>
+        <button type="button" class="flow-step" data-mode="jobs"><span class="fs-icon">📦</span><span class="fs-label">Close Out</span></button>
+        <span class="flow-arrow" aria-hidden="true">→</span>
+        <button type="button" class="flow-step" data-mode="pricing"><span class="fs-icon">🧾</span><span class="fs-label">Invoice</span></button>
+        <button type="button" class="flow-help" id="flowHelpBtn">How it works</button>
+      </div>
+    </div>
     <div class="mode-grid">
     <button type="button" class="mode-card" data-mode="trap">
       <div class="icon-circle">
@@ -3041,6 +3100,26 @@
   <div id="rebaitBody"></div>
 </div>
 
+<!-- 'How it works' — plain-language workflow explainer opened from the
+     landing-page flow strip. Own backdrop: the landing page stacks above
+     the shared sheet layers. -->
+<div class="sheet-backdrop" id="flowSheetBackdrop"></div>
+<div class="sheet" id="howItWorksSheet">
+  <div class="sheet-handle"></div>
+  <h2>How a job works</h2>
+  <p class="muted">Every job moves through the same steps, left to right on the strip.</p>
+  <div class="flow-guide">
+    <div class="fg-step"><span>👥</span><div><strong>Customer</strong> — start in Customers: add the client and the property. Every job hangs off a customer.</div></div>
+    <div class="fg-step"><span>💰</span><div><strong>Estimate</strong> — build the price in Pricing and send it for approval. Approved estimates push to QuickBooks.</div></div>
+    <div class="fg-step"><span>📅</span><div><strong>Schedule</strong> — put the visits on the calendar and assign the crew. Assignees get a notification.</div></div>
+    <div class="fg-step"><span>🦝</span><div><strong>Field Work</strong> — log every capture, release, or treatment in Trapping (or Pesticides) while you're on site.</div></div>
+    <div class="fg-step"><span>📷</span><div><strong>Cameras</strong> — watch trap cameras by customer and respond to activity and health alerts.</div></div>
+    <div class="fg-step"><span>📦</span><div><strong>Close Out</strong> — in Jobs, pick up equipment and move the job to Pending Close when the work is done.</div></div>
+    <div class="fg-step"><span>🧾</span><div><strong>Invoice</strong> — convert the estimate to a QuickBooks invoice, then mark the job Paid. Done.</div></div>
+  </div>
+  <button type="button" class="btn btn-primary" id="flowSheetCloseBtn" style="margin-top:16px;width:100%;">Got it</button>
+</div>
+
 <!-- Pesticide edit modal (admin only) -->
 <div id="pesticideEditOverlay" class="hidden">
   <div class="edit-modal-wrap">
@@ -4058,6 +4137,16 @@ function showLanding() {
 }
 /* Back-compat alias — some call sites still reference the old name. */
 function showModePicker() { showLanding(); }
+
+/* 'How it works' sheet — workflow explainer opened from the landing strip. */
+function openHowItWorksSheet() {
+  $('#flowSheetBackdrop').classList.add('open');
+  $('#howItWorksSheet').classList.add('open');
+}
+function closeHowItWorksSheet() {
+  $('#flowSheetBackdrop').classList.remove('open');
+  $('#howItWorksSheet').classList.remove('open');
+}
 
 function setAppMode(mode, opts = {}) {
   appMode = mode;
@@ -9260,8 +9349,9 @@ function renderNotificationsPage() {
   if (sub) sub.textContent = unread.length ? `${unread.length} unread` : 'All caught up.';
   const clearBtn = $('#clearAllNotifsBtn');
   if (clearBtn) clearBtn.style.display = unread.length ? '' : 'none';
+  const caughtUp = '<div class="empty"><div class="em-title">No new notifications — you are all caught up</div><div>Appointment, camera, and job alerts will land here.</div></div>';
   if (!cachedNotifications.length) {
-    root.innerHTML = '<div class="empty"><div class="em-title">Nothing yet</div><div>Appointment, camera, and job alerts will land here.</div></div>';
+    root.innerHTML = caughtUp;
     return;
   }
   const row = (n) => {
@@ -9276,8 +9366,10 @@ function renderNotificationsPage() {
       ${n.read ? '' : `<button type="button" class="nf-dismiss" data-notif-dismiss="${escapeHtml(n.id)}" aria-label="Dismiss">×</button>`}
     </div>`;
   };
-  /* Unread first, then read — each newest-first. */
-  root.innerHTML = [...unread, ...read].map(row).join('');
+  /* Unread first, then read — each newest-first. With no unread left, the
+     caught-up state still shows above the history so an empty inbox reads
+     as "working", not "broken". */
+  root.innerHTML = (unread.length ? '' : caughtUp) + [...unread, ...read].map(row).join('');
 }
 
 function dismissNotification(id) {
@@ -11553,10 +11645,15 @@ async function init() {
   /* Landing page — tapping a module card enters that module. */
   $('#modePicker').addEventListener('click', (e) => {
     if (e.target.closest('#landingGearBtn')) { setAppMode('settings'); return; }   /* Item 16 */
+    if (e.target.closest('#flowHelpBtn')) { openHowItWorksSheet(); return; }
+    const step = e.target.closest('.flow-step');
+    if (step) { setAppMode(step.dataset.mode); return; }
     const btn = e.target.closest('.mode-card');
     if (!btn) return;
     setAppMode(btn.dataset.mode);
   });
+  $('#flowSheetBackdrop').addEventListener('click', closeHowItWorksSheet);
+  $('#flowSheetCloseBtn').addEventListener('click', closeHowItWorksSheet);
 
   $('#topSpeciesScope').addEventListener('click', (e) => {
     const btn = e.target.closest('button[data-scope]');
