@@ -2971,7 +2971,7 @@
 <div class="sheet" id="howItWorksSheet">
   <div class="sheet-handle"></div>
   <h2>How a job works</h2>
-  <p class="muted">Every job moves through the same steps, left to right on the strip.</p>
+  <p class="muted">Every job moves through the same numbered steps — follow the arrows through the grid.</p>
   <div class="flow-guide">
     <div class="fg-step"><span>👥</span><div><strong>Customer</strong> — start in Customers: add the client and the property. Every job hangs off a customer.</div></div>
     <div class="fg-step"><span>💰</span><div><strong>Estimate</strong> — build the price in Pricing and send it for approval. Approved estimates push to QuickBooks.</div></div>
@@ -4081,7 +4081,7 @@ function renderFlowGrid() {
 /* Re-lay the snake when crossing the 3↔4 column breakpoint (e.g. iPad rotation). */
 flowGridMedia.addEventListener('change', renderFlowGrid);
 
-/* 'How it works' sheet — workflow explainer opened from the landing strip. */
+/* 'How it works' sheet — workflow explainer opened from the landing grid. */
 function openHowItWorksSheet() {
   $('#flowSheetBackdrop').classList.add('open');
   $('#howItWorksSheet').classList.add('open');
