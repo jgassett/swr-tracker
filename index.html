@@ -87,61 +87,47 @@
     .mode-picker-wrap .mode-sub {
       color: var(--amber-soft); text-align: center; font-size: 13px; margin-bottom: 10px;
     }
-    .mode-card {
-      width: 100%;
+    /* Snake workflow grid — the landing page's only navigation. Rows
+       alternate direction (row 1 →, row 2 ←, …); a curved arrow at each
+       row's end carries the path down to the next row. Rendered by
+       renderFlowGrid(): 3 columns on phones, 4 from 768px up. */
+    .flow-grid { width: 100%; display: flex; flex-direction: column; gap: 2px; margin-top: 4px; }
+    .flow-row { display: flex; align-items: stretch; gap: 2px; }
+    .flow-cell {
+      flex: 1; min-width: 0; position: relative;
+      display: flex; flex-direction: column; align-items: center; gap: 6px;
       background: rgba(255,255,255,0.05);
       border: 2px solid rgba(196,119,42,0.25);
       border-radius: 16px;
-      padding: 22px 18px;
-      color: var(--cream);
-      display: flex; align-items: center; gap: 14px;
-      text-align: left;
+      padding: 20px 6px 12px;
+      color: var(--cream); cursor: pointer;
       transition: background 0.15s, border-color 0.15s, transform 0.05s;
     }
-    .mode-card:active { transform: scale(0.98); }
-    .mode-card:hover, .mode-card:focus { background: rgba(196,119,42,0.18); border-color: var(--amber); }
-    .mode-card .icon-circle {
-      width: 56px; height: 56px; border-radius: 50%;
-      background: var(--amber); flex-shrink: 0;
+    .flow-cell:active { transform: scale(0.97); }
+    .flow-cell:hover, .flow-cell:focus { background: rgba(196,119,42,0.18); border-color: var(--amber); }
+    .flow-cell.spacer { visibility: hidden; pointer-events: none; }
+    .flow-cell .fc-num {
+      position: absolute; top: 6px; left: 6px;
+      width: 20px; height: 20px; border-radius: 50%;
+      background: var(--amber); color: #fff;
+      font-size: 11px; font-weight: 700;
       display: flex; align-items: center; justify-content: center;
     }
-    .mode-card svg { width: 30px; height: 30px; stroke: #fff; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
-    .mode-card .mode-title { font-family: 'Playfair Display', serif; font-size: 19px; font-weight: 700; color: var(--cream); }
-    .mode-card .mode-desc { font-size: 12px; color: var(--amber-soft); margin-top: 2px; }
-    /* Compact icon grid for the mode picker (fits more modules per screen) */
-    .mode-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-top: 4px; }
-    .mode-grid .mode-card { flex-direction: column; align-items: center; text-align: center; gap: 8px; padding: 16px 10px; }
-    .mode-grid .mode-card .icon-circle { width: 46px; height: 46px; }
-    .mode-grid .mode-card svg { width: 24px; height: 24px; }
-    .mode-grid .mode-card .mode-title { font-size: 15px; }
-    .mode-grid .mode-card .mode-desc { display: none; }
-    .mode-grid .mode-card .mode-count { margin-left: 0; text-align: center; }
-    .mode-grid .mode-card .mode-count .n { font-size: 20px; }
+    .flow-cell .fc-icon { font-size: 40px; line-height: 1; }
+    .flow-cell .fc-label { font-family: 'Playfair Display', serif; font-size: 14px; font-weight: 700; color: var(--cream); white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+    .flow-cell .fc-desc { font-size: 10.5px; color: var(--amber-soft); line-height: 1.25; text-align: center; white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+    /* Amber highlight: at least one in-progress job sits at this step. */
+    .flow-cell.current { background: rgba(196,119,42,0.3); border-color: var(--amber); }
+    .flow-arrow-h {
+      align-self: center; flex-shrink: 0; width: 14px; text-align: center;
+      color: var(--amber); font-size: 15px; font-weight: 700; user-select: none;
+    }
+    .flow-turn { display: flex; padding: 2px 14px; }
+    .flow-turn.right { justify-content: flex-end; }
+    .flow-turn.left { justify-content: flex-start; }
+    .flow-turn svg { width: 36px; height: 24px; stroke: var(--amber); fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+    .flow-help-row { text-align: center; }
     .landing-sync { display: flex; justify-content: flex-end; margin-bottom: 6px; }
-    /* Workflow strip — the job progression at a glance, above the module
-       cards. Horizontally scrollable, ≤80px tall; tapping a step opens
-       that module. */
-    .flow-strip-wrap { width: 100%; }
-    .flow-strip {
-      display: flex; align-items: center; gap: 4px;
-      overflow-x: auto; -webkit-overflow-scrolling: touch;
-      max-height: 80px; padding: 6px 2px;
-      scrollbar-width: none;
-    }
-    .flow-strip::-webkit-scrollbar { display: none; }
-    .flow-step {
-      display: flex; flex-direction: column; align-items: center; gap: 3px;
-      background: rgba(255,255,255,0.05);
-      border: 1px solid rgba(196,119,42,0.25);
-      border-radius: 12px; padding: 7px 10px;
-      color: var(--cream); cursor: pointer; flex-shrink: 0;
-      transition: background 0.15s, border-color 0.15s, transform 0.05s;
-    }
-    .flow-step:active { transform: scale(0.96); }
-    .flow-step:hover, .flow-step:focus { background: rgba(196,119,42,0.18); border-color: var(--amber); }
-    .flow-step .fs-icon { font-size: 17px; line-height: 1; }
-    .flow-step .fs-label { font-size: 10.5px; font-weight: 600; letter-spacing: 0.02em; color: var(--amber-soft); white-space: nowrap; }
-    .flow-arrow { color: var(--amber); font-size: 14px; flex-shrink: 0; user-select: none; }
     .flow-help {
       background: none; border: none; color: var(--amber-soft);
       font-size: 11.5px; text-decoration: underline; white-space: nowrap;
@@ -1036,38 +1022,6 @@
       letter-spacing: 0.04em;
     }
 
-    /* ===== Landing page module counts (added on the mode picker) ===== */
-    .mode-card .mode-count {
-      margin-left: auto;
-      text-align: right;
-      flex-shrink: 0;
-    }
-    .mode-card .mode-count .n {
-      font-family: 'Playfair Display', serif;
-      font-size: 26px;
-      font-weight: 700;
-      color: var(--cream);
-      line-height: 1;
-    }
-    .mode-card .mode-count .lbl {
-      display: block;
-      font-size: 10px;
-      letter-spacing: 0.05em;
-      text-transform: uppercase;
-      color: var(--amber-soft);
-      margin-top: 3px;
-    }
-    /* Workflow summary badges on the Jobs module card: one small pill per
-       active lifecycle status, reusing the status-pill palette. */
-    .mode-card .mode-badges {
-      display: flex; flex-wrap: wrap; justify-content: center; gap: 4px;
-      margin-top: 2px; width: 100%;
-    }
-    .mode-card .mode-badges.hidden { display: none; }
-    .mode-card .mode-badges .status-pill.mode-badge {
-      margin-left: 0; padding: 1px 7px; font-size: 9.5px; white-space: nowrap;
-    }
-
     /* ===== Module label in header (replaces the trap/pest toggle) ===== */
     .module-label {
       font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase;
@@ -1377,7 +1331,7 @@
 
     /* Keyboard navigation: a clear focus ring on every interactive element. */
     button:focus-visible, a:focus-visible, [tabindex]:focus-visible,
-    .nav-btn:focus-visible, .mode-card:focus-visible, .hub-btn:focus-visible {
+    .nav-btn:focus-visible, .flow-cell:focus-visible, .hub-btn:focus-visible {
       outline: 2px solid var(--amber);
       outline-offset: 2px;
     }
@@ -1431,7 +1385,6 @@
       #estimatesList > div[style], #fieldList > div[style], #jobsList > div[style] { grid-column: 1 / -1; }
 
       .mode-picker-wrap { max-width: 640px; }
-      .mode-grid { grid-template-columns: repeat(3, 1fr); }
       .action-hub { grid-template-columns: repeat(3, 1fr); }
     }
 
@@ -1508,7 +1461,6 @@
 
       /* Landing page scales up for big screens. */
       .mode-picker-wrap { max-width: 760px; }
-      .mode-grid { grid-template-columns: repeat(3, 1fr); gap: 16px; }
       .action-hub { grid-template-columns: repeat(3, 1fr); }
       .cal-cell { min-height: 84px; }
     }
@@ -1589,100 +1541,12 @@
     <img class="brand-logo" src="logo.png" alt="SWR"
          onload="this.classList.add('loaded');" onerror="this.remove();">
     <h1>What are you doing today?</h1>
-    <div class="mode-sub">Pick a module. Return here any time with the ← button.</div>
+    <div class="mode-sub">Follow the job from first call to paid invoice — tap a step to open it. Return here any time with the ← button.</div>
     <button type="button" id="cameraAlertBanner" class="camera-alert-banner hidden"></button>
-    <!-- Workflow strip: the job progression at a glance; tap a step to open its module. -->
-    <div class="flow-strip-wrap" role="navigation" aria-label="Job workflow">
-      <div class="flow-strip" id="flowStrip">
-        <button type="button" class="flow-step" data-mode="customer"><span class="fs-icon">👥</span><span class="fs-label">Customer</span></button>
-        <span class="flow-arrow" aria-hidden="true">→</span>
-        <button type="button" class="flow-step" data-mode="pricing"><span class="fs-icon">💰</span><span class="fs-label">Estimate</span></button>
-        <span class="flow-arrow" aria-hidden="true">→</span>
-        <button type="button" class="flow-step" data-mode="schedule"><span class="fs-icon">📅</span><span class="fs-label">Schedule</span></button>
-        <span class="flow-arrow" aria-hidden="true">→</span>
-        <button type="button" class="flow-step" data-mode="trap"><span class="fs-icon">🦝</span><span class="fs-label">Field Work</span></button>
-        <span class="flow-arrow" aria-hidden="true">→</span>
-        <button type="button" class="flow-step" data-mode="field"><span class="fs-icon">📷</span><span class="fs-label">Cameras</span></button>
-        <span class="flow-arrow" aria-hidden="true">→</span>
-        <button type="button" class="flow-step" data-mode="jobs"><span class="fs-icon">📦</span><span class="fs-label">Close Out</span></button>
-        <span class="flow-arrow" aria-hidden="true">→</span>
-        <button type="button" class="flow-step" data-mode="pricing"><span class="fs-icon">🧾</span><span class="fs-label">Invoice</span></button>
-        <button type="button" class="flow-help" id="flowHelpBtn">How it works</button>
-      </div>
-    </div>
-    <div class="mode-grid">
-    <button type="button" class="mode-card" data-mode="trap">
-      <div class="icon-circle">
-        <svg viewBox="0 0 24 24"><circle cx="6" cy="11" r="2.5"/><circle cx="12" cy="8" r="2.5"/><circle cx="18" cy="11" r="2.5"/><ellipse cx="12" cy="17" rx="5" ry="4"/></svg>
-      </div>
-      <div>
-        <div class="mode-title">Trapping</div>
-        <div class="mode-desc">Wildlife capture, release, or euthanasia</div>
-      </div>
-      <div class="mode-count"><span class="n" id="landingTrapCount">0</span><span class="lbl">this period</span></div>
-    </button>
-    <button type="button" class="mode-card" data-mode="pesticide">
-      <div class="icon-circle">
-        <svg viewBox="0 0 24 24"><path d="M9 2h6v3l3 3v3l-3 1v9a2 2 0 0 1-2 2h-2a2 2 0 0 1-2-2v-9l-3-1V8l3-3z"/><circle cx="12" cy="14" r="1.5"/></svg>
-      </div>
-      <div>
-        <div class="mode-title">Pesticides</div>
-        <div class="mode-desc">Chemical application records</div>
-      </div>
-      <div class="mode-count"><span class="n" id="landingPestCount">0</span><span class="lbl">this period</span></div>
-    </button>
-    <button type="button" class="mode-card" data-mode="customer">
-      <div class="icon-circle">
-        <svg viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-      </div>
-      <div>
-        <div class="mode-title">Customers</div>
-        <div class="mode-desc">Client directory, shared across modules</div>
-      </div>
-      <div class="mode-count"><span class="n" id="landingCustCount">0</span><span class="lbl">active</span></div>
-    </button>
-    <button type="button" class="mode-card" data-mode="pricing">
-      <div class="icon-circle">
-        <svg viewBox="0 0 24 24"><path d="M4 4h16v4H4z"/><path d="M4 12h10"/><path d="M4 16h10"/><path d="M4 20h7"/><path d="M18 13v7"/><path d="M15 16l3-3 3 3"/></svg>
-      </div>
-      <div>
-        <div class="mode-title">Pricing</div>
-        <div class="mode-desc">Build job estimates, push to QuickBooks</div>
-      </div>
-      <div class="mode-count"><span class="n" id="landingEstCount">0</span><span class="lbl">this month</span></div>
-    </button>
-    <button type="button" class="mode-card" data-mode="jobs">
-      <div class="icon-circle">
-        <svg viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
-      </div>
-      <div>
-        <div class="mode-title">Jobs</div>
-        <div class="mode-desc">Every engagement from lead to paid</div>
-      </div>
-      <div class="mode-count"><span class="n" id="landingJobsCount">0</span><span class="lbl">active</span></div>
-      <div class="mode-badges hidden" id="landingJobsBadges"></div>
-    </button>
-    <button type="button" class="mode-card" data-mode="field">
-      <div class="icon-circle">
-        <svg viewBox="0 0 24 24"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
-      </div>
-      <div>
-        <div class="mode-title">Cameras</div>
-        <div class="mode-desc">Camera photos &amp; health by customer</div>
-      </div>
-      <div class="mode-count"><span class="n" id="landingFieldCount">0</span><span class="lbl">alerts</span></div>
-    </button>
-    <button type="button" class="mode-card" data-mode="schedule">
-      <div class="icon-circle">
-        <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
-      </div>
-      <div>
-        <div class="mode-title">Schedule</div>
-        <div class="mode-desc">Assign &amp; calendar jobs for your crew</div>
-      </div>
-      <div class="mode-count"><span class="n" id="landingScheduleCount">0</span><span class="lbl">upcoming</span></div>
-    </button>
-    </div>
+    <!-- Snake workflow grid (rendered by renderFlowGrid) — the only
+         navigation on the landing page. Tap a step to open its module. -->
+    <div class="flow-grid" id="flowGrid" role="navigation" aria-label="Job workflow"></div>
+    <div class="flow-help-row"><button type="button" class="flow-help" id="flowHelpBtn">How it works</button></div>
   </div>
   <!-- Settings demoted to a small gear (Item 16): bottom-right, above the safe area. -->
   <button type="button" id="landingGearBtn" class="landing-gear" aria-label="Settings" title="Settings">
@@ -4138,6 +4002,85 @@ function showLanding() {
 /* Back-compat alias — some call sites still reference the old name. */
 function showModePicker() { showLanding(); }
 
+/* =====================================================================
+ * Snake workflow grid — the landing page's only navigation. Steps trace
+ * the job lifecycle; rows alternate direction (row 1 →, row 2 ←) with a
+ * curved arrow carrying the path down at each row's end. 3 columns on
+ * phones, 4 from 768px up. Tapping a cell opens its module; steps where
+ * an in-progress job currently sits are highlighted amber.
+ * ===================================================================== */
+const FLOW_STEPS = [
+  { n: 1, icon: '👥', label: 'Customer',   desc: 'Client & property',   mode: 'customer' },
+  { n: 2, icon: '💰', label: 'Estimate',   desc: 'Price the job',       mode: 'pricing' },
+  { n: 3, icon: '📅', label: 'Schedule',   desc: 'Book the crew',       mode: 'schedule' },
+  { n: 4, icon: '🦝', label: 'Field Work', desc: 'On-site work',        mode: 'trap' },
+  { n: 5, icon: '📷', label: 'Cameras',    desc: 'Watch trap activity', mode: 'field' },
+  { n: 6, icon: '📦', label: 'Close Out',  desc: 'Wrap up the job',     mode: 'jobs' },
+  { n: 7, icon: '🧾', label: 'Invoice',    desc: 'Bill & get paid',     mode: 'pricing' }
+];
+/* Job status → the workflow step where that job's next action lives. */
+const JOB_STATUS_TO_FLOW_STEP = {
+  'Lead': 2, 'Estimated': 3, 'Scheduled': 4, 'Active': 4,
+  'Pending Close': 6, 'Invoiced': 7
+};
+const flowGridMedia = window.matchMedia('(min-width: 768px)');
+
+function activeFlowSteps() {
+  const steps = new Set();
+  lifecycleJobs().filter(jobIsActive).forEach((j) => {
+    const step = JOB_STATUS_TO_FLOW_STEP[j.status || 'Lead'];
+    if (step) steps.add(step);
+  });
+  return steps;
+}
+
+const FLOW_TURN_SVGS = {
+  right: '<svg viewBox="0 0 34 24"><path d="M3 4h16c7 0 10 3 10 9v4"/><path d="m25 14 4 4 4-4"/></svg>',
+  left: '<svg viewBox="0 0 34 24"><path d="M31 4H15C8 4 5 7 5 13v4"/><path d="m1 14 4 4 4-4"/></svg>'
+};
+
+function renderFlowGrid() {
+  const root = $('#flowGrid');
+  if (!root) return;
+  const cols = flowGridMedia.matches ? 4 : 3;
+  const current = activeFlowSteps();
+  const cell = (st) => st
+    ? `<button type="button" class="flow-cell${current.has(st.n) ? ' current' : ''}" data-mode="${st.mode}" aria-label="Step ${st.n}: ${st.label}">` +
+      `<span class="fc-num" aria-hidden="true">${st.n}</span>` +
+      `<span class="fc-icon" aria-hidden="true">${st.icon}</span>` +
+      `<span class="fc-label">${st.label}</span>` +
+      `<span class="fc-desc">${st.desc}</span></button>`
+    : '<div class="flow-cell spacer" aria-hidden="true"></div>';
+  const rows = [];
+  for (let i = 0; i < FLOW_STEPS.length; i += cols) rows.push(FLOW_STEPS.slice(i, i + cols));
+  let html = '';
+  rows.forEach((row, ri) => {
+    const rtl = ri % 2 === 1;
+    /* Pad short rows with invisible spacers so every cell keeps the same
+       width, then flip the visual order for right-to-left rows. */
+    const padded = [...row];
+    while (padded.length < cols) padded.push(null);
+    const ordered = rtl ? padded.reverse() : padded;
+    const arrow = rtl ? '←' : '→';
+    const parts = [];
+    ordered.forEach((st, i) => {
+      /* In-row arrows only between two real, flow-adjacent cells; an empty
+         slot of the same width keeps spacer rows aligned with full ones. */
+      if (i) parts.push(`<span class="flow-arrow-h" aria-hidden="true">${ordered[i - 1] && st ? arrow : ''}</span>`);
+      parts.push(cell(st));
+    });
+    html += `<div class="flow-row">${parts.join('')}</div>`;
+    /* Curved turn arrow: down-right after → rows, down-left after ← rows. */
+    if (ri < rows.length - 1) {
+      const dir = rtl ? 'left' : 'right';
+      html += `<div class="flow-turn ${dir}" aria-hidden="true">${FLOW_TURN_SVGS[dir]}</div>`;
+    }
+  });
+  root.innerHTML = html;
+}
+/* Re-lay the snake when crossing the 3↔4 column breakpoint (e.g. iPad rotation). */
+flowGridMedia.addEventListener('change', renderFlowGrid);
+
 /* 'How it works' sheet — workflow explainer opened from the landing strip. */
 function openHowItWorksSheet() {
   $('#flowSheetBackdrop').classList.add('open');
@@ -4204,54 +4147,13 @@ function renderSettingsStatus() {
 }
 
 /* Live counts on the three landing-page module cards. */
+/* Landing page live state: the snake workflow grid (with amber highlights
+   on steps that have an in-progress job) and the camera alert banner. Called
+   from every subscription that feeds either, so both stay current. */
 function renderLandingCounts() {
-  const period = reportPeriod();
-  const trapN = cachedRecords.filter((r) => inPeriod(r.dateCollected, period)).length;
-  const pestN = cachedPesticideRecords.filter((r) => {
-    if (!r.appliedAt) return false;
-    return inPeriod(r.appliedAt.slice(0, 10), period);
-  }).length;
-  const custN = cachedCustomers.filter((c) => c.active).length;
-  const ym = new Date().toISOString().slice(0, 7); // YYYY-MM
-  const estN = cachedEstimates.filter((e) => (e.createdAt || '').slice(0, 7) === ym).length;
+  renderFlowGrid();
   const alertN = cachedCameraHealth.filter((h) => { const s = deviceStatusLive(h); return s === 'red' || s === 'yellow'; }).length;
   const redN = cachedCameraHealth.filter((h) => deviceStatusLive(h) === 'red').length;
-  const nowMs = Date.now();
-  /* Local date, not UTC — toISOString() rolls to tomorrow in the evening
-     (UTC-4/-5) and undercounts today's appointments. */
-  const todayKeyStr = dateKey(new Date());
-  const upcomingLegacyN = cachedJobs.filter((j) => {
-    if (isLifecycleJob(j)) return false;
-    if (j.status && j.status !== 'Scheduled') return false;
-    const se = jobStartEnd(j);
-    return se && se.end.getTime() >= nowMs;
-  }).length;
-  const upcomingApptN = cachedAppointments.filter((a) =>
-    a.status === 'Scheduled' && (a.scheduledDate || '') >= todayKeyStr).length;
-  const upcomingN = upcomingLegacyN + upcomingApptN;
-  const activeJobsN = lifecycleJobs().filter(jobIsActive).length;
-  const set = (id, n) => { const el = $('#' + id); if (el) el.textContent = n; };
-  set('landingTrapCount', trapN);
-  set('landingPestCount', pestN);
-  set('landingCustCount', custN);
-  set('landingEstCount', estN);
-  set('landingFieldCount', alertN);
-  set('landingScheduleCount', upcomingN);
-  set('landingJobsCount', activeJobsN);
-  /* Workflow summary on the Jobs card: one badge per active status with at
-     least one job in it (e.g. "2 Active · 1 Pending Close"). */
-  const badgesEl = $('#landingJobsBadges');
-  if (badgesEl) {
-    const active = lifecycleJobs().filter(jobIsActive);
-    const badges = JOB_STATUSES
-      .filter((s) => s !== 'Paid')
-      .map((s) => ({ s, n: active.filter((j) => (j.status || 'Lead') === s).length }))
-      .filter((x) => x.n > 0)
-      .map((x) => `<span class="status-pill mode-badge ${jobLifeStatusClass(x.s)}">${x.n} ${escapeHtml(x.s)}</span>`)
-      .join('');
-    badgesEl.innerHTML = badges;
-    badgesEl.classList.toggle('hidden', !badges);
-  }
   const banner = $('#cameraAlertBanner');
   if (banner) {
     if (alertN > 0) {
@@ -11646,11 +11548,8 @@ async function init() {
   $('#modePicker').addEventListener('click', (e) => {
     if (e.target.closest('#landingGearBtn')) { setAppMode('settings'); return; }   /* Item 16 */
     if (e.target.closest('#flowHelpBtn')) { openHowItWorksSheet(); return; }
-    const step = e.target.closest('.flow-step');
-    if (step) { setAppMode(step.dataset.mode); return; }
-    const btn = e.target.closest('.mode-card');
-    if (!btn) return;
-    setAppMode(btn.dataset.mode);
+    const step = e.target.closest('.flow-cell');
+    if (step && step.dataset.mode) setAppMode(step.dataset.mode);
   });
   $('#flowSheetBackdrop').addEventListener('click', closeHowItWorksSheet);
   $('#flowSheetCloseBtn').addEventListener('click', closeHowItWorksSheet);
