@@ -162,11 +162,68 @@
     .lb-btn .bell-badge { top: 0; right: calc(50% - 24px); }
     /* Keep the workflow grid clear of the fixed banner. */
     #modePicker { padding-bottom: calc(var(--safe-bot) + 96px); }
-    .settings-group { font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-soft); margin: 20px 4px 8px; }
+    .settings-group { font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-soft); margin: 16px 4px 6px; }
     .settings-group.first { margin-top: 4px; }
     .conn-status { font-size: 13px; font-weight: 600; margin-top: 4px; }
     .conn-status.ok { color: var(--green-deep); }
     .conn-status.off { color: var(--ink-soft); }
+
+    /* ---- Item 5 (v2-patch-2): compact admin-panel Settings ---- */
+    #view-settings .card { padding: 12px 14px; margin-bottom: 10px; line-height: 1.35; }
+    /* Quick Controls: four switches in one row. */
+    .qc-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+    .qc-item { display: flex; flex-direction: column; align-items: center; gap: 5px; min-width: 0; }
+    .qc-label { font-size: 10.5px; font-weight: 600; color: var(--ink-soft); text-align: center; line-height: 1.2; }
+    .qc-switch {
+      position: relative; width: 42px; height: 24px; border-radius: 12px;
+      border: 1px solid var(--line); background: var(--cream-deep);
+      cursor: pointer; padding: 0; transition: background 0.15s, border-color 0.15s;
+      flex-shrink: 0;
+    }
+    .qc-switch .knob {
+      position: absolute; top: 2px; left: 2px; width: 18px; height: 18px;
+      border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.25);
+      transition: left 0.15s;
+    }
+    .qc-switch[aria-checked="true"] { background: var(--green); border-color: var(--green); }
+    .qc-switch[aria-checked="true"] .knob { left: 20px; }
+    .qc-switch.busy { background: var(--amber); border-color: var(--amber); }
+    .qc-switch:disabled { opacity: 0.5; cursor: default; }
+    .qc-card .sync-now-status { font-size: 12px; margin-top: 6px; }
+    .qc-card .sync-now-status:empty { display: none; }
+    /* Configuration rows: label left, compact control right. */
+    .cfg-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    .cfg-row > label { font-size: 13px; font-weight: 600; color: var(--green-deep); flex-shrink: 0; }
+    .cfg-select { max-width: 130px; padding: 7px 10px; font-size: 13.5px; }
+    .rpt-selectors { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+    .rpt-line { display: flex; align-items: center; gap: 5px; justify-content: flex-end; }
+    .rpt-line .rpt-k { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--ink-soft); width: 34px; text-align: right; flex-shrink: 0; }
+    .rpt-line select { padding: 6px 6px; font-size: 13px; }
+    .cfg-card .hint { font-size: 11.5px; margin-top: 4px; }
+    .cfg-card .hint:empty { display: none; }
+    .btn-compact { padding: 8px 14px; font-size: 13.5px; }
+    /* Management / Data Management: compact nav rows to sub-screens. */
+    .settings-nav { padding: 2px 14px !important; }
+    .snav-btn {
+      display: flex; align-items: center; justify-content: space-between; width: 100%;
+      background: none; border: none; border-bottom: 1px solid var(--line);
+      padding: 11px 0; font-size: 14px; font-weight: 600; color: var(--green-deep);
+      cursor: pointer; text-align: left;
+    }
+    .snav-btn:last-of-type { border-bottom: none; }
+    .snav-btn .chev { color: var(--ink-soft); font-size: 17px; line-height: 1; }
+    .snav-btn.danger { color: var(--danger); }
+    .snav-btn:active { background: var(--cream-deep); }
+    /* Sign Out: standalone, full width, unmistakably red. */
+    .signout-btn {
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+      width: 100%; margin-top: 16px; padding: 13px;
+      background: rgba(178,58,58,0.08); color: var(--danger);
+      border: 1px solid rgba(178,58,58,0.35); border-radius: var(--radius);
+      font-size: 15px; font-weight: 700; cursor: pointer;
+    }
+    .signout-btn svg { width: 18px; height: 18px; }
+    .signout-btn:active { background: rgba(178,58,58,0.16); }
 
     /* Mode toggle in header */
     .mode-toggle {
@@ -1465,8 +1522,11 @@
       #view-add form, #view-add-pesticide form, #view-add-customer form,
       #view-add-schedule form, #view-add-job form, #view-add-appointment form,
       #view-estimate-builder, #view-add-customer .card, #view-export .card,
-      #view-settings .card { max-width: 640px; margin-left: auto; margin-right: auto; }
-      #view-export .card, #view-settings .card { margin-bottom: 14px; }
+      #view-settings .card, #view-settings .settings-group, #view-settings .signout-btn,
+      #view-settings-contractors .card, #view-settings-business .card,
+      #view-settings-licensing .card, #view-settings-pesticide-db .card
+      { max-width: 640px; margin-left: auto; margin-right: auto; }
+      #view-export .card { margin-bottom: 14px; }
 
       /* Landing page scales up for big screens. */
       .mode-picker-wrap { max-width: 760px; }
@@ -2899,56 +2959,149 @@
       </div>
     </section>
 
-    <!-- SETTINGS -->
+    <!-- SETTINGS (Item 5, v2-patch-2): compact admin panel — small uppercase
+         section headers, no large icons, no verbose copy. -->
     <section id="view-settings" class="view hidden">
-      <div class="settings-group first">Connections</div>
 
-      <div class="card" id="customerSyncCard">
-        <h3 style="margin-bottom:6px;">QuickBooks</h3>
-        <div class="conn-status" id="qbConnStatus"></div>
-        <p class="muted" style="font-size:14px;">One-way sync from QuickBooks into the shared customer directory. Contact details are updated from QuickBooks; the in-app <strong>Active</strong> flag is never changed by the sync. <strong>Connect</strong> once to authorize; after that the list syncs automatically every day, on app open, and on demand via <strong>Sync Now</strong>.</p>
-        <div class="btn-row" style="margin-top:12px;">
-          <a class="btn btn-primary" id="qbConnectBtn" href="https://us-central1-swr-tracker-54dfd.cloudfunctions.net/qbConnect" target="_blank" rel="noopener">Connect QuickBooks</a>
-          <button class="btn btn-ghost" id="syncNowBtn">Sync Now</button>
+      <!-- Section 1: Quick Controls -->
+      <div class="settings-group first">Quick Controls</div>
+      <div class="card qc-card">
+        <div class="qc-row">
+          <div class="qc-item">
+            <button type="button" class="qc-switch" id="qcQboReconnect" role="switch" aria-checked="false" aria-label="QBO Reconnect"><span class="knob"></span></button>
+            <span class="qc-label">QBO Reconnect</span>
+          </div>
+          <div class="qc-item">
+            <button type="button" class="qc-switch" id="qcQboSync" role="switch" aria-checked="false" aria-label="QBO Sync"><span class="knob"></span></button>
+            <span class="qc-label">QBO Sync</span>
+          </div>
+          <div class="qc-item">
+            <button type="button" class="qc-switch" id="qcEnablePush" role="switch" aria-checked="false" aria-label="Enable Notifications"><span class="knob"></span></button>
+            <span class="qc-label">Enable Notifications</span>
+          </div>
+          <div class="qc-item">
+            <button type="button" class="qc-switch" id="qcTestPush" role="switch" aria-checked="false" aria-label="Test Notifications"><span class="knob"></span></button>
+            <span class="qc-label">Test Notifications</span>
+          </div>
         </div>
         <div class="sync-now-status" id="syncNowStatus"></div>
-      </div>
-
-      <div class="card" id="notificationsCard">
-        <h3 style="margin-bottom:6px;">Notifications</h3>
-        <div class="conn-status" id="pushConnStatus"></div>
-        <p class="muted" style="font-size:14px;">Push notifications on this device for things like new job assignments. Tap <strong>Enable</strong> once per device and allow notifications when prompted — after that it stays on automatically.</p>
-        <div class="btn-row" style="margin-top:12px;">
-          <button class="btn btn-primary" id="enablePushBtn">Enable on this device</button>
-          <button class="btn btn-ghost" id="pushTestBtn" style="display:none;">Send test</button>
-        </div>
         <div class="sync-now-status" id="pushStatus"></div>
       </div>
 
-      <div class="card" id="photoRetentionCard">
-        <h3 style="margin-bottom:6px;">Camera Photos</h3>
-        <p class="muted" style="font-size:14px;">How long to keep camera photos in the app before they're automatically deleted.</p>
-        <div class="form-group" style="margin-top:10px; max-width:220px;">
-          <label for="photoRetentionDays">Keep photos for</label>
-          <select id="photoRetentionDays"></select>
+      <!-- Section 2: Configuration -->
+      <div class="settings-group">Configuration</div>
+      <div class="card cfg-card">
+        <div class="cfg-row">
+          <label for="photoRetentionDays">Days to Keep Photos</label>
+          <select id="photoRetentionDays" class="cfg-select"></select>
         </div>
         <div class="hint" id="photoRetentionHint"></div>
+        <hr class="div" style="margin:10px 0;">
+        <div class="cfg-row" style="align-items:flex-start;">
+          <label style="padding-top:6px;">Reporting Period</label>
+          <div class="rpt-selectors">
+            <div class="rpt-line">
+              <span class="rpt-k">Start</span>
+              <select id="rptStartMonth" aria-label="Start month"></select>
+              <select id="rptStartDay" aria-label="Start day"></select>
+              <select id="rptStartYear" aria-label="Start year"></select>
+            </div>
+            <div class="rpt-line">
+              <span class="rpt-k">End</span>
+              <select id="rptEndMonth" aria-label="End month"></select>
+              <select id="rptEndDay" aria-label="End day"></select>
+              <select id="rptEndYear" aria-label="End year"></select>
+            </div>
+          </div>
+        </div>
+        <div class="hint" id="rptHint"></div>
+        <div class="btn-row" id="rptActions" style="margin-top:8px;">
+          <button class="btn btn-primary btn-compact" id="saveRptBtn">Save Period</button>
+          <button class="btn btn-ghost btn-compact" id="resetRptBtn">KDFWR Default</button>
+        </div>
       </div>
 
-      <div class="settings-group">Business</div>
+      <!-- Section 3: Management -->
+      <div class="settings-group">Management</div>
+      <div class="card settings-nav">
+        <button type="button" class="snav-btn" data-settings-nav="settings-contractors">Contractors<span class="chev">›</span></button>
+        <button type="button" class="snav-btn" data-settings-nav="settings-business">Business Info<span class="chev">›</span></button>
+        <button type="button" class="snav-btn" data-settings-nav="settings-licensing">Licensing &amp; Permit Info<span class="chev">›</span></button>
+        <button type="button" class="snav-btn" id="pesticideDbNavBtn" data-settings-nav="settings-pesticide-db">Pesticide Database<span class="chev">›</span></button>
+      </div>
 
-      <div class="card" id="bizCard">
-        <h3 style="margin-bottom:10px;">Business</h3>
+      <!-- Section 4: Data Management -->
+      <div class="settings-group">Data Management</div>
+      <div class="card settings-nav">
+        <button type="button" class="snav-btn" id="assignLegacyBtn">Assign Legacy Records<span class="chev">›</span></button>
+        <button type="button" class="snav-btn" id="restoreBtn">Restore from JSON Backup<span class="chev">›</span></button>
+        <input type="file" id="restoreFile" accept="application/json" style="display:none">
+        <button type="button" class="snav-btn danger" id="wipeBtn">Clear All Records<span class="chev">›</span></button>
+      </div>
+
+      <!-- Section 5: Sign Out — standalone at the very bottom -->
+      <button type="button" class="signout-btn" id="signOutBtn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5"/><path d="M21 12H9"/></svg>
+        Sign Out
+      </button>
+      <div class="center muted" style="font-size:11.5px; line-height:1.5; margin:10px 0 4px;">
+        <span id="accountInfo">Not signed in</span><br>
+        Southern Wildlife Tracker · <span id="footerVersion">v1.28</span> · KDFWR Commercial NWCO compliance
+      </div>
+    </section>
+
+    <!-- SETTINGS → Contractors (Item 5) -->
+    <section id="view-settings-contractors" class="view hidden">
+      <div class="card">
+        <div id="operatorsList" class="biz-info"></div>
+      </div>
+      <div class="hint" style="margin:0 4px 12px;">Pending operators are sub-permitted under Jon Gassett's NWCO permit; their records are excluded from the annual KDFWR report until certified.</div>
+      <div class="form-actions"><button type="button" class="btn btn-cancel btn-ghost" data-settings-back>Back to Settings</button></div>
+    </section>
+
+    <!-- SETTINGS → Business Info (Item 5) -->
+    <section id="view-settings-business" class="view hidden">
+      <div class="card">
         <div id="bizDisplay" class="biz-info">
           <div class="biz-row"><span class="biz-label">Business</span><span class="biz-value" id="bizName">—</span></div>
-          <div class="biz-row"><span class="biz-label">NWCO Permit Holder</span><span class="biz-value" id="bizHolder">—</span></div>
-          <div class="biz-row"><span class="biz-label">NWCO Permit #</span><span class="biz-value mono" id="bizPermit">—</span></div>
+          <div class="biz-row"><span class="biz-label">Address</span><span class="biz-value" id="bizAddress">—</span></div>
+          <div class="biz-row"><span class="biz-label">Phone</span><span class="biz-value" id="bizPhone">—</span></div>
+          <div class="biz-row"><span class="biz-label">Email</span><span class="biz-value" id="bizEmail">—</span></div>
         </div>
         <div id="bizEdit" class="hidden">
           <div class="form-group">
             <label for="editBizName">Business Name</label>
             <input type="text" id="editBizName">
           </div>
+          <div class="form-group">
+            <label for="editBizAddress">Address</label>
+            <input type="text" id="editBizAddress" autocomplete="off">
+          </div>
+          <div class="field-row two">
+            <div class="form-group">
+              <label for="editBizPhone">Phone</label>
+              <input type="tel" id="editBizPhone" autocomplete="off">
+            </div>
+            <div class="form-group">
+              <label for="editBizEmail">Email</label>
+              <input type="email" id="editBizEmail" autocomplete="off">
+            </div>
+          </div>
+          <button class="btn btn-primary" id="saveBizBtn">Save Business Info</button>
+        </div>
+      </div>
+      <div class="form-actions"><button type="button" class="btn btn-cancel btn-ghost" data-settings-back>Back to Settings</button></div>
+    </section>
+
+    <!-- SETTINGS → Licensing & Permit Info (Item 5) -->
+    <section id="view-settings-licensing" class="view hidden">
+      <div class="card">
+        <h3 style="margin-bottom:8px; font-size:15px;">NWCO Permit (KDFWR)</h3>
+        <div id="permitDisplay" class="biz-info">
+          <div class="biz-row"><span class="biz-label">Permit Holder</span><span class="biz-value" id="bizHolder">—</span></div>
+          <div class="biz-row"><span class="biz-label">Permit #</span><span class="biz-value mono" id="bizPermit">—</span></div>
+        </div>
+        <div id="permitEdit" class="hidden">
           <div class="form-group">
             <label for="editBizHolder">NWCO Permit Holder</label>
             <input type="text" id="editBizHolder">
@@ -2957,18 +3110,11 @@
             <label for="editBizPermit">NWCO Permit Number</label>
             <input type="text" id="editBizPermit">
           </div>
-          <button class="btn btn-primary" id="saveBizBtn">Save Business Info</button>
+          <button class="btn btn-primary" id="savePermitBtn">Save Permit Info</button>
         </div>
       </div>
-
-      <div class="card" id="operatorsCard">
-        <h3 style="margin-bottom:10px;">Operators</h3>
-        <p class="muted" style="font-size:13px; margin-bottom:8px;">KDFWR WCO certification status. Pending operators are sub-permitted under Jon Gassett's permit — they can work and log records, but their records can't be submitted on the annual KDFWR report until they're certified.</p>
-        <div id="operatorsList" class="biz-info"></div>
-      </div>
-
-      <div class="card" id="certCard">
-        <h3 style="margin-bottom:10px;">Pesticide License Number</h3>
+      <div class="card">
+        <h3 style="margin-bottom:8px; font-size:15px;">Pesticide Applicator Licenses (KY Dept. of Agriculture)</h3>
         <div id="certDisplay" class="biz-info">
           <div class="biz-row"><span class="biz-label">Jon Gassett</span><span class="biz-value mono" id="certJon">—</span></div>
           <div class="biz-row"><span class="biz-label">Robin Gassett</span><span class="biz-value mono" id="certRobin">—</span></div>
@@ -2976,79 +3122,41 @@
           <div class="biz-row"><span class="biz-label">Tanya Clark</span><span class="biz-value mono" id="certTanya">—</span></div>
         </div>
         <div id="certEdit" class="hidden">
-          <p class="muted" style="font-size:13px; margin-bottom:10px;">KY Department of Agriculture pesticide applicator certification numbers. Leave a field blank to mark that applicator as not yet certified (their option will be disabled in the pesticide form).</p>
-          <div class="form-group">
-            <label for="editCertJon">Jon Gassett</label>
-            <input type="text" id="editCertJon" autocomplete="off">
-          </div>
-          <div class="form-group">
-            <label for="editCertRobin">Robin Gassett</label>
-            <input type="text" id="editCertRobin" autocomplete="off">
-          </div>
-          <div class="form-group">
-            <label for="editCertChris">Chris Griffith</label>
-            <input type="text" id="editCertChris" autocomplete="off" placeholder="(not yet certified)">
-          </div>
-          <div class="form-group">
-            <label for="editCertTanya">Tanya Clark</label>
-            <input type="text" id="editCertTanya" autocomplete="off" placeholder="(not yet certified)">
-          </div>
-          <button class="btn btn-primary" id="saveCertBtn">Save Certifications</button>
-        </div>
-      </div>
-
-      <div class="card" id="reportCard">
-        <h3 style="margin-bottom:10px;">Reporting Period</h3>
-        <div id="reportDisplay" class="biz-info">
-          <div class="biz-row"><span class="biz-label">Start</span><span class="biz-value" id="rptStart">—</span></div>
-          <div class="biz-row"><span class="biz-label">End</span><span class="biz-value" id="rptEnd">—</span></div>
-          <div class="biz-row"><span class="biz-label">Source</span><span class="biz-value muted" id="rptSource">KDFWR default</span></div>
-        </div>
-        <div id="reportEdit" class="hidden">
-          <p class="muted" style="font-size:13px; margin-bottom:10px;">Leave both fields blank to revert to the KDFWR default (Feb 1 – Jan 31). Any change is saved to the shared org config and applies to every trapper.</p>
+          <div class="hint" style="margin-bottom:8px;">Blank = not yet certified (disabled in the pesticide form).</div>
           <div class="field-row two">
             <div class="form-group">
-              <label for="editRptStart">Start Date</label>
-              <input type="date" id="editRptStart">
+              <label for="editCertJon">Jon Gassett</label>
+              <input type="text" id="editCertJon" autocomplete="off">
             </div>
             <div class="form-group">
-              <label for="editRptEnd">End Date</label>
-              <input type="date" id="editRptEnd">
+              <label for="editCertRobin">Robin Gassett</label>
+              <input type="text" id="editCertRobin" autocomplete="off">
             </div>
           </div>
-          <button class="btn btn-primary" id="saveRptBtn">Save Reporting Period</button>
+          <div class="field-row two">
+            <div class="form-group">
+              <label for="editCertChris">Chris Griffith</label>
+              <input type="text" id="editCertChris" autocomplete="off" placeholder="(not certified)">
+            </div>
+            <div class="form-group">
+              <label for="editCertTanya">Tanya Clark</label>
+              <input type="text" id="editCertTanya" autocomplete="off" placeholder="(not certified)">
+            </div>
+          </div>
+          <button class="btn btn-primary" id="saveCertBtn">Save Licenses</button>
         </div>
       </div>
+      <div class="form-actions"><button type="button" class="btn btn-cancel btn-ghost" data-settings-back>Back to Settings</button></div>
+    </section>
 
-      <div class="settings-group">Admin &amp; Data</div>
-
+    <!-- SETTINGS → Pesticide Database (Item 5) -->
+    <section id="view-settings-pesticide-db" class="view hidden">
       <div class="card hidden" id="pesticideDbCard">
-        <h3 style="margin-bottom:10px;">Pesticide Database</h3>
-        <p class="muted" style="font-size:13px; margin-bottom:14px;">Catalog of products available in the Pesticide Application form. Adds propagate to every device. Admin only.</p>
         <div id="pesticideList" style="margin-bottom: 14px;"></div>
         <button class="btn btn-amber" id="addPesticideBtn">+ Add Pesticide</button>
       </div>
-
-      <div class="card">
-        <h3 style="margin-bottom:10px;">Data Management</h3>
-        <button class="btn btn-ghost" id="assignLegacyBtn">Assign Legacy Records to Jobs</button>
-        <div class="hint" style="margin:4px 0 10px;">Group old trapping &amp; pesticide records that predate the Jobs module and attach them to job containers.</div>
-        <button class="btn btn-ghost" id="restoreBtn">Restore From JSON Backup</button>
-        <input type="file" id="restoreFile" accept="application/json" style="display:none">
-        <div style="height:10px"></div>
-        <button class="btn btn-danger" id="wipeBtn">Clear All Records</button>
-      </div>
-
-      <div class="card">
-        <h3 style="margin-bottom:10px;">Account</h3>
-        <div id="accountInfo" class="muted" style="font-size:13px; margin-bottom: 12px;">Not signed in</div>
-        <button class="btn btn-ghost" id="signOutBtn">Sign Out</button>
-      </div>
-
-      <div class="card center muted" style="font-size:12px;">
-        Southern Wildlife Tracker · <span id="footerVersion">v1.28</span><br>
-        Designed for KDFWR Commercial NWCO compliance.
-      </div>
+      <div class="hint" id="pesticideDbHint" style="margin:0 4px 12px;">Products, SDS and label PDFs offered in the Pesticide Application form. Admin only.</div>
+      <div class="form-actions"><button type="button" class="btn btn-cancel btn-ghost" data-settings-back>Back to Settings</button></div>
     </section>
   </main>
 
@@ -4273,27 +4381,19 @@ function showApp() {
   refreshAll();
 }
 
-/* Persistent connection/notification status shown on the Settings screen so the
-   setup buttons read as one-time actions, not chores. */
+/* Item 5 (v2-patch-2): Quick Controls switch states. Stateful switches show
+   real status (QBO connected, push permission); the momentary ones (Sync,
+   Test) flip on while running and settle back off. */
+function setQuickSwitch(id, on) {
+  const el = $('#' + id);
+  if (el) el.setAttribute('aria-checked', on ? 'true' : 'false');
+}
 function renderSettingsStatus() {
-  const qb = $('#qbConnStatus');
-  if (qb) {
-    const connected = cachedCustomers.some((c) => c.qbId);
-    qb.textContent = connected ? '✓ Connected — customers sync automatically' : 'Not connected yet — tap Connect QuickBooks below.';
-    qb.className = 'conn-status ' + (connected ? 'ok' : 'off');
-    const btn = $('#qbConnectBtn');
-    if (btn) btn.textContent = connected ? 'Reconnect QuickBooks' : 'Connect QuickBooks';
-  }
-  const pc = $('#pushConnStatus');
-  if (pc) {
-    const granted = ('Notification' in window) && Notification.permission === 'granted';
-    pc.textContent = granted ? '✓ Enabled on this device' : 'Not enabled on this device';
-    pc.className = 'conn-status ' + (granted ? 'ok' : 'off');
-    const testBtn = $('#pushTestBtn');
-    if (testBtn) testBtn.style.display = granted ? '' : 'none';
-    const enableBtn = $('#enablePushBtn');
-    if (enableBtn) enableBtn.textContent = granted ? 'Re-enable on this device' : 'Enable on this device';
-  }
+  setQuickSwitch('qcQboReconnect', cachedCustomers.some((c) => c.qbId));
+  setQuickSwitch('qcEnablePush', ('Notification' in window) && Notification.permission === 'granted');
+  /* Pesticide Database management is admin-only. */
+  const dbBtn = $('#pesticideDbNavBtn');
+  if (dbBtn) dbBtn.style.display = isAdmin() ? '' : 'none';
 }
 
 /* Live counts on the three landing-page module cards. */
@@ -4525,20 +4625,22 @@ function subscribeToOrg() {
   }, (err) => console.error('Org subscription error', err));
 }
 
-/* Camera-photo retention control (1–30 days). Admin sets it; everyone sees it. */
+/* Camera-photo retention control. Item 5 (v2-patch-2): options are 1–14
+   days per spec (values previously stored above 14 display clamped until
+   the admin re-saves). Admin sets it; everyone sees it. */
 function renderPhotoRetentionCard() {
   const sel = $('#photoRetentionDays');
   if (!sel) return;
   if (!sel.options.length) {
-    for (let d = 1; d <= 30; d++) {
+    for (let d = 1; d <= 14; d++) {
       const o = document.createElement('option');
       o.value = String(d);
       o.textContent = d === 1 ? '1 day' : `${d} days`;
       sel.appendChild(o);
     }
   }
-  const days = Number(orgSettings && orgSettings.photoRetentionDays) || 30;
-  sel.value = String(Math.min(30, Math.max(1, days)));
+  const days = Number(orgSettings && orgSettings.photoRetentionDays) || 14;
+  sel.value = String(Math.min(14, Math.max(1, days)));
   const admin = isAdmin();
   sel.disabled = !admin;
   const hint = $('#photoRetentionHint');
@@ -5831,7 +5933,9 @@ const VIEW_TITLES = {
   jobs:      { dashboard: 'Jobs', add: 'New Job', 'job-detail': 'Job', 'add-appointment': 'New Appointment', 'appointment-detail': 'Appointment', 'add-task': 'New Task', 'task-detail': 'Task' },
   field:     { dashboard: 'Monitoring' },
   schedule:  { dashboard: 'Calendar', add: 'New Task', 'edit-legacy': 'Edit Job', 'add-appointment': 'New Appointment', 'appointment-detail': 'Appointment', 'job-detail': 'Job', 'add-task': 'New Task', 'task-detail': 'Task' },
-  settings:  { dashboard: 'Settings', 'assign-legacy': 'Assign Legacy Records' },
+  settings:  { dashboard: 'Settings', 'assign-legacy': 'Assign Legacy Records',
+               'settings-contractors': 'Contractors', 'settings-business': 'Business Info',
+               'settings-licensing': 'Licensing & Permits', 'settings-pesticide-db': 'Pesticide Database' },
   allrecords: { dashboard: 'View Records' }
 };
 
@@ -5851,6 +5955,7 @@ function setView(name, opts) {
    'field','field-detail','schedule','add-schedule','schedule-detail',
    'jobs','add-job','job-detail','add-appointment','appointment-detail','assign-legacy',
    'add-task','task-detail',
+   'settings-contractors','settings-business','settings-licensing','settings-pesticide-db',
    'notifications','records-all','export','settings'].forEach((v) => {
     const el = document.getElementById(`view-${v}`);
     if (el) el.classList.add('hidden');
@@ -5930,6 +6035,11 @@ function setView(name, opts) {
   }
   if (name === 'assign-legacy') renderAssignLegacyView();
   if (name === 'settings' || appMode === 'settings') renderSettingsStatus();
+  /* Item 5 (v2-patch-2): settings sub-screens re-render on open so the
+     admin edit/display toggle is always current. */
+  if (name === 'settings-contractors') renderOperatorsCard();
+  if (name === 'settings-business' || name === 'settings-licensing') { renderBusinessCard(); renderCertCard(); }
+  if (name === 'settings-pesticide-db') renderPesticideAdminList();
   /* Pesticide-form map: lazy, only when its group is already visible
      (Item 15 parity, H3 — the map opens exclusively via "Locate on Map"
      or when editing a record that has coordinates). */
@@ -7671,36 +7781,100 @@ async function loadSettings() {
   currentSettings = { ...SETTINGS_DEFAULTS };
 }
 
+/* Item 5 (v2-patch-2): Business Info and Licensing/Permit sub-screens. */
 function renderBusinessCard() {
   $('#bizName').textContent = orgSettings.businessName;
+  $('#bizAddress').textContent = orgSettings.businessAddress || '—';
+  $('#bizPhone').textContent = orgSettings.businessPhone || '—';
+  $('#bizEmail').textContent = orgSettings.businessEmail || '—';
+  $('#editBizName').value = orgSettings.businessName;
+  $('#editBizAddress').value = orgSettings.businessAddress || '';
+  $('#editBizPhone').value = orgSettings.businessPhone || '';
+  $('#editBizEmail').value = orgSettings.businessEmail || '';
   $('#bizHolder').textContent = orgSettings.permitHolder;
   $('#bizPermit').textContent = orgSettings.permitNumber;
-  $('#editBizName').value = orgSettings.businessName;
   $('#editBizHolder').value = orgSettings.permitHolder;
   $('#editBizPermit').value = orgSettings.permitNumber;
   /* Toggle edit vs display based on admin. */
   $('#bizDisplay').classList.toggle('hidden', isAdmin());
   $('#bizEdit').classList.toggle('hidden', !isAdmin());
+  $('#permitDisplay').classList.toggle('hidden', isAdmin());
+  $('#permitEdit').classList.toggle('hidden', !isAdmin());
 }
 
+/* Item 5 (v2-patch-2): reporting period as compact day/month/year dropdowns
+   on the Settings Configuration card. Defaults to the KDFWR Feb 1 – Jan 31
+   period; admin-set custom dates are stored in the same org fields as
+   before, so dashboard stats and CSV exports (both Trapping and Pesticide
+   modules) keep using reportPeriod() unchanged. */
+const RPT_MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+function fillRptSelectors(prefix, iso) {
+  const [y, m, d] = (iso || '').split('-').map(Number);
+  const mSel = $(`#rpt${prefix}Month`), dSel = $(`#rpt${prefix}Day`), ySel = $(`#rpt${prefix}Year`);
+  if (!mSel || !dSel || !ySel) return;
+  if (!mSel.options.length) {
+    RPT_MONTHS.forEach((name, i) => {
+      const o = document.createElement('option');
+      o.value = String(i + 1); o.textContent = name;
+      mSel.appendChild(o);
+    });
+    for (let day = 1; day <= 31; day++) {
+      const o = document.createElement('option');
+      o.value = String(day); o.textContent = String(day);
+      dSel.appendChild(o);
+    }
+  }
+  /* Years re-fill each render so the range tracks the current period. */
+  const thisYear = new Date().getFullYear();
+  ySel.innerHTML = '';
+  for (let yr = thisYear - 2; yr <= thisYear + 2; yr++) {
+    const o = document.createElement('option');
+    o.value = String(yr); o.textContent = String(yr);
+    ySel.appendChild(o);
+  }
+  if (y && !Array.from(ySel.options).some((o) => o.value === String(y))) {
+    const o = document.createElement('option');
+    o.value = String(y); o.textContent = String(y);
+    ySel.appendChild(o);
+  }
+  if (m) mSel.value = String(m);
+  if (d) dSel.value = String(d);
+  if (y) ySel.value = String(y);
+}
+function readRptSelectors(prefix) {
+  const m = parseInt($(`#rpt${prefix}Month`).value, 10);
+  const d = parseInt($(`#rpt${prefix}Day`).value, 10);
+  const y = parseInt($(`#rpt${prefix}Year`).value, 10);
+  if (!m || !d || !y) return null;
+  return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+}
 function renderReportingCard() {
   const p = reportPeriod();
-  $('#rptStart').textContent = fmtDate(p.start);
-  $('#rptEnd').textContent = fmtDate(p.end);
-  $('#rptSource').textContent = (orgSettings.reportingPeriodStart && orgSettings.reportingPeriodEnd)
-    ? 'Custom (admin set)' : 'KDFWR default (Feb 1 – Jan 31)';
-  $('#editRptStart').value = orgSettings.reportingPeriodStart || '';
-  $('#editRptEnd').value = orgSettings.reportingPeriodEnd || '';
-  $('#reportDisplay').classList.toggle('hidden', isAdmin());
-  $('#reportEdit').classList.toggle('hidden', !isAdmin());
+  fillRptSelectors('Start', p.start);
+  fillRptSelectors('End', p.end);
+  const custom = !!(orgSettings.reportingPeriodStart && orgSettings.reportingPeriodEnd);
+  const hint = $('#rptHint');
+  if (hint) {
+    hint.textContent = isAdmin()
+      ? (custom ? 'Custom period (admin set) — applies to dashboards and CSV exports for both modules.'
+                : 'KDFWR default (Feb 1 – Jan 31).')
+      : 'Only an admin can change the reporting period.';
+  }
+  const admin = isAdmin();
+  ['rptStartMonth', 'rptStartDay', 'rptStartYear', 'rptEndMonth', 'rptEndDay', 'rptEndYear'].forEach((id) => {
+    const el = $('#' + id); if (el) el.disabled = !admin;
+  });
+  const actions = $('#rptActions');
+  if (actions) actions.style.display = admin ? '' : 'none';
 }
 
 async function handleSaveBusiness() {
   if (!isAdmin()) return;
   const newBiz = {
     businessName: $('#editBizName').value.trim() || BUSINESS_NAME,
-    permitHolder: $('#editBizHolder').value.trim() || PERMIT_HOLDER,
-    permitNumber: $('#editBizPermit').value.trim() || PERMIT_NUMBER
+    businessAddress: $('#editBizAddress').value.trim(),
+    businessPhone: $('#editBizPhone').value.trim(),
+    businessEmail: $('#editBizEmail').value.trim()
   };
   const ok = await confirmDialog(
     'Save business info?',
@@ -7711,6 +7885,27 @@ async function handleSaveBusiness() {
   try {
     await saveOrgConfig(newBiz);
     toast('Business info saved');
+  } catch (err) {
+    toast(`Save failed: ${err.message || err}`, 'error');
+  }
+}
+
+/* Item 5: NWCO permit holder/number moved to the Licensing sub-screen. */
+async function handleSavePermit() {
+  if (!isAdmin()) return;
+  const newPermit = {
+    permitHolder: $('#editBizHolder').value.trim() || PERMIT_HOLDER,
+    permitNumber: $('#editBizPermit').value.trim() || PERMIT_NUMBER
+  };
+  const ok = await confirmDialog(
+    'Save permit info?',
+    `This updates the shared NWCO permit record used on reports. Type CONFIRM to proceed.`,
+    { sentinel: 'CONFIRM', okText: 'Save' }
+  );
+  if (!ok) return;
+  try {
+    await saveOrgConfig(newPermit);
+    toast('Permit info saved');
   } catch (err) {
     toast(`Save failed: ${err.message || err}`, 'error');
   }
@@ -8879,30 +9074,44 @@ async function deletePesticide(id) {
   }
 }
 
+/* Item 5 (v2-patch-2): reads the day/month/year dropdowns; storage fields
+   and reportPeriod() semantics are unchanged. */
 async function handleSaveReporting() {
   if (!isAdmin()) return;
-  const start = $('#editRptStart').value;
-  const end = $('#editRptEnd').value;
-  if ((start && !end) || (!start && end)) {
-    toast('Set both start and end, or leave both blank for the KDFWR default.', 'error');
+  const start = readRptSelectors('Start');
+  const end = readRptSelectors('End');
+  if (!start || !end) {
+    toast('Pick both start and end dates.', 'error');
     return;
   }
-  if (start && end && start > end) {
+  if (start > end) {
     toast('Start date must come before end date.', 'error');
     return;
   }
-  const reverting = !start && !end;
-  const body = reverting
-    ? 'This reverts the reporting period to the KDFWR default (Feb 1 – Jan 31, auto-computed). Type CONFIRM to proceed.'
-    : `Set reporting period to ${fmtDate(start)} – ${fmtDate(end)}. This applies to every trapper's dashboard and KDFWR export. Type CONFIRM to proceed.`;
+  const body = `Set reporting period to ${fmtDate(start)} – ${fmtDate(end)}. This applies to every trapper's dashboard stats and CSV exports (Trapping and Pesticide). Type CONFIRM to proceed.`;
   const ok = await confirmDialog('Save reporting period?', body, { sentinel: 'CONFIRM', okText: 'Save' });
   if (!ok) return;
   try {
     await saveOrgConfig({
-      reportingPeriodStart: start || null,
-      reportingPeriodEnd: end || null
+      reportingPeriodStart: start,
+      reportingPeriodEnd: end
     });
     toast('Reporting period saved');
+  } catch (err) {
+    toast(`Save failed: ${err.message || err}`, 'error');
+  }
+}
+
+/* Item 5: revert to the auto-computed KDFWR default (Feb 1 – Jan 31). */
+async function handleResetReporting() {
+  if (!isAdmin()) return;
+  const ok = await confirmDialog('Revert to KDFWR default?',
+    'This clears the custom period and returns to the auto-computed KDFWR default (Feb 1 – Jan 31). Type CONFIRM to proceed.',
+    { sentinel: 'CONFIRM', okText: 'Revert' });
+  if (!ok) return;
+  try {
+    await saveOrgConfig({ reportingPeriodStart: null, reportingPeriodEnd: null });
+    toast('Reporting period reset to KDFWR default');
   } catch (err) {
     toast(`Save failed: ${err.message || err}`, 'error');
   }
@@ -12607,8 +12816,17 @@ async function init() {
   $('#exportRange').addEventListener('click', exportRange);
 
   $('#saveBizBtn').addEventListener('click', handleSaveBusiness);
+  $('#savePermitBtn').addEventListener('click', handleSavePermit);   /* Item 5 */
   $('#saveRptBtn').addEventListener('click', handleSaveReporting);
+  $('#resetRptBtn').addEventListener('click', handleResetReporting); /* Item 5 */
   $('#saveCertBtn').addEventListener('click', handleSaveCerts);
+
+  /* Item 5 (v2-patch-2): Settings sub-screen navigation. */
+  $('#view-settings').addEventListener('click', (e) => {
+    const nav = e.target.closest('[data-settings-nav]');
+    if (nav) setView(nav.dataset.settingsNav);
+  });
+  $$('[data-settings-back]').forEach((b) => b.addEventListener('click', () => setView('dashboard')));
 
   /* Pesticide DB CRUD wiring */
   $('#addPesticideBtn').addEventListener('click', () => openPesticideEditor(null));
@@ -12872,9 +13090,39 @@ async function init() {
   /* Item 1: Get Directions — follows the address field live. */
   $('#getDirectionsBtn').addEventListener('click', openDirectionsToCustomer);
   $('#c-address').addEventListener('input', updateGetDirectionsBtn);
-  $('#syncNowBtn').addEventListener('click', handleSyncNow);
-  $('#enablePushBtn').addEventListener('click', enablePushNotifications);
-  $('#pushTestBtn').addEventListener('click', sendTestNotification);
+  /* Item 5 (v2-patch-2): Quick Controls switches. QBO Sync and Test
+     Notifications are momentary — they flip on while running and settle
+     back off; QBO Reconnect and Enable Notifications reflect real state. */
+  const qcMomentary = async (id, fn) => {
+    const sw = $('#' + id);
+    if (!sw || sw.disabled) return;
+    sw.disabled = true;
+    sw.setAttribute('aria-checked', 'true');
+    sw.classList.add('busy');
+    try { await fn(); } finally {
+      sw.classList.remove('busy');
+      sw.disabled = false;
+      sw.setAttribute('aria-checked', 'false');
+      renderSettingsStatus();
+    }
+  };
+  $('#qcQboReconnect').addEventListener('click', () => {
+    window.open('https://us-central1-swr-tracker-54dfd.cloudfunctions.net/qbConnect', '_blank', 'noopener');
+    toast('Finish the QuickBooks authorization in the new tab, then run QBO Sync.');
+  });
+  $('#qcQboSync').addEventListener('click', () => qcMomentary('qcQboSync', handleSyncNow));
+  $('#qcEnablePush').addEventListener('click', async () => {
+    const sw = $('#qcEnablePush');
+    if (sw.disabled) return;
+    sw.disabled = true;
+    sw.classList.add('busy');
+    try { await enablePushNotifications(); } finally {
+      sw.classList.remove('busy');
+      sw.disabled = false;
+      renderSettingsStatus();
+    }
+  });
+  $('#qcTestPush').addEventListener('click', () => qcMomentary('qcTestPush', sendTestNotification));
   $('#photoRetentionDays').addEventListener('change', async (e) => {
     const days = parseInt(e.target.value, 10);
     if (!Number.isFinite(days)) return;
@@ -13324,7 +13572,7 @@ async function init() {
       $('#accountInfo').innerHTML = `Signed in as <strong>${escapeHtml(user.email)}</strong>${adminFlag}` +
         (trapper ? `<br><span class="muted">Trapper: ${escapeHtml(trapper)}</span>` : '') +
         `<br><span class="muted" style="font-size:12px;">App version: ${escapeHtml(APP_VERSION)}</span>`;
-      $('#wipeBtn').style.display = isAdmin() ? 'block' : 'none';
+      $('#wipeBtn').style.display = isAdmin() ? 'flex' : 'none';   /* Item 5: snav row */
       $('#pesticideDbCard').classList.toggle('hidden', !isAdmin());
       try { await maybeMigrateLocalRecords(); } catch (e) { console.error('Migration error', e); }
       subscribeToRecords();
