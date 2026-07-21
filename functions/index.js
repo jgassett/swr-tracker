@@ -878,6 +878,28 @@ async function maybeSendCameraAlert(docRef, existingData, condKey, body, related
   return true;
 }
 
+/* Item 3 (v2-patch-1): Mapbox address autocomplete — the public token is
+ * served from Secret Manager so it is never hardcoded in the client bundle.
+ * The client fetches it once per session via this authenticated callable; if
+ * the secret is missing or the call fails, the app silently falls back to
+ * manual address entry.
+ *
+ * TODO: add the Mapbox public token to Firebase Secret Manager before the
+ * next functions deploy (token value to be provided separately):
+ *   firebase functions:secrets:set MAPBOX_PUBLIC_TOKEN
+ */
+exports.getMapboxToken = functions
+  .region(REGION)
+  .runWith({ secrets: ['MAPBOX_PUBLIC_TOKEN'], memory: '256MB' })
+  .https.onCall(async (data, context) => {
+    if (!context.auth) throw new functions.https.HttpsError('unauthenticated', 'Sign in required.');
+    const token = process.env.MAPBOX_PUBLIC_TOKEN || '';
+    if (!token) {
+      throw new functions.https.HttpsError('failed-precondition', 'Mapbox token not configured.');
+    }
+    return { token };
+  });
+
 /* Send a test push to the caller's own devices (verifies the whole pipeline). */
 exports.sendTestPush = functions
   .region(REGION)

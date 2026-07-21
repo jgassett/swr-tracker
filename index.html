@@ -1275,7 +1275,9 @@
       box-shadow: inset 0 0 0 2px var(--amber);
       border-radius: 8px;
     }
-    .loc-entry { display: flex; gap: 8px; margin-top: 8px; align-items: stretch; }
+    .loc-entry { display: flex; gap: 8px; margin-top: 8px; align-items: stretch; position: relative; }
+    /* Item 3: Mapbox suggestion list under the address-entry inputs. */
+    .loc-entry .autocomplete-list { top: calc(100% + 2px); }
     .loc-entry input { flex: 1; min-width: 0; }
     .loc-entry .map-btn { flex-shrink: 0; }
     input[readonly]#f-address, input[readonly]#f-release-address {
@@ -1821,6 +1823,7 @@
           <div class="loc-entry hidden" id="trapLocEntry">
             <input type="text" id="trapLocInput" placeholder="123 Main St, Lexington — or 38.02, -84.50" autocomplete="off">
             <button type="button" class="map-btn" id="trapLocGo">Set</button>
+            <div class="autocomplete-list hidden" id="trapLocInput-ac"></div>
           </div>
           <div class="hint" id="addressValidationHint"></div>
           <div class="customer-suggest-banner" id="trapCustomerSuggest">
@@ -1898,6 +1901,7 @@
             <div class="loc-entry hidden" id="releaseLocEntry">
               <input type="text" id="releaseLocInput" placeholder="Address — or 38.02, -84.50" autocomplete="off">
               <button type="button" class="map-btn" id="releaseLocGo">Set</button>
+              <div class="autocomplete-list hidden" id="releaseLocInput-ac"></div>
             </div>
             <div class="hint" id="releaseLocHint"></div>
           </div>
@@ -2362,7 +2366,10 @@
         <h3 class="form-section">Address</h3>
         <div class="form-group">
           <label for="c-address">Street Address</label>
-          <input type="text" id="c-address" autocomplete="off">
+          <div class="autocomplete-wrap">
+            <input type="text" id="c-address" autocomplete="off">
+            <div class="autocomplete-list hidden" id="c-address-ac"></div>
+          </div>
         </div>
         <div class="field-row two">
           <div class="form-group">
@@ -6571,6 +6578,137 @@ async function forwardGeocode(query) {
       formattedAddress: composed || r.display_name
     };
   } catch (e) { return null; }
+}
+
+/* =====================================================================
+ * Item 3 (v2-patch-1): Mapbox address autocomplete.
+ * ---------------------------------------------------------------------
+ * As the operator types a street address, the Mapbox Geocoding API is
+ * queried with a Kentucky proximity bias (-84.5, 37.8) and up to five
+ * matches are offered in a dropdown. Picking one fills the field and
+ * silently extracts the county from the response context. The public
+ * token is NEVER hardcoded here — it's fetched once per session from the
+ * getMapboxToken callable, which reads it from Firebase Secret Manager.
+ * TODO: the Mapbox public token still needs to be added to Firebase
+ * Secret Manager (MAPBOX_PUBLIC_TOKEN) — value provided separately.
+ * If the token or the Mapbox API is unavailable, autocomplete silently
+ * disables itself and manual entry keeps working unchanged.
+ * ===================================================================== */
+const MAPBOX_GEOCODE_BASE = 'https://api.mapbox.com/geocoding/v5/mapbox.places';
+const MAPBOX_PROXIMITY = '-84.5,37.8';   /* longitude,latitude — central KY */
+let mapboxToken = null;
+let mapboxTokenPromise = null;
+
+function ensureMapboxToken() {
+  if (mapboxToken) return Promise.resolve(mapboxToken);
+  if (!mapboxTokenPromise) {
+    mapboxTokenPromise = httpsCallable(fbFunctions, 'getMapboxToken')()
+      .then((res) => {
+        mapboxToken = (res && res.data && res.data.token) || null;
+        return mapboxToken;
+      })
+      .catch((err) => {
+        console.warn('Mapbox token unavailable — address autocomplete disabled; manual entry unaffected', err);
+        return null;
+      });
+  }
+  return mapboxTokenPromise;
+}
+
+function mapboxCtx(f, prefix) {
+  const hit = (Array.isArray(f.context) ? f.context : [])
+    .find((c) => String(c.id || '').startsWith(prefix + '.'));
+  return hit ? (hit.text || '') : '';
+}
+
+/* County lives in the `district` context entry for US results; fall back to
+   scanning the place_name components. */
+function mapboxCounty(f) {
+  const district = mapboxCtx(f, 'district');
+  if (district) return district.replace(/\s+County$/i, '').trim();
+  const m = String(f.place_name || '').match(/([A-Za-z .'-]+?)\s+County/);
+  return m ? m[1].trim() : '';
+}
+
+async function mapboxSuggest(query) {
+  const q = (query || '').trim();
+  if (q.length < 3) return [];
+  const token = await ensureMapboxToken();
+  if (!token) return [];
+  const url = `${MAPBOX_GEOCODE_BASE}/${encodeURIComponent(q)}.json` +
+    `?access_token=${encodeURIComponent(token)}&autocomplete=true&limit=5` +
+    `&country=us&types=address&proximity=${MAPBOX_PROXIMITY}`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`Mapbox geocoding ${res.status}`);
+  const data = await res.json();
+  return (data.features || []).map((f) => ({
+    placeName: String(f.place_name || '').replace(/,\s*United States$/i, ''),
+    street: f.address ? `${f.address} ${f.text || ''}`.trim() : (f.text || ''),
+    city: mapboxCtx(f, 'place'),
+    zip: mapboxCtx(f, 'postcode'),
+    state: mapboxCtx(f, 'region'),
+    county: mapboxCounty(f),
+    lat: Array.isArray(f.center) ? f.center[1] : null,
+    lng: Array.isArray(f.center) ? f.center[0] : null
+  }));
+}
+
+/* Shape a Mapbox suggestion like reverseGeocode()'s result so the existing
+   site handlers (silent county capture etc.) can consume it directly. */
+function mapboxGeoHint(s) {
+  return {
+    streetAddress: s.street || '',
+    city: s.city || '',
+    county: s.county || '',
+    state: s.state || '',
+    formattedAddress: s.placeName || ''
+  };
+}
+
+/* Debounced dropdown on an address input. onPick(suggestion) applies it. */
+function wireMapboxAutocomplete(inputId, listId, onPick) {
+  const input = document.getElementById(inputId);
+  const listEl = document.getElementById(listId);
+  if (!input || !listEl) return;
+  let timer = null;
+  let seq = 0;
+  const hide = () => { listEl.classList.add('hidden'); listEl.innerHTML = ''; };
+  const render = (items) => {
+    if (!items.length) { hide(); return; }
+    listEl.innerHTML = items.map((s, i) => `
+      <div class="autocomplete-item" data-mb-index="${i}">
+        <div class="ac-name">${escapeHtml(s.street || s.placeName)}</div>
+        <div class="ac-sub">${escapeHtml([s.city, s.state, s.zip].filter(Boolean).join(', '))}</div>
+      </div>`).join('');
+    listEl.classList.remove('hidden');
+    listEl._mbItems = items;
+  };
+  input.addEventListener('input', () => {
+    const q = input.value;
+    clearTimeout(timer);
+    if (q.trim().length < 3) { hide(); return; }
+    timer = setTimeout(async () => {
+      const mySeq = ++seq;
+      try {
+        const items = await mapboxSuggest(q);
+        if (mySeq !== seq) return;               /* a newer query superseded this one */
+        if (document.activeElement !== input) return;
+        render(items);
+      } catch (err) {
+        /* Mapbox unavailable — fall back gracefully to manual entry. */
+        if (mySeq === seq) hide();
+      }
+    }, 250);
+  });
+  input.addEventListener('blur', () => setTimeout(hide, 180));
+  listEl.addEventListener('mousedown', (e) => {
+    const item = e.target.closest('[data-mb-index]');
+    if (!item) return;
+    e.preventDefault();   /* fires before blur — keep the list from closing first */
+    const s = (listEl._mbItems || [])[parseInt(item.dataset.mbIndex, 10)];
+    hide();
+    if (s && onPick) onPick(s);
+  });
 }
 
 function setMapStatus(id, text, type = '') {
@@ -11764,6 +11902,26 @@ async function init() {
   wireAutocomplete('f-client-name', 'f-client-name-ac', applyCustomerToTrapForm);
   /* f-address is a read-only location display now (Item 15) — no autocomplete. */
   wireAutocomplete('pa-client-name', 'pa-client-name-ac', applyCustomerToPesticideForm);
+
+  /* ---- Item 3: Mapbox address autocomplete ---- */
+  wireMapboxAutocomplete('c-address', 'c-address-ac', (s) => {
+    $('#c-address').value = s.street || s.placeName;
+    if (s.city) $('#c-city').value = s.city;
+    if (s.zip) $('#c-zip').value = s.zip;
+    /* County: silently stored via the county select (existing customer field). */
+    if (s.county) selectCountyIfKnown('c-county', s.county);
+    updateGetDirectionsBtn();
+  });
+  wireMapboxAutocomplete('trapLocInput', 'trapLocInput-ac', (s) => {
+    $('#trapLocInput').value = s.placeName;
+    /* Route through the site handler so the address, coordinates, and the
+       silently-captured county all land exactly as with the Set button. */
+    if (s.lat != null && s.lng != null) setTrapLocation(s.lat, s.lng, mapboxGeoHint(s));
+  });
+  wireMapboxAutocomplete('releaseLocInput', 'releaseLocInput-ac', (s) => {
+    $('#releaseLocInput').value = s.placeName;
+    if (s.lat != null && s.lng != null) setReleaseLocation(s.lat, s.lng, mapboxGeoHint(s));
+  });
   wireAutocomplete('pa-client-address', 'pa-client-address-ac', applyCustomerToPesticideForm);
   wireAutocomplete('j-customer', 'j-customer-ac', applyJobCustomer);
 
@@ -12119,6 +12277,7 @@ async function init() {
       showLanding();
       /* Persistent notifications + sync — no manual re-tapping each launch. */
       autoEnablePushIfGranted();
+      ensureMapboxToken();   /* Item 3: prefetch so the first keystroke isn't delayed */
       autoSyncOnOpen(true);
       flushPendingPhotos();
       updatePendingPhotoIndicator();
