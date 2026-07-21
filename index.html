@@ -6605,94 +6605,11 @@ function matchingOptionValue(selectId, value) {
   return match ? match.value : null;
 }
 
-async function maybeConfirmCounty(selectId, detectedCounty, fieldLabel) {
-  /* Returns true if county was set (either now or already matching). */
-  if (!detectedCounty) return false;
-  const sel = $('#' + selectId);
-  if (!sel) return false;
-  const match = matchingOptionValue(selectId, detectedCounty);
-  if (!match) return false;
-  if (sel.value === match) return true;  /* already set, no dialog needed */
-  const ok = await confirmDialog(
-    `Detected: ${match} County`,
-    `Use "${match}" for ${fieldLabel}?`,
-    { okText: 'Yes, use it' }
-  );
-  if (ok) {
-    sel.value = match;
-    return true;
-  }
-  return false;
-}
-
-function autoScrollPastMap(targetFieldId) {
-  setTimeout(() => {
-    const el = document.getElementById(targetFieldId);
-    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-  }, 250);
-}
-
-async function validateAddressOnBlur() {
-  const addressInput = $('#f-address');
-  const hint = $('#addressValidationHint');
-  if (!hint) return;
-  const addr = addressInput.value.trim();
-  if (!addr) {
-    hint.textContent = '';
-    hint.className = 'hint';
-    return;
-  }
-  /* If the address was auto-filled by a map pin, it's already verified. */
-  if (addressInput.dataset.fromMap === '1') {
-    hint.textContent = '✓ Verified via map pin';
-    hint.className = 'hint success';
-    return;
-  }
-  /* Skip if we've already validated this exact value. */
-  if (addressInput.dataset.lastValidated === addr) return;
-
-  hint.textContent = 'Validating address…';
-  hint.className = 'hint working';
-
-  const lower = addr.toLowerCase();
-  const query = (lower.includes(' ky') || lower.includes('kentucky')) ? addr : addr + ', Kentucky';
-
-  let geo;
-  try { geo = await forwardGeocode(query); }
-  catch (e) {
-    hint.textContent = 'Validator offline — address not checked.';
-    hint.className = 'hint error';
-    return;
-  }
-  if (!geo) {
-    hint.textContent = '⚠ Address not found. Verify the spelling, or drop a pin on the map below.';
-    hint.className = 'hint error';
-    return;
-  }
-  addressInput.dataset.lastValidated = addr;
-  /* Store coords so they flow into the CSV / KDFWR export. */
-  $('#f-trap-lat').value = geo.lat;
-  $('#f-trap-lng').value = geo.lng;
-  const summary = [geo.streetAddress, geo.city, geo.state].filter(Boolean).join(', ');
-  hint.textContent = `✓ Verified: ${summary || geo.formattedAddress}`;
-  hint.className = 'hint success';
-  /* Drop the pin on the map for visual confirmation (only if no pin yet). */
-  if (trapMapInstance && !trapMapInstance.getLocation()) {
-    trapMapInstance.setLocation(geo.lat, geo.lng, { notify: false });
-  }
-  /* Offer to auto-select the county. */
-  if (geo.county) {
-    const match = matchingOptionValue('f-county', geo.county);
-    if (match && $('#f-county').value !== match) {
-      const ok = await confirmDialog(
-        `Detected: ${match} County`,
-        `Address resolved to ${match} County. Use it for County of Collection?`,
-        { okText: 'Yes, use it' }
-      );
-      if (ok) $('#f-county').value = match;
-    }
-  }
-}
+/* Item 2 (v2-patch-1): the county-confirmation dialogs (maybeConfirmCounty,
+   validateAddressOnBlur) were removed — dead code since Item 15, and they
+   surfaced the county as a user-facing question. County capture is silent
+   everywhere; the manual dropdown appears only when geocoding returns no
+   county at all. */
 
 /* Item 15: the capture-site county is captured SILENTLY from whichever of
    the three location methods the operator uses — no confirmation dialog, no
@@ -6737,9 +6654,16 @@ async function handleTrapLocationChange(lat, lng, source, geoHint) {
     if (geo.county) {
       silentTrapCounty = geo.county;
       const match = matchingOptionValue('f-county', geo.county);
-      if (match) $('#f-county').value = match;
+      /* Sync the hidden value holder; clear it when the derived county has
+         no dropdown match so a stale previous pick can't shadow the silent
+         value (Item 2). */
+      $('#f-county').value = match || '';
       setCountyFallback('trapCountyGroup', false);
     } else {
+      /* No county for the NEW location — a silent county from a previous
+         location must not override the manual fallback pick (Item 2). */
+      silentTrapCounty = null;
+      $('#f-county').value = '';
       setCountyFallback('trapCountyGroup', true);
     }
     const okText = `✓ ${geo.formattedAddress || `Location saved (${lat.toFixed(5)}, ${lng.toFixed(5)})`}`;
@@ -6753,6 +6677,9 @@ async function handleTrapLocationChange(lat, lng, source, geoHint) {
     if (addressInput && !addressInput.value.trim()) {
       addressInput.value = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
     }
+    /* Geocoder failed for the NEW location — drop any silent county from a
+       previous location so the manual pick below actually wins (Item 2). */
+    silentTrapCounty = null;
     setCountyFallback('trapCountyGroup', true);
     const failText = `Coordinates saved (${lat.toFixed(5)}, ${lng.toFixed(5)}) — address lookup failed. Pick the County of Collection below.`;
     setMapStatus('trapMapStatus', failText, 'error');
@@ -6853,9 +6780,15 @@ async function handleReleaseLocationChange(lat, lng, source, geoHint) {
     if (geo.county) {
       silentReleaseCounty = geo.county;
       const match = matchingOptionValue('f-release-county', geo.county);
-      if (match) $('#f-release-county').value = match;
+      /* Sync the hidden value holder; clear on no match so a stale previous
+         pick can't shadow the silent value (Item 2). */
+      $('#f-release-county').value = match || '';
       setCountyFallback('releaseCountyGroup', false);
     } else {
+      /* No county for the NEW location — clear the stale silent county so
+         the manual fallback pick wins (Item 2). */
+      silentReleaseCounty = null;
+      $('#f-release-county').value = '';
       setCountyFallback('releaseCountyGroup', true);
     }
     const okText = `✓ ${geo.formattedAddress || `Release location saved (${lat.toFixed(5)}, ${lng.toFixed(5)})`}`;
@@ -6868,6 +6801,9 @@ async function handleReleaseLocationChange(lat, lng, source, geoHint) {
     if (display && !display.value.trim()) {
       display.value = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
     }
+    /* Geocoder failed — drop any silent county from a previous location so
+       the manual pick below actually wins (Item 2). */
+    silentReleaseCounty = null;
     setCountyFallback('releaseCountyGroup', true);
     const failText = `Coordinates saved (${lat.toFixed(5)}, ${lng.toFixed(5)}) — location lookup failed. Pick the County of Release below.`;
     setMapStatus('releaseMapStatus', failText, 'error');
