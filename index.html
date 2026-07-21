@@ -4104,19 +4104,20 @@ function showModePicker() { showLanding(); }
  * phones, 4 from 768px up. Tapping a cell opens its module; steps where
  * an in-progress job currently sits are highlighted amber.
  * ===================================================================== */
+/* Item 10 (v2-patch-1): Estimates removed from the workflow grid — they
+   live in the landing page's bottom banner only. */
 const FLOW_STEPS = [
   { n: 1, icon: '👥', label: 'Customer',   desc: 'Client & property',   mode: 'customer' },
-  { n: 2, icon: '💰', label: 'Estimate',   desc: 'Price the job',       mode: 'pricing' },
-  { n: 3, icon: '📅', label: 'Schedule',   desc: 'Book the crew',       mode: 'schedule' },
-  { n: 4, icon: '🦝', label: 'Field Work', desc: 'On-site work',        mode: 'trap' },
-  { n: 5, icon: '📷', label: 'Cameras',    desc: 'Watch trap activity', mode: 'field' },
-  { n: 6, icon: '📦', label: 'Close Out',  desc: 'Wrap up the job',     mode: 'jobs' },
-  { n: 7, icon: '🧾', label: 'Invoice',    desc: 'Bill & get paid',     mode: 'pricing' }
+  { n: 2, icon: '📅', label: 'Schedule',   desc: 'Book the crew',       mode: 'schedule' },
+  { n: 3, icon: '🦝', label: 'Field Work', desc: 'On-site work',        mode: 'trap' },
+  { n: 4, icon: '📷', label: 'Cameras',    desc: 'Watch trap activity', mode: 'field' },
+  { n: 5, icon: '📦', label: 'Close Out',  desc: 'Wrap up the job',     mode: 'jobs' },
+  { n: 6, icon: '🧾', label: 'Invoice',    desc: 'Bill & get paid',     mode: 'pricing' }
 ];
 /* Job status → the workflow step where that job's next action lives. */
 const JOB_STATUS_TO_FLOW_STEP = {
-  'Lead': 2, 'Estimated': 3, 'Scheduled': 4, 'Active': 4,
-  'Pending Close': 6, 'Invoiced': 7
+  'Lead': 2, 'Estimated': 2, 'Scheduled': 3, 'Active': 3,
+  'Pending Close': 5, 'Invoiced': 6
 };
 const flowGridMedia = window.matchMedia('(min-width: 768px)');
 
