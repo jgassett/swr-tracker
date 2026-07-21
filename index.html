@@ -1224,6 +1224,12 @@
     .job-lc-row .jl-num { font-weight: 600; color: var(--green-deep); font-family: ui-monospace, 'SF Mono', monospace; font-size: 13px; }
     .job-lc-row .jl-name { font-weight: 600; color: var(--green-deep); }
     .job-lc-row .jl-meta { font-size: 12px; color: var(--ink-soft); margin-top: 2px; }
+    /* Item 2 (v2-patch-2): job type label — amber tag on job cards + detail. */
+    .job-type-tag {
+      display: inline-block; background: rgba(196,119,42,0.14); color: var(--amber);
+      border-radius: 6px; padding: 1px 7px; font-size: 11px; font-weight: 700;
+      letter-spacing: 0.03em; text-transform: uppercase; vertical-align: middle;
+    }
     .job-stat-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--line); }
     .job-stat-row:last-child { border-bottom: none; }
     .job-stat-row .jsk { font-size: 12px; letter-spacing: 0.05em; text-transform: uppercase; color: var(--ink-soft); }
@@ -2645,6 +2651,8 @@
           <option value="Complete">Complete</option>
           <option value="Cancelled">Cancelled</option>
         </select>
+        <!-- Item 2 (v2-patch-2): filter by job type. -->
+        <select id="jobsFilterType"><option value="">All job types</option></select>
       </div>
       <button class="btn btn-amber" id="newLifecycleJobBtn" style="margin-bottom:14px;">+ Start New Job</button>
       <div class="card" id="jobsList"></div>
@@ -2668,6 +2676,11 @@
           <select id="lj-property"><option value="">— main address —</option></select>
         </div>
         <h3 class="form-section">Job</h3>
+        <!-- Item 2 (v2-patch-2): required job type. -->
+        <div class="form-group">
+          <label for="lj-jobtype">Job Type<span class="req">*</span></label>
+          <select id="lj-jobtype" required><option value="">— select job type —</option></select>
+        </div>
         <!-- Item 15 (v2-patch-1): start/end dates on the job container. -->
         <div class="field-row two">
           <div class="form-group">
@@ -9705,6 +9718,8 @@ const VISIT_TYPES = [
  * lifecycle jobs (7-status) keep their existing behavior.
  * ===================================================================== */
 const TASK_MODEL_STATUSES = ['Active', 'Complete', 'Cancelled'];
+/* Item 2 (v2-patch-2): required Job Type on every new/edited job. */
+const JOB_TYPES = ['Inspection', 'Service Call', 'Cleanup', 'Repair', 'Exclusion', 'Trapping', 'Culling'];
 const TASK_TYPES = [
   'Set Trap', 'Re-bait Trap', 'Check Trap', 'Pull Trap', 'Check Camera',
   'Inspection', 'Service Call', 'Pesticide Application', 'Repair',
@@ -9945,9 +9960,12 @@ function renderJobsList() {
   const el = $('#jobsList');
   if (!el) return;
   const filter = ($('#jobsFilterStatus') && $('#jobsFilterStatus').value) || 'active';
+  const typeFilter = ($('#jobsFilterType') && $('#jobsFilterType').value) || '';
   let list = lifecycleJobs();
   if (filter === 'active') list = list.filter(jobIsActive);
   else if (filter !== 'all') list = list.filter((j) => (j.status || 'Active') === filter);
+  /* Item 2: job-type filter. */
+  if (typeFilter) list = list.filter((j) => (j.jobType || '') === typeFilter);
   list = list.slice().sort((a, b) => (b.startDate || b.createdAt || '').localeCompare(a.startDate || a.createdAt || ''));
   if (!list.length) {
     el.innerHTML = '<div style="padding:16px;color:var(--ink-soft);">No jobs here yet. Tap <strong>+ Start New Job</strong> to open a container for a customer engagement.</div>';
@@ -9962,7 +9980,7 @@ function renderJobsList() {
     const bits = [dates, `${nTasks} task${nTasks === 1 ? '' : 's'}`, who].filter(Boolean);
     return `<div class="job-lc-row" data-ljob-open="${escapeHtml(j.id)}">
       <div class="jl-body">
-        <div class="jl-num">${escapeHtml(j.jobNumber || '')}</div>
+        <div class="jl-num">${escapeHtml(j.jobNumber || '')}${j.jobType ? ` <span class="job-type-tag">${escapeHtml(j.jobType)}</span>` : ''}</div>
         <div class="jl-name">${escapeHtml(j.customerName || '(no customer)')}</div>
         <div class="jl-meta">${escapeHtml(bits.join(' · '))}</div>
         ${jobTaskProgressHtml(j.id)}
@@ -9978,6 +9996,9 @@ function resetLifecycleJobForm() {
   lifecycleJobCustomer = null;
   const f = $('#lifecycleJobForm'); if (f) f.reset();
   $('#lj-id').value = '';
+  /* Item 2: job type dropdown (required, no default). */
+  fillSelect('lj-jobtype', JOB_TYPES, true, '— select job type —');
+  $('#lj-jobtype').value = '';
   /* Item 15: start today, end 30 days out (adjustable). */
   $('#lj-start').value = todayISO();
   $('#lj-end').value = addDaysISO(todayISO(), 30);
@@ -10074,6 +10095,9 @@ async function handleSaveLifecycleJob(e) {
     lifecycleJobCustomer = null;
   }
   if (!lifecycleJobCustomer || !lifecycleJobCustomer.id) { toast('Pick a customer from the list for this job', 'error'); $('#lj-customer').focus(); return; }
+  /* Item 2: job type is required. */
+  const jobType = $('#lj-jobtype').value;
+  if (!jobType) { toast('Pick a job type', 'error'); $('#lj-jobtype').focus(); return; }
   /* Item 15: start/end dates on the job container. */
   const startDate = $('#lj-start').value;
   const endDate = $('#lj-end').value;
@@ -10094,6 +10118,7 @@ async function handleSaveLifecycleJob(e) {
         customerId: lifecycleJobCustomer.id,
         customerName: lifecycleJobCustomer.name,
         propertyId,
+        jobType,
         startDate,
         endDate,
         estimateId,
@@ -10130,6 +10155,7 @@ async function handleSaveLifecycleJob(e) {
         customerId: lifecycleJobCustomer.id,
         customerName: lifecycleJobCustomer.name,
         propertyId,
+        jobType,
         /* Item 15: a new job is Active until Jon closes it out (Complete)
            or it's cancelled. */
         status: 'Active',
@@ -10178,6 +10204,9 @@ function editLifecycleJob(id) {
   if (appMode !== 'jobs') setAppModeQuiet('jobs');
   setView('add');
   $('#lj-id').value = id;
+  /* Item 2: job type (jobs created before v2.2 have none until saved). */
+  fillSelect('lj-jobtype', JOB_TYPES, true, '— select job type —');
+  $('#lj-jobtype').value = j.jobType || '';
   /* Item 15: start/end dates (legacy jobs pick up defaults on first edit). */
   $('#lj-start').value = j.startDate || (j.createdAt ? j.createdAt.slice(0, 10) : todayISO());
   $('#lj-end').value = j.endDate || addDaysISO($('#lj-start').value, 30);
@@ -10296,6 +10325,7 @@ function renderTaskModelJobDetail(j) {
         <h3 style="margin:0;font-family:ui-monospace,'SF Mono',monospace;font-size:16px;">${escapeHtml(j.jobNumber || 'Job')}</h3>
         <span class="status-pill ${jobLifeStatusClass(j.status)}">${escapeHtml(j.status || 'Active')}</span>
       </div>
+      ${j.jobType ? `<div style="margin-top:8px;"><span class="job-type-tag" style="font-size:13px;padding:3px 10px;">${escapeHtml(j.jobType)}</span></div>` : ''}
       <div style="margin-top:6px;font-weight:600;color:var(--green-deep);font-size:17px;">${escapeHtml(j.customerName || '')}</div>
       ${prop ? `<div class="muted" style="font-size:13px;">${escapeHtml([prop.siteNickname, prop.address].filter(Boolean).join(' · '))}</div>`
         : cust && cust.address ? `<div class="muted" style="font-size:13px;">${escapeHtml([cust.address, cust.city].filter(Boolean).join(', '))}</div>` : ''}
@@ -10385,6 +10415,7 @@ function renderLifecycleJobDetail(id) {
         <h3 style="margin:0;font-family:ui-monospace,'SF Mono',monospace;font-size:16px;">${escapeHtml(j.jobNumber || 'Job')}</h3>
         <span class="status-pill ${jobLifeStatusClass(j.status)}">${escapeHtml(j.status || 'Lead')}</span>
       </div>
+      ${j.jobType ? `<div style="margin-top:8px;"><span class="job-type-tag" style="font-size:13px;padding:3px 10px;">${escapeHtml(j.jobType)}</span></div>` : ''}
       <div style="margin-top:6px;font-weight:600;color:var(--green-deep);font-size:17px;">${escapeHtml(j.customerName || '')}</div>
       ${prop ? `<div class="muted" style="font-size:13px;">${escapeHtml([prop.siteNickname, prop.address].filter(Boolean).join(' · '))}</div>`
         : cust && cust.address ? `<div class="muted" style="font-size:13px;">${escapeHtml([cust.address, cust.city].filter(Boolean).join(', '))}</div>` : ''}
@@ -11569,6 +11600,7 @@ async function createJobForLegacyGroup(index) {
       customerId: match ? match.id : null,
       customerName: match ? match.name : g.name,
       propertyId: null,
+      jobType: null,               /* Item 2: legacy container — no type on record */
       status: 'Active',            /* legacy work is by definition underway/past */
       estimateId: null, qbInvoiceId: null, qbInvoiceNumber: null, paymentStatus: null,
       assignedOperators: [], assigneeNames: [],
@@ -13001,6 +13033,9 @@ async function init() {
   /* ---- Job Lifecycle wiring (v2, Item 3) ---- */
   $('#newLifecycleJobBtn').addEventListener('click', () => { editingLifecycleJobId = null; resetLifecycleJobForm(); setView('add'); });
   $('#jobsFilterStatus').addEventListener('change', renderJobsList);
+  /* Item 2 (v2-patch-2): job-type filter on the Jobs list. */
+  fillSelect('jobsFilterType', JOB_TYPES, true, 'All job types');
+  $('#jobsFilterType').addEventListener('change', renderJobsList);
   $('#jobsList').addEventListener('click', (e) => {
     const row = e.target.closest('[data-ljob-open]');
     if (row) openLifecycleJob(row.dataset.ljobOpen);
