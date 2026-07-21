@@ -7316,6 +7316,8 @@ function buildDetailRows(r) {
   if (EUTHANIZE_DISPOSALS.has(r.disposalMethod)) push('Dispatch', r.dispatchMethod);
   if (RELEASE_DISPOSALS.has(r.disposalMethod)) {
     push('Release County', releaseCountyDisplay(r));
+    /* Item 6 (v2-patch-1): show the full release address when present. */
+    push('Release Address', r.releaseAddress);
     push('Release Date', fmtDate(r.releaseDate));
   }
   if (EXCLUDE_DISPOSALS.has(r.disposalMethod) && !isBatOrBird(r.species) && r.species !== OTHER_ANIMAL) {
