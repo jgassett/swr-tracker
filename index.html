@@ -226,6 +226,22 @@
     .signout-btn svg { width: 18px; height: 18px; }
     .signout-btn:active { background: rgba(178,58,58,0.16); }
 
+    /* Item 8 (v2-patch-2): Field Work module tabs (Trapping | Pesticides). */
+    .fw-tabs {
+      display: flex; gap: 0;
+      background: #fff; border: 1px solid var(--line); border-radius: 12px;
+      padding: 3px; margin-bottom: 14px;
+    }
+    .fw-tabs.hidden { display: none; }
+    .fw-tabs button {
+      flex: 1; padding: 9px 6px; border: none; background: transparent;
+      border-radius: 9px; font-weight: 700; font-size: 13.5px;
+      color: var(--ink-soft); cursor: pointer;
+      transition: background 0.15s, color 0.15s;
+    }
+    .fw-tabs button.active { background: var(--green); color: #fff; }
+    body.in-add .fw-tabs { display: none; }
+
     /* Mode toggle in header */
     .mode-toggle {
       display: inline-flex;
@@ -1442,6 +1458,7 @@
       .nav-fab { width: 64px; height: 64px; margin-top: -26px; }
       #appMain { padding-left: 28px; padding-right: 28px; }
       #appMain > section.view { max-width: 940px; margin-left: auto; margin-right: auto; }
+      #appMain > .fw-tabs { max-width: 480px; margin-left: auto; margin-right: auto; }
 
       /* Dashboard: full-width banner + stats, then two columns. */
       #view-dashboard { display: grid; grid-template-columns: 1fr 1fr; column-gap: 18px; align-items: start; }
@@ -1498,6 +1515,7 @@
       #appHeader { padding-left: calc(224px + 28px); padding-right: 28px; }
       #appMain { padding-left: calc(224px + 28px); padding-right: 28px; }
       #appMain > section.view { max-width: 1100px; margin-left: auto; margin-right: auto; }
+      #appMain > .fw-tabs { max-width: 480px; margin-left: auto; margin-right: auto; }
       #toast { bottom: 32px; }
 
       /* Dashboards: three-column grid. */
@@ -1691,6 +1709,14 @@
   </header>
 
   <main id="appMain">
+    <!-- FIELD WORK tabs (Item 8, v2-patch-2): Trapping | Pesticides at the
+         top of the Field Work module. Hidden outside trap/pesticide modes
+         and while an entry form is open (body.in-add). -->
+    <div id="fieldWorkTabs" class="fw-tabs hidden" role="tablist" aria-label="Field Work">
+      <button type="button" data-fw-tab="trap" role="tab">Trapping</button>
+      <button type="button" data-fw-tab="pesticide" role="tab">Pesticides</button>
+    </div>
+
     <!-- DASHBOARD -->
     <section id="view-dashboard" class="view">
       <div class="card period-banner">
@@ -3248,7 +3274,7 @@
     <div class="fg-step"><span>💼</span><div><strong>Jobs</strong> — open a job for the engagement and manage its tasks from set to pull.</div></div>
     <div class="fg-step"><span>📅</span><div><strong>Schedule</strong> — see the crew's tasks on the calendar and mark them complete as you go.</div></div>
     <div class="fg-step"><span>📷</span><div><strong>Monitoring</strong> — check trap site cameras and respond to activity and health alerts.</div></div>
-    <div class="fg-step"><span>🦝</span><div><strong>Trapping Records</strong> — log every capture, release, or treatment while you're on site. Estimates live in the bottom bar; invoicing happens in QuickBooks Online.</div></div>
+    <div class="fg-step"><span>🦝</span><div><strong>Field Work</strong> — log every capture, release, or pesticide treatment while you're on site: the Trapping and Pesticides tabs live here. Estimates live in the bottom bar; invoicing happens in QuickBooks Online.</div></div>
     <div class="fg-step"><span>✅</span><div><strong>Close Out</strong> — once every task on a job is completed or cancelled, close it out here. The job moves to Complete and billing continues in QuickBooks.</div></div>
   </div>
   <button type="button" class="btn btn-primary" id="flowSheetCloseBtn" style="margin-top:16px;width:100%;">Got it</button>
@@ -4198,8 +4224,11 @@ function showSignInScreen() {
 }
 let modeSelected = false;
 
-/* Item 17 (v2-patch-1): Field Work -> Trapping Records; Cameras -> Monitoring. */
-const MODULE_LABELS = { trap: 'Trapping Records', pesticide: 'Pesticides', customer: 'Customers', pricing: 'Pricing', jobs: 'Jobs', field: 'Monitoring', schedule: 'Schedule', settings: 'Settings', allrecords: 'All Records', closeout: 'Close Out' };
+/* Item 8 (v2-patch-2): the Trapping Records module is now Field Work, with
+   Trapping and Pesticides as tabs inside it — both appModes ('trap' and
+   'pesticide') present as the Field Work module in the header. Cameras ->
+   Monitoring (Item 17, v2-patch-1). */
+const MODULE_LABELS = { trap: 'Field Work', pesticide: 'Field Work', customer: 'Customers', pricing: 'Pricing', jobs: 'Jobs', field: 'Monitoring', schedule: 'Schedule', settings: 'Settings', allrecords: 'All Records', closeout: 'Close Out' };
 
 /* Bottom-nav layout per module. The main landing page has no bottom nav.
    `fab: true` renders the raised amber add button (kept from the original
@@ -4311,7 +4340,7 @@ const FLOW_STEPS = [
   { n: 2, icon: '💼', label: 'Jobs',             desc: 'Manage jobs and tasks',    mode: 'jobs' },
   { n: 3, icon: '📅', label: 'Schedule',         desc: 'View and complete tasks',  mode: 'schedule' },
   { n: 4, icon: '📷', label: 'Monitoring',       desc: 'Check trap site cameras',  mode: 'field' },
-  { n: 5, icon: '🦝', label: 'Trapping Records', desc: 'Log field activity',       mode: 'trap' },
+  { n: 5, icon: '🦝', label: 'Field Work',       desc: 'Trapping & pesticide logs', mode: 'fieldwork' },
   { n: 6, icon: '✅', label: 'Close Out',        desc: 'Complete finished jobs',   mode: 'closeout' }
 ];
 /* Job status → the workflow step where that job's next action lives. Any
@@ -4409,6 +4438,34 @@ function updateModuleUI() {
   if (lbl) lbl.textContent = MODULE_LABELS[appMode] || '';
   document.body.classList.toggle('mode-pesticide', appMode === 'pesticide');
   document.body.classList.toggle('mode-customer', appMode === 'customer');
+  /* Item 8 (v2-patch-2): Field Work tab bar — shown in both Field Work
+     tabs ('trap' and 'pesticide'); the last-used tab is remembered so the
+     module reopens where the operator left off. */
+  const isFieldWork = appMode === 'trap' || appMode === 'pesticide';
+  const tabs = $('#fieldWorkTabs');
+  if (tabs) {
+    tabs.classList.toggle('hidden', !isFieldWork);
+    $$('#fieldWorkTabs button').forEach((b) => b.classList.toggle('active', b.dataset.fwTab === appMode));
+  }
+  if (isFieldWork) {
+    try { localStorage.setItem('swrFieldWorkTab', appMode); } catch (e) { /* private mode */ }
+  }
+}
+
+/* Item 8: which Field Work tab the operator used last ('trap' default). */
+function lastFieldWorkTab() {
+  try { return localStorage.getItem('swrFieldWorkTab') === 'pesticide' ? 'pesticide' : 'trap'; }
+  catch (e) { return 'trap'; }
+}
+
+/* Item 8: switch tabs in place — keeps the current sub-view (dashboard /
+   records / export exist in both tabs); data is untouched, UI only. */
+function switchFieldWorkTab(mode) {
+  if (appMode === mode || (mode !== 'trap' && mode !== 'pesticide')) return;
+  const keep = ['dashboard', 'records', 'export'].includes(currentView) ? currentView : 'dashboard';
+  setAppModeQuiet(mode);
+  setView(keep);
+  refreshAll();
 }
 /* No-op kept so any lingering references don't throw. */
 function updateModeToggleUI() { updateModuleUI(); }
@@ -13067,7 +13124,16 @@ async function init() {
     }
     if (e.target.closest('#flowHelpBtn')) { openHowItWorksSheet(); return; }
     const step = e.target.closest('.flow-cell');
-    if (step && step.dataset.mode) setAppMode(step.dataset.mode);
+    if (step && step.dataset.mode) {
+      /* Item 8: the Field Work step opens whichever tab was used last. */
+      setAppMode(step.dataset.mode === 'fieldwork' ? lastFieldWorkTab() : step.dataset.mode);
+    }
+  });
+
+  /* Item 8 (v2-patch-2): Field Work tab bar. */
+  $('#fieldWorkTabs').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-fw-tab]');
+    if (b) switchFieldWorkTab(b.dataset.fwTab);
   });
   $('#flowSheetBackdrop').addEventListener('click', closeHowItWorksSheet);
   $('#flowSheetCloseBtn').addEventListener('click', closeHowItWorksSheet);
