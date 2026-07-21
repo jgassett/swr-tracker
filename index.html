@@ -7370,6 +7370,25 @@ let sheetMode = 'detail';     /* 'detail' or 'review' */
 let sheetRecordType = 'trap'; /* 'trap' or 'pesticide' */
 let detailRecordId = null;
 
+/* Item 11 (v2-patch-1): shared renderer — data rows only; a group head with
+   no data rows after it is dropped entirely (no label, no placeholder). */
+function detailRowsHtml(rows) {
+  const kept = [];
+  for (let i = 0; i < rows.length; i++) {
+    if (rows[i][0] === '__head__') {
+      const next = rows[i + 1];
+      if (!next || next[0] === '__head__') continue;   /* empty group — skip */
+    }
+    kept.push(rows[i]);
+  }
+  return kept.map(([k, v]) => {
+    if (k === '__head__') {
+      return `<div class="dr group-head"><div class="dk">${escapeHtml(v)}</div></div>`;
+    }
+    return `<div class="dr"><div class="dk">${escapeHtml(k)}</div><div class="dv">${escapeHtml(String(v))}</div></div>`;
+  }).join('');
+}
+
 function buildDetailRows(r) {
   const rows = [];
   const push = (k, v) => { if (v != null && v !== '') rows.push([k, v]); };
@@ -7406,7 +7425,8 @@ function buildDetailRows(r) {
     push('Release Date', fmtDate(r.releaseDate));
   }
   if (EXCLUDE_DISPOSALS.has(r.disposalMethod) && !isBatOrBird(r.species) && r.species !== OTHER_ANIMAL) {
-    if (r.excludedNumber != null) push('Number Excluded', r.excludedNumber);
+    /* Item 11: optional numeric — zero renders nothing. */
+    if (r.excludedNumber) push('Number Excluded', r.excludedNumber);
   }
 
   if (r.notes) {
@@ -7414,12 +7434,7 @@ function buildDetailRows(r) {
     push('Notes', r.notes);
   }
 
-  return rows.map(([k, v]) => {
-    if (k === '__head__') {
-      return `<div class="dr group-head"><div class="dk">${escapeHtml(v)}</div></div>`;
-    }
-    return `<div class="dr"><div class="dk">${escapeHtml(k)}</div><div class="dv">${escapeHtml(String(v))}</div></div>`;
-  }).join('');
+  return detailRowsHtml(rows);
 }
 
 function openSheet(rec, mode, recordType) {
@@ -8562,10 +8577,7 @@ function buildPesticideDetailRows(r) {
 
   if (r.notes) { head('Notes'); push('Notes', r.notes); }
 
-  return rows.map(([k, v]) => {
-    if (k === '__head__') return `<div class="dr group-head"><div class="dk">${escapeHtml(v)}</div></div>`;
-    return `<div class="dr"><div class="dk">${escapeHtml(k)}</div><div class="dv">${escapeHtml(String(v))}</div></div>`;
-  }).join('');
+  return detailRowsHtml(rows);   /* Item 11: drops empty rows + empty groups */
 }
 
 function filteredPesticideRecords() {
