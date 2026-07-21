@@ -144,22 +144,29 @@
       background: var(--cream-deep); display: flex; align-items: center; justify-content: center; font-size: 16px;
     }
     .flow-guide .fg-step strong { color: var(--green-deep); }
-    /* Settings gear on the landing page (Item 16): 24px icon, bottom-right,
-       above the safe-area inset. */
-    .landing-gear {
-      position: fixed;
-      right: 16px;
-      bottom: calc(var(--safe-bot) + 14px);
-      width: 44px; height: 44px;              /* comfortable tap target */
-      background: rgba(255,255,255,0.07);
-      border: 1px solid rgba(196,119,42,0.3);
-      border-radius: 50%;
-      color: var(--amber-soft);
-      display: flex; align-items: center; justify-content: center;
-      cursor: pointer; z-index: 97;
+    /* Items 8 & 9 (v2-patch-1): persistent bottom banner on the landing page —
+       View Records, Estimates, Notifications, Settings. Sits below the
+       workflow grid, above the safe-area inset. Replaces the old floating
+       settings gear. */
+    .landing-banner {
+      position: fixed; left: 0; right: 0; bottom: 0;
+      padding: 8px 10px calc(var(--safe-bot) + 8px);
+      background: var(--green-deep);
+      border-top: 1px solid rgba(196,119,42,0.35);
+      display: grid; grid-template-columns: repeat(4, 1fr);
+      z-index: 98;
     }
-    .landing-gear svg { width: 24px; height: 24px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
-    .landing-gear:active { background: rgba(196,119,42,0.25); }
+    .lb-btn {
+      background: transparent; border: none; color: var(--amber-soft);
+      display: flex; flex-direction: column; align-items: center; gap: 3px;
+      font-size: 11px; font-weight: 600; padding: 6px 0; position: relative;
+      cursor: pointer;
+    }
+    .lb-btn svg { width: 24px; height: 24px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+    .lb-btn:active, .lb-btn:hover { color: var(--amber); }
+    .lb-btn .bell-badge { top: 0; right: calc(50% - 24px); }
+    /* Keep the workflow grid clear of the fixed banner. */
+    #modePicker { padding-bottom: calc(var(--safe-bot) + 96px); }
     .settings-group { font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-soft); margin: 20px 4px 8px; }
     .settings-group.first { margin-top: 4px; }
     .conn-status { font-size: 13px; font-weight: 600; margin-top: 4px; }
@@ -1323,7 +1330,7 @@
     @media (min-width: 600px) {
       #view-add, #view-dashboard, #view-records, #view-export, #view-settings,
       #view-customers, #view-add-customer, #view-records-pesticide, #view-add-pesticide,
-      #view-notifications {
+      #view-notifications, #view-records-all {
         max-width: 760px; margin: 0 auto;
       }
       .field-row.two { grid-template-columns: 1fr 1fr; gap: 14px; }
@@ -1557,10 +1564,27 @@
     <div class="flow-grid" id="flowGrid" role="navigation" aria-label="Job workflow"></div>
     <div class="flow-help-row"><button type="button" class="flow-help" id="flowHelpBtn">How it works</button></div>
   </div>
-  <!-- Settings demoted to a small gear (Item 16): bottom-right, above the safe area. -->
-  <button type="button" id="landingGearBtn" class="landing-gear" aria-label="Settings" title="Settings">
-    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3h.1a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8v.1a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z"/></svg>
-  </button>
+  <!-- Items 8 & 9 (v2-patch-1): persistent bottom banner — the direct
+       records/estimates/notifications/settings access from v1. -->
+  <nav class="landing-banner" aria-label="Quick access">
+    <button type="button" class="lb-btn" data-banner="records" aria-label="View Records">
+      <svg viewBox="0 0 24 24"><path d="M3 5h18M3 12h18M3 19h18"/></svg>
+      <span>View Records</span>
+    </button>
+    <button type="button" class="lb-btn" data-banner="estimates" aria-label="Estimates">
+      <svg viewBox="0 0 24 24"><path d="M4 4h16v4H4z"/><path d="M4 12h10"/><path d="M4 16h10"/><path d="M4 20h7"/><path d="M18 13v7"/><path d="M15 16l3-3 3 3"/></svg>
+      <span>Estimates</span>
+    </button>
+    <button type="button" class="lb-btn" data-banner="notifications" aria-label="Notifications">
+      <svg viewBox="0 0 24 24"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+      <span>Notifications</span>
+      <span class="bell-badge hidden" id="bannerNotifBadge">0</span>
+    </button>
+    <button type="button" class="lb-btn" data-banner="settings" aria-label="Settings">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3h.1a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8v.1a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z"/></svg>
+      <span>Settings</span>
+    </button>
+  </nav>
 </div>
 
 <!-- App -->
@@ -2750,6 +2774,38 @@
       <div class="form-actions">
         <button type="button" class="btn btn-cancel btn-ghost" id="notifsBackBtn">Back</button>
       </div>
+    </section>
+
+    <!-- UNIFIED RECORDS (Items 8 & 9, v2-patch-1) — every trapping and
+         pesticide record in one searchable, filterable list. Restores the
+         direct records access from v1; opened from the landing banner. -->
+    <section id="view-records-all" class="view hidden">
+      <div class="search-bar">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+        <input type="text" id="allRecSearch" placeholder="Search record #, customer, species, address…" autocomplete="off">
+      </div>
+      <div class="filter-row">
+        <div class="form-group" style="margin-bottom:0;">
+          <label for="allRecFrom" style="font-size:11px;margin-bottom:3px;">From</label>
+          <input type="date" id="allRecFrom" style="padding:9px 10px;font-size:14px;">
+        </div>
+        <div class="form-group" style="margin-bottom:0;">
+          <label for="allRecTo" style="font-size:11px;margin-bottom:3px;">To</label>
+          <input type="date" id="allRecTo" style="padding:9px 10px;font-size:14px;">
+        </div>
+      </div>
+      <div class="filter-row">
+        <select id="allRecCustomer"><option value="">All customers</option></select>
+        <select id="allRecContractor"><option value="">All contractors</option></select>
+      </div>
+      <div class="filter-row">
+        <select id="allRecType">
+          <option value="">All record types</option>
+          <option value="trap">Trapping</option>
+          <option value="pest">Pesticide</option>
+        </select>
+      </div>
+      <div class="card" id="allRecordsList"></div>
     </section>
 
     <!-- EXPORT -->
@@ -3950,7 +4006,7 @@ function showSignInScreen() {
 }
 let modeSelected = false;
 
-const MODULE_LABELS = { trap: 'Trapping', pesticide: 'Pesticides', customer: 'Customers', pricing: 'Pricing', jobs: 'Jobs', field: 'Cameras', schedule: 'Schedule', settings: 'Settings' };
+const MODULE_LABELS = { trap: 'Trapping', pesticide: 'Pesticides', customer: 'Customers', pricing: 'Pricing', jobs: 'Jobs', field: 'Cameras', schedule: 'Schedule', settings: 'Settings', allrecords: 'All Records' };
 
 /* Bottom-nav layout per module. The main landing page has no bottom nav.
    `fab: true` renders the raised amber add button (kept from the original
@@ -3996,6 +4052,10 @@ const NAV_CONFIGS = {
   ],
   settings: [
     { view: 'menu', label: 'Home', icon: 'menu' }
+  ],
+  /* Items 8 & 9: unified records view opened from the landing banner. */
+  allrecords: [
+    { view: 'menu', label: 'Menu', icon: 'menu' }
   ]
 };
 
@@ -4374,6 +4434,8 @@ function subscribeToRecords() {
       renderDashboard();
       renderRecords();
     }
+    /* Items 8 & 9: keep the unified records view live. */
+    if (appMode === 'allrecords' && !$('#view-records-all').classList.contains('hidden')) renderAllRecords();
   }, (err) => {
     lastSyncError = err;
     updateSyncIndicator('error');
@@ -4473,6 +4535,8 @@ function subscribeToPesticideRecords() {
          its unlinked banner), not the trap one. */
       renderPesticideRecordsList();
     }
+    /* Items 8 & 9: keep the unified records view live. */
+    if (appMode === 'allrecords' && !$('#view-records-all').classList.contains('hidden')) renderAllRecords();
   }, (err) => console.error('Pesticide records subscription error', err));
 }
 function unsubscribeFromPesticideRecords() {
@@ -5740,7 +5804,8 @@ const VIEW_TITLES = {
   jobs:      { dashboard: 'Jobs', add: 'New Job', 'job-detail': 'Job', 'add-appointment': 'New Appointment', 'appointment-detail': 'Appointment' },
   field:     { dashboard: 'Cameras' },
   schedule:  { dashboard: 'Calendar', add: 'New Appointment', 'edit-legacy': 'Edit Job', 'add-appointment': 'New Appointment', 'appointment-detail': 'Appointment', 'job-detail': 'Job' },
-  settings:  { dashboard: 'Settings', 'assign-legacy': 'Assign Legacy Records' }
+  settings:  { dashboard: 'Settings', 'assign-legacy': 'Assign Legacy Records' },
+  allrecords: { dashboard: 'View Records' }
 };
 
 function backToLanding() {
@@ -5758,7 +5823,7 @@ function setView(name, opts) {
    'customers','add-customer','pricing','estimate-builder','estimate-detail',
    'field','field-detail','schedule','add-schedule','schedule-detail',
    'jobs','add-job','job-detail','add-appointment','appointment-detail','assign-legacy',
-   'notifications','export','settings'].forEach((v) => {
+   'notifications','records-all','export','settings'].forEach((v) => {
     const el = document.getElementById(`view-${v}`);
     if (el) el.classList.add('hidden');
   });
@@ -5783,6 +5848,8 @@ function setView(name, opts) {
     if (name === 'add') actualId = 'add-job';
   } else if (appMode === 'settings') {
     if (name === 'dashboard') actualId = 'settings';
+  } else if (appMode === 'allrecords') {
+    if (name === 'dashboard') actualId = 'records-all';   /* Items 8 & 9 */
   }
   const showEl = document.getElementById(`view-${actualId}`);
   if (showEl) showEl.classList.remove('hidden');
@@ -5828,6 +5895,9 @@ function setView(name, opts) {
   }
   if (appMode === 'jobs' && name === 'dashboard') {
     renderJobsList();
+  }
+  if (appMode === 'allrecords' && name === 'dashboard') {
+    renderAllRecords();   /* Items 8 & 9 */
   }
   if (name === 'assign-legacy') renderAssignLegacyView();
   if (name === 'settings' || appMode === 'settings') renderSettingsStatus();
@@ -8548,6 +8618,87 @@ function openPesticideDetail(id) {
   openSheet(r, 'detail', 'pesticide');
 }
 
+/* =====================================================================
+ * Items 8 & 9 (v2-patch-1): unified records view.
+ * ---------------------------------------------------------------------
+ * Every trapping and pesticide application record in one list, searchable
+ * and filterable by date range, customer, contractor, and record type.
+ * Opened from the landing page's bottom banner ("View Records").
+ * ===================================================================== */
+function allRecordsEntries() {
+  const trap = cachedRecords.map((r) => ({
+    kind: 'trap',
+    id: r.id,
+    date: r.dateCollected || '',
+    customer: r.clientName || '',
+    contractor: r.trapper || '',
+    title: speciesDisplay(r) + (r.animalCount && r.animalCount > 1 ? ` ×${r.animalCount}` : ''),
+    sub: [r.recordNumber, r.clientName, countyDisplay(r), r.trapper].filter(Boolean).join(' · '),
+    hay: [r.recordNumber, r.clientName, r.clientBusiness, r.address, r.species, r.speciesOther,
+      r.captureMethod, r.disposalMethod, countyDisplay(r), r.trapper, r.notes]
+      .filter(Boolean).join(' ').toLowerCase()
+  }));
+  const pest = cachedPesticideRecords.map((r) => {
+    const brand = (r.products && r.products[0]) ? brandLabel(r.products[0]) : '(no product)';
+    return {
+      kind: 'pest',
+      id: r.id,
+      date: (r.appliedAt || '').slice(0, 10),
+      customer: r.clientName || '',
+      contractor: r.applicator || '',
+      title: brand,
+      sub: [r.recordNumber, r.clientName, r.purpose, r.applicator].filter(Boolean).join(' · '),
+      hay: [r.recordNumber, r.clientName, r.clientAddress, r.clientCity, r.purpose, r.areaType,
+        r.applicationMethod, r.applicator, r.notes,
+        ...(r.products || []).flatMap((p) => [brandLabel(p), p.epaReg])]
+        .filter(Boolean).join(' ').toLowerCase()
+    };
+  });
+  return [...trap, ...pest].sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+}
+
+function fillAllRecordsFilters() {
+  const names = new Set();
+  cachedRecords.forEach((r) => { if (r.clientName) names.add(r.clientName); });
+  cachedPesticideRecords.forEach((r) => { if (r.clientName) names.add(r.clientName); });
+  /* fillSelect preserves the current selection when still present. */
+  fillSelect('allRecCustomer', [...names].sort((a, b) => a.localeCompare(b)), true, 'All customers');
+  fillSelect('allRecContractor', TRAPPERS, true, 'All contractors');
+}
+
+function renderAllRecords() {
+  const root = $('#allRecordsList');
+  if (!root) return;
+  fillAllRecordsFilters();
+  const q = ($('#allRecSearch').value || '').trim().toLowerCase();
+  const from = $('#allRecFrom').value;
+  const to = $('#allRecTo').value;
+  const cust = $('#allRecCustomer').value;
+  const who = $('#allRecContractor').value;
+  const type = $('#allRecType').value;
+  const list = allRecordsEntries().filter((e) => {
+    if (type && e.kind !== type) return false;
+    if (from && e.date < from) return false;
+    if (to && e.date > to) return false;
+    if (cust && e.customer !== cust) return false;
+    if (who && e.contractor !== who) return false;
+    if (q && !e.hay.includes(q)) return false;
+    return true;
+  });
+  if (!list.length) {
+    root.innerHTML = '<div class="empty"><div class="em-title">No matching records</div><div>Adjust the search or filters above.</div></div>';
+    return;
+  }
+  root.innerHTML = list.map((e) => `
+    <div class="rec" data-allrec-kind="${e.kind}" data-allrec-id="${escapeHtml(e.id)}">
+      <div class="rec-thumb">${e.kind === 'pest' ? 'PA' : escapeHtml(speciesInitial(e.title))}</div>
+      <div class="rec-body">
+        <div class="rec-title">${escapeHtml(e.title)}<span class="rec-tag ${e.kind === 'pest' ? 'tag-X' : 'tag-R'}">${e.kind === 'pest' ? 'Pesticide' : 'Trapping'}</span></div>
+        <div class="rec-meta">${escapeHtml(fmtShortDate(e.date) || 'no date')} · ${escapeHtml(e.sub)}</div>
+      </div>
+    </div>`).join('');
+}
+
 async function fetchPesticideWeather() {
   const status = $('#pa-weather-status');
   status.textContent = 'Getting your location…';
@@ -9335,7 +9486,7 @@ function unreadNotifCount() { return cachedNotifications.filter((n) => !n.read).
 
 function updateBellBadge() {
   const n = unreadNotifCount();
-  ['bellBadge', 'bellBadgeLanding'].forEach((id) => {
+  ['bellBadge', 'bellBadgeLanding', 'bannerNotifBadge'].forEach((id) => {
     const el = document.getElementById(id);
     if (!el) return;
     el.textContent = n > 99 ? '99+' : String(n);
@@ -10731,6 +10882,10 @@ async function refreshAll() {
     renderSettingsStatus();
     return;
   }
+  if (appMode === 'allrecords') {
+    renderAllRecords();
+    return;
+  }
   renderDashboard();
   if (appMode === 'pesticide') {
     renderPesticideRecordsList();
@@ -11630,12 +11785,15 @@ async function init() {
       const r = cachedPesticideRecords.find((x) => x.id === detailRecordId);
       closeSheet();
       if (!r) return;
+      /* Items 8 & 9: from the unified view, hop into the right module first. */
+      if (appMode !== 'pesticide') setAppModeQuiet('pesticide');
       setView('add');
       loadPesticideRecordIntoForm(r);
     } else {
       const r = await dbGet(detailRecordId);
       closeSheet();
       if (!r) return;
+      if (appMode !== 'trap') setAppModeQuiet('trap');
       setView('add');
       loadIntoForm(r);
     }
@@ -11729,7 +11887,19 @@ async function init() {
   /* Mode picker + header toggle */
   /* Landing page — tapping a module card enters that module. */
   $('#modePicker').addEventListener('click', (e) => {
-    if (e.target.closest('#landingGearBtn')) { setAppMode('settings'); return; }   /* Item 16 */
+    /* Items 8 & 9: bottom banner. */
+    const lb = e.target.closest('[data-banner]');
+    if (lb) {
+      const which = lb.dataset.banner;
+      if (which === 'records') setAppMode('allrecords');
+      else if (which === 'estimates') setAppMode('pricing');
+      else if (which === 'notifications') {
+        notifReturnView = '__landing__';
+        setAppModeQuiet(appMode || 'trap');
+        setView('notifications');
+      } else if (which === 'settings') setAppMode('settings');
+      return;
+    }
     if (e.target.closest('#flowHelpBtn')) { openHowItWorksSheet(); return; }
     const step = e.target.closest('.flow-cell');
     if (step && step.dataset.mode) setAppMode(step.dataset.mode);
@@ -12155,6 +12325,20 @@ async function init() {
       if (appt) promptRebaitSequence(jobId, appt);
     }
     else if (action === 'open-job') openLifecycleJob(jobId);
+  });
+
+  /* ---- Unified records view wiring (Items 8 & 9) ---- */
+  ['allRecSearch', 'allRecFrom', 'allRecTo', 'allRecCustomer', 'allRecContractor', 'allRecType'].forEach((id) => {
+    const el = $('#' + id);
+    if (!el) return;
+    el.addEventListener('input', renderAllRecords);
+    el.addEventListener('change', renderAllRecords);
+  });
+  $('#allRecordsList').addEventListener('click', (e) => {
+    const row = e.target.closest('[data-allrec-id]');
+    if (!row) return;
+    if (row.dataset.allrecKind === 'pest') openPesticideDetail(row.dataset.allrecId);
+    else openDetail(row.dataset.allrecId);
   });
 
   /* Unlinked-record banners */
