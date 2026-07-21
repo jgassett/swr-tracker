@@ -3408,6 +3408,19 @@ const APP_VERSION = 'v2.0';  /* bump in lockstep with the SW cache version */
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+/* Item 7 (v2-patch-1): customer records sometimes hold several addresses
+   separated by semicolons ("a@x.com; b@y.com"). Every processing path —
+   validation, QB push, CSV export, notification sends — must use only the
+   first valid address. The stored value is left untouched. */
+function extractPrimaryEmail(emailString) {
+  if (!emailString) return '';
+  const parts = String(emailString).split(';').map((s) => s.trim()).filter(Boolean);
+  for (const p of parts) {
+    if (EMAIL_RE.test(p)) return p;
+  }
+  return parts[0] || '';
+}
+
 /* ---------- IndexedDB ---------- */
 const DB_NAME = 'swrTrackerDB';
 const DB_VER = 1;
@@ -3758,7 +3771,7 @@ async function sendRecordEmail(rec) {
       trapper: rec.trapper || '',
       client_name: rec.clientName || '',
       client_phone: rec.clientPhone || '',
-      client_email: rec.clientEmail || '',
+      client_email: extractPrimaryEmail(rec.clientEmail),   /* Item 7 */
       client_business: rec.clientBusiness || '',
       species: speciesDisplay(rec),
       animal_count: rec.animalCount != null ? String(rec.animalCount) : '1',
@@ -6193,7 +6206,8 @@ function validateRecord(r) {
   if (!r.clientName) errs.push('Client name');
   if (!r.clientPhone) errs.push('Phone');
   else if (!isValidPhone(r.clientPhone)) errs.push('Valid phone (10 digits)');
-  if (r.clientEmail && !EMAIL_RE.test(r.clientEmail)) errs.push('Valid email');
+  /* Item 7: multi-address values validate on the first address only. */
+  if (r.clientEmail && !EMAIL_RE.test(extractPrimaryEmail(r.clientEmail))) errs.push('Valid email');
   if (!r.species) errs.push('Species');
   if (SPECIFY_SPECIES.has(r.species) && !r.speciesOther) errs.push('Specify species');
   if (needsAnimalCount(r.species) && (!r.animalCount || r.animalCount < 1)) errs.push('Number of animals');
@@ -7464,7 +7478,8 @@ function fullCSV(records) {
   for (const r of records) {
     lines.push(csvLine([
       r.recordNumber || '', r.id, r.dateCollected, r.trapper,
-      r.clientName, r.clientPhone, r.clientBusiness, r.clientEmail,
+      r.clientName, r.clientPhone, r.clientBusiness,
+      extractPrimaryEmail(r.clientEmail),   /* Item 7 */
       r.species, r.speciesOther, r.animalCount == null ? '' : r.animalCount,
       countyDisplay(r), r.countyOther || '', r.address,
       r.trapLat == null ? '' : r.trapLat, r.trapLng == null ? '' : r.trapLng,
@@ -8204,7 +8219,8 @@ function validatePesticideRecord(r) {
   if (!r.clientName) errs.push('Client name');
   if (!r.clientPhone) errs.push('Phone');
   else if (!isValidPhone(r.clientPhone)) errs.push('Valid phone');
-  if (r.clientEmail && !EMAIL_RE.test(r.clientEmail)) errs.push('Valid email');
+  /* Item 7: multi-address values validate on the first address only. */
+  if (r.clientEmail && !EMAIL_RE.test(extractPrimaryEmail(r.clientEmail))) errs.push('Valid email');
   if (!r.clientAddress) errs.push('Client address');
   if (!r.clientCity) errs.push('Client city');
   if (!r.clientZip) errs.push('Client ZIP');
@@ -8624,7 +8640,7 @@ async function sendPesticideEmail(rec) {
       weather_humidity: rec.weatherHumidity != null ? String(rec.weatherHumidity) : '',
       client_name: rec.clientName || '',
       client_phone: rec.clientPhone || '',
-      client_email: rec.clientEmail || '',
+      client_email: extractPrimaryEmail(rec.clientEmail),   /* Item 7 */
       client_address: rec.clientAddress || '',
       client_city: rec.clientCity || '',
       client_zip: rec.clientZip || '',
@@ -11197,7 +11213,8 @@ async function handleSaveCustomer(e) {
   if (isSaving) return;              /* double-submit guard — prevents duplicate customers */
   const c = readCustomerForm();
   if (!c.name) { toast('Customer name is required', 'error'); $('#c-name').focus(); return; }
-  if (c.email && !EMAIL_RE.test(c.email)) { toast('Enter a valid email or leave it blank', 'error'); return; }
+  /* Item 7: multi-address values validate on the first address only. */
+  if (c.email && !EMAIL_RE.test(extractPrimaryEmail(c.email))) { toast('Enter a valid email or leave it blank', 'error'); return; }
   /* M24: same 10-char Camera ID rule as the property editor. */
   if (c.cameraId && c.cameraId.length > 10) { toast('Camera ID can\'t exceed 10 characters', 'error'); $('#c-cameraId').focus(); return; }
   /* M23: no duplicate Camera IDs across customers/properties. */

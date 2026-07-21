@@ -88,6 +88,19 @@ function escapeHtml(s) {
     .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
+/* Item 7 (v2-patch-1): customer records may hold several addresses separated
+ * by semicolons — every processing path (QB push, notifications) must use
+ * only the first valid address. Mirrors extractPrimaryEmail in the app. */
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+function extractPrimaryEmail(emailString) {
+  if (!emailString) return '';
+  const parts = String(emailString).split(';').map((s) => s.trim()).filter(Boolean);
+  for (const p of parts) {
+    if (EMAIL_RE.test(p)) return p;
+  }
+  return parts[0] || '';
+}
+
 function htmlPage(title, bodyHtml) {
   return `<!doctype html><html><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -725,7 +738,9 @@ exports.qbCreateCustomer = functions
     }
 
     const payload = { DisplayName: c.name };
-    if (c.email) payload.PrimaryEmailAddr = { Address: c.email };
+    /* Item 7: QuickBooks gets only the first email of a semicolon list. */
+    const primaryEmail = extractPrimaryEmail(c.email);
+    if (primaryEmail) payload.PrimaryEmailAddr = { Address: primaryEmail };
     if (c.phone) payload.PrimaryPhone = { FreeFormNumber: c.phone };
     if (c.address || c.city || c.zip) {
       payload.BillAddr = {};
