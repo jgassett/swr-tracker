@@ -52,7 +52,16 @@ const SECRETS = ['QBO_CLIENT_ID', 'QBO_CLIENT_SECRET'];
 
 /* Only these accounts may approve + push estimates to QuickBooks. Mirrors
  * ADMIN_EMAILS in the app. */
-const ADMIN_EMAILS = ['jon@southern-wildlife.com'];
+const ADMIN_EMAILS = ['jon@southern-wildlife.com', 'tanya@southern-wildlife.com'];
+
+/* Operator email → display name. Mirrors EMAIL_TO_TRAPPER in the app. */
+const EMAIL_TO_TRAPPER = {
+  'jon@southern-wildlife.com': 'Jon Gassett',
+  'robin@southern-wildlife.com': 'Robin Gassett',
+  'chris@southern-wildlife.com': 'Chris Griffith',
+  'tanya@southern-wildlife.com': 'Tanya Clark'
+};
+const ALL_OPERATOR_EMAILS = Object.keys(EMAIL_TO_TRAPPER);
 
 /* All SWR estimate lines map to a single generic QuickBooks Product/Service;
  * the human-readable category/species/detail goes in each line's Description. */
@@ -742,20 +751,43 @@ exports.qbCreateCustomer = functions
  * a data-only message to every registered device of the given operators.
  * ===================================================================== */
 async function sendPushToEmails(emails, payload) {
-  const list = [...new Set((emails || []).filter(Boolean))];
+  const list = [...new Set((emails || []).filter(Boolean).map((e) => String(e).toLowerCase()))];
   if (!list.length) return { sent: 0, tokens: 0 };
-  const tokens = [];
-  for (let i = 0; i < list.length; i += 10) {
-    const snap = await db.collection('pushTokens').where('email', 'in', list.slice(i, i + 10)).get();
-    snap.forEach((d) => { const t = d.get('token'); if (t) tokens.push(t); });
-  }
-  if (!tokens.length) return { sent: 0, tokens: 0 };
+
+  /* Collect device tokens. New format (v2): one pushTokens/{email} doc per
+   * operator holding a `tokens` array (multiple devices per operator). Legacy
+   * format (v1): one pushTokens/{token} doc per device with an `email` field.
+   * Both are read so devices registered before the upgrade keep working. */
+  const entries = [];   // { token, ref, legacy } — ref used for invalid-token cleanup
+  const seen = new Set();
+  const emailDocs = await db.getAll(...list.map((e) => db.collection('pushTokens').doc(e)));
+  emailDocs.forEach((d) => {
+    if (!d.exists) return;
+    const arr = d.get('tokens');
+    (Array.isArray(arr) ? arr : []).forEach((t) => {
+      if (t && !seen.has(t)) { seen.add(t); entries.push({ token: t, ref: d.ref, legacy: false }); }
+    });
+  });
+  /* Legacy docs may hold mixed-case emails, which a lowercased `in` query
+     would miss — the collection is tiny (a few devices per operator), so
+     scan it and match case-insensitively. */
+  const wanted = new Set(list);
+  const legacySnap = await db.collection('pushTokens').get();
+  legacySnap.forEach((d) => {
+    const t = d.get('token');
+    const em = String(d.get('email') || '').toLowerCase();
+    if (t && wanted.has(em) && !seen.has(t)) { seen.add(t); entries.push({ token: t, ref: d.ref, legacy: true }); }
+  });
+  if (!entries.length) return { sent: 0, tokens: 0 };
+
+  const tokens = entries.map((e) => e.token);
   const res = await admin.messaging().sendEachForMulticast({
     tokens,
     data: {
       title: String(payload.title || 'SWR Tracker'),
       body: String(payload.body || ''),
-      url: String(payload.url || 'https://jgassett.github.io/swr-tracker/')
+      url: String(payload.url || 'https://jgassett.github.io/swr-tracker/'),
+      tag: String(payload.tag || '')
     },
     webpush: { headers: { Urgency: 'high' } }
   });
@@ -763,11 +795,87 @@ async function sendPushToEmails(emails, payload) {
     if (!r.success) {
       const code = r.error && r.error.code;
       if (code === 'messaging/registration-token-not-registered' || code === 'messaging/invalid-argument') {
-        db.collection('pushTokens').doc(tokens[i]).delete().catch(() => {});
+        const e = entries[i];
+        if (e.legacy) {
+          e.ref.delete().catch(() => {});
+        } else {
+          e.ref.set({ tokens: admin.firestore.FieldValue.arrayRemove(e.token) }, { merge: true }).catch(() => {});
+        }
       }
     }
   });
   return { sent: res.successCount, tokens: tokens.length };
+}
+
+/* In-app notification feed (Item 12): one doc per recipient in the
+ * `notifications` collection. Used alongside sendPushToEmails so alerts land
+ * both on the device (push) and in the app's bell feed. */
+async function createNotifications(emails, payload) {
+  const list = [...new Set((emails || []).filter(Boolean).map((e) => String(e).toLowerCase()))];
+  if (!list.length) return 0;
+  const now = new Date().toISOString();
+  const batch = db.batch();
+  for (const email of list) {
+    batch.set(db.collection('notifications').doc(), {
+      recipientEmail: email,
+      type: payload.type || 'general',
+      title: String(payload.title || ''),
+      body: String(payload.body || ''),
+      relatedId: payload.relatedId || null,
+      read: false,
+      createdAt: now
+    });
+  }
+  await batch.commit();
+  return list.length;
+}
+
+/* Camera health alerting (Item 14): every operator gets both a device push
+ * and an in-app feed entry. */
+async function notifyAllOperators(payload) {
+  try { await sendPushToEmails(ALL_OPERATOR_EMAILS, payload); }
+  catch (e) { console.error('operator push failed', e); }
+  try { await createNotifications(ALL_OPERATOR_EMAILS, payload); }
+  catch (e) { console.error('operator feed notification failed', e); }
+}
+
+async function propertyNickname(customerId, propertyId) {
+  if (!customerId || !propertyId) return null;
+  try {
+    const snap = await db.doc(`customers/${customerId}/properties/${propertyId}`).get();
+    return snap.exists ? (snap.get('siteNickname') || null) : null;
+  } catch (e) { return null; }
+}
+
+/* Dedup (Item 14): no repeat notification for the same camera + condition
+ * within 2 hours — lastNotifiedAt map on the camera record enforces it.
+ * set(..., {merge:true}) deep-merges the map so per-condition keys don't
+ * clobber each other. */
+const CAMERA_ALERT_WINDOW_MS = 2 * 60 * 60 * 1000;
+/* M16: the dedup stamp is CLAIMED in a transaction before sending — two
+ * concurrent ingests (scheduled poll + manual Sync Now) both passed the old
+ * stale in-memory check and double-alerted every operator. The transaction
+ * loser sees the fresh stamp and skips. (existingData is no longer trusted
+ * for the check; kept in the signature for the call sites.) */
+async function maybeSendCameraAlert(docRef, existingData, condKey, body, relatedId) {
+  const now = Date.now();
+  let claimed = false;
+  try {
+    claimed = await db.runTransaction(async (tx) => {
+      const snap = await tx.get(docRef);
+      const map = (snap.exists && snap.get('lastNotifiedAt')) || {};
+      const prev = map[condKey] ? Date.parse(map[condKey]) : 0;
+      if (prev && now - prev < CAMERA_ALERT_WINDOW_MS) return false;
+      tx.set(docRef, { lastNotifiedAt: { [condKey]: new Date(now).toISOString() } }, { merge: true });
+      return true;
+    });
+  } catch (e) {
+    console.error('camera alert dedup claim failed', e);
+    return false;
+  }
+  if (!claimed) return false;
+  await notifyAllOperators({ type: 'camera', title: 'Camera health alert', body, relatedId, tag: `cam-${condKey}-${relatedId}` });
+  return true;
 }
 
 /* Send a test push to the caller's own devices (verifies the whole pipeline). */
@@ -786,29 +894,74 @@ exports.sendTestPush = functions
     }
   });
 
-/* Notify a job's assignees (web push) that they've been scheduled. Reads the
- * job doc server-side so a client can't spam arbitrary push messages — it may
- * only trigger notifications for the assignees recorded on a real job. */
+/* Notify an appointment's assigned contractors (web push). Reads the job (and,
+ * when given, the appointment subcollection doc) server-side so a client can't
+ * spam arbitrary push messages — it may only trigger notifications for the
+ * operators recorded on a real appointment. Handles both eras of the data
+ * model: legacy Schedule docs (the job doc IS the appointment: date/startTime/
+ * type/assignees) and v2 lifecycle jobs (jobs/{jobId}/appointments/{apptId}
+ * with scheduledDate/scheduledTime/visitType/assignedOperators).
+ * The push body includes date, time, job type, customer name, and which
+ * contractor it is assigned to (Item 1). */
 exports.notifyJobAssignment = functions
   .region(REGION)
   .runWith({ memory: '256MB' })
   .https.onCall(async (data, context) => {
     if (!context.auth) throw new functions.https.HttpsError('unauthenticated', 'Sign in required.');
     const jobId = data && data.jobId;
+    const appointmentId = data && data.appointmentId;
     if (!jobId) throw new functions.https.HttpsError('invalid-argument', 'jobId is required.');
-    const snap = await db.collection('jobs').doc(String(jobId)).get();
-    if (!snap.exists) throw new functions.https.HttpsError('not-found', 'Job not found.');
-    const job = snap.data() || {};
-    const emails = Array.isArray(job.assignees) ? job.assignees.filter(Boolean) : [];
+    const jobSnap = await db.collection('jobs').doc(String(jobId)).get();
+    if (!jobSnap.exists) throw new functions.https.HttpsError('not-found', 'Job not found.');
+    const job = jobSnap.data() || {};
+
+    /* Legacy schedule docs double as the appointment record. */
+    let a = job;
+    if (appointmentId) {
+      const apptSnap = await db.collection('jobs').doc(String(jobId))
+        .collection('appointments').doc(String(appointmentId)).get();
+      if (!apptSnap.exists) throw new functions.https.HttpsError('not-found', 'Appointment not found.');
+      a = apptSnap.data() || {};
+    }
+
+    const emails = (Array.isArray(a.assignedOperators) && a.assignedOperators.length ? a.assignedOperators
+      : Array.isArray(a.assignees) ? a.assignees : []).filter(Boolean);
     if (!emails.length) return { sent: 0 };
-    const when = [job.date, job.startTime].filter(Boolean).join(' ');
-    const body = [job.title || 'New job', job.customerName, when].filter(Boolean).join(' · ');
+
+    const dateStr = a.scheduledDate || a.date || '';
+    const timeStr = a.scheduledTime || a.startTime || '';
+    const jobType = a.visitType || a.type || job.type || '';
+    const customerName = a.customerName || job.customerName || '';
+    /* Reschedules/reassignments notify too — same payload, accurate title. */
+    const title = (data && data.event === 'updated') ? 'Appointment updated' : 'New appointment scheduled';
+
     try {
-      return await sendPushToEmails(emails, {
-        title: 'New job assigned',
-        body,
-        url: './'
-      });
+      let sent = 0, tokens = 0;
+      /* One personalized push per contractor: "…Assigned to <name>". */
+      for (const email of emails) {
+        const name = EMAIL_TO_TRAPPER[String(email).toLowerCase()] || email;
+        const body = [
+          [dateStr, timeStr].filter(Boolean).join(' '),
+          jobType,
+          customerName,
+          `Assigned to ${name}`
+        ].filter(Boolean).join(' · ');
+        const r = await sendPushToEmails([email], {
+          title,
+          body,
+          url: './',
+          tag: `appt-${appointmentId || jobId}`
+        });
+        sent += r.sent; tokens += r.tokens;
+        /* Mirror into the in-app bell feed (Item 12). */
+        await createNotifications([email], {
+          type: 'appointment',
+          title,
+          body,
+          relatedId: appointmentId || jobId
+        }).catch((e) => console.error('appointment feed notification failed', e));
+      }
+      return { sent, tokens };
     } catch (err) {
       console.error('notifyJobAssignment failed', err);
       throw new functions.https.HttpsError('internal', err.message || 'Push send failed');
@@ -848,6 +1001,34 @@ exports.cleanupCameraPhotos = functions
     return null;
   });
 
+/* M12: the notifications feed is append-only (camera alerts fan out to every
+ * operator daily) — without cleanup it grows unbounded and the client
+ * subscription downloads the whole history each session. Read state lives on
+ * each doc, so anything older than 60 days is history nobody scrolls to.
+ * Single-field range query — no composite index required. */
+exports.cleanupNotifications = functions
+  .region(REGION)
+  .runWith({ timeoutSeconds: 300, memory: '256MB' })
+  .pubsub.schedule('every 24 hours')
+  .timeZone(REPORT_TZ)
+  .onRun(async () => {
+    try {
+      const cutoff = new Date(Date.now() - 60 * 86400000).toISOString();
+      const snap = await db.collection('notifications').where('createdAt', '<', cutoff).get();
+      if (snap.empty) { console.log('cleanupNotifications: nothing older than 60 days'); return null; }
+      let batch = db.batch(); let ops = 0; let deleted = 0;
+      for (const d of snap.docs) {
+        batch.delete(d.ref); ops++; deleted++;
+        if (ops >= 450) { await batch.commit(); batch = db.batch(); ops = 0; }
+      }
+      if (ops) await batch.commit();
+      console.log(`cleanupNotifications: deleted ${deleted} notifications older than 60 days`);
+    } catch (err) {
+      console.error('cleanupNotifications failed', err);
+    }
+    return null;
+  });
+
 /* Daily scheduled sync. */
 exports.qbDailySync = functions
   .region(REGION)
@@ -872,7 +1053,21 @@ exports.qbDailySync = functions
  * doc matched to the active customer by subject key. Report emails
  * (reports.cuddelink.com) → parse the attached HTML → cameraHealth docs.
  * ===================================================================== */
-async function graphToken() {
+/* ---- Graph auth hardening (Item 7) ----
+ * The app-only token is cached per function instance and refreshed
+ * PROACTIVELY five minutes before its expiry, so requests never go out with
+ * a token that's about to lapse. Every request runs through graphFetch(),
+ * which — should a 401 still slip through (revocation, clock skew) —
+ * refreshes the token and retries the request exactly once before failing,
+ * so a single 401 never loses a photo. All 401s are logged to the
+ * `graphErrors` Firestore collection with timestamp + email subject. */
+let _graphTokenCache = { token: null, expiresAt: 0 };
+
+async function graphToken(forceRefresh = false) {
+  const REFRESH_BUFFER_MS = 5 * 60 * 1000;
+  if (!forceRefresh && _graphTokenCache.token && Date.now() < _graphTokenCache.expiresAt - REFRESH_BUFFER_MS) {
+    return _graphTokenCache.token;
+  }
   const res = await fetch(`https://login.microsoftonline.com/${process.env.MS_TENANT_ID}/oauth2/v2.0/token`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -885,61 +1080,116 @@ async function graphToken() {
   });
   const text = await res.text();
   if (!res.ok) throw new Error(`Graph token ${res.status}: ${text}`);
-  return JSON.parse(text).access_token;
+  const json = JSON.parse(text);
+  _graphTokenCache = {
+    token: json.access_token,
+    expiresAt: Date.now() + (Number(json.expires_in) || 3600) * 1000
+  };
+  return _graphTokenCache.token;
 }
-async function graphGet(token, path) {
-  const res = await fetch(`https://graph.microsoft.com/v1.0${path}`, {
-    headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' }
+
+async function logGraphError(status, path, context = {}) {
+  try {
+    await db.collection('graphErrors').add({
+      at: new Date().toISOString(),
+      status: status || null,
+      path: String(path || '').slice(0, 300),
+      subject: context.subject || null,
+      message: context.message || null
+    });
+  } catch (e) {
+    console.error('graphErrors log failed', e);
+  }
+}
+
+/* Authenticated Graph request with 401 refresh-and-retry-once. */
+async function graphFetch(path, options = {}, context = {}) {
+  const url = path.startsWith('http') ? path : `https://graph.microsoft.com/v1.0${path}`;
+  const doFetch = async (t) => fetch(url, {
+    ...options,
+    headers: { ...(options.headers || {}), Authorization: `Bearer ${t}` }
   });
+  let res = await doFetch(await graphToken());
+  if (res.status === 401) {
+    console.warn('Graph 401 — refreshing token and retrying once', path);
+    await logGraphError(401, path, { ...context, message: 'Graph 401 — token refreshed, request retried' });
+    res = await doFetch(await graphToken(true));
+    if (res.status === 401) {
+      await logGraphError(401, path, { ...context, message: 'Graph 401 persisted after token refresh — request failed' });
+    }
+  }
+  return res;
+}
+
+async function graphGet(path, context = {}) {
+  const res = await graphFetch(path, { headers: { Accept: 'application/json' } }, context);
   const text = await res.text();
   if (!res.ok) throw new Error(`Graph GET ${res.status}: ${text}`);
   return JSON.parse(text);
 }
-async function graphGetBytes(token, path) {
-  const res = await fetch(`https://graph.microsoft.com/v1.0${path}`, { headers: { Authorization: `Bearer ${token}` } });
+async function graphGetBytes(path, context = {}) {
+  const res = await graphFetch(path, {}, context);
   if (!res.ok) throw new Error(`Graph bytes GET ${res.status}: ${await res.text()}`);
   return Buffer.from(await res.arrayBuffer());
 }
-async function graphMarkRead(token, id) {
-  await fetch(`https://graph.microsoft.com/v1.0/users/${PHOTOS_MAILBOX}/messages/${id}`, {
+async function graphMarkRead(id, context = {}) {
+  await graphFetch(`/users/${PHOTOS_MAILBOX}/messages/${id}`, {
     method: 'PATCH',
-    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ isRead: true })
-  });
+  }, context);
 }
 
-/* Build a camera-key → customer lookup. An explicit `cameraId` on a customer
- * wins (exact, any customer); otherwise fall back to a unique name-derived key
- * among ACTIVE customers. Ambiguous name-keys are dropped (→ unassigned). */
+/* Build a camera-key → customer lookup. Property Camera IDs (Item 9) win —
+ * a match links the photo to both the customer AND the specific property.
+ * Next an explicit `cameraId` on a customer (exact, any customer); otherwise
+ * fall back to a unique name-derived key among ACTIVE customers. Ambiguous
+ * name-keys are dropped (→ unassigned). */
 async function customerKeyMap() {
   const snap = await db.collection('customers').get();
+  const nameById = new Map();
   const byCam = new Map();
   const byName = new Map();
   const nameAmbiguous = new Set();
   snap.forEach((d) => {
+    nameById.set(d.id, d.get('name') || '');
     const cam = (d.get('cameraId') || '').trim().toUpperCase();
-    if (cam) byCam.set(cam, { id: d.id, name: d.get('name') || '' });
+    if (cam) byCam.set(cam, { id: d.id, name: d.get('name') || '', propertyId: null });
     if (d.get('active')) {
       const key = cb.customerKeyFor(d.get('name'));
       if (key) {
         if (byName.has(key)) nameAmbiguous.add(key);
-        else byName.set(key, { id: d.id, name: d.get('name') || '' });
+        else byName.set(key, { id: d.id, name: d.get('name') || '', propertyId: null });
       }
     }
   });
   nameAmbiguous.forEach((k) => byName.delete(k));
+  /* Property Camera IDs override customer-level entries on collision. */
+  try {
+    const propSnap = await db.collectionGroup('properties').get();
+    propSnap.forEach((d) => {
+      const cam = (d.get('cameraId') || '').trim().toUpperCase();
+      if (!cam) return;
+      const customerId = d.get('customerId') || (d.ref.parent.parent ? d.ref.parent.parent.id : null);
+      if (!customerId) return;
+      byCam.set(cam, { id: customerId, name: nameById.get(customerId) || '', propertyId: d.id });
+    });
+  } catch (err) {
+    console.error('property lookup failed — continuing with customer-level matching', err);
+  }
   return { get: (k) => byCam.get(k) || byName.get(k) || null };
 }
 
-async function handlePhotoMessage(token, m, keyMap) {
+async function handlePhotoMessage(m, keyMap) {
+  const ctx = { subject: m.subject || '' };
   const key = cb.subjectKey(m.subject);
   const match = key ? keyMap.get(key) : null;
-  const atts = await graphGet(token, `/users/${PHOTOS_MAILBOX}/messages/${m.id}/attachments?$select=id,name,contentType,isInline`);
+  const atts = await graphGet(`/users/${PHOTOS_MAILBOX}/messages/${m.id}/attachments?$select=id,name,contentType,isInline`, ctx);
   const bucket = admin.storage().bucket();
   let photos = 0;
   for (const a of (atts.value || [])) {
     if (a.isInline || !/^image\//i.test(a.contentType || '')) continue;
-    const buf = await graphGetBytes(token, `/users/${PHOTOS_MAILBOX}/messages/${m.id}/attachments/${a.id}/$value`);
+    const buf = await graphGetBytes(`/users/${PHOTOS_MAILBOX}/messages/${m.id}/attachments/${a.id}/$value`, ctx);
     const dlToken = crypto.randomUUID();
     const safeName = (a.name || 'photo.jpg').replace(/[^\w.\-]/g, '_');
     const path = `cameraPhotos/${key || 'unassigned'}/${m.id}_${safeName}`;
@@ -952,6 +1202,7 @@ async function handlePhotoMessage(token, m, keyMap) {
       customerKey: key || null,
       customerId: match ? match.id : null,
       customerName: match ? match.name : null,
+      propertyId: (match && match.propertyId) || null,
       assigned: !!match,
       subject: m.subject || '',
       receivedAt: m.receivedDateTime || new Date().toISOString(),
@@ -964,14 +1215,15 @@ async function handlePhotoMessage(token, m, keyMap) {
     });
     photos++;
   }
-  return { photos, unassigned: !match };
+  return { photos, unassigned: !match, key, match, receivedAt: m.receivedDateTime || new Date().toISOString() };
 }
 
-async function handleReportMessage(token, m, keyMap) {
-  const atts = await graphGet(token, `/users/${PHOTOS_MAILBOX}/messages/${m.id}/attachments?$select=id,name,contentType,isInline`);
+async function handleReportMessage(m, keyMap) {
+  const ctx = { subject: m.subject || '' };
+  const atts = await graphGet(`/users/${PHOTOS_MAILBOX}/messages/${m.id}/attachments?$select=id,name,contentType,isInline`, ctx);
   const htmlAtt = (atts.value || []).find((a) => /html/i.test(a.contentType || '') || /\.html?$/i.test(a.name || ''));
   if (!htmlAtt) throw new Error('report message has no HTML attachment');
-  const buf = await graphGetBytes(token, `/users/${PHOTOS_MAILBOX}/messages/${m.id}/attachments/${htmlAtt.id}/$value`);
+  const buf = await graphGetBytes(`/users/${PHOTOS_MAILBOX}/messages/${m.id}/attachments/${htmlAtt.id}/$value`, ctx);
   const parsed = cb.parseReportHtml(buf.toString('utf8'));
   if (!parsed || !parsed.network) throw new Error('could not parse report HTML');
 
@@ -985,6 +1237,7 @@ async function handleReportMessage(token, m, keyMap) {
       customerKey: parsed.network,
       customerId: match ? match.id : null,
       customerName: match ? match.name : null,
+      propertyId: (match && match.propertyId) || null,
       cameraNumber: d.cameraNumber,
       cameraName: d.cameraName,
       mode: d.mode,
@@ -1003,37 +1256,246 @@ async function handleReportMessage(token, m, keyMap) {
     }, { merge: true });
   }
   await batch.commit();
+
+  /* A daily status report proves the camera network is alive — refresh
+     lastSeen so the 90-minute watchdog doesn't flag a healthy network that
+     simply had no animal activity (photos are motion-triggered). Only move
+     lastSeen forward; a newer photo timestamp must win. */
+  try {
+    const reportSeen = m.receivedDateTime || nowIso;
+    const statusRef = db.doc(`cameraStatus/${parsed.network}`);
+    const statusSnap = await statusRef.get();
+    const prevSeen = statusSnap.exists ? (statusSnap.get('lastSeen') || '') : '';
+    if (!prevSeen || reportSeen > prevSeen) {
+      await statusRef.set({
+        customerKey: parsed.network,
+        customerId: match ? match.id : null,
+        customerName: match ? match.name : null,
+        propertyId: (match && match.propertyId) || null,
+        lastSeen: reportSeen,
+        updatedAt: nowIso
+      }, { merge: true });
+    }
+  } catch (err) {
+    console.error('cameraStatus lastSeen refresh from report failed', parsed.network, err);
+  }
+
+  /* Item 14: any camera failing the green threshold in the daily status
+     email alerts every operator — battery low, SD card at/above 90%
+     capacity (free space below threshold), an error flag (photo queue
+     backlog), or no daily status report received for that camera. 2-hour
+     per-camera-per-condition dedup via lastNotifiedAt. */
+  try {
+    const nickname = await propertyNickname(match ? match.id : null, match ? match.propertyId : null);
+    const healthSnap = await db.collection('cameraHealth').where('customerKey', '==', parsed.network).get();
+    const inReport = new Set(parsed.devices.map((d) => String(d.cameraNumber)));
+    for (const hd of healthSnap.docs) {
+      const h = hd.data();
+      const conds = [];
+      const d = parsed.devices.find((x) => String(x.cameraNumber) === String(h.cameraNumber));
+      if (d) {
+        const defs = cb.deviceDeficiencies(d);
+        if (defs.includes('battery')) conds.push(['battery', 'battery level low']);
+        if (defs.includes('sd')) conds.push(['sd', 'SD card at or above 90% capacity']);
+        if (defs.includes('queue')) conds.push(['queue', `error flag: photo queue backlog (${d.photoQueue} queued)`]);
+      } else if (!inReport.has(String(h.cameraNumber))) {
+        /* Retirement cutoff: a camera absent from reports for over 7 days
+           is considered removed — stop alerting about it daily forever.
+           reportDate/updatedAt are only written while the camera still
+           appears in reports, so they mark its last known appearance. */
+        const lastAppeared = Date.parse(h.reportDate || '') || Date.parse(h.updatedAt || '') || 0;
+        const RETIRED_MS = 7 * 24 * 60 * 60 * 1000;
+        if (!lastAppeared || Date.now() - lastAppeared <= RETIRED_MS) {
+          conds.push(['noreport', 'no daily status report received for this camera']);
+        }
+      }
+      for (const [condKey, condText] of conds) {
+        const camLabel = `${parsed.network} #${h.cameraNumber}${h.cameraName ? ` (${h.cameraName})` : ''}`;
+        const body = [`Camera ${camLabel}`, h.customerName || (match && match.name) || null, nickname, condText]
+          .filter(Boolean).join(' · ');
+        await maybeSendCameraAlert(hd.ref, h, condKey, body, hd.id);
+      }
+    }
+  } catch (err) {
+    console.error('camera report alerting failed', err);
+  }
+
   return { devices: parsed.devices.length };
 }
 
-/* Poll the mailbox: process unread photo + report messages, mark them read. */
+/* =====================================================================
+ * Camera watchdog (Item 14) — Cloud Scheduler, every 60 minutes.
+ * Checks lastSeen across active camera records; any camera silent for more
+ * than 90 minutes alerts every operator. A camera that has been silent for
+ * over 7 days is considered retired and stops alerting. 2-hour dedup via
+ * lastNotifiedAt.offline on the camera record.
+ * ===================================================================== */
+exports.cameraWatchdog = functions
+  .region(REGION)
+  .runWith({ timeoutSeconds: 120, memory: '256MB' })
+  .pubsub.schedule('every 60 minutes')
+  .timeZone(REPORT_TZ)
+  .onRun(async () => {
+    const OFFLINE_MS = 90 * 60 * 1000;
+    const RETIRED_MS = 7 * 24 * 60 * 60 * 1000;
+    try {
+      const snap = await db.collection('cameraStatus').get();
+      const now = Date.now();
+      for (const d of snap.docs) {
+        const s = d.data();
+        const last = s.lastSeen ? Date.parse(s.lastSeen) : 0;
+        if (!last) continue;
+        const silentFor = now - last;
+        if (silentFor <= OFFLINE_MS || silentFor > RETIRED_MS) continue;
+        const map = s.lastNotifiedAt || {};
+        const prev = map.offline ? Date.parse(map.offline) : 0;
+        /* One alert per silence episode: after alerting, stay quiet until a
+           new photo/report moves lastSeen forward again — a camera with no
+           overnight activity must not re-alert every 2 hours for days. */
+        if (prev && (prev >= last || now - prev < CAMERA_ALERT_WINDOW_MS)) continue;
+        const nickname = await propertyNickname(s.customerId, s.propertyId);
+        const body = [
+          `Camera ${d.id}`,
+          s.customerName || null,
+          nickname,
+          'No photo received in 90 minutes — camera may be offline, stolen, or malfunctioning.'
+        ].filter(Boolean).join(' · ');
+        await notifyAllOperators({ type: 'camera', title: 'Camera offline', body, relatedId: d.id, tag: `cam-offline-${d.id}` });
+        await d.ref.set({ lastNotifiedAt: { offline: new Date(now).toISOString() } }, { merge: true });
+      }
+      /* M15: a whole network's daily report can stop arriving — then
+         handleReportMessage never runs for it (its `noreport` check only
+         fires when a report DOES arrive with a camera missing), and photo
+         emails keep lastSeen fresh so the offline check above stays silent.
+         Group the health rows by network and alert when the newest report
+         ingest is over ~a day old. One alert per silent day; a network
+         silent for over 7 days is considered retired. */
+      const NOREPORT_NET_MS = 30 * 60 * 60 * 1000;
+      const health = await db.collection('cameraHealth').get();
+      const newestByNetwork = new Map();
+      for (const hd of health.docs) {
+        const network = hd.id.includes('__') ? hd.id.split('__')[0] : hd.id;
+        const h = hd.data();
+        const t = h.updatedAt ? Date.parse(h.updatedAt) : (h.reportDate ? Date.parse(h.reportDate) : 0);
+        if (t > (newestByNetwork.get(network) || 0)) newestByNetwork.set(network, t);
+      }
+      for (const [network, newest] of newestByNetwork) {
+        if (!newest) continue;
+        const age = now - newest;
+        if (age <= NOREPORT_NET_MS || age > RETIRED_MS) continue;
+        const statusRef = db.doc(`cameraStatus/${network}`);
+        const statusSnap = await statusRef.get();
+        const map = (statusSnap.exists && statusSnap.get('lastNotifiedAt')) || {};
+        const prev = map.noreportNetwork ? Date.parse(map.noreportNetwork) : 0;
+        if (prev && now - prev < NOREPORT_NET_MS) continue;
+        const days = Math.max(1, Math.floor(age / 86400000));
+        const body = `Camera network ${network} · No daily status report ingested in ${days} day${days > 1 ? 's' : ''} — check the CuddeLink home camera and report email delivery.`;
+        await notifyAllOperators({ type: 'camera', title: 'Camera report missing', body, relatedId: network, tag: `cam-noreport-net-${network}` });
+        await statusRef.set({ lastNotifiedAt: { noreportNetwork: new Date(now).toISOString() } }, { merge: true });
+      }
+    } catch (err) {
+      console.error('cameraWatchdog failed', err);
+    }
+    return null;
+  });
+
+/* M16: only one mailbox ingest at a time. The scheduled poll and a manual
+ * Sync Now both fetch "unread" messages and mark them read only afterwards,
+ * so overlapping runs process the same emails twice (duplicate photos and a
+ * second pass at the alert dedup). Short transactional lease; a crashed
+ * run's lease expires after 10 minutes. */
+const INGEST_LEASE_MS = 10 * 60 * 1000;
+async function acquireIngestLease() {
+  const ref = db.doc('org/ingestLock');
+  return db.runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    const heldAt = (snap.exists && snap.get('leasedAt')) ? Date.parse(snap.get('leasedAt')) : 0;
+    if (heldAt && Date.now() - heldAt < INGEST_LEASE_MS) return false;
+    tx.set(ref, { leasedAt: new Date().toISOString() }, { merge: true });
+    return true;
+  });
+}
+async function releaseIngestLease() {
+  await db.doc('org/ingestLock').set({ leasedAt: null }, { merge: true }).catch(() => {});
+}
+
 async function ingestMailbox() {
-  const token = await graphToken();
-  const data = await graphGet(token,
-    `/users/${PHOTOS_MAILBOX}/messages?$filter=isRead eq false&$top=25` +
-    `&$select=id,subject,from,receivedDateTime,hasAttachments&$orderby=receivedDateTime desc`);
+  /* true = acquired, false = a peer holds it, null = lease check errored
+     (proceed for availability, but never release a lease we don't hold). */
+  let leased = null;
+  try { leased = await acquireIngestLease(); }
+  catch (e) { console.error('ingest lease failed — proceeding without a lease', e); }
+  if (leased === false) return { busy: true, at: new Date().toISOString() };
+  try {
+    return await ingestMailboxUnlocked();
+  } finally {
+    if (leased === true) await releaseIngestLease();
+  }
+}
+
+/* Poll the mailbox: process unread photo + report messages, mark them read.
+ * Every successful run stamps org/graphStatus.lastPollAt so the app's Cameras
+ * module can show a Graph connection indicator (Item 7). */
+async function ingestMailboxUnlocked() {
+  let data;
+  try {
+    data = await graphGet(
+      `/users/${PHOTOS_MAILBOX}/messages?$filter=isRead eq false&$top=25` +
+      `&$select=id,subject,from,receivedDateTime,hasAttachments&$orderby=receivedDateTime desc`,
+      { subject: '(mailbox poll)' });
+  } catch (err) {
+    await db.doc('org/graphStatus').set({
+      lastErrorAt: new Date().toISOString(),
+      lastError: String(err.message || err).slice(0, 300)
+    }, { merge: true }).catch(() => {});
+    throw err;
+  }
   const msgs = data.value || [];
   let photos = 0, reports = 0, unassigned = 0, skipped = 0;
   const keyMap = msgs.length ? await customerKeyMap() : { get: () => null };
+  const lastSeenByKey = new Map();   /* Item 14: newest photo time per camera key */
   for (const m of msgs) {
     const sender = ((m.from && m.from.emailAddress && m.from.emailAddress.address) || '').toLowerCase();
     try {
       if (sender.includes(CL_IMG_SENDER)) {
-        const r = await handlePhotoMessage(token, m, keyMap);
+        const r = await handlePhotoMessage(m, keyMap);
         photos += r.photos;
         if (r.unassigned) unassigned++;
+        if (r.photos && r.key) {
+          const prev = lastSeenByKey.get(r.key);
+          if (!prev || (r.receivedAt || '') > (prev.receivedAt || '')) lastSeenByKey.set(r.key, r);
+        }
       } else if (sender.includes(CL_REPORT_SENDER)) {
-        await handleReportMessage(token, m, keyMap);
+        await handleReportMessage(m, keyMap);
         reports++;
       } else {
         skipped++;
       }
-      await graphMarkRead(token, m.id);
+      await graphMarkRead(m.id, { subject: m.subject || '' });
     } catch (err) {
       console.error('Ingest failed for message', m.id, err.message); // leave unread → retried next run
     }
   }
-  return { processed: msgs.length, photos, reports, unassigned, skipped, at: new Date().toISOString() };
+  /* Item 14 (event-driven): stamp lastSeen on the camera record at write
+     time — no polling. One write per camera key per run. */
+  for (const [key, r] of lastSeenByKey) {
+    await db.doc(`cameraStatus/${key}`).set({
+      customerKey: key,
+      customerId: r.match ? r.match.id : null,
+      customerName: r.match ? r.match.name : null,
+      propertyId: (r.match && r.match.propertyId) || null,
+      lastSeen: r.receivedAt,
+      updatedAt: new Date().toISOString()
+    }, { merge: true }).catch((e) => console.error('cameraStatus lastSeen write failed', key, e));
+  }
+  const result = { processed: msgs.length, photos, reports, unassigned, skipped, at: new Date().toISOString() };
+  await db.doc('org/graphStatus').set({
+    lastPollAt: result.at,
+    lastResult: result,
+    lastError: admin.firestore.FieldValue.delete(),
+    lastErrorAt: admin.firestore.FieldValue.delete()
+  }, { merge: true }).catch(() => {});
+  return result;
 }
 
 /* Scheduled poll every 15 minutes. */

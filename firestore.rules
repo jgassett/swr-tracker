@@ -9,7 +9,7 @@ service cloud.firestore {
     function isAdmin() {
       return signedIn()
         && request.auth.token.email != null
-        && request.auth.token.email.lower() == 'jon@southern-wildlife.com';
+        && request.auth.token.email.lower() in ['jon@southern-wildlife.com', 'tanya@southern-wildlife.com'];
     }
 
     /* Trap records — shared by all three trappers. */
@@ -55,6 +55,17 @@ service cloud.firestore {
       allow delete: if signedIn();
     }
 
+    /* Customer properties subcollection (Item 9). Matched as a collection
+       group so the app can list every property (camera-key matching, form
+       selectors). Same auth pattern as the other shared collections. */
+    match /{path=**}/properties/{propertyId} {
+      allow read:   if signedIn();
+      allow create: if signedIn()
+                    && request.resource.data.createdByUid == request.auth.uid;
+      allow update: if signedIn();
+      allow delete: if signedIn();
+    }
+
     /* Job estimates (Pricing Constructor). Shared like the other collections.
        The approve → QuickBooks push happens server-side in an admin-gated
        Cloud Function (qbPushEstimate), which writes qbEstimateId / the
@@ -82,10 +93,53 @@ service cloud.firestore {
                     && resource.data.status in ['Draft', 'Pending Approval', 'Rejected'];
     }
 
-    /* Job schedule (Phase 4). Shared across the crew like the other
-       collections; assignees are notified server-side (notifyJobAssignment,
-       Admin SDK) which also reads jobs to build the push payload. */
+    /* Jobs (v2 lifecycle containers + legacy Phase-4 schedule docs). Shared
+       across the crew like the other collections; assignees are notified
+       server-side (notifyJobAssignment, Admin SDK) which also reads jobs to
+       build the push payload. */
+
+    /* Lifecycle position of a v2 job status. Mirrors JOB_STATUSES in the
+       app; unknown statuses rank -1 and so can never be written. */
+    function jobStatusRank(s) {
+      return {'Lead': 0, 'Estimated': 1, 'Scheduled': 2, 'Active': 3,
+              'Pending Close': 4, 'Invoiced': 5, 'Paid': 6}.get(s, -1);
+    }
+
+    /* Forward-only status guard for v2 lifecycle jobs (they carry a
+       jobNumber; legacy schedule docs keep the v1 shared-edit behavior).
+       A client update may keep the status as-is, cancel a not-yet-cancelled
+       job, or move it forward in the progression — never backward, never
+       out of Cancelled, never to an unknown status. Blocks a stale offline
+       write from regressing a job another device already advanced. */
+    function jobStatusMoveOk() {
+      return !('jobNumber' in resource.data)
+        || request.resource.data.get('status', null) == resource.data.get('status', null)
+        || (resource.data.get('status', 'Lead') != 'Cancelled'
+            && (request.resource.data.get('status', null) == 'Cancelled'
+                || jobStatusRank(request.resource.data.get('status', ''))
+                     > jobStatusRank(resource.data.get('status', 'Lead'))));
+    }
+
+    /* Job-number allocation counter (M4) — read and bumped inside a client
+       transaction by any signed-in operator. */
+    match /counters/{counterId} {
+      allow read, write: if request.auth != null;
+    }
+
     match /jobs/{jobId} {
+      allow read:   if request.auth != null;
+      allow create: if request.auth != null
+                    && request.resource.data.createdByUid == request.auth.uid;
+      allow update: if request.auth != null
+                    && jobStatusMoveOk();
+      allow delete: if request.auth != null;
+    }
+
+    /* Appointments subcollection under jobs (v2). Matched as a collection
+       group so the app can query every job's appointments for the shared
+       Schedule calendar. Only jobs carry an `appointments` subcollection.
+       Same auth pattern as the other shared collections. */
+    match /{path=**}/appointments/{appointmentId} {
       allow read:   if request.auth != null;
       allow create: if request.auth != null
                     && request.resource.data.createdByUid == request.auth.uid;
@@ -113,6 +167,13 @@ service cloud.firestore {
       allow delete: if request.auth != null;
     }
 
+    /* Per-camera lastSeen tracking (Item 14) — written server-side by the
+       photo pipeline and read by the watchdog; clients read only. */
+    match /cameraStatus/{cameraKey} {
+      allow read:  if request.auth != null;
+      allow write: if false;
+    }
+
     /* Camera health snapshots (per device), written server-side from the daily
        report. Clients may only DELETE a row — used by "Delete Photos From App"
        to clear a retired camera; the ingest recreates rows if that camera
@@ -121,6 +182,41 @@ service cloud.firestore {
       allow read:   if request.auth != null;
       allow create, update: if false;
       allow delete: if request.auth != null;
+    }
+
+    /* In-app notifications (Item 12). Each operator can only READ and WRITE
+       (mark read / dismiss) their own notifications. Client-side creation
+       exists solely for the job-status-change teammate notice, so creates
+       are locked to that exact shape (unread, type 'job', bounded strings,
+       not addressed to yourself). Server-side alerts use the Admin SDK and
+       bypass these rules anyway. */
+    match /notifications/{notificationId} {
+      allow read:   if signedIn()
+                    && resource.data.recipientEmail == request.auth.token.email.lower();
+      allow create: if signedIn()
+                    && request.auth.token.email != null
+                    && request.resource.data.keys().hasOnly(
+                         ['recipientEmail', 'type', 'title', 'body', 'relatedId', 'read', 'createdAt'])
+                    && request.resource.data.recipientEmail is string
+                    && request.resource.data.recipientEmail != request.auth.token.email.lower()
+                    && request.resource.data.type == 'job'
+                    && request.resource.data.title is string
+                    && request.resource.data.title.size() <= 200
+                    && request.resource.data.body is string
+                    && request.resource.data.body.size() <= 500
+                    && request.resource.data.read == false
+                    && request.resource.data.createdAt is string;
+      allow update: if signedIn()
+                    && resource.data.recipientEmail == request.auth.token.email.lower();
+      allow delete: if signedIn()
+                    && resource.data.recipientEmail == request.auth.token.email.lower();
+    }
+
+    /* Graph API 401 diagnostics (Item 7) — written server-side by the email
+       pipeline (Admin SDK); clients read for visibility only. */
+    match /graphErrors/{errorId} {
+      allow read:  if request.auth != null;
+      allow write: if false;
     }
 
     /* Web-push device tokens. Clients register/remove their own; only the
