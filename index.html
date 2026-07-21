@@ -1803,7 +1803,9 @@
         <div class="form-group">
           <label for="f-address">Location<span class="req">*</span></label>
           <div class="autocomplete-wrap">
-            <input type="text" id="f-address" placeholder="Set the capture location with an option below" autocomplete="off" readonly required>
+            <!-- Item 5 (v2-patch-1): editable — typing locks it against
+                 customer/property prefill overwrites for this form session. -->
+            <input type="text" id="f-address" placeholder="Type an address, or set the location with an option below" autocomplete="off" required>
             <div class="autocomplete-list hidden" id="f-address-ac" data-ac-target="trap"></div>
           </div>
           <div class="loc-options" id="trapLocOptions">
@@ -5971,6 +5973,12 @@ let pendingPhotoBlob = null;     /* compressed Blob, ready to upload */
 let pendingPhotoUrl = null;      /* object URL for preview only */
 let removeExistingPhoto = false; /* user tapped Remove on a saved photo */
 let releaseDateDirty = false;    /* true once the operator hand-edits Date of Release */
+/* Item 5 (v2-patch-1): true once the operator TYPES in the trap-site address
+   field. While set, customer/property selection may no longer overwrite the
+   address (their prefill is a convenience only). Cleared by resetForm() —
+   which also runs on Submit & New. Programmatic .value writes don't fire
+   'input', so location-method fills never trip it. */
+let addressManuallyEdited = false;
 /* Which submit button was pressed on an entry form: 'new' reopens a fresh
    pre-filled form after saving; 'close' returns to the records list. */
 let submitIntent = 'close';
@@ -5983,6 +5991,7 @@ function resetForm() {
   editingId = null;
   pendingRecord = null;
   releaseDateDirty = false;
+  addressManuallyEdited = false;   /* Item 5: fresh session — prefill allowed again */
   silentReleaseCounty = null;
   silentTrapCounty = null;
   /* Item 15: collapse the location widgets back to the three-option row. */
@@ -11363,13 +11372,15 @@ function applyCustomerToTrapForm(c) {
   if (c.phone) $('#f-client-phone').value = c.phone;
   if (c.email) $('#f-client-email').value = c.email;
   const fullAddr = [c.address, c.city].filter(Boolean).join(', ');
-  if (fullAddr) {
+  /* Item 5: prefill is a convenience only — a hand-edited address is locked
+     against any later customer selection in this form session. */
+  if (fullAddr && !addressManuallyEdited) {
     const a = $('#f-address');
     a.value = fullAddr;
     delete a.dataset.fromMap;
     delete a.dataset.lastValidated;
   }
-  if (c.county) selectCountyIfKnown('f-county', c.county);
+  if (c.county && !addressManuallyEdited) selectCountyIfKnown('f-county', c.county);
   const hint = $('#addressValidationHint');
   if (hint) { hint.textContent = `✓ Customer on file: ${c.name}`; hint.className = 'hint success'; }
   hideTrapCustomerSuggest();
@@ -11382,13 +11393,14 @@ function applyCustomerToTrapForm(c) {
 function applyPropertyToTrapForm(p) {
   if (!p) return;
   const fullAddr = [p.address, p.city].filter(Boolean).join(', ');
-  if (fullAddr) {
+  /* Item 5: a hand-edited address is never overwritten by property selection. */
+  if (fullAddr && !addressManuallyEdited) {
     const a = $('#f-address');
     a.value = fullAddr;
     delete a.dataset.fromMap;
     delete a.dataset.lastValidated;
   }
-  if (p.county) selectCountyIfKnown('f-county', p.county);
+  if (p.county && !addressManuallyEdited) selectCountyIfKnown('f-county', p.county);
 }
 
 /* Fill pesticide-form client fields from a chosen customer. */
@@ -11900,7 +11912,12 @@ async function init() {
     });
   }
   wireAutocomplete('f-client-name', 'f-client-name-ac', applyCustomerToTrapForm);
-  /* f-address is a read-only location display now (Item 15) — no autocomplete. */
+  /* Item 5: typing in the trap-site address locks it against customer/property
+     prefill overwrites for the rest of this form session. */
+  $('#f-address').addEventListener('input', () => {
+    addressManuallyEdited = true;
+    delete $('#f-address').dataset.fromMap;
+  });
   wireAutocomplete('pa-client-name', 'pa-client-name-ac', applyCustomerToPesticideForm);
 
   /* ---- Item 3: Mapbox address autocomplete ---- */
@@ -11917,6 +11934,11 @@ async function init() {
     /* Route through the site handler so the address, coordinates, and the
        silently-captured county all land exactly as with the Set button. */
     if (s.lat != null && s.lng != null) setTrapLocation(s.lat, s.lng, mapboxGeoHint(s));
+  });
+  /* Item 5 made #f-address directly editable — it gets autocomplete too. */
+  wireMapboxAutocomplete('f-address', 'f-address-ac', (s) => {
+    if (s.lat != null && s.lng != null) setTrapLocation(s.lat, s.lng, mapboxGeoHint(s));
+    else $('#f-address').value = s.placeName;
   });
   wireMapboxAutocomplete('releaseLocInput', 'releaseLocInput-ac', (s) => {
     $('#releaseLocInput').value = s.placeName;
