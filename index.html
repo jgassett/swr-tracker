@@ -2635,17 +2635,13 @@
         <h2>Jobs</h2>
         <p class="muted">Every customer engagement, from lead to paid.</p>
       </div>
+      <!-- Item 15 (v2-patch-1): job statuses are Active / Complete / Cancelled.
+           Legacy lifecycle jobs remain reachable under "All jobs". -->
       <div class="filter-row">
         <select id="jobsFilterStatus">
           <option value="active">Active jobs</option>
           <option value="all">All jobs</option>
-          <option value="Lead">Lead</option>
-          <option value="Estimated">Estimated</option>
-          <option value="Scheduled">Scheduled</option>
-          <option value="Active">Active (in progress)</option>
-          <option value="Pending Close">Pending Close</option>
-          <option value="Invoiced">Invoiced</option>
-          <option value="Paid">Paid</option>
+          <option value="Complete">Complete</option>
           <option value="Cancelled">Cancelled</option>
         </select>
       </div>
@@ -2671,10 +2667,21 @@
           <select id="lj-property"><option value="">— main address —</option></select>
         </div>
         <h3 class="form-section">Job</h3>
+        <!-- Item 15 (v2-patch-1): start/end dates on the job container. -->
+        <div class="field-row two">
+          <div class="form-group">
+            <label for="lj-start">Start date<span class="req">*</span></label>
+            <input type="date" id="lj-start" required>
+          </div>
+          <div class="form-group">
+            <label for="lj-end">End date<span class="req">*</span></label>
+            <input type="date" id="lj-end" required>
+            <div class="hint">Defaults to 30 days out — adjust as needed.</div>
+          </div>
+        </div>
         <div class="form-group">
           <label for="lj-estimate">Linked estimate<span class="opt">(optional — one per job)</span></label>
           <select id="lj-estimate"><option value="">— none yet —</option></select>
-          <div class="hint">Linking an estimate moves the job to <strong>Estimated</strong>.</div>
         </div>
         <h3 class="form-section">Assigned operators</h3>
         <div class="assignee-grid" id="lj-operators"></div>
@@ -2692,6 +2699,54 @@
     <!-- JOBS (v2): job detail — the central operational screen -->
     <section id="view-job-detail" class="view hidden">
       <div id="lifecycleJobDetail"></div>
+    </section>
+
+    <!-- TASKS (v2-patch-1, Items 15 & 18): task builder -->
+    <section id="view-add-task" class="view hidden">
+      <form id="taskForm" autocomplete="off" novalidate>
+        <input type="hidden" id="t-id">
+        <h3 class="form-section">Job</h3>
+        <div class="form-group">
+          <label for="t-job">Job<span class="req">*</span></label>
+          <select id="t-job"><option value="">— select a job —</option></select>
+          <div class="hint">Tasks live inside a job. Start one in the Jobs module if none fits.</div>
+        </div>
+        <h3 class="form-section">Task</h3>
+        <div class="form-group">
+          <label for="t-type">Task type<span class="req">*</span></label>
+          <select id="t-type"><option value="">— select task type —</option></select>
+          <div class="hint" id="t-type-hint"></div>
+        </div>
+        <div class="form-group conditional" id="cg-t-typeOther">
+          <label for="t-type-other">Specify exclusion type<span class="req">*</span></label>
+          <input type="text" id="t-type-other" placeholder="e.g. Chimney swifts">
+        </div>
+        <div class="field-row two">
+          <div class="form-group">
+            <label for="t-date">Scheduled date<span class="req">*</span></label>
+            <input type="date" id="t-date" required>
+          </div>
+          <div class="form-group">
+            <label for="t-time">Time<span class="req">*</span></label>
+            <input type="time" id="t-time" required>
+          </div>
+        </div>
+        <h3 class="form-section">Assign to<span class="req">*</span></h3>
+        <div class="assignee-grid" id="t-operators"></div>
+        <h3 class="form-section">Notes</h3>
+        <div class="form-group">
+          <textarea id="t-notes" placeholder="Equipment, access, reminders…"></textarea>
+        </div>
+        <div class="form-actions">
+          <button type="submit" class="btn btn-primary" id="saveTaskBtn">Save Task</button>
+          <button type="button" class="btn btn-cancel btn-ghost" id="cancelTaskBtn">Cancel</button>
+        </div>
+      </form>
+    </section>
+
+    <!-- TASKS (v2-patch-1, Items 15 & 16): task detail -->
+    <section id="view-task-detail" class="view hidden">
+      <div id="taskDetail"></div>
     </section>
 
     <!-- SCHEDULE (v2): appointment builder -->
@@ -5767,9 +5822,9 @@ const VIEW_TITLES = {
   pesticide: { dashboard: 'Dashboard', records: 'Records', add: 'Add Application', export: 'Export', settings: 'Settings' },
   customer:  { dashboard: 'Customers', add: 'Add Customer', settings: 'Settings' },
   pricing:   { dashboard: 'Estimates', add: 'New Estimate', 'estimate-detail': 'Estimate', settings: 'Settings' },
-  jobs:      { dashboard: 'Jobs', add: 'New Job', 'job-detail': 'Job', 'add-appointment': 'New Appointment', 'appointment-detail': 'Appointment' },
+  jobs:      { dashboard: 'Jobs', add: 'New Job', 'job-detail': 'Job', 'add-appointment': 'New Appointment', 'appointment-detail': 'Appointment', 'add-task': 'New Task', 'task-detail': 'Task' },
   field:     { dashboard: 'Cameras' },
-  schedule:  { dashboard: 'Calendar', add: 'New Appointment', 'edit-legacy': 'Edit Job', 'add-appointment': 'New Appointment', 'appointment-detail': 'Appointment', 'job-detail': 'Job' },
+  schedule:  { dashboard: 'Calendar', add: 'New Task', 'edit-legacy': 'Edit Job', 'add-appointment': 'New Appointment', 'appointment-detail': 'Appointment', 'job-detail': 'Job', 'add-task': 'New Task', 'task-detail': 'Task' },
   settings:  { dashboard: 'Settings', 'assign-legacy': 'Assign Legacy Records' },
   allrecords: { dashboard: 'View Records' }
 };
@@ -5789,6 +5844,7 @@ function setView(name, opts) {
    'customers','add-customer','pricing','estimate-builder','estimate-detail',
    'field','field-detail','schedule','add-schedule','schedule-detail',
    'jobs','add-job','job-detail','add-appointment','appointment-detail','assign-legacy',
+   'add-task','task-detail',
    'notifications','records-all','export','settings'].forEach((v) => {
     const el = document.getElementById(`view-${v}`);
     if (el) el.classList.add('hidden');
@@ -5827,7 +5883,7 @@ function setView(name, opts) {
   $('#viewTitle').textContent = name === 'notifications' ? 'Notifications' : (titles[name] || '');
   if (name === 'notifications') renderNotificationsPage();
   $('#appMain').scrollTop = 0;
-  document.body.classList.toggle('in-add', name === 'add' || name === 'edit-legacy' || name === 'add-appointment');
+  document.body.classList.toggle('in-add', name === 'add' || name === 'edit-legacy' || name === 'add-appointment' || name === 'add-task');
 
   if (name === 'add' && !preserveForm) {
     if (appMode === 'trap') {
@@ -5845,6 +5901,7 @@ function setView(name, opts) {
     }
   }
   if (name === 'add-appointment' && !editingAppointment && !preserveForm) resetAppointmentForm();
+  if (name === 'add-task' && !editingTaskId && !preserveForm) resetTaskForm();   /* Item 15 */
   if (appMode === 'customer' && name === 'dashboard') {
     fillCustomerCountyFilter();
     renderCustomerList();
@@ -9608,10 +9665,32 @@ const VISIT_TYPES = [
   'Trap Clear', 'Equipment Pickup / Job Closeout', 'Follow-up Treatment'
 ];
 
+/* =====================================================================
+ * Item 15 (v2-patch-1): task-model Jobs.
+ * ---------------------------------------------------------------------
+ * A Job is created once per customer engagement (status Active → Complete
+ * or Cancelled only; Complete is set manually by Jon after it's billed and
+ * paid in QBO). Tasks belong to a job and live in the top-level `tasks`
+ * collection. New-model jobs are marked by carrying a startDate; older
+ * lifecycle jobs (7-status) keep their existing behavior.
+ * ===================================================================== */
+const TASK_MODEL_STATUSES = ['Active', 'Complete', 'Cancelled'];
+const TASK_TYPES = [
+  'Set Trap', 'Re-bait Trap', 'Check Trap', 'Pull Trap', 'Check Camera',
+  'Inspection', 'Service Call', 'Pesticide Application', 'Repair',
+  'Exclusion – Bats', 'Exclusion – Birds', 'Exclusion – Squirrels',
+  'Exclusion – Other'
+];
+const TASK_STATUSES = ['Open', 'Completed', 'Cancelled'];
+
 function isLifecycleJob(j) { return !!(j && j.jobNumber); }
+function isTaskModelJob(j) { return isLifecycleJob(j) && !!j.startDate; }   /* Item 15 */
 function lifecycleJobs() { return cachedJobs.filter(isLifecycleJob); }
 function legacyScheduleJobs() { return cachedJobs.filter((j) => !isLifecycleJob(j)); }
-function jobIsActive(j) { return isLifecycleJob(j) && j.status !== 'Paid' && j.status !== 'Cancelled'; }
+function jobIsActive(j) {
+  return isLifecycleJob(j)
+    && j.status !== 'Paid' && j.status !== 'Cancelled' && j.status !== 'Complete';
+}
 function jobLifeStatusClass(s) {
   if (s === 'Lead') return 'lead';
   if (s === 'Estimated') return 'estimated';
@@ -9620,6 +9699,7 @@ function jobLifeStatusClass(s) {
   if (s === 'Pending Close') return 'pendingclose';
   if (s === 'Invoiced') return 'invoiced';
   if (s === 'Paid') return 'paid';
+  if (s === 'Complete') return 'completed';   /* Item 15 */
   if (s === 'Cancelled') return 'cancelled';
   return 'lead';
 }
@@ -9633,18 +9713,16 @@ function localMaxJobSequence(prefix) {
   }
   return max;
 }
+/* Item 15: job numbers are SWR-JOB-YYYY-NNN plus a short random suffix —
+   the suffix is now ALWAYS appended (it keeps offline-created numbers
+   unique; the parseInt sequence scan above ignores it). */
+function jobNumberSuffix() {
+  return '-' + Math.random().toString(36).slice(2, 4).toUpperCase();
+}
 function generateJobNumber() {
   const year = new Date().getFullYear();
   const prefix = `SWR-JOB-${year}-`;
-  let candidate = `${prefix}${String(localMaxJobSequence(prefix) + 1).padStart(3, '0')}`;
-  /* Offline, the local cache can be hours stale — another device may mint
-     the same sequence number. A short random suffix keeps offline-created
-     numbers unique; the readable sequence (and the parseInt scan above)
-     still work. */
-  if (!navigator.onLine) {
-    candidate += '-' + Math.random().toString(36).slice(2, 4).toUpperCase();
-  }
-  return candidate;
+  return `${prefix}${String(localMaxJobSequence(prefix) + 1).padStart(3, '0')}${jobNumberSuffix()}`;
 }
 /* M4: online, sequence numbers are reserved atomically on a counter doc so
    two devices creating jobs at the same moment can't mint the same number.
@@ -9669,7 +9747,7 @@ async function allocateJobNumber() {
         }),
         new Promise((_, reject) => setTimeout(() => reject(new Error('counter timeout')), 6000))
       ]);
-      return `${prefix}${String(seq).padStart(3, '0')}`;
+      return `${prefix}${String(seq).padStart(3, '0')}${jobNumberSuffix()}`;
     } catch (e) {
       console.warn('Job number counter unavailable — using local fallback', e);
     }
@@ -9685,10 +9763,20 @@ function canTransitionJobStatus(from, to) {
   const a = JOB_STATUSES.indexOf(from), b = JOB_STATUSES.indexOf(to);
   return a >= 0 && b >= 0 && b > a;
 }
+/* Item 15: task-model transitions — Active → Complete or Cancelled only. */
+function canTransitionTaskModelJob(from, to) {
+  return (from || 'Active') === 'Active' && (to === 'Complete' || to === 'Cancelled');
+}
 async function setJobLifecycleStatus(id, status, extra = {}) {
   const j = cachedJobs.find((x) => x.id === id);
   if (!j) return false;
-  if (!canTransitionJobStatus(j.status || 'Lead', status)) {
+  /* Item 15: task-model jobs only move Active → Complete / Cancelled. */
+  if (isTaskModelJob(j)) {
+    if (!canTransitionTaskModelJob(j.status, status)) {
+      toast(`Can’t move this job from ${j.status || 'Active'} to ${status}.`, 'error');
+      return false;
+    }
+  } else if (!canTransitionJobStatus(j.status || 'Lead', status)) {
     toast(`Can’t move this job from ${j.status || 'Lead'} to ${status} — jobs only move forward.`, 'error');
     return false;
   }
@@ -9715,6 +9803,9 @@ async function setJobLifecycleStatus(id, status, extra = {}) {
 function advanceJobStatusAuto(jobId, atLeast) {
   const j = cachedJobs.find((x) => x.id === jobId);
   if (!j || !isLifecycleJob(j)) return;
+  /* Item 15: task-model jobs have no lifecycle progression — they stay
+     Active until Jon closes them out (or they're cancelled). */
+  if (isTaskModelJob(j)) return;
   const cur = JOB_STATUSES.indexOf(j.status || 'Lead');
   const want = JOB_STATUSES.indexOf(atLeast);
   if (j.status === 'Cancelled' || want < 0 || cur >= want) return;
@@ -9765,10 +9856,60 @@ function appointmentsForJob(jobId) {
   return cachedAppointments.filter((a) => a.jobId === jobId);
 }
 
+/* ---- Tasks (Item 15, v2-patch-1): top-level `tasks` collection ---- */
+let cachedTasks = [];
+let tasksUnsub = null;
+let tasksRetryTimer = null;
+
+function tasksCol() { return collection(fbDb, 'tasks'); }
+function tasksForJob(jobId) { return cachedTasks.filter((t) => t.jobId === jobId); }
+
+function subscribeToTasks() {
+  if (tasksUnsub) return;
+  /* No orderBy — sorted client-side, so no composite index is needed. */
+  tasksUnsub = onSnapshot(query(tasksCol()), (snap) => {
+    cachedTasks = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    cachedTasks.sort((a, b) =>
+      ((a.scheduledDate || '') + (a.scheduledTime || '')).localeCompare((b.scheduledDate || '') + (b.scheduledTime || '')));
+    renderLandingCounts();
+    if (!$('#app').classList.contains('hidden')) {
+      if (appMode === 'schedule' && !$('#view-schedule').classList.contains('hidden')) renderSchedule();
+      if (appMode === 'jobs' && !$('#view-jobs').classList.contains('hidden')) renderJobsList();
+      if (currentLifecycleJobId && !$('#view-job-detail').classList.contains('hidden')) renderLifecycleJobDetail(currentLifecycleJobId);
+      if (currentTaskId && !$('#view-task-detail').classList.contains('hidden')) renderTaskDetail(currentTaskId);
+    }
+  }, (err) => {
+    console.error('Tasks subscription error', err);
+    tasksUnsub = null;
+    if (tasksRetryTimer) clearTimeout(tasksRetryTimer);
+    tasksRetryTimer = setTimeout(() => { if (currentUser) subscribeToTasks(); }, 5000);
+  });
+}
+function unsubscribeFromTasks() {
+  if (tasksUnsub) { tasksUnsub(); tasksUnsub = null; }
+  cachedTasks = [];
+}
+
 /* ---- Jobs list ---- */
 let currentLifecycleJobId = null;
 let editingLifecycleJobId = null;
 let lifecycleJobCustomer = null;
+
+/* Item 15: jobs landing — Active jobs with customer, job number, start/end
+   dates, assigned operators, task count, and a completed-tasks progress bar. */
+function jobTaskProgressHtml(jobId) {
+  const tasks = tasksForJob(jobId);
+  const live = tasks.filter((t) => t.status !== 'Cancelled');
+  if (!live.length) return '';
+  const done = live.filter((t) => t.status === 'Completed').length;
+  const pct = Math.round((done / live.length) * 100);
+  return `<div style="display:flex;align-items:center;gap:8px;margin-top:5px;">
+    <div style="flex:1;height:6px;border-radius:999px;background:var(--cream-deep);overflow:hidden;">
+      <div style="width:${pct}%;height:100%;background:${pct === 100 ? 'var(--released)' : 'var(--amber)'};border-radius:999px;"></div>
+    </div>
+    <span class="muted" style="font-size:11px;white-space:nowrap;">${done}/${live.length} done</span>
+  </div>`;
+}
 
 function renderJobsList() {
   const el = $('#jobsList');
@@ -9776,26 +9917,27 @@ function renderJobsList() {
   const filter = ($('#jobsFilterStatus') && $('#jobsFilterStatus').value) || 'active';
   let list = lifecycleJobs();
   if (filter === 'active') list = list.filter(jobIsActive);
-  else if (filter !== 'all') list = list.filter((j) => (j.status || 'Lead') === filter);
-  list = list.slice().sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
+  else if (filter !== 'all') list = list.filter((j) => (j.status || 'Active') === filter);
+  list = list.slice().sort((a, b) => (b.startDate || b.createdAt || '').localeCompare(a.startDate || a.createdAt || ''));
   if (!list.length) {
     el.innerHTML = '<div style="padding:16px;color:var(--ink-soft);">No jobs here yet. Tap <strong>+ Start New Job</strong> to open a container for a customer engagement.</div>';
     return;
   }
   el.innerHTML = list.map((j) => {
-    const nAppt = appointmentsForJob(j.id).length;
-    const nTrap = cachedRecords.filter((r) => r.jobId === j.id).length;
-    const nPest = cachedPesticideRecords.filter((r) => r.jobId === j.id).length;
-    const bits = [`${nAppt} appt${nAppt === 1 ? '' : 's'}`];
-    if (nTrap) bits.push(`${nTrap} trap`);
-    if (nPest) bits.push(`${nPest} pesticide`);
+    const nTasks = tasksForJob(j.id).filter((t) => t.status !== 'Cancelled').length;
+    const dates = j.startDate
+      ? `${fmtShortDate(j.startDate)} – ${fmtShortDate(j.endDate) || 'open'}`
+      : (j.createdAt ? 'opened ' + fmtShortDate(j.createdAt.slice(0, 10)) : '');
+    const who = (j.assigneeNames || []).join(', ');
+    const bits = [dates, `${nTasks} task${nTasks === 1 ? '' : 's'}`, who].filter(Boolean);
     return `<div class="job-lc-row" data-ljob-open="${escapeHtml(j.id)}">
       <div class="jl-body">
         <div class="jl-num">${escapeHtml(j.jobNumber || '')}</div>
         <div class="jl-name">${escapeHtml(j.customerName || '(no customer)')}</div>
-        <div class="jl-meta">${escapeHtml(bits.join(' · '))}${j.createdAt ? ' · opened ' + escapeHtml(fmtShortDate(j.createdAt.slice(0, 10))) : ''}</div>
+        <div class="jl-meta">${escapeHtml(bits.join(' · '))}</div>
+        ${jobTaskProgressHtml(j.id)}
       </div>
-      <span class="status-pill ${jobLifeStatusClass(j.status)}">${escapeHtml(j.status || 'Lead')}</span>
+      <span class="status-pill ${jobLifeStatusClass(j.status)}">${escapeHtml(j.status || 'Active')}</span>
     </div>`;
   }).join('');
 }
@@ -9806,6 +9948,9 @@ function resetLifecycleJobForm() {
   lifecycleJobCustomer = null;
   const f = $('#lifecycleJobForm'); if (f) f.reset();
   $('#lj-id').value = '';
+  /* Item 15: start today, end 30 days out (adjustable). */
+  $('#lj-start').value = todayISO();
+  $('#lj-end').value = addDaysISO(todayISO(), 30);
   const hint = $('#lj-customer-hint');
   if (hint) { hint.textContent = 'Pick a customer already on file — add them in Customers first if needed.'; hint.className = 'hint'; }
   populateLifecycleJobEstimates(null);
@@ -9899,6 +10044,12 @@ async function handleSaveLifecycleJob(e) {
     lifecycleJobCustomer = null;
   }
   if (!lifecycleJobCustomer || !lifecycleJobCustomer.id) { toast('Pick a customer from the list for this job', 'error'); $('#lj-customer').focus(); return; }
+  /* Item 15: start/end dates on the job container. */
+  const startDate = $('#lj-start').value;
+  const endDate = $('#lj-end').value;
+  if (!startDate) { toast('Start date is required', 'error'); $('#lj-start').focus(); return; }
+  if (!endDate) { toast('End date is required', 'error'); $('#lj-end').focus(); return; }
+  if (endDate < startDate) { toast('End date can’t be before the start date', 'error'); $('#lj-end').focus(); return; }
   const operators = checkedEmails('lj-operators');
   const estimateId = $('#lj-estimate').value || null;
   const propertyId = ($('#lj-property') && $('#lj-property').value) || null;
@@ -9913,6 +10064,8 @@ async function handleSaveLifecycleJob(e) {
         customerId: lifecycleJobCustomer.id,
         customerName: lifecycleJobCustomer.name,
         propertyId,
+        startDate,
+        endDate,
         estimateId,
         estimateNumber: est ? (est.estimateNumber || '') : '',
         assignedOperators: operators,
@@ -9947,12 +10100,18 @@ async function handleSaveLifecycleJob(e) {
         customerId: lifecycleJobCustomer.id,
         customerName: lifecycleJobCustomer.name,
         propertyId,
-        status: estimateId ? 'Estimated' : 'Lead',
+        /* Item 15: a new job is Active until Jon closes it out (Complete)
+           or it's cancelled. */
+        status: 'Active',
+        startDate,
+        endDate,
         estimateId,
         estimateNumber: est ? (est.estimateNumber || '') : '',
-        qbInvoiceId: null,
         qbInvoiceNumber: null,
-        paymentStatus: null,
+        /* Item 19: rebait schedule config lives on the job. */
+        rebaitInterval: null,
+        rebaitEndDate: null,
+        rebaitActive: false,
         assignedOperators: operators,
         assigneeNames: operators.map((em) => nameByEmail[em] || em),
         createdBy: (currentUser && (EMAIL_TO_TRAPPER[currentUser.email.toLowerCase()] || currentUser.email)) || '',
@@ -9989,6 +10148,9 @@ function editLifecycleJob(id) {
   if (appMode !== 'jobs') setAppModeQuiet('jobs');
   setView('add');
   $('#lj-id').value = id;
+  /* Item 15: start/end dates (legacy jobs pick up defaults on first edit). */
+  $('#lj-start').value = j.startDate || (j.createdAt ? j.createdAt.slice(0, 10) : todayISO());
+  $('#lj-end').value = j.endDate || addDaysISO($('#lj-start').value, 30);
   lifecycleJobCustomer = j.customerId ? { id: j.customerId, name: j.customerName || '' } : null;
   $('#lj-customer').value = j.customerName || '';
   const hint = $('#lj-customer-hint');
@@ -10050,6 +10212,82 @@ function jobNextStepHtml(j) {
   </div>`;
 }
 
+/* Item 15 (v2-patch-1): task-model Job Detail — job header, all tasks in
+   chronological order, and the operator actions: add task, complete task,
+   add contractor, extend end date, Close Out (admin only). */
+function renderTaskModelJobDetail(j) {
+  const box = $('#lifecycleJobDetail');
+  const id = j.id;
+  const cust = cachedCustomers.find((c) => c.id === j.customerId);
+  const prop = j.propertyId ? propertiesForCustomer(j.customerId).find((p) => p.id === j.propertyId) : null;
+  const est = j.estimateId ? cachedEstimates.find((e) => e.id === j.estimateId) : null;
+  const tasks = tasksForJob(id);   /* cachedTasks is already chronological */
+  const trapRecs = cachedRecords.filter((r) => r.jobId === id);
+  const pestRecs = cachedPesticideRecords.filter((r) => r.jobId === id);
+  const cameraId = (prop && prop.cameraId) || (cust && cust.cameraId) || '';
+  const isOpen = j.status === 'Active';
+
+  const taskRows = tasks.length ? tasks.map((t) => {
+    const label = t.taskType === 'Exclusion – Other' && t.taskTypeOther
+      ? `Exclusion – Other: ${t.taskTypeOther}` : (t.taskType || 'Task');
+    const who = (t.assigneeNames || []).join(', ');
+    const doneBtn = (t.status === 'Open' && isOpen)
+      ? `<button type="button" class="pill-btn" data-task-complete="${escapeHtml(t.id)}" style="background:#DDEAD8;color:var(--released);flex-shrink:0;" aria-label="Mark complete">✓ Done</button>`
+      : '';
+    return `<div class="at-row" data-task-open="${escapeHtml(t.id)}" style="align-items:center;">
+      <div class="at-date">${escapeHtml(fmtShortDate(t.scheduledDate))}<br><span style="font-weight:400;color:var(--ink-soft);">${escapeHtml(fmtTime12(t.scheduledTime))}</span></div>
+      <div class="at-body">
+        <div>${escapeHtml(label)} <span class="status-pill ${t.status === 'Completed' ? 'completed' : t.status === 'Cancelled' ? 'cancelled' : 'scheduled'}">${escapeHtml(t.status || 'Open')}</span></div>
+        ${who ? `<div class="job-sub">${escapeHtml(who)}</div>` : ''}
+        ${t.completedDate ? `<div class="at-outcome">Completed ${escapeHtml(fmtShortDate(t.completedDate))}${t.completedBy ? ' by ' + escapeHtml(t.completedBy) : ''}</div>` : ''}
+      </div>
+      ${doneBtn}
+    </div>`;
+  }).join('') : '<div class="muted" style="padding:8px 0;">No tasks yet — add the first one below.</div>';
+
+  let actions = '';
+  if (isOpen) {
+    actions += `<button class="btn btn-amber" data-ljob-action="add-task" data-id="${escapeHtml(id)}">+ Add Task</button>`;
+    actions += `<button class="btn btn-ghost" data-ljob-action="add-contractor" data-id="${escapeHtml(id)}">Add Contractor</button>`;
+    actions += `<button class="btn btn-ghost" data-ljob-action="extend-end" data-id="${escapeHtml(id)}">Extend End Date</button>`;
+    actions += `<button class="btn btn-primary" data-ljob-action="log-trap" data-id="${escapeHtml(id)}">Log Trap Activity</button>`;
+    actions += `<button class="btn btn-primary" data-ljob-action="log-pesticide" data-id="${escapeHtml(id)}">Log Pesticide Activity</button>`;
+  }
+  actions += `<button class="btn btn-ghost" data-ljob-action="edit" data-id="${escapeHtml(id)}">Edit Job</button>`;
+  /* Close Out: Jon/admin only — marks Complete and cancels remaining open tasks. */
+  if (isOpen && isAdmin()) {
+    actions += `<button class="btn btn-amber" data-ljob-action="close-out" data-id="${escapeHtml(id)}">Close Out Job</button>`;
+  }
+  if (isOpen) actions += `<button class="btn btn-danger" data-ljob-action="cancel-job" data-id="${escapeHtml(id)}" style="margin-top:10px;">Cancel Job</button>`;
+
+  box.innerHTML = `
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;">
+        <h3 style="margin:0;font-family:ui-monospace,'SF Mono',monospace;font-size:16px;">${escapeHtml(j.jobNumber || 'Job')}</h3>
+        <span class="status-pill ${jobLifeStatusClass(j.status)}">${escapeHtml(j.status || 'Active')}</span>
+      </div>
+      <div style="margin-top:6px;font-weight:600;color:var(--green-deep);font-size:17px;">${escapeHtml(j.customerName || '')}</div>
+      ${prop ? `<div class="muted" style="font-size:13px;">${escapeHtml([prop.siteNickname, prop.address].filter(Boolean).join(' · '))}</div>`
+        : cust && cust.address ? `<div class="muted" style="font-size:13px;">${escapeHtml([cust.address, cust.city].filter(Boolean).join(', '))}</div>` : ''}
+      <div class="muted" style="font-size:13px;margin-top:4px;">${escapeHtml(fmtShortDate(j.startDate))} – ${escapeHtml(fmtShortDate(j.endDate) || 'open')} · ${escapeHtml((j.assigneeNames || []).join(', ') || 'unassigned')}</div>
+      ${jobTaskProgressHtml(id)}
+    </div>
+    <div class="card">
+      <div class="job-stat-row"><span class="jsk">Estimate</span><span class="jsv">${est ? `${escapeHtml(est.estimateNumber || '')} · ${fmtUSD(est.grandTotal)} <button class="link-like" data-ljob-action="view-estimate" data-est="${escapeHtml(est.id)}">view</button>` : '—'}</span></div>
+      <div class="job-stat-row"><span class="jsk">Trap records</span><span class="jsv">${trapRecs.length ? `${trapRecs.length} <button class="link-like" data-ljob-action="view-traps" data-id="${escapeHtml(id)}">view</button>` : '0'}</span></div>
+      <div class="job-stat-row"><span class="jsk">Pesticide applications</span><span class="jsv">${pestRecs.length ? `${pestRecs.length} <button class="link-like" data-ljob-action="view-pests" data-id="${escapeHtml(id)}">view</button>` : '0'}</span></div>
+      <div class="job-stat-row"><span class="jsk">Camera</span><span class="jsv">${cameraId ? escapeHtml(cameraId) : 'Not assigned'}</span></div>
+      <div class="job-stat-row"><span class="jsk">QB Invoice #</span><span class="jsv">${escapeHtml(String(j.qbInvoiceNumber || '—'))}</span></div>
+      ${j.rebaitActive ? `<div class="job-stat-row"><span class="jsk">Rebait schedule</span><span class="jsv">every ${escapeHtml(String(j.rebaitInterval || '?'))} day${j.rebaitInterval === 1 ? '' : 's'} through ${escapeHtml(fmtShortDate(j.rebaitEndDate) || '—')}</span></div>` : ''}
+    </div>
+    <div class="card">
+      <h3 style="margin:0 0 6px;">Tasks</h3>
+      <div class="appt-timeline">${taskRows}</div>
+    </div>
+    ${j.notes ? `<div class="card"><h3 style="margin-top:0;">Notes</h3><div>${escapeHtml(j.notes)}</div></div>` : ''}
+    <div class="form-actions">${actions}<button class="btn btn-cancel btn-ghost" data-ljob-action="back">Back to Jobs</button></div>`;
+}
+
 function renderLifecycleJobDetail(id) {
   const j = cachedJobs.find((x) => x.id === id);
   const box = $('#lifecycleJobDetail');
@@ -10059,6 +10297,9 @@ function renderLifecycleJobDetail(id) {
       '<div class="form-actions"><button class="btn btn-cancel btn-ghost" data-ljob-action="back">Back to Jobs</button></div>';
     return;
   }
+  /* Item 15: task-model jobs get the task-based screen; legacy lifecycle
+     jobs keep the original appointment-based screen. */
+  if (isTaskModelJob(j)) { renderTaskModelJobDetail(j); return; }
   const cust = cachedCustomers.find((c) => c.id === j.customerId);
   const prop = j.propertyId ? propertiesForCustomer(j.customerId).find((p) => p.id === j.propertyId) : null;
   const est = j.estimateId ? cachedEstimates.find((e) => e.id === j.estimateId) : null;
@@ -10151,6 +10392,372 @@ async function markJobPaid(id) {
     paymentStatus: 'Paid',
     paymentReceivedAt: new Date().toISOString()
   });
+}
+
+/* =====================================================================
+ * Tasks (Items 15, 16 & 18, v2-patch-1) — create, view, complete.
+ * ===================================================================== */
+let editingTaskId = null;
+let pendingTaskJobId = null;    /* job pre-selected (from Job Detail) */
+let taskReturnTo = null;        /* 'job-detail' to bounce back after save */
+let currentTaskId = null;
+
+function populateTaskJobSelect(selectedId) {
+  const sel = $('#t-job');
+  if (!sel) return;
+  sel.innerHTML = '<option value="">— select a job —</option>';
+  const jobs = lifecycleJobs().filter(jobIsActive)
+    .sort((a, b) => (b.startDate || b.createdAt || '').localeCompare(a.startDate || a.createdAt || ''));
+  for (const j of jobs) {
+    const o = document.createElement('option');
+    o.value = j.id;
+    o.textContent = `${j.jobNumber} · ${j.customerName || ''}`;
+    sel.appendChild(o);
+  }
+  /* Editing a task whose job is closed: keep it selectable. */
+  if (selectedId && !jobs.some((j) => j.id === selectedId)) {
+    const j = cachedJobs.find((x) => x.id === selectedId);
+    if (j) {
+      const o = document.createElement('option');
+      o.value = j.id;
+      o.textContent = `${j.jobNumber || 'Job'} · ${j.customerName || ''} (${j.status || 'closed'})`;
+      sel.appendChild(o);
+    }
+  }
+  if (selectedId) sel.value = selectedId;
+}
+
+/* Item 18: the type drives the form — Exclusion – Other reveals a specify
+   input; Set Trap / Pesticide Application note their linked activity forms. */
+function updateTaskTypeConditional() {
+  const type = $('#t-type').value;
+  toggleGroup('cg-t-typeOther', type === 'Exclusion – Other');
+  const hint = $('#t-type-hint');
+  if (hint) {
+    hint.textContent = type === 'Set Trap'
+      ? 'Linked to the trapping form — log the trap record from the task when the work is done.'
+      : type === 'Pesticide Application'
+        ? 'Linked to the pesticide form — log the application from the task when the work is done.'
+        : '';
+  }
+}
+
+function resetTaskForm() {
+  editingTaskId = null;
+  const f = $('#taskForm'); if (f) f.reset();
+  $('#t-id').value = '';
+  fillSelect('t-type', TASK_TYPES, true, '— select task type —');
+  populateTaskJobSelect(pendingTaskJobId || '');
+  $('#t-job').disabled = false;
+  const jsel = $('#t-job');
+  if (pendingTaskJobId && jsel) jsel.value = pendingTaskJobId;
+  pendingTaskJobId = null;
+  $('#t-date').value = todayISO();
+  const j = jsel && jsel.value ? cachedJobs.find((x) => x.id === jsel.value) : null;
+  renderOperatorChecks('t-operators', (j && j.assignedOperators) || (currentUser ? [currentUser.email.toLowerCase()] : []));
+  const btn = $('#saveTaskBtn'); if (btn) btn.textContent = 'Save Task';
+  updateTaskTypeConditional();
+}
+
+async function handleSaveTask(e) {
+  e.preventDefault();
+  const jobId = $('#t-job').value;
+  const j = cachedJobs.find((x) => x.id === jobId);
+  const taskType = $('#t-type').value;
+  const taskTypeOther = $('#t-type-other').value.trim();
+  const scheduledDate = $('#t-date').value;
+  const scheduledTime = $('#t-time').value;
+  const operators = checkedEmails('t-operators');
+  if (!jobId || !j) { toast('Pick the job this task belongs to', 'error'); $('#t-job').focus(); return; }
+  if (!taskType) { toast('Pick a task type', 'error'); $('#t-type').focus(); return; }
+  if (taskType === 'Exclusion – Other' && !taskTypeOther) { toast('Specify the exclusion type', 'error'); $('#t-type-other').focus(); return; }
+  if (!scheduledDate || !scheduledTime) { toast('Date and time are required', 'error'); return; }
+  if (!operators.length) { toast('Assign at least one operator', 'error'); return; }
+
+  const nameByEmail = Object.fromEntries(assignableUsers().map((u) => [u.email, u.name]));
+  const now = new Date().toISOString();
+  const btn = $('#saveTaskBtn'); btn.disabled = true;
+  try {
+    const data = {
+      jobId,
+      jobNumber: j.jobNumber || '',
+      customerId: j.customerId || null,
+      customerName: j.customerName || '',
+      taskType,
+      taskTypeOther: taskType === 'Exclusion – Other' ? taskTypeOther : '',
+      scheduledDate,
+      scheduledTime,
+      assignedOperators: operators,
+      assigneeNames: operators.map((em) => nameByEmail[em] || em),
+      notes: $('#t-notes').value.trim(),
+      updatedAt: now
+    };
+    let savedTask;
+    if (editingTaskId) {
+      /* Optimistic (H1 pattern): fire without awaiting so it works offline. */
+      writeWithRetry(() => setDoc(doc(fbDb, 'tasks', editingTaskId), data, { merge: true }))
+        .catch((err) => { console.error('Task update failed', err); toast('Task failed to sync: ' + ((err && err.message) || 'error'), 'error'); });
+      toast('Task updated');
+      savedTask = null;   /* edits never trigger the rebait prompt */
+    } else {
+      const ref = doc(tasksCol());
+      data.status = 'Open';
+      data.completedDate = null;
+      data.completedBy = null;
+      data.isLastRebait = false;
+      data.createdBy = (currentUser && (EMAIL_TO_TRAPPER[currentUser.email.toLowerCase()] || currentUser.email)) || '';
+      data.createdByUid = currentUser ? currentUser.uid : null;
+      data.createdByEmail = currentUser ? currentUser.email : null;
+      data.createdAt = now;
+      writeWithRetry(() => setDoc(ref, data))
+        .catch((err) => { console.error('Task create failed', err); toast('Task failed to sync: ' + ((err && err.message) || 'error'), 'error'); });
+      /* Seed the cache so the job detail shows it immediately. */
+      if (!cachedTasks.some((t) => t.id === ref.id)) cachedTasks.push({ id: ref.id, ...data });
+      toast('Task saved');
+      savedTask = { id: ref.id, ...data };
+    }
+    editingTaskId = null;
+    resetTaskForm();
+    if (taskReturnTo === 'job-detail') {
+      taskReturnTo = null;
+      openLifecycleJob(jobId);
+    } else {
+      setView('dashboard');
+    }
+    /* Item 19: a saved Set Trap task offers the rebait schedule. */
+    if (savedTask && savedTask.taskType === 'Set Trap' && typeof promptRebaitSetup === 'function') {
+      promptRebaitSetup(jobId, savedTask);
+    }
+  } catch (err) {
+    toast('Save failed: ' + ((err && err.message) || 'error'), 'error');
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function taskTypeLabel(t) {
+  return t.taskType === 'Exclusion – Other' && t.taskTypeOther
+    ? `Exclusion – Other: ${t.taskTypeOther}` : (t.taskType || 'Task');
+}
+
+function openTask(id) {
+  currentTaskId = id;
+  if (appMode !== 'jobs' && appMode !== 'schedule') setAppModeQuiet('jobs');
+  setView('task-detail');
+  renderTaskDetail(id);
+}
+
+function renderTaskDetail(id) {
+  const box = $('#taskDetail');
+  if (!box) return;
+  const t = cachedTasks.find((x) => x.id === id);
+  if (!t) {
+    box.innerHTML = '<div class="card">Task not found.</div>' +
+      '<div class="form-actions"><button class="btn btn-cancel btn-ghost" data-task-action="back">Back</button></div>';
+    return;
+  }
+  const detail = (label, val) => val ? `<div style="margin-top:8px;"><span class="muted" style="font-size:12px;text-transform:uppercase;letter-spacing:.04em;">${label}</span><div>${escapeHtml(val)}</div></div>` : '';
+  let actions = '';
+  if (t.status === 'Open') {
+    actions += `<button class="btn btn-primary" data-task-action="complete" data-id="${escapeHtml(id)}">Mark Completed</button>`;
+    actions += `<button class="btn btn-ghost" data-task-action="edit" data-id="${escapeHtml(id)}">Edit</button>`;
+    actions += `<button class="btn btn-ghost" data-task-action="cancel" data-id="${escapeHtml(id)}">Cancel Task</button>`;
+  }
+  /* Item 18: type-linked activity forms. */
+  if (t.taskType === 'Set Trap' || t.taskType === 'Check Trap' || t.taskType === 'Pull Trap' || t.taskType === 'Re-bait Trap') {
+    actions += `<button class="btn btn-amber" data-task-action="log-trap" data-job="${escapeHtml(t.jobId || '')}">Log Trapping Record</button>`;
+  }
+  if (t.taskType === 'Pesticide Application') {
+    actions += `<button class="btn btn-amber" data-task-action="log-pesticide" data-job="${escapeHtml(t.jobId || '')}">Log Pesticide Application</button>`;
+  }
+  if (t.jobId) actions += `<button class="btn btn-ghost" data-task-action="open-job" data-job="${escapeHtml(t.jobId)}">Open Job ${escapeHtml(t.jobNumber || '')}</button>`;
+  box.innerHTML = `
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;">
+        <h3 style="margin:0;">${escapeHtml(taskTypeLabel(t))}</h3>
+        <span class="status-pill ${t.status === 'Completed' ? 'completed' : t.status === 'Cancelled' ? 'cancelled' : 'scheduled'}">${escapeHtml(t.status || 'Open')}</span>
+      </div>
+      <div class="muted" style="margin-top:6px;">${escapeHtml(longDate(t.scheduledDate))} · ${escapeHtml(fmtTime12(t.scheduledTime))}</div>
+    </div>
+    <div class="card">
+      ${detail('Job', [t.jobNumber, t.customerName].filter(Boolean).join(' · '))}
+      ${detail('Assigned to', (t.assigneeNames || []).join(', '))}
+      ${detail('Completed', t.completedDate ? `${fmtDate(t.completedDate)}${t.completedBy ? ' by ' + t.completedBy : ''}` : '')}
+      ${detail('Notes', t.notes)}
+    </div>
+    <div class="form-actions">${actions}<button class="btn btn-cancel btn-ghost" data-task-action="back">Back</button></div>`;
+}
+
+/* Item 16: completion records who and when. Item 19 hooks rebait rolling
+   generation off completed Re-bait Trap tasks. */
+function completeTask(id) {
+  const t = cachedTasks.find((x) => x.id === id);
+  if (!t || t.status !== 'Open') return;
+  const me = currentUser ? (EMAIL_TO_TRAPPER[currentUser.email.toLowerCase()] || currentUser.email) : '';
+  const completedDate = todayISO();
+  /* Optimistic: fire without awaiting so it works offline. */
+  writeWithRetry(() => setDoc(doc(fbDb, 'tasks', id), {
+    status: 'Completed',
+    completedDate,
+    completedBy: me,
+    completedByEmail: currentUser ? currentUser.email : null,
+    updatedAt: new Date().toISOString()
+  }, { merge: true })).catch((err) => {
+    console.error('Task complete failed', err);
+    toast('Completion failed to sync: ' + ((err && err.message) || 'error'), 'error');
+  });
+  /* Keep the cache current for the immediate re-render + rebait logic. */
+  const idx = cachedTasks.findIndex((x) => x.id === id);
+  if (idx >= 0) cachedTasks[idx] = { ...cachedTasks[idx], status: 'Completed', completedDate, completedBy: me };
+  toast('Task completed');
+  if (currentLifecycleJobId && !$('#view-job-detail').classList.contains('hidden')) renderLifecycleJobDetail(currentLifecycleJobId);
+  if (currentTaskId === id && !$('#view-task-detail').classList.contains('hidden')) renderTaskDetail(id);
+  /* Item 19: rolling rebait generation. */
+  if (t.taskType === 'Re-bait Trap' && typeof handleRebaitTaskCompleted === 'function') {
+    handleRebaitTaskCompleted({ ...t, completedDate });
+  }
+}
+
+function cancelTask(id) {
+  const t = cachedTasks.find((x) => x.id === id);
+  if (!t || t.status !== 'Open') return;
+  if (!confirm('Cancel this task?')) return;
+  writeWithRetry(() => setDoc(doc(fbDb, 'tasks', id), {
+    status: 'Cancelled', updatedAt: new Date().toISOString()
+  }, { merge: true })).catch((err) => {
+    console.error('Task cancel failed', err);
+    toast('Cancellation failed to sync: ' + ((err && err.message) || 'error'), 'error');
+  });
+  const idx = cachedTasks.findIndex((x) => x.id === id);
+  if (idx >= 0) cachedTasks[idx] = { ...cachedTasks[idx], status: 'Cancelled' };
+  toast('Task cancelled');
+  if (currentTaskId === id && !$('#view-task-detail').classList.contains('hidden')) renderTaskDetail(id);
+}
+
+function editTask(id) {
+  const t = cachedTasks.find((x) => x.id === id);
+  if (!t) return;
+  editingTaskId = id;
+  if (appMode !== 'jobs' && appMode !== 'schedule') setAppModeQuiet('jobs');
+  setView('add-task');
+  $('#t-id').value = id;
+  fillSelect('t-type', TASK_TYPES, true, '— select task type —');
+  populateTaskJobSelect(t.jobId);
+  $('#t-job').value = t.jobId || '';
+  /* The job link is fixed once created — changing it would orphan the task. */
+  $('#t-job').disabled = true;
+  $('#t-type').value = t.taskType || '';
+  $('#t-type-other').value = t.taskTypeOther || '';
+  $('#t-date').value = t.scheduledDate || '';
+  $('#t-time').value = t.scheduledTime || '';
+  renderOperatorChecks('t-operators', t.assignedOperators || []);
+  $('#t-notes').value = t.notes || '';
+  $('#saveTaskBtn').textContent = 'Save Changes';
+  updateTaskTypeConditional();
+}
+
+/* ---- Item 15: job-level actions ---- */
+/* Add a contractor without a full edit: numbered pick of the operators not
+   yet on the job (same prompt pattern as the camera property picker). */
+function addContractorToJob(id) {
+  const j = cachedJobs.find((x) => x.id === id);
+  if (!j) return;
+  const have = new Set((j.assignedOperators || []).map((e) => String(e).toLowerCase()));
+  const candidates = assignableUsers().filter((u) => !have.has(u.email));
+  if (!candidates.length) { toast('Every operator is already on this job'); return; }
+  const menu = candidates.map((u, i) => `${i + 1}. ${u.name}`).join('\n');
+  const pick = prompt(`Add which contractor to ${j.jobNumber || 'this job'}?\n${menu}\n\nEnter a number:`, '1');
+  if (pick === null) return;
+  const idx = parseInt(pick, 10) - 1;
+  if (!Number.isFinite(idx) || idx < 0 || idx >= candidates.length) { toast('Not a valid number', 'error'); return; }
+  const u = candidates[idx];
+  const operators = [...(j.assignedOperators || []), u.email];
+  const nameByEmail = Object.fromEntries(assignableUsers().map((x) => [x.email, x.name]));
+  writeWithRetry(() => setDoc(doc(fbDb, 'jobs', id), {
+    assignedOperators: operators,
+    assigneeNames: operators.map((em) => nameByEmail[em] || em),
+    updatedAt: new Date().toISOString()
+  }, { merge: true })).catch((err) => {
+    console.error('Add contractor failed', err);
+    toast('Change failed to sync: ' + ((err && err.message) || 'error'), 'error');
+  });
+  const jdx = cachedJobs.findIndex((x) => x.id === id);
+  if (jdx >= 0) cachedJobs[jdx] = { ...cachedJobs[jdx], assignedOperators: operators, assigneeNames: operators.map((em) => nameByEmail[em] || em) };
+  toast(`${u.name} added to ${j.jobNumber || 'the job'}`);
+  renderLifecycleJobDetail(id);
+}
+
+function extendJobEndDate(id) {
+  const j = cachedJobs.find((x) => x.id === id);
+  if (!j) return;
+  const current = j.endDate || todayISO();
+  const suggestion = addDaysISO(current, 30);
+  const input = prompt(`New end date for ${j.jobNumber || 'this job'} (currently ${fmtShortDate(current)}):`, suggestion);
+  if (input === null) return;
+  const v = input.trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(v)) { toast('Enter the date as YYYY-MM-DD', 'error'); return; }
+  if (j.startDate && v < j.startDate) { toast('End date can’t be before the start date', 'error'); return; }
+  writeWithRetry(() => setDoc(doc(fbDb, 'jobs', id), { endDate: v, updatedAt: new Date().toISOString() }, { merge: true }))
+    .catch((err) => { console.error('End-date extend failed', err); toast('Change failed to sync: ' + ((err && err.message) || 'error'), 'error'); });
+  const jdx = cachedJobs.findIndex((x) => x.id === id);
+  if (jdx >= 0) cachedJobs[jdx] = { ...cachedJobs[jdx], endDate: v };
+  toast(`End date moved to ${fmtShortDate(v)}`);
+  renderLifecycleJobDetail(id);
+}
+
+/* Cancel every remaining Open task on a job (used by Close Out and Cancel).
+   Optimistic batch — offline-safe like the other job writes. */
+function cancelOpenTasksForJob(jobId) {
+  const open = tasksForJob(jobId).filter((t) => t.status === 'Open');
+  if (!open.length) return 0;
+  const now = new Date().toISOString();
+  const batch = writeBatch(fbDb);
+  for (const t of open) {
+    batch.set(doc(fbDb, 'tasks', t.id), { status: 'Cancelled', updatedAt: now }, { merge: true });
+    const idx = cachedTasks.findIndex((x) => x.id === t.id);
+    if (idx >= 0) cachedTasks[idx] = { ...cachedTasks[idx], status: 'Cancelled' };
+  }
+  batch.commit().catch((err) => {
+    console.error('Open-task cancellation failed', err);
+    toast('Task cancellations failed to sync: ' + ((err && err.message) || 'error'), 'error');
+  });
+  return open.length;
+}
+
+/* Close Out (admin only): job → Complete, remaining open tasks cancelled,
+   rebait schedule switched off (Item 19). Jon marks a job Complete manually
+   after it's billed and paid in QBO. */
+async function closeOutJob(id) {
+  if (!isAdmin()) { toast('Only an administrator can close out a job.', 'error'); return; }
+  const j = cachedJobs.find((x) => x.id === id);
+  if (!j) return;
+  const nOpen = tasksForJob(id).filter((t) => t.status === 'Open').length;
+  const ok = await confirmDialog('Close out this job?',
+    `${j.jobNumber || 'This job'} moves to Complete${nOpen ? ` and its ${nOpen} remaining open task${nOpen === 1 ? '' : 's'} will be cancelled` : ''}. Do this after the job is billed and paid in QuickBooks.`,
+    { okText: 'Close Out' });
+  if (!ok) return;
+  const moved = await setJobLifecycleStatus(id, 'Complete', { rebaitActive: false });
+  if (!moved) return;
+  const jdx = cachedJobs.findIndex((x) => x.id === id);
+  if (jdx >= 0) cachedJobs[jdx] = { ...cachedJobs[jdx], status: 'Complete', rebaitActive: false };
+  cancelOpenTasksForJob(id);
+  renderLifecycleJobDetail(id);
+}
+
+async function cancelTaskModelJob(id) {
+  const j = cachedJobs.find((x) => x.id === id);
+  if (!j) return;
+  const nOpen = tasksForJob(id).filter((t) => t.status === 'Open').length;
+  const ok = await confirmDialog('Cancel this job?',
+    `${j.jobNumber || 'This job'} moves to Cancelled${nOpen ? ` and its ${nOpen} open task${nOpen === 1 ? '' : 's'} will be cancelled` : ''}. Records already logged stay linked.`,
+    { okText: 'Cancel Job' });
+  if (!ok) return;
+  const moved = await setJobLifecycleStatus(id, 'Cancelled', { rebaitActive: false });
+  if (!moved) return;
+  const jdx = cachedJobs.findIndex((x) => x.id === id);
+  if (jdx >= 0) cachedJobs[jdx] = { ...cachedJobs[jdx], status: 'Cancelled', rebaitActive: false };
+  cancelOpenTasksForJob(id);
+  renderLifecycleJobDetail(id);
 }
 
 /* ---- Appointment form ---- */
@@ -12200,6 +12807,11 @@ async function init() {
   });
   wireAutocomplete('lj-customer', 'lj-customer-ac', applyLifecycleJobCustomer);
   $('#lifecycleJobDetail').addEventListener('click', (e) => {
+    /* Item 15: task rows + inline complete buttons on the new job detail. */
+    const doneBtn = e.target.closest('[data-task-complete]');
+    if (doneBtn) { completeTask(doneBtn.dataset.taskComplete); return; }
+    const taskRow = e.target.closest('[data-task-open]');
+    if (taskRow) { openTask(taskRow.dataset.taskOpen); return; }
     const btn = e.target.closest('[data-ljob-action], [data-appt-open]');
     if (!btn) return;
     if (btn.dataset.apptOpen) { openAppointment(btn.dataset.apptJob, btn.dataset.apptOpen); return; }
@@ -12222,13 +12834,52 @@ async function init() {
     else if (action === 'pending-close') setJobLifecycleStatus(id, 'Pending Close');
     else if (action === 'mark-paid') markJobPaid(id);
     else if (action === 'edit') editLifecycleJob(id);
+    /* Item 15: task-model job actions. */
+    else if (action === 'add-task') {
+      editingTaskId = null;
+      pendingTaskJobId = id;      /* consumed by resetTaskForm inside setView */
+      taskReturnTo = 'job-detail';
+      setView('add-task');
+    }
+    else if (action === 'add-contractor') addContractorToJob(id);
+    else if (action === 'extend-end') extendJobEndDate(id);
+    else if (action === 'close-out') closeOutJob(id);
     else if (action === 'cancel-job') {
+      const j = cachedJobs.find((x) => x.id === id);
+      if (j && isTaskModelJob(j)) { cancelTaskModelJob(id); return; }
       confirmDialog('Cancel this job?', 'The job moves to Cancelled and stops appearing in active lists. Records and appointments already logged stay linked.', { okText: 'Cancel Job' })
         .then((ok) => { if (ok) setJobLifecycleStatus(id, 'Cancelled'); });
     }
     else if (action === 'view-estimate') { setAppModeQuiet('pricing'); showEstimateDetail(btn.dataset.est); }
     else if (action === 'view-traps') viewJobRecords(id, 'trap');
     else if (action === 'view-pests') viewJobRecords(id, 'pesticide');
+  });
+
+  /* ---- Task form + detail wiring (Items 15, 16 & 18) ---- */
+  $('#taskForm').addEventListener('submit', handleSaveTask);
+  $('#cancelTaskBtn').addEventListener('click', () => {
+    const backToJob = taskReturnTo === 'job-detail' && currentLifecycleJobId;
+    editingTaskId = null;
+    taskReturnTo = null;
+    resetTaskForm();
+    if (backToJob) openLifecycleJob(currentLifecycleJobId); else setView('dashboard');
+  });
+  $('#t-type').addEventListener('change', updateTaskTypeConditional);
+  $('#t-job').addEventListener('change', () => {
+    const j = cachedJobs.find((x) => x.id === $('#t-job').value);
+    if (j && Array.isArray(j.assignedOperators) && j.assignedOperators.length) renderOperatorChecks('t-operators', j.assignedOperators);
+  });
+  $('#taskDetail').addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-task-action]');
+    if (!btn) return;
+    const action = btn.dataset.taskAction, id = btn.dataset.id, jobId = btn.dataset.job;
+    if (action === 'back') { currentTaskId = null; setView('dashboard'); }
+    else if (action === 'complete') completeTask(id);
+    else if (action === 'cancel') cancelTask(id);
+    else if (action === 'edit') editTask(id);
+    else if (action === 'log-trap') startWorkLog(jobId, 'trap');
+    else if (action === 'log-pesticide') startWorkLog(jobId, 'pesticide');
+    else if (action === 'open-job') openLifecycleJob(jobId);
   });
 
   /* Appointment form + detail */
@@ -12422,6 +13073,7 @@ async function init() {
       subscribeToFieldData();
       subscribeToJobs();
       subscribeToAppointments();
+      subscribeToTasks();   /* Item 15 */
       subscribeToProperties();
       subscribeToNotifications();
       renderBusinessCard();
@@ -12445,6 +13097,7 @@ async function init() {
       unsubscribeFromFieldData();
       unsubscribeFromJobs();
       unsubscribeFromAppointments();
+      unsubscribeFromTasks();
       unsubscribeFromProperties();
       unsubscribeFromNotifications();
       modeSelected = false;
