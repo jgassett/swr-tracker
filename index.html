@@ -10802,6 +10802,155 @@ async function cancelTaskModelJob(id) {
   renderLifecycleJobDetail(id);
 }
 
+/* =====================================================================
+ * Item 19 (v2-patch-1): rebait scheduler with ROLLING generation.
+ * ---------------------------------------------------------------------
+ * Saving a Set Trap task prompts for a rebait schedule (interval default
+ * 2 days; end date default +30 days from the trap set). Confirming stores
+ * rebaitInterval / rebaitEndDate / rebaitActive on the JOB and generates
+ * only the FIRST Re-bait Trap task. Completing a rebait task generates
+ * the next one while the next interval date is on/before rebaitEndDate;
+ * past it, the operator is offered a 30-day extension (declining sets
+ * rebaitActive false). Close Out / Cancel Job set rebaitActive false and
+ * cancel open tasks, so no further rebaits are ever generated.
+ * ===================================================================== */
+let rebaitTaskCtx = null;   /* { jobId, task } while the setup sheet is open */
+
+function createRebaitTaskDoc(jobId, template, date) {
+  const now = new Date().toISOString();
+  const ref = doc(tasksCol());
+  const data = {
+    jobId,
+    jobNumber: template.jobNumber || '',
+    customerId: template.customerId || null,
+    customerName: template.customerName || '',
+    taskType: 'Re-bait Trap',
+    taskTypeOther: '',
+    scheduledDate: date,
+    scheduledTime: template.scheduledTime || '09:00',
+    assignedOperators: template.assignedOperators || [],
+    assigneeNames: template.assigneeNames || [],
+    status: 'Open',
+    completedDate: null,
+    completedBy: null,
+    isLastRebait: false,
+    notes: 'Auto-generated rebait task',
+    createdBy: (currentUser && (EMAIL_TO_TRAPPER[currentUser.email.toLowerCase()] || currentUser.email)) || '',
+    createdByUid: currentUser ? currentUser.uid : null,
+    createdByEmail: currentUser ? currentUser.email : null,
+    createdAt: now,
+    updatedAt: now
+  };
+  /* Optimistic write — offline-safe like every other task write. */
+  writeWithRetry(() => setDoc(ref, data)).catch((err) => {
+    console.error('Rebait task create failed', err);
+    toast('Rebait task failed to sync: ' + ((err && err.message) || 'error'), 'error');
+  });
+  cachedTasks.push({ id: ref.id, ...data });
+  cachedTasks.sort((a, b) =>
+    ((a.scheduledDate || '') + (a.scheduledTime || '')).localeCompare((b.scheduledDate || '') + (b.scheduledTime || '')));
+  return data;
+}
+
+/* Step 1: the yes/no prompt right after a Set Trap task is saved. */
+function promptRebaitSetup(jobId, setTask) {
+  rebaitTaskCtx = { jobId, task: setTask };
+  $('#rebaitTitle').textContent = 'Rebait schedule';
+  $('#rebaitBody').innerHTML = `
+    <p style="margin:6px 0 16px;">Trap set saved. Do you want to set up a rebait schedule for ${escapeHtml(setTask.customerName || 'this job')}?</p>
+    <div class="btn-row">
+      <button type="button" class="btn btn-ghost" data-rebait-task="no">No</button>
+      <button type="button" class="btn btn-primary" data-rebait-task="yes">Yes</button>
+    </div>`;
+  openRebaitSheet();
+}
+
+/* Step 2: interval + end date, both shown together. */
+function rebaitTaskStepConfig() {
+  const start = (rebaitTaskCtx && rebaitTaskCtx.task.scheduledDate) || todayISO();
+  $('#rebaitBody').innerHTML = `
+    <div class="form-group" style="margin-top:6px;">
+      <label for="rebait-task-interval">Interval (days between rebaits)</label>
+      <input type="number" id="rebait-task-interval" inputmode="numeric" min="1" max="30" step="1" value="2">
+    </div>
+    <div class="form-group">
+      <label for="rebait-task-end">End date</label>
+      <input type="date" id="rebait-task-end" value="${escapeHtml(addDaysISO(start, 30))}">
+      <div class="hint">Only the next rebait task is created at a time — completing it schedules the following one through this date.</div>
+    </div>
+    <div class="btn-row">
+      <button type="button" class="btn btn-ghost" data-rebait-task="cancel">Cancel</button>
+      <button type="button" class="btn btn-primary" data-rebait-task="create">Set Up Schedule</button>
+    </div>`;
+  setTimeout(() => { const el = $('#rebait-task-interval'); if (el) el.focus(); }, 150);
+}
+
+function confirmRebaitTaskSetup() {
+  const ctx = rebaitTaskCtx;
+  if (!ctx) return;
+  const interval = parseInt(($('#rebait-task-interval') || {}).value, 10);
+  const endDate = ($('#rebait-task-end') || {}).value;
+  const start = ctx.task.scheduledDate || todayISO();
+  if (!Number.isFinite(interval) || interval < 1) { toast('Enter an interval of at least 1 day', 'error'); return; }
+  if (!endDate || endDate <= start) { toast('Pick an end date after the trap set date', 'error'); return; }
+  const first = addDaysISO(start, interval);
+  if (first > endDate) { toast('The first rebait would fall after the end date — extend the date or shorten the interval', 'error'); return; }
+  /* Store the schedule config on the job. */
+  writeWithRetry(() => setDoc(doc(fbDb, 'jobs', ctx.jobId), {
+    rebaitInterval: interval,
+    rebaitEndDate: endDate,
+    rebaitActive: true,
+    updatedAt: new Date().toISOString()
+  }, { merge: true })).catch((err) => {
+    console.error('Rebait config write failed', err);
+    toast('Rebait schedule failed to sync: ' + ((err && err.message) || 'error'), 'error');
+  });
+  const jdx = cachedJobs.findIndex((x) => x.id === ctx.jobId);
+  if (jdx >= 0) cachedJobs[jdx] = { ...cachedJobs[jdx], rebaitInterval: interval, rebaitEndDate: endDate, rebaitActive: true };
+  /* Generate ONLY the first Re-bait Trap task. */
+  createRebaitTaskDoc(ctx.jobId, ctx.task, first);
+  toast(`Rebait schedule active — first rebait ${fmtShortDate(first)}`);
+  closeRebaitSheet();
+  if (currentLifecycleJobId === ctx.jobId && !$('#view-job-detail').classList.contains('hidden')) {
+    renderLifecycleJobDetail(ctx.jobId);
+  }
+}
+
+/* Rolling generation: called by completeTask() for Re-bait Trap tasks. */
+function handleRebaitTaskCompleted(t) {
+  const j = cachedJobs.find((x) => x.id === t.jobId);
+  if (!j || !isTaskModelJob(j) || !j.rebaitActive || j.status !== 'Active') return;
+  const interval = Number(j.rebaitInterval) || 2;
+  /* Cadence stays anchored to the scheduled date so a late completion
+     doesn't drift the whole series. */
+  const anchor = t.scheduledDate || t.completedDate || todayISO();
+  const next = addDaysISO(anchor, interval);
+  if (j.rebaitEndDate && next <= j.rebaitEndDate) {
+    createRebaitTaskDoc(j.id, t, next);
+    toast(`Next rebait scheduled ${fmtShortDate(next)}`);
+    return;
+  }
+  confirmDialog('Extend rebait schedule?',
+    `The rebait schedule ends on ${fmtDate(j.rebaitEndDate) || 'its end date'} — extend by 30 days?`,
+    { okText: 'Extend 30 Days' }).then((ok) => {
+    const now = new Date().toISOString();
+    const jdx = cachedJobs.findIndex((x) => x.id === j.id);
+    if (ok) {
+      const newEnd = addDaysISO(j.rebaitEndDate || anchor, 30);
+      writeWithRetry(() => setDoc(doc(fbDb, 'jobs', j.id), { rebaitEndDate: newEnd, updatedAt: now }, { merge: true }))
+        .catch((err) => { console.error('Rebait extension failed', err); toast('Extension failed to sync: ' + ((err && err.message) || 'error'), 'error'); });
+      if (jdx >= 0) cachedJobs[jdx] = { ...cachedJobs[jdx], rebaitEndDate: newEnd };
+      createRebaitTaskDoc(j.id, t, next);
+      toast(`Extended through ${fmtShortDate(newEnd)} — next rebait ${fmtShortDate(next)}`);
+    } else {
+      writeWithRetry(() => setDoc(doc(fbDb, 'jobs', j.id), { rebaitActive: false, updatedAt: now }, { merge: true }))
+        .catch((err) => console.error('Rebait deactivate failed', err));
+      if (jdx >= 0) cachedJobs[jdx] = { ...cachedJobs[jdx], rebaitActive: false };
+      toast('Rebait schedule ended');
+    }
+  });
+}
+
 /* ---- Appointment form ---- */
 let editingAppointment = null;        /* { jobId, id } while editing */
 let pendingAppointmentJobId = null;   /* job pre-selected (from Job Detail) */
@@ -10994,6 +11143,7 @@ function closeRebaitSheet() {
   $('#rebaitSheet').classList.remove('open');
   $('#sheetBackdrop').classList.remove('open');
   rebaitCtx = null;
+  rebaitTaskCtx = null;   /* Item 19: task-based rebait setup shares the sheet */
 }
 function rebaitSheetOpen() { return $('#rebaitSheet').classList.contains('open'); }
 
@@ -12351,6 +12501,16 @@ async function init() {
       rebaitStepEndDate();
     }
     else if (a === 'create') confirmRebaitSequence();
+  });
+  /* Item 19: task-based rebait setup (distinct data attribute so the legacy
+     appointment-based handler above never crosses wires). */
+  $('#rebaitSheet').addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-rebait-task]');
+    if (!btn || !rebaitTaskCtx) return;
+    const a = btn.dataset.rebaitTask;
+    if (a === 'no' || a === 'cancel') closeRebaitSheet();
+    else if (a === 'yes') rebaitTaskStepConfig();
+    else if (a === 'create') confirmRebaitTaskSetup();
   });
   $('#detailClose').addEventListener('click', () => {
     /* In review mode: just close the sheet, the form still holds the data. */
