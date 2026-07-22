@@ -11495,6 +11495,7 @@ function renderCloseoutConfirm(id) {
       <div class="job-stat-row"><span class="jsk">Linked estimate</span><span class="jsv">${est ? `${escapeHtml(est.estimateNumber || '')} · ${fmtUSD(est.grandTotal)}` : '—'}</span></div>
     </div>
     <div class="hint" style="margin:0 4px 12px;">Closing out marks the job Complete and switches off its rebait schedule. Invoicing and payment tracking continue in QuickBooks — no invoice is generated in the app.</div>
+    <div class="hint" style="margin:0 4px 12px;">If this is the customer's only active job they will be set to inactive automatically.</div>
     <div class="form-actions">
       ${isAdmin()
         ? `<button type="button" class="btn btn-amber" data-closeout-action="confirm" data-id="${escapeHtml(id)}">Confirm Close Out</button>`
@@ -11522,6 +11523,26 @@ async function confirmCloseOutJob(id) {
   const jdx = cachedJobs.findIndex((x) => x.id === id);
   if (jdx >= 0) cachedJobs[jdx] = { ...cachedJobs[jdx], status: 'Complete', rebaitActive: false, closedOutAt: now, closedOutBy: me };
   cancelOpenTasksForJob(id);
+  /* Item 13 (v2-patch-5): post-close check — if this was the customer's only
+     Active job, flip the customer's app-only `active` flag to false. Fully
+     automatic, no operator input. QuickBooks is never touched: `active` is
+     the app-controlled flag the QB sync never writes. */
+  if (j.customerId) {
+    const otherActive = lifecycleJobs().some((x) =>
+      x.id !== id && x.customerId === j.customerId && (x.status || 'Active') === 'Active');
+    if (!otherActive) {
+      const cust = cachedCustomers.find((c) => c.id === j.customerId);
+      if (cust && cust.active) {
+        writeWithRetry(() => setDoc(doc(fbDb, 'customers', j.customerId),
+          { active: false, updatedAt: now }, { merge: true }))
+          .then(() => toast(`${cust.name || 'Customer'} set to inactive — no other active jobs`))
+          .catch((err) => {
+            console.error('customer auto-deactivate failed', err);
+            toast('Customer deactivation failed to sync: ' + ((err && err.message) || 'error'), 'error');
+          });
+      }
+    }
+  }
   currentCloseoutJobId = null;
   setView('dashboard');   /* back to the Close Out list */
 }
