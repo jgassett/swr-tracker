@@ -1327,6 +1327,16 @@
     .job-stat-row .jsk { font-size: 12px; letter-spacing: 0.05em; text-transform: uppercase; color: var(--ink-soft); }
     .job-stat-row .jsv { font-weight: 600; color: var(--green-deep); text-align: right; }
     .job-stat-row .jsv .link-like { color: var(--amber); text-decoration: underline; cursor: pointer; background: none; border: none; font: inherit; font-weight: 600; padding: 0; }
+    /* Item 7 (v2-patch-5): tappable customer name on the Job Detail screen. */
+    .jd-cust-link {
+      display: inline-flex; align-items: center; gap: 7px;
+      background: none; border: none; padding: 0; margin-top: 6px;
+      font-family: inherit; font-weight: 600; color: var(--green-deep); font-size: 17px;
+      text-decoration: underline; text-decoration-color: var(--amber-soft);
+      text-underline-offset: 3px; cursor: pointer; text-align: left;
+    }
+    .jd-cust-link svg { width: 17px; height: 17px; stroke: var(--amber); fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0; }
+    .jd-cust-link:active { color: var(--amber); }
     .appt-timeline { margin-top: 4px; }
     .appt-timeline .at-row { display: flex; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--rule, #eef1ee); cursor: pointer; }
     .appt-timeline .at-row:last-child { border-bottom: none; }
@@ -2405,6 +2415,9 @@
 
     <!-- ADD / EDIT CUSTOMER -->
     <section id="view-add-customer" class="view hidden">
+      <!-- Item 7 (v2-patch-5): shown only when this screen was reached from a
+           Job Detail screen — returns to that job without losing context. -->
+      <button type="button" class="btn btn-ghost hidden" id="backToJobBtn" style="margin-bottom:12px;">← Back to Job</button>
       <!-- Customer Action Hub (Item 4) — shown only for existing customers -->
       <div class="card hidden" id="customerActionHub">
         <h3 style="margin:0 0 10px;">Quick Actions</h3>
@@ -10787,7 +10800,10 @@ function renderTaskModelJobDetail(j) {
         <span class="status-pill ${jobLifeStatusClass(j.status)}">${escapeHtml(j.status || 'Active')}</span>
       </div>
       ${j.jobType ? `<div style="margin-top:8px;"><span class="job-type-tag" style="font-size:13px;padding:3px 10px;">${escapeHtml(j.jobType)}</span></div>` : ''}
-      <div style="margin-top:6px;font-weight:600;color:var(--green-deep);font-size:17px;">${escapeHtml(j.customerName || '')}</div>
+      ${j.customerId
+        ? `<div><button type="button" class="jd-cust-link" data-ljob-action="view-customer" data-id="${escapeHtml(id)}" data-cust="${escapeHtml(j.customerId)}" title="View customer">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>${escapeHtml(j.customerName || 'Customer')}</button></div>`
+        : `<div style="margin-top:6px;font-weight:600;color:var(--green-deep);font-size:17px;">${escapeHtml(j.customerName || '')}</div>`}
       ${prop ? `<div class="muted" style="font-size:13px;">${escapeHtml([prop.siteNickname, prop.address].filter(Boolean).join(' · '))}</div>`
         : cust && cust.address ? `<div class="muted" style="font-size:13px;">${escapeHtml([cust.address, cust.city].filter(Boolean).join(', '))}</div>` : ''}
       <div class="muted" style="font-size:13px;margin-top:4px;">${escapeHtml(fmtShortDate(j.startDate))} – ${escapeHtml(fmtShortDate(j.endDate) || 'open')} · ${escapeHtml((j.assigneeNames || []).join(', ') || 'unassigned')}</div>
@@ -10877,7 +10893,10 @@ function renderLifecycleJobDetail(id) {
         <span class="status-pill ${jobLifeStatusClass(j.status)}">${escapeHtml(j.status || 'Lead')}</span>
       </div>
       ${j.jobType ? `<div style="margin-top:8px;"><span class="job-type-tag" style="font-size:13px;padding:3px 10px;">${escapeHtml(j.jobType)}</span></div>` : ''}
-      <div style="margin-top:6px;font-weight:600;color:var(--green-deep);font-size:17px;">${escapeHtml(j.customerName || '')}</div>
+      ${j.customerId
+        ? `<div><button type="button" class="jd-cust-link" data-ljob-action="view-customer" data-id="${escapeHtml(id)}" data-cust="${escapeHtml(j.customerId)}" title="View customer">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>${escapeHtml(j.customerName || 'Customer')}</button></div>`
+        : `<div style="margin-top:6px;font-weight:600;color:var(--green-deep);font-size:17px;">${escapeHtml(j.customerName || '')}</div>`}
       ${prop ? `<div class="muted" style="font-size:13px;">${escapeHtml([prop.siteNickname, prop.address].filter(Boolean).join(' · '))}</div>`
         : cust && cust.address ? `<div class="muted" style="font-size:13px;">${escapeHtml([cust.address, cust.city].filter(Boolean).join(', '))}</div>` : ''}
       ${jobProgressHtml(j)}
@@ -12394,6 +12413,10 @@ let customerFormBaseline = null;
 function resetCustomerForm() {
   editingCustomerId = null;
   customerFormBaseline = null;
+  /* Item 7: the Back to Job shortcut is re-shown by loadCustomerIntoForm
+     when the screen was reached from a Job Detail screen. */
+  const backBtn = $('#backToJobBtn');
+  if (backBtn) backBtn.classList.add('hidden');
   $('#customerForm').reset();
   $('#c-id').value = '';
   $('#c-active').checked = false;
@@ -12438,6 +12461,7 @@ function loadCustomerIntoForm(c) {
   $('#saveCustomerBtn').textContent = 'Save Changes';
   const hub = $('#customerActionHub');
   if (hub) hub.classList.remove('hidden');
+  updateBackToJobBtn();   /* Item 7: show when navigated from a job */
   closePropertyEditor();
   renderPropertiesCard();
   /* M6: snapshot the just-loaded form so hub actions can detect unsaved
@@ -12731,9 +12755,23 @@ function populatePropertySelect(selectId, groupId, customerId, selectedId) {
   sel.value = selectedId || (props.length === 1 ? props[0].id : '');
 }
 
-function editCustomer(id) {
+/* Item 7 (v2-patch-5): job the Customer Detail screen was opened from, so
+   "Back to Job" can return without losing context. Set only by the Job
+   Detail customer link; cleared on every other route into the screen. */
+let customerReturnJobId = null;
+
+function updateBackToJobBtn() {
+  const btn = $('#backToJobBtn');
+  if (!btn) return;
+  const j = customerReturnJobId ? cachedJobs.find((x) => x.id === customerReturnJobId) : null;
+  btn.classList.toggle('hidden', !customerReturnJobId);
+  btn.textContent = j && j.jobNumber ? `← Back to ${j.jobNumber}` : '← Back to Job';
+}
+
+function editCustomer(id, opts = {}) {
   const c = cachedCustomers.find((x) => x.id === id);
   if (!c) return;
+  customerReturnJobId = opts.fromJobId || null;   /* Item 7 */
   setView('add');
   loadCustomerIntoForm(c);
 }
@@ -13503,6 +13541,14 @@ async function init() {
   $('#callCustomerBtn').addEventListener('click', () => openCustomerComm('tel'));
   $('#textCustomerBtn').addEventListener('click', () => openCustomerComm('sms'));
   $('#c-phone').addEventListener('input', updateCallTextButtons);
+  /* Item 7 (v2-patch-5): return to the job this customer was opened from. */
+  $('#backToJobBtn').addEventListener('click', () => {
+    const jid = customerReturnJobId;
+    customerReturnJobId = null;
+    if (!jid) return;
+    resetCustomerForm();
+    openLifecycleJob(jid);
+  });
   /* Item 5 (v2-patch-2): Quick Controls switches. QBO Sync and Test
      Notifications are momentary — they flip on while running and settle
      back off; QBO Reconnect and Enable Notifications reflect real state. */
@@ -13744,6 +13790,12 @@ async function init() {
     if (btn.dataset.apptOpen) { openAppointment(btn.dataset.apptJob, btn.dataset.apptOpen); return; }
     const action = btn.dataset.ljobAction, id = btn.dataset.id;
     if (action === 'back') { currentLifecycleJobId = null; setView('dashboard'); }
+    /* Item 7 (v2-patch-5): tap the customer name → Customer Detail, with a
+       Back to Job button waiting there. */
+    else if (action === 'view-customer') {
+      setAppModeQuiet('customer');
+      editCustomer(btn.dataset.cust, { fromJobId: id });
+    }
     else if (action === 'schedule-visit') {
       editingAppointment = null;
       pendingAppointmentJobId = id;    /* consumed by resetAppointmentForm inside setView */
