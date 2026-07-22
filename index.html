@@ -12209,13 +12209,18 @@ function isIOSDevice() {
     || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1); /* iPadOS reports MacIntel */
 }
 function customerFormDestination() {
+  /* Item 1 (v2-patch-5): constrain routing to Kentucky. The map app gets
+     "street address, <County> County, Kentucky" (e.g. "129 Neal Lane,
+     Scott County, Kentucky") so it can't match a same-named street in
+     another state. No county on file → append Kentucky only. */
+  const street = $('#c-address').value.trim();
+  const county = $('#c-county').value;
   const parts = [
-    $('#c-address').value.trim(),
-    $('#c-city').value.trim(),
-    $('#c-county').value ? 'KY' : '',   /* bias in-state when a KY county is set */
-    $('#c-zip').value.trim()
+    street,
+    county ? `${county} County` : '',
+    'Kentucky'
   ].filter(Boolean);
-  return parts.join(', ');
+  return street ? parts.join(', ') : '';
 }
 function updateGetDirectionsBtn() {
   const btn = $('#getDirectionsBtn');
