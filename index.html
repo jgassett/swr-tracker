@@ -1793,6 +1793,15 @@
           <option value="X">Excluded / Dispersed / Other</option>
         </select>
       </div>
+      <!-- Item 11 (v2-patch-5): sort control — selection persists for the
+           session within this tab (the element keeps its value). -->
+      <div class="filter-row" style="grid-template-columns:1fr;">
+        <select id="trapSortBy">
+          <option value="date">Sort: Date (newest first)</option>
+          <option value="contractor">Sort: Contractor</option>
+          <option value="customer">Sort: Customer</option>
+        </select>
+      </div>
 
       <button type="button" id="trapUnlinkedBanner" class="unlinked-banner hidden"></button>
 
@@ -2117,6 +2126,14 @@
       <div class="filter-row">
         <select id="pestFilterApplicator"><option value="">All applicators</option></select>
         <select id="pestFilterMethod"><option value="">All methods</option></select>
+      </div>
+      <!-- Item 11 (v2-patch-5): sort control, session-persistent per tab. -->
+      <div class="filter-row" style="grid-template-columns:1fr;">
+        <select id="pestSortBy">
+          <option value="date">Sort: Date (newest first)</option>
+          <option value="contractor">Sort: Contractor</option>
+          <option value="customer">Sort: Customer</option>
+        </select>
       </div>
       <button type="button" id="pestUnlinkedBanner" class="unlinked-banner hidden"></button>
       <div class="card" id="pesticideRecordList"></div>
@@ -7530,13 +7547,29 @@ async function loadRecords() {
   cachedRecords = (await dbAll()).sort((a, b) => (b.dateCollected || '').localeCompare(a.dateCollected || '') || b.id - a.id);
 }
 
+/* Item 11 (v2-patch-5): Field Work sort — Date (default, newest first),
+   Contractor (alphabetical, then date), Customer (alphabetical, then date).
+   The <select> elements hold the per-tab session state. */
+function sortFieldWorkRecords(list, mode, getContractor, getCustomer, getDate) {
+  const byDateDesc = (a, b) => (getDate(b) || '').localeCompare(getDate(a) || '');
+  const sorted = list.slice();
+  if (mode === 'contractor') {
+    sorted.sort((a, b) => (getContractor(a) || '').localeCompare(getContractor(b) || '') || byDateDesc(a, b));
+  } else if (mode === 'customer') {
+    sorted.sort((a, b) => (getCustomer(a) || '').localeCompare(getCustomer(b) || '') || byDateDesc(a, b));
+  } else {
+    sorted.sort(byDateDesc);
+  }
+  return sorted;
+}
+
 function filteredRecords() {
   const q = $('#recSearch').value.trim().toLowerCase();
   const ft = $('#filterTrapper').value;
   const fs = $('#filterSpecies').value;
   const fc = $('#filterCounty').value;
   const fd = $('#filterDisposal').value;
-  return cachedRecords.filter((r) => {
+  const list = cachedRecords.filter((r) => {
     if (trapRecFilter.unlinkedOnly && r.jobId) return false;
     if (trapRecFilter.jobId && r.jobId !== trapRecFilter.jobId) return false;
     if (ft && r.trapper !== ft) return false;
@@ -7554,6 +7587,10 @@ function filteredRecords() {
     }
     return true;
   });
+  /* Item 11: apply the tab's sort selection. */
+  const sortMode = ($('#trapSortBy') && $('#trapSortBy').value) || 'date';
+  return sortFieldWorkRecords(list, sortMode,
+    (r) => r.trapper, (r) => r.clientName, (r) => r.dateCollected);
 }
 
 function speciesInitial(name) {
@@ -7591,8 +7628,17 @@ function renderListMode(list) {
   wrap.classList.remove('hidden');
   empty.classList.add('hidden');
   body.innerHTML = '';
+  /* Item 11: contractor sort groups the rows under name headers. */
+  const groupByContractor = ($('#trapSortBy') && $('#trapSortBy').value) === 'contractor';
+  let lastGroup = null;
   for (let i = 0; i < list.length; i++) {
     const r = list[i];
+    if (groupByContractor && (r.trapper || '(no contractor)') !== lastGroup) {
+      lastGroup = r.trapper || '(no contractor)';
+      const gtr = document.createElement('tr');
+      gtr.innerHTML = `<td colspan="7" style="background:rgba(196,119,42,0.10);color:var(--amber);font-weight:700;font-size:12px;text-transform:uppercase;letter-spacing:.04em;">${escapeHtml(lastGroup)}</td>`;
+      body.appendChild(gtr);
+    }
     const code = disposalCode(r.disposalMethod);
     const tag = code === 'R' ? 'R' : code === 'D' ? 'D' : 'X';
     const tagLabel = code === 'R' ? 'Released' : code === 'D' ? 'Euthanized' : 'Other';
@@ -9095,7 +9141,7 @@ function filteredPesticideRecords() {
   const q = ($('#pestRecSearch') ? $('#pestRecSearch').value : '').trim().toLowerCase();
   const fa = $('#pestFilterApplicator') ? $('#pestFilterApplicator').value : '';
   const fm = $('#pestFilterMethod') ? $('#pestFilterMethod').value : '';
-  return cachedPesticideRecords.filter((r) => {
+  const list = cachedPesticideRecords.filter((r) => {
     if (pestRecFilter.unlinkedOnly && r.jobId) return false;
     if (pestRecFilter.jobId && r.jobId !== pestRecFilter.jobId) return false;
     if (fa && r.applicator !== fa) return false;
@@ -9109,6 +9155,10 @@ function filteredPesticideRecords() {
     }
     return true;
   });
+  /* Item 11: apply the tab's sort selection. */
+  const sortMode = ($('#pestSortBy') && $('#pestSortBy').value) || 'date';
+  return sortFieldWorkRecords(list, sortMode,
+    (r) => r.applicator, (r) => r.clientName, (r) => r.appliedAt);
 }
 
 function renderPesticideRecordsList() {
@@ -9121,7 +9171,17 @@ function renderPesticideRecordsList() {
     return;
   }
   root.innerHTML = '';
+  /* Item 11: contractor sort groups the rows under name headers. */
+  const groupByContractor = ($('#pestSortBy') && $('#pestSortBy').value) === 'contractor';
+  let lastGroup = null;
   for (const r of list) {
+    if (groupByContractor && (r.applicator || '(no contractor)') !== lastGroup) {
+      lastGroup = r.applicator || '(no contractor)';
+      const gh = document.createElement('div');
+      gh.style.cssText = 'color:var(--amber);font-weight:700;font-size:12px;text-transform:uppercase;letter-spacing:.04em;padding:10px 0 2px;';
+      gh.textContent = lastGroup;
+      root.appendChild(gh);
+    }
     const div = document.createElement('div');
     div.className = 'rec';
     const brand = (r.products && r.products[0]) ? brandLabel(r.products[0]) : '(no product)';
@@ -13224,7 +13284,7 @@ async function init() {
     }
   });
 
-  ['recSearch','filterTrapper','filterSpecies','filterCounty','filterDisposal'].forEach((id) => {
+  ['recSearch','filterTrapper','filterSpecies','filterCounty','filterDisposal','trapSortBy'].forEach((id) => {
     $('#' + id).addEventListener('input', () => { singleIndex = 0; renderRecords(); });
     $('#' + id).addEventListener('change', () => { singleIndex = 0; renderRecords(); });
   });
@@ -13414,7 +13474,7 @@ async function init() {
   $('#paPhotoReplaceBtn').addEventListener('click', () => $('#paPhotoInput').click());
   $('#paPhotoRemoveBtn').addEventListener('click', handlePaPhotoRemove);
   $('#paPhotoInput').addEventListener('change', handlePaPhotoSelected);
-  ['pestRecSearch','pestFilterApplicator','pestFilterMethod'].forEach((id) => {
+  ['pestRecSearch','pestFilterApplicator','pestFilterMethod','pestSortBy'].forEach((id) => {
     const el = $('#' + id);
     if (!el) return;
     el.addEventListener('input', renderPesticideRecordsList);
