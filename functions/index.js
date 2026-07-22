@@ -70,7 +70,7 @@ const SERVICE_ITEM_NAME = 'Wildlife Services';
 /* ---- Monitoring module (Cuddeback CuddeLink) ingestion — Item 17 rename ---- */
 const cb = require('./cuddeback-parse');
 const MS_SECRETS = ['MS_TENANT_ID', 'MS_CLIENT_ID', 'MS_CLIENT_SECRET'];
-const PHOTOS_MAILBOX = 'photos@southern-wildlife.com';
+const PHOTOS_MAILBOX = 'photos@NETORGFT3707352.onmicrosoft.com';
 const REPORT_TZ = 'America/New_York';
 const CL_IMG_SENDER = 'images.cuddelink.com';
 const CL_REPORT_SENDER = 'reports.cuddelink.com';
