@@ -2861,6 +2861,11 @@
           <label for="lj-jobtype-other">Describe job type<span class="req">*</span></label>
           <input type="text" id="lj-jobtype-other" placeholder="e.g. Chimney Sweep">
         </div>
+        <!-- Item 16 (v2-patch-5): optional species (KDFWR list). -->
+        <div class="form-group">
+          <label for="lj-species">Species<span class="opt">(optional)</span></label>
+          <select id="lj-species"><option value="">— none —</option></select>
+        </div>
         <!-- Item 15 (v2-patch-5): end date removed from the job form — a job
              stays open until closed out; a 30-day duration reminder nudges
              the admin instead. Existing records keep any stored endDate. -->
@@ -10339,6 +10344,17 @@ function jobTypeDisplay(j) {
   if (!j || !j.jobType) return '';
   return j.jobType === 'Other' && j.jobTypeOther ? j.jobTypeOther : j.jobType;
 }
+
+/* Item 16 (v2-patch-5): "Job Type — Species" line, bold, directly under the
+   customer name on job cards and detail screens — only when a species is
+   set. Other types use their description: "Other (Chimney Sweep) — Raccoon". */
+function jobTypeSpeciesHtml(j) {
+  if (!j || !j.species) return '';
+  const type = j.jobType === 'Other' && j.jobTypeOther
+    ? `Other (${j.jobTypeOther})`
+    : (j.jobType || 'Job');
+  return `<div style="font-weight:700;color:var(--green-deep);font-size:13.5px;margin-top:2px;">${escapeHtml(type)} — ${escapeHtml(j.species)}</div>`;
+}
 const TASK_TYPES = [
   'Set Trap', 'Re-bait Trap', 'Check Trap', 'Pull Trap', 'Check Camera',
   'Inspection', 'Service Call', 'Pesticide Application', 'Repair',
@@ -10603,6 +10619,7 @@ function renderJobsList() {
       <div class="jl-body">
         <div class="jl-num">${escapeHtml(j.jobNumber || '')}${j.jobType ? ` <span class="job-type-tag">${escapeHtml(jobTypeDisplay(j))}</span>` : ''}</div>
         <div class="jl-name">${escapeHtml(j.customerName || '(no customer)')}</div>
+        ${jobTypeSpeciesHtml(j)}
         <div class="jl-meta">${escapeHtml(bits.join(' · '))}</div>
         ${jobTaskProgressHtml(j.id)}
       </div>
@@ -10623,6 +10640,9 @@ function resetLifecycleJobForm() {
   /* Item 14: Other description hidden and empty on a fresh form. */
   $('#lj-jobtype-other').value = '';
   toggleGroup('cg-lj-jobtypeOther', false);
+  /* Item 16: optional species from the KDFWR list. */
+  fillGroupedSelect('lj-species', SPECIES_GROUPS, '— none —');
+  $('#lj-species').value = '';
   /* Item 15 (v2-patch-5): start today; no end date on the form. */
   $('#lj-start').value = todayISO();
   const hint = $('#lj-customer-hint');
@@ -10743,6 +10763,7 @@ async function handleSaveLifecycleJob(e) {
         propertyId,
         jobType,
         jobTypeOther,   /* Item 14 */
+        species: $('#lj-species').value || null,   /* Item 16 */
         startDate,      /* Item 15: endDate no longer written from the UI */
         estimateId,
         estimateNumber: est ? (est.estimateNumber || '') : '',
@@ -10780,6 +10801,7 @@ async function handleSaveLifecycleJob(e) {
         propertyId,
         jobType,
         jobTypeOther,   /* Item 14 */
+        species: $('#lj-species').value || null,   /* Item 16 */
         /* Item 15: a new job is Active until Jon closes it out (Complete)
            or it's cancelled. */
         status: 'Active',
@@ -10833,6 +10855,9 @@ function editLifecycleJob(id) {
   /* Item 14: restore the Other description. */
   $('#lj-jobtype-other').value = j.jobTypeOther || '';
   toggleGroup('cg-lj-jobtypeOther', j.jobType === 'Other');
+  /* Item 16: restore the species. */
+  fillGroupedSelect('lj-species', SPECIES_GROUPS, '— none —');
+  $('#lj-species').value = j.species || '';
   /* Item 15 (v2-patch-5): start date only (legacy endDate stays in storage,
      just never shown or editable). */
   $('#lj-start').value = j.startDate || (j.createdAt ? j.createdAt.slice(0, 10) : todayISO());
@@ -10953,6 +10978,7 @@ function renderTaskModelJobDetail(j) {
         ? `<div><button type="button" class="jd-cust-link" data-ljob-action="view-customer" data-id="${escapeHtml(id)}" data-cust="${escapeHtml(j.customerId)}" title="View customer">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>${escapeHtml(j.customerName || 'Customer')}</button></div>`
         : `<div style="margin-top:6px;font-weight:600;color:var(--green-deep);font-size:17px;">${escapeHtml(j.customerName || '')}</div>`}
+      ${jobTypeSpeciesHtml(j)}
       ${prop ? `<div class="muted" style="font-size:13px;">${escapeHtml([prop.siteNickname, prop.address].filter(Boolean).join(' · '))}</div>`
         : cust && cust.address ? `<div class="muted" style="font-size:13px;">${escapeHtml([cust.address, cust.city].filter(Boolean).join(', '))}</div>` : ''}
       <div class="muted" style="font-size:13px;margin-top:4px;">Started ${escapeHtml(fmtShortDate(j.startDate) || '—')} · ${escapeHtml((j.assigneeNames || []).join(', ') || 'unassigned')}</div>
@@ -11046,6 +11072,7 @@ function renderLifecycleJobDetail(id) {
         ? `<div><button type="button" class="jd-cust-link" data-ljob-action="view-customer" data-id="${escapeHtml(id)}" data-cust="${escapeHtml(j.customerId)}" title="View customer">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>${escapeHtml(j.customerName || 'Customer')}</button></div>`
         : `<div style="margin-top:6px;font-weight:600;color:var(--green-deep);font-size:17px;">${escapeHtml(j.customerName || '')}</div>`}
+      ${jobTypeSpeciesHtml(j)}
       ${prop ? `<div class="muted" style="font-size:13px;">${escapeHtml([prop.siteNickname, prop.address].filter(Boolean).join(' · '))}</div>`
         : cust && cust.address ? `<div class="muted" style="font-size:13px;">${escapeHtml([cust.address, cust.city].filter(Boolean).join(', '))}</div>` : ''}
       ${jobProgressHtml(j)}
