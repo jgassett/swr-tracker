@@ -10761,7 +10761,9 @@ function renderJobsList() {
     return `<div class="job-lc-row" data-ljob-open="${escapeHtml(j.id)}">
       <div class="jl-body">
         <div class="jl-num">${escapeHtml(j.jobNumber || '')}${j.jobType ? ` <span class="job-type-tag">${escapeHtml(jobTypeDisplay(j))}</span>` : ''}</div>
-        <div class="jl-name">${escapeHtml(j.customerName || '(no customer)')}</div>
+        ${j.customerId
+          ? `<div><button type="button" class="jd-cust-link" style="margin-top:0;font-size:15px;" data-job-cust="${escapeHtml(j.customerId)}" title="View customer">${escapeHtml(j.customerName || 'Customer')}</button></div>`
+          : `<div class="jl-name">${escapeHtml(j.customerName || '(no customer)')}</div>`}
         ${jobTypeSpeciesHtml(j)}
         <div class="jl-meta">${escapeHtml(bits.join(' · '))}</div>
         ${jobTaskProgressHtml(j.id)}
@@ -14242,6 +14244,15 @@ async function init() {
   fillSelect('jobsFilterType', JOB_TYPES, true, 'All job types');
   $('#jobsFilterType').addEventListener('change', renderJobsList);
   $('#jobsList').addEventListener('click', (e) => {
+    /* Item 23 (v2-patch-5): tapping the customer name on a job card jumps
+       straight to that customer's Customer Detail screen (phone, email,
+       directions, action hub) — the rest of the card still opens the job. */
+    const cust = e.target.closest('[data-job-cust]');
+    if (cust) {
+      setAppModeQuiet('customer');
+      editCustomer(cust.dataset.jobCust);
+      return;
+    }
     const row = e.target.closest('[data-ljob-open]');
     if (row) openLifecycleJob(row.dataset.ljobOpen);
   });
