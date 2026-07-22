@@ -3185,6 +3185,8 @@
         <button type="button" class="snav-btn" data-settings-nav="settings-business">Business Info<span class="chev">›</span></button>
         <button type="button" class="snav-btn" data-settings-nav="settings-licensing">Licensing &amp; Permit Info<span class="chev">›</span></button>
         <button type="button" class="snav-btn" id="pesticideDbNavBtn" data-settings-nav="settings-pesticide-db">Pesticide Database<span class="chev">›</span></button>
+        <!-- Item 5 (v2-patch-6): occupational tax filing reports (admin only) -->
+        <button type="button" class="snav-btn" id="taxReportsNavBtn" data-settings-nav="settings-taxreports" style="display:none;">Tax Jurisdiction Reports<span class="chev">›</span></button>
       </div>
 
       <!-- Section 4: Data Management -->
@@ -3315,6 +3317,39 @@
         <button class="btn btn-amber" id="addPesticideBtn">+ Add Pesticide</button>
       </div>
       <div class="hint" id="pesticideDbHint" style="margin:0 4px 12px;">Products, SDS and label PDFs offered in the Pesticide Application form. Admin only.</div>
+      <div class="form-actions"><button type="button" class="btn btn-cancel btn-ghost" data-settings-back>Back to Settings</button></div>
+    </section>
+
+    <!-- SETTINGS → Tax Jurisdiction Reports (Item 5, v2-patch-6) — jobs by
+         work-property jurisdiction for occupational tax filings. Admin only. -->
+    <section id="view-settings-taxreports" class="view hidden">
+      <div class="card">
+        <div class="field-row two">
+          <div class="form-group">
+            <label for="taxRptStart">Start Date</label>
+            <input type="date" id="taxRptStart">
+          </div>
+          <div class="form-group">
+            <label for="taxRptEnd">End Date</label>
+            <input type="date" id="taxRptEnd">
+          </div>
+        </div>
+        <div class="hint">Filters on job start date. Defaults to the current calendar year. Jurisdiction comes from the job's work property (county, city, and the property's city-limits override).</div>
+        <div class="btn-row" style="margin-top:8px;">
+          <button class="btn btn-primary btn-compact" id="taxRptRunBtn">Run Reports</button>
+        </div>
+      </div>
+      <div class="card">
+        <h3 style="margin-top:0;">Scott County Jobs <span class="muted" id="taxRptScottCount" style="font-weight:400;font-size:13px;"></span></h3>
+        <div id="taxRptScottList"></div>
+        <button class="btn btn-ghost" id="taxRptScottCsvBtn" style="margin-top:10px;">Download Scott County CSV</button>
+      </div>
+      <div class="card">
+        <h3 style="margin-top:0;">City of Georgetown Jobs <span class="muted" id="taxRptGtownCount" style="font-weight:400;font-size:13px;"></span></h3>
+        <div class="hint" style="margin-bottom:8px;">Property city “Georgetown”, plus any property flagged Inside city limits; properties flagged Outside city limits are excluded.</div>
+        <div id="taxRptGtownList"></div>
+        <button class="btn btn-ghost" id="taxRptGtownCsvBtn" style="margin-top:10px;">Download Georgetown CSV</button>
+      </div>
       <div class="form-actions"><button type="button" class="btn btn-cancel btn-ghost" data-settings-back>Back to Settings</button></div>
     </section>
   </main>
@@ -4642,6 +4677,98 @@ function renderSettingsStatus() {
   /* Pesticide Database management is admin-only. */
   const dbBtn = $('#pesticideDbNavBtn');
   if (dbBtn) dbBtn.style.display = isAdmin() ? '' : 'none';
+  /* Item 5 (v2-patch-6): tax jurisdiction reports are admin-only. */
+  const taxBtn = $('#taxReportsNavBtn');
+  if (taxBtn) taxBtn.style.display = isAdmin() ? 'flex' : 'none';
+}
+
+/* =====================================================================
+ * Item 5 (v2-patch-6): Tax Jurisdiction Reports (Settings, admin-only).
+ * Two separate occupational-tax lists — Scott County (includes work
+ * outside Georgetown city limits) and the City of Georgetown. The
+ * jurisdiction is the job's WORK PROPERTY: the linked property when the
+ * job has one, else the customer's sole property, else the customer's
+ * main address as the de-facto property. Georgetown rule: property city
+ * == "Georgetown", plus any property overridden Inside city limits,
+ * minus any overridden Outside city limits (Item 4d flag).
+ * ===================================================================== */
+let taxRptRows = { scott: [], georgetown: [] };
+
+function jobTaxLocus(j) {
+  let p = j.propertyId ? cachedProperties.find((x) => x.id === j.propertyId) : null;
+  if (!p && j.customerId) {
+    const props = propertiesForCustomer(j.customerId);
+    if (props.length === 1) p = props[0];
+  }
+  if (p) {
+    return {
+      county: p.county || '',
+      city: p.city || '',
+      insideCityLimits: p.insideCityLimits === true ? true : p.insideCityLimits === false ? false : null,
+      address: [p.address, p.city].filter(Boolean).join(', ')
+    };
+  }
+  const c = j.customerId ? cachedCustomers.find((x) => x.id === j.customerId) : null;
+  return {
+    county: (c && c.county) || '',
+    city: (c && c.city) || '',
+    insideCityLimits: null,
+    address: c ? [c.address, c.city].filter(Boolean).join(', ') : ''
+  };
+}
+
+function initTaxReports() {
+  if (!isAdmin()) { setView('dashboard'); return; }
+  const y = new Date().getFullYear();
+  if (!$('#taxRptStart').value) $('#taxRptStart').value = `${y}-01-01`;
+  if (!$('#taxRptEnd').value) $('#taxRptEnd').value = `${y}-12-31`;
+  renderTaxReports();
+}
+
+function renderTaxReports() {
+  const start = $('#taxRptStart').value || '0000-01-01';
+  const end = $('#taxRptEnd').value || '9999-12-31';
+  const rows = lifecycleJobs()
+    .filter((j) => {
+      const d = (j.startDate || '').slice(0, 10);
+      return d && d >= start && d <= end;
+    })
+    .map((j) => ({ j, locus: jobTaxLocus(j) }))
+    .sort((a, b) => (a.j.startDate || '').localeCompare(b.j.startDate || ''));
+  taxRptRows = {
+    scott: rows.filter((r) => (r.locus.county || '').trim().toLowerCase() === 'scott'),
+    georgetown: rows.filter((r) => r.locus.insideCityLimits !== false &&
+      (r.locus.insideCityLimits === true || (r.locus.city || '').trim().toLowerCase() === 'georgetown'))
+  };
+  const rowHtml = ({ j, locus }) => `
+    <div class="biz-row" style="align-items:flex-start;">
+      <span style="min-width:0;">
+        <span style="font-weight:600;color:var(--green-deep);font-family:ui-monospace,'SF Mono',monospace;">${escapeHtml(j.jobNumber || '—')}</span>
+        <span class="status-pill ${jobLifeStatusClass(j.status)}" style="margin-left:6px;">${escapeHtml(j.status || 'Active')}</span><br>
+        <span style="font-size:13px;">${escapeHtml(j.customerName || '—')}</span><br>
+        <span class="muted" style="font-size:12px;">${escapeHtml(locus.address || 'no address')} · started ${escapeHtml(fmtShortDate(j.startDate) || '—')} · QB Inv ${escapeHtml(String(j.qbInvoiceNumber || '—'))}</span>
+      </span>
+    </div>`;
+  const paint = (list, rootSel, countSel) => {
+    const root = $(rootSel);
+    if (root) root.innerHTML = list.length ? list.map(rowHtml).join('') : '<div class="muted" style="font-size:13px;padding:4px 0;">No jobs in this range.</div>';
+    const cnt = $(countSel);
+    if (cnt) cnt.textContent = `(${list.length} job${list.length === 1 ? '' : 's'})`;
+  };
+  paint(taxRptRows.scott, '#taxRptScottList', '#taxRptScottCount');
+  paint(taxRptRows.georgetown, '#taxRptGtownList', '#taxRptGtownCount');
+}
+
+function downloadTaxReportCsv(which) {
+  const rows = taxRptRows[which] || [];
+  if (!rows.length) { toast('No jobs in this range — nothing to download'); return; }
+  const lines = [csvLine(['Job Number', 'Customer Name', 'Property Address', 'Job Start Date', 'Job Status', 'QB Invoice Number'])];
+  for (const { j, locus } of rows) {
+    lines.push(csvLine([j.jobNumber || '', j.customerName || '', locus.address || '',
+      j.startDate || '', j.status || '', j.qbInvoiceNumber || '']));
+  }
+  const label = which === 'scott' ? 'scott-county' : 'georgetown';
+  downloadFile(`SWR_tax_${label}_${$('#taxRptStart').value}_to_${$('#taxRptEnd').value}.csv`, lines.join('\r\n') + '\r\n');
 }
 
 /* Live counts on the three landing-page module cards. */
@@ -6495,7 +6622,8 @@ const VIEW_TITLES = {
   closeout:  { dashboard: 'Close Out', 'closeout-confirm': 'Confirm Close Out' },
   settings:  { dashboard: 'Settings', 'assign-legacy': 'Assign Legacy Records',
                'settings-contractors': 'Contractors', 'settings-business': 'Business Info',
-               'settings-licensing': 'Licensing & Permits', 'settings-pesticide-db': 'Pesticide Database' },
+               'settings-licensing': 'Licensing & Permits', 'settings-pesticide-db': 'Pesticide Database',
+               'settings-taxreports': 'Tax Jurisdiction Reports' },
   allrecords: { dashboard: 'View Records' }
 };
 
@@ -6516,6 +6644,7 @@ function setView(name, opts) {
    'jobs','add-job','job-detail','add-appointment','appointment-detail','assign-legacy',
    'add-task','task-detail','closeout','closeout-confirm',
    'settings-contractors','settings-business','settings-licensing','settings-pesticide-db',
+   'settings-taxreports',
    'notifications','records-all','export','settings'].forEach((v) => {
     const el = document.getElementById(`view-${v}`);
     if (el) el.classList.add('hidden');
@@ -6605,6 +6734,7 @@ function setView(name, opts) {
   if (name === 'settings-contractors') renderOperatorsCard();
   if (name === 'settings-business' || name === 'settings-licensing') { renderBusinessCard(); renderCertCard(); }
   if (name === 'settings-pesticide-db') renderPesticideAdminList();
+  if (name === 'settings-taxreports') initTaxReports();   /* Item 5 (v2-patch-6) */
   /* Pesticide-form map: lazy, only when its group is already visible
      (Item 15 parity, H3 — the map opens exclusively via "Locate on Map"
      or when editing a record that has coordinates). */
@@ -13978,6 +14108,11 @@ async function init() {
     if (nav) setView(nav.dataset.settingsNav);
   });
   $$('[data-settings-back]').forEach((b) => b.addEventListener('click', () => setView('dashboard')));
+
+  /* Item 5 (v2-patch-6): tax jurisdiction reports */
+  $('#taxRptRunBtn').addEventListener('click', renderTaxReports);
+  $('#taxRptScottCsvBtn').addEventListener('click', () => downloadTaxReportCsv('scott'));
+  $('#taxRptGtownCsvBtn').addEventListener('click', () => downloadTaxReportCsv('georgetown'));
 
   /* Pesticide DB CRUD wiring */
   $('#addPesticideBtn').addEventListener('click', () => openPesticideEditor(null));
