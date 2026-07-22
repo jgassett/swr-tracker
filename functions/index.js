@@ -1149,44 +1149,27 @@ async function graphMarkRead(id, context = {}) {
   }, context);
 }
 
-/* Build a camera-key → customer lookup. Property Camera IDs (Item 9) win —
- * a match links the photo to both the customer AND the specific property.
- * Next an explicit `cameraId` on a customer (exact, any customer); otherwise
- * fall back to a unique name-derived key among ACTIVE customers. Ambiguous
- * name-keys are dropped (→ unassigned). */
+/* Build a camera-key → customer lookup. Item 1 (v2-patch-6): PROPERTY
+ * records are the single source of truth for camera assignment — the only
+ * match is an exact cameraId on a property record, which links the photo to
+ * both the customer AND the specific property. Customer-level cameraId
+ * (deprecated; stale fields may remain on old docs) and name-derived keys
+ * are no longer consulted; an unmatched key ingests unassigned and surfaces
+ * in the Monitoring pending queue for manual assignment. */
 async function customerKeyMap() {
   const snap = await db.collection('customers').get();
   const nameById = new Map();
+  snap.forEach((d) => nameById.set(d.id, d.get('name') || ''));
   const byCam = new Map();
-  const byName = new Map();
-  const nameAmbiguous = new Set();
-  snap.forEach((d) => {
-    nameById.set(d.id, d.get('name') || '');
+  const propSnap = await db.collectionGroup('properties').get();
+  propSnap.forEach((d) => {
     const cam = (d.get('cameraId') || '').trim().toUpperCase();
-    if (cam) byCam.set(cam, { id: d.id, name: d.get('name') || '', propertyId: null });
-    if (d.get('active')) {
-      const key = cb.customerKeyFor(d.get('name'));
-      if (key) {
-        if (byName.has(key)) nameAmbiguous.add(key);
-        else byName.set(key, { id: d.id, name: d.get('name') || '', propertyId: null });
-      }
-    }
+    if (!cam) return;
+    const customerId = d.get('customerId') || (d.ref.parent.parent ? d.ref.parent.parent.id : null);
+    if (!customerId) return;
+    byCam.set(cam, { id: customerId, name: nameById.get(customerId) || '', propertyId: d.id });
   });
-  nameAmbiguous.forEach((k) => byName.delete(k));
-  /* Property Camera IDs override customer-level entries on collision. */
-  try {
-    const propSnap = await db.collectionGroup('properties').get();
-    propSnap.forEach((d) => {
-      const cam = (d.get('cameraId') || '').trim().toUpperCase();
-      if (!cam) return;
-      const customerId = d.get('customerId') || (d.ref.parent.parent ? d.ref.parent.parent.id : null);
-      if (!customerId) return;
-      byCam.set(cam, { id: customerId, name: nameById.get(customerId) || '', propertyId: d.id });
-    });
-  } catch (err) {
-    console.error('property lookup failed — continuing with customer-level matching', err);
-  }
-  return { get: (k) => byCam.get(k) || byName.get(k) || null };
+  return { get: (k) => byCam.get(k) || null };
 }
 
 async function handlePhotoMessage(m, keyMap) {

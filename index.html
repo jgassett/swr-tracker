@@ -2574,12 +2574,9 @@
           Get Directions
         </button>
 
-        <h3 class="form-section">Trap Camera</h3>
-        <div class="form-group">
-          <label for="c-cameraId">Camera ID<span class="opt">(optional)</span></label>
-          <input type="text" id="c-cameraId" autocomplete="off" placeholder="e.g. WILSONR" maxlength="10">
-          <div class="hint">The camera's email subject key (last name + first initial, no spaces). Set this to link that camera's photos &amp; health to this customer.</div>
-        </div>
+        <!-- Item 1 (v2-patch-6): customer-level Camera ID is deprecated —
+             cameras are assigned on property records only (property editor
+             below). Stale cameraId fields on old customer docs are ignored. -->
 
         <h3 class="form-section">Notes</h3>
         <div class="form-group">
@@ -3179,6 +3176,8 @@
       <div class="settings-group">Data Management</div>
       <div class="card settings-nav">
         <button type="button" class="snav-btn" id="assignLegacyBtn">Assign Legacy Records<span class="chev">›</span></button>
+        <!-- Item 1 (v2-patch-6): one-time camera migration + reconciliation audit (admin only) -->
+        <button type="button" class="snav-btn" id="cameraMigrationBtn" style="display:none;">Camera Migration &amp; Audit<span class="chev">›</span></button>
         <button type="button" class="snav-btn" id="restoreBtn">Restore from JSON Backup<span class="chev">›</span></button>
         <input type="file" id="restoreFile" accept="application/json" style="display:none">
         <button type="button" class="snav-btn danger" id="wipeBtn">Clear All Records<span class="chev">›</span></button>
@@ -5604,21 +5603,19 @@ function custCameraKey(name) {
   return clean.toUpperCase().replace(/\s/g, '');
 }
 
-/* Resolve a camera key to a customer live from the current directory:
-   explicit cameraId match wins; otherwise a unique active name-key match. */
+/* Resolve a camera key to a customer live from the current directory.
+   Item 1 (v2-patch-6): PROPERTY records are the single source of truth for
+   camera assignment — the only join is an exact cameraId string match on a
+   property record. Customer-level cameraId and name-derived keys are no
+   longer consulted; an unmatched key stays in the pending/unmatched queue. */
 function resolveCustomerForKey(key) {
   if (!key) return null;
   const K = key.toUpperCase();
-  /* Property Camera IDs win (Item 9) — a match links customer AND property. */
   const byProp = cachedProperties.find((p) => (p.cameraId || '').trim().toUpperCase() === K);
   if (byProp) {
     const c = cachedCustomers.find((x) => x.id === byProp.customerId);
     return { id: byProp.customerId, name: c ? (c.name || '') : '', propertyId: byProp.id };
   }
-  const byId = cachedCustomers.find((c) => (c.cameraId || '').trim().toUpperCase() === K);
-  if (byId) return { id: byId.id, name: byId.name || '' };
-  const byName = cachedCustomers.filter((c) => c.active && custCameraKey(c.name) === K);
-  if (byName.length === 1) return { id: byName[0].id, name: byName[0].name || '' };
   return null;
 }
 
@@ -5772,21 +5769,28 @@ function fieldGroups() {
     }
     if (!g.propertyId) g.propertyId = p.id;
   }
-  for (const c of cachedCustomers) {
-    const cam = (c.cameraId || '').trim().toUpperCase();
-    if (!cam || !activeCustomerIds.has(c.id)) continue;
-    const g = get(cam);
-    if (!g.customerId) { g.customerId = c.id; if (!g.name) g.name = c.name || ''; }
-  }
+  /* Item 1 (v2-patch-6): cameras are never enumerated from customer records
+     — property records are the only source of camera assignment. */
   const arr = [...groups.values()];
   for (const g of arr) {
     g.status = worstOf(g.devices.map((d) => deviceStatusLive(d)));
     g.photos.sort((a, b) => (b.receivedAt || '').localeCompare(a.receivedAt || ''));
-    /* Live-link to the current directory even if this group was ingested before
-       the customer was activated / its Camera ID was set. */
-    if (!g.customerId) {
-      const r = resolveCustomerForKey(g.key);
-      if (r) { g.customerId = r.id; g.name = r.name; g.propertyId = r.propertyId || g.propertyId || null; }
+    /* Item 1 (v2-patch-6): the ONE join — the group's camera key against
+       property cameraId, exact string match. It is authoritative: stale
+       customerId/customerName stamped on old ingest docs is ignored, so a
+       reassigned or unassigned camera can't keep displaying its old owner.
+       No property match → the group is unlinked (pending/unmatched queue). */
+    const r = resolveCustomerForKey(g.key);
+    if (r) {
+      g.customerId = r.id;
+      g.name = r.name || g.name;
+      g.propertyId = r.propertyId || null;
+      g.installed = true;
+    } else {
+      g.customerId = null;
+      g.name = null;
+      g.propertyId = null;
+      g.installed = false;
     }
     /* Item 21: awaiting Jon's removal confirmation — visible with an
        indicator until confirmed. A customer back on an active job cancels
@@ -5905,42 +5909,41 @@ function renderFieldDetail(key) {
 
 async function assignFieldPhotos(key, customer) {
   if (!customer || !customer.id) return;   /* M6: nothing to link to */
-  /* M25: cameras are assigned per property when the customer has them —
-     the customer-level link contradicted the hub's own guidance and left
-     multi-site customers ambiguous. Sole property → auto-target; several →
-     numbered pick (Cancel keeps the customer-level link). */
+  /* Item 1 (v2-patch-6): assignment lands on a PROPERTY record only — the
+     single source of truth for camera routing. Sole property → auto-target;
+     several → numbered pick; none → the operator must add a property first
+     (there is no customer-level link any more). */
   const props = propertiesForCustomer(customer.id);
   let targetProp = null;
+  if (!props.length) {
+    toast(`${customer.name || 'This customer'} has no property on file — add one in the Customers module, then assign the camera to it.`, 'error');
+    return;
+  }
   if (props.length === 1) {
     targetProp = props[0];
-  } else if (props.length > 1) {
+  } else {
     const menu = props.map((p, i) => `${i + 1}. ${p.siteNickname || p.address || p.id}`).join('\n');
-    const pick = prompt(`${customer.name || 'This customer'} has ${props.length} properties — which site is camera ${key} at?\n${menu}\n\nEnter a number (Cancel links at the customer level):`, '1');
-    if (pick !== null) {
-      const idx = parseInt(pick, 10) - 1;
-      if (!Number.isFinite(idx) || idx < 0 || idx >= props.length) {
-        toast('Not a valid property number — camera not linked', 'error');
-        return;
-      }
-      targetProp = props[idx];
+    const pick = prompt(`${customer.name || 'This customer'} has ${props.length} properties — which site is camera ${key} at?\n${menu}\n\nEnter a number:`, '1');
+    if (pick === null) return;
+    const idx = parseInt(pick, 10) - 1;
+    if (!Number.isFinite(idx) || idx < 0 || idx >= props.length) {
+      toast('Not a valid property number — camera not linked', 'error');
+      return;
     }
+    targetProp = props[idx];
   }
-  const whereLabel = targetProp
-    ? `${customer.name || 'customer'} · ${targetProp.siteNickname || targetProp.address || 'property'}`
-    : (customer.name || 'this customer');
+  /* Item 1d: no two properties may hold the same cameraId. */
+  const dup = cameraIdOwner(key, { excludePropertyId: targetProp.id });
+  if (dup) { toast(`Camera ID ${key} is already assigned to ${dup.label} — remove it there first.`, 'error'); return; }
+  const whereLabel = `${customer.name || 'customer'} · ${targetProp.siteNickname || targetProp.address || 'property'}`;
   const ok = await confirmDialog('Link camera?',
     `Link camera ID ${key} to ${whereLabel}? This will reassign all matching photos.`);
   if (!ok) return;
   try {
-    /* Persist the link (property Camera IDs win at resolve time) so this
-       camera's current AND future photos + health resolve automatically. */
-    if (targetProp) {
-      await writeWithRetry(() => setDoc(doc(fbDb, 'customers', customer.id, 'properties', targetProp.id),
-        { cameraId: key, updatedAt: new Date().toISOString() }, { merge: true }));
-    } else {
-      await writeWithRetry(() => setDoc(doc(fbDb, 'customers', customer.id),
-        { cameraId: key, updatedAt: new Date().toISOString() }, { merge: true }));
-    }
+    /* Persist the link on the property so this camera's current AND future
+       photos + health resolve automatically. */
+    await writeWithRetry(() => setDoc(doc(fbDb, 'customers', customer.id, 'properties', targetProp.id),
+      { cameraId: key, updatedAt: new Date().toISOString() }, { merge: true }));
     /* Also stamp any already-ingested unassigned photos for this key. */
     const photos = cachedCameraPhotos.filter((p) => (p.customerKey || '(unknown)') === key && !p.customerId);
     for (const p of photos) {
@@ -5950,6 +5953,173 @@ async function assignFieldPhotos(key, customer) {
     toast(`Linked ${key} → ${whereLabel}`);
   } catch (err) {
     toast('Assign failed: ' + ((err && err.message) || 'error'), 'error');
+  }
+}
+
+/* =====================================================================
+ * Item 1 (v2-patch-6): one-time camera migration + reconciliation audit.
+ * Settings → Data Management, admin-only.
+ * ---------------------------------------------------------------------
+ * MIGRATE — any customer-level cameraId (deprecated) is copied onto that
+ * customer's only property; a customer with no properties gets one created
+ * from their main address. Several properties (ambiguous target), a
+ * property already holding a different Camera ID, or the Camera ID already
+ * living on another customer's property = CONFLICT: nothing is written and
+ * the case is listed for manual resolution. The stale customer-level field
+ * is left on the old document — it is never read again.
+ * AUDIT — (i) cameraIds appearing on multiple records, (ii) cameraHealth
+ * records with no matching property, (iii) property cameraIds with no
+ * cameraHealth record. Console log + downloadable report. Conflicts are
+ * surfaced, never auto-resolved.
+ * ===================================================================== */
+async function runCameraMigrationAudit() {
+  if (!isAdmin()) { toast('Only an administrator can run the camera migration.', 'error'); return; }
+  const ok = await confirmDialog('Run camera migration & audit?',
+    'Copies deprecated customer-level Camera IDs onto property records and downloads a reconciliation report. Conflicts are reported, never auto-resolved. Safe to run more than once.');
+  if (!ok) return;
+  const btn = $('#cameraMigrationBtn');
+  if (btn) btn.disabled = true;
+  const norm = (v) => (v == null ? '' : String(v)).trim().toUpperCase();
+  const nowIso = new Date().toISOString();
+  const lines = [];
+  let migrated = 0, createdProps = 0, conflicts = 0;
+  try {
+    const [custSnap, propSnap, healthSnap] = await Promise.all([
+      getDocs(collection(fbDb, 'customers')),
+      getDocs(collectionGroup(fbDb, 'properties')),
+      getDocs(collection(fbDb, 'cameraHealth'))
+    ]);
+    const customers = custSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    const properties = propSnap.docs.map((d) => {
+      const data = d.data();
+      return { id: d.id, ...data, customerId: data.customerId || (d.ref.parent.parent ? d.ref.parent.parent.id : null) };
+    });
+    const custName = (id) => { const c = customers.find((x) => x.id === id); return (c && c.name) || '(unknown customer)'; };
+    const propLabel = (p) => `${custName(p.customerId)} · ${p.siteNickname || p.address || p.id}`;
+    /* cameraId → property holders (kept current as the migration writes). */
+    const holders = new Map();
+    for (const p of properties) {
+      const K = norm(p.cameraId);
+      if (K) holders.set(K, [...(holders.get(K) || []), p]);
+    }
+
+    lines.push('== MIGRATION (customer-level cameraId → property) ==');
+    for (const c of customers) {
+      const K = norm(c.cameraId);
+      if (!K) continue;
+      const custProps = properties.filter((p) => p.customerId === c.id);
+      if (custProps.some((p) => norm(p.cameraId) === K)) {
+        lines.push(`OK        ${K} — already on a property of ${c.name || c.id}; nothing to migrate`);
+        continue;
+      }
+      const taken = holders.get(K) || [];
+      if (taken.length) {
+        conflicts++;
+        lines.push(`CONFLICT  ${K} — customer ${c.name || c.id} holds it, but it is already assigned to ${taken.map(propLabel).join(' / ')}. Resolve manually.`);
+        continue;
+      }
+      if (custProps.length > 1) {
+        conflicts++;
+        lines.push(`CONFLICT  ${K} — ${c.name || c.id} has ${custProps.length} properties; ambiguous target. Assign manually in the property editor.`);
+        continue;
+      }
+      try {
+        if (custProps.length === 1) {
+          const p = custProps[0];
+          if (norm(p.cameraId)) {
+            conflicts++;
+            lines.push(`CONFLICT  ${K} — ${c.name || c.id}'s only property already holds Camera ID ${p.cameraId}. Resolve manually.`);
+            continue;
+          }
+          await writeWithRetry(() => setDoc(doc(fbDb, 'customers', c.id, 'properties', p.id),
+            { cameraId: K, updatedAt: nowIso }, { merge: true }));
+          p.cameraId = K;
+          holders.set(K, [p]);
+          migrated++;
+          lines.push(`MIGRATED  ${K} → ${propLabel(p)}`);
+        } else {
+          const data = {
+            customerId: c.id,
+            siteNickname: 'Main',
+            address: c.address || '',
+            city: c.city || '',
+            county: c.county || '',
+            cameraId: K,
+            migratedFromCustomerCameraId: true,
+            createdAt: nowIso,
+            createdByUid: currentUser ? currentUser.uid : null,
+            createdByEmail: currentUser ? currentUser.email : null,
+            updatedAt: nowIso
+          };
+          await writeWithRetry(() => setDoc(doc(collection(fbDb, 'customers', c.id, 'properties')), data));
+          properties.push(data);
+          holders.set(K, [data]);
+          migrated++; createdProps++;
+          lines.push(`MIGRATED  ${K} → new property "Main" created for ${c.name || c.id} (from the customer's main address)`);
+        }
+      } catch (err) {
+        lines.push(`ERROR     ${K} — write failed for ${c.name || c.id}: ${(err && err.message) || err}`);
+      }
+    }
+    if (lines.length === 1) lines.push('(no customer-level Camera IDs found)');
+
+    /* -------- Reconciliation audit (post-migration state) -------- */
+    lines.push('', '== AUDIT (i): Camera IDs appearing on multiple records ==');
+    const allRecords = new Map();   /* K → labels (properties + deprecated customer fields) */
+    for (const p of properties) {
+      const K = norm(p.cameraId);
+      if (K) allRecords.set(K, [...(allRecords.get(K) || []), `property: ${propLabel(p)}`]);
+    }
+    for (const c of customers) {
+      const K = norm(c.cameraId);
+      if (K) allRecords.set(K, [...(allRecords.get(K) || []), `customer (deprecated field): ${c.name || c.id}`]);
+    }
+    let dupCount = 0;
+    for (const [K, labels] of [...allRecords.entries()].sort((a, b) => a[0].localeCompare(b[0]))) {
+      /* A migrated ID legitimately sits on one property + the stale customer
+         field — only flag IDs on 2+ PROPERTIES, or on a customer whose
+         property set doesn't include it (routing conflict). */
+      const propHolders = holders.get(K) || [];
+      const staleOnly = propHolders.length === 1 && labels.length === 2 &&
+        customers.some((c) => norm(c.cameraId) === K && propHolders[0].customerId === c.id);
+      if (propHolders.length <= 1 && (labels.length <= 1 || staleOnly)) continue;
+      dupCount++;
+      lines.push(`DUPLICATE ${K}:`);
+      labels.forEach((l) => lines.push(`          - ${l}`));
+    }
+    if (!dupCount) lines.push('(none)');
+
+    lines.push('', '== AUDIT (ii): cameraHealth records with no matching property ==');
+    const healthKeys = new Set();
+    healthSnap.docs.forEach((d) => {
+      const k = norm(d.get('customerKey') || (d.id.includes('__') ? d.id.split('__')[0] : d.id));
+      if (k) healthKeys.add(k);
+    });
+    let orphanHealth = 0;
+    for (const k of [...healthKeys].sort()) {
+      if (!holders.has(k)) { orphanHealth++; lines.push(`UNMATCHED ${k} — health data exists but no property holds this Camera ID (stays in the pending queue)`); }
+    }
+    if (!orphanHealth) lines.push('(none)');
+
+    lines.push('', '== AUDIT (iii): property Camera IDs with no cameraHealth record ==');
+    let silent = 0;
+    for (const [K, list] of [...holders.entries()].sort((a, b) => a[0].localeCompare(b[0]))) {
+      if (!healthKeys.has(K)) { silent++; lines.push(`NO-HEALTH ${K} — assigned to ${list.map(propLabel).join(' / ')} but no status report has ever been ingested (deployed-but-silent, or not yet installed)`); }
+    }
+    if (!silent) lines.push('(none)');
+
+    const summary = `Camera migration & reconciliation — ${nowIso}\n` +
+      `Migrated: ${migrated} (new properties created: ${createdProps}) · Conflicts: ${conflicts} · ` +
+      `Duplicate IDs: ${dupCount} · Unmatched health records: ${orphanHealth} · Assigned-but-silent: ${silent}\n\n`;
+    const report = summary + lines.join('\n') + '\n';
+    console.log(report);
+    downloadFile(`camera-reconciliation-${nowIso.slice(0, 10)}.txt`, report, 'text/plain;charset=utf-8');
+    toast(`Migration done — ${migrated} migrated, ${conflicts} conflict${conflicts === 1 ? '' : 's'}. Report downloaded.`);
+  } catch (err) {
+    console.error('camera migration failed', err);
+    toast('Migration failed: ' + ((err && err.message) || 'error'), 'error');
+  } finally {
+    if (btn) btn.disabled = false;
   }
 }
 
@@ -11079,7 +11249,7 @@ function renderTaskModelJobDetail(j) {
   const tasks = tasksForJob(id);   /* cachedTasks is already chronological */
   const trapRecs = cachedRecords.filter((r) => r.jobId === id);
   const pestRecs = cachedPesticideRecords.filter((r) => r.jobId === id);
-  const cameraId = (prop && prop.cameraId) || (cust && cust.cameraId) || '';
+  const cameraId = (prop && prop.cameraId) || '';   /* Item 1 (v2-patch-6): property-only */
   const isOpen = j.status === 'Active';
 
   const taskRows = tasks.length ? tasks.map((t) => {
@@ -11170,7 +11340,7 @@ function renderLifecycleJobDetail(id) {
     ((a.scheduledDate || '') + (a.scheduledTime || '')).localeCompare((b.scheduledDate || '') + (b.scheduledTime || '')));
   const trapRecs = cachedRecords.filter((r) => r.jobId === id);
   const pestRecs = cachedPesticideRecords.filter((r) => r.jobId === id);
-  const cameraId = (prop && prop.cameraId) || (cust && cust.cameraId) || '';
+  const cameraId = (prop && prop.cameraId) || '';   /* Item 1 (v2-patch-6): property-only */
 
   const apptRows = appts.length ? appts.map((a) => {
     const who = (a.assigneeNames || []).join(', ');
@@ -11335,22 +11505,11 @@ function assignJobCamera(jobId, cameraId) {
     });
   const jdx = cachedJobs.findIndex((x) => x.id === jobId);
   if (jdx >= 0) cachedJobs[jdx] = { ...cachedJobs[jdx], cameraId: K };
-  /* Reflect onto the job's own property (or customer) so photo routing links
-     this camera to the job's context — but never overwrite a record already
-     routing a different camera. */
-  const prop = j.propertyId ? cachedProperties.find((p) => p.id === j.propertyId) : null;
-  if (prop && j.customerId && !(prop.cameraId || '').trim()) {
-    writeWithRetry(() => setDoc(doc(fbDb, 'customers', j.customerId, 'properties', prop.id),
-      { cameraId: K, updatedAt: now }, { merge: true }))
-      .catch((err) => console.error('property camera reflect failed', err));
-  } else if (!prop && j.customerId) {
-    const cust = cachedCustomers.find((c) => c.id === j.customerId);
-    if (cust && !(cust.cameraId || '').trim()) {
-      writeWithRetry(() => setDoc(doc(fbDb, 'customers', j.customerId),
-        { cameraId: K, updatedAt: now }, { merge: true }))
-        .catch((err) => console.error('customer camera reflect failed', err));
-    }
-  }
+  /* Item 1 (v2-patch-6): the job's cameraId is a LINK to a camera that
+     already lives on a property record (the sheet lists property cameras
+     only). Nothing is mirrored onto property or customer records here —
+     the property editor is the one assignment door, and the old mirror
+     could stamp a duplicate cameraId onto a second property. */
   toast(`Camera ${K} assigned to ${j.jobNumber || 'the job'}`);
   closeCameraSheet();
   renderLifecycleJobDetail(jobId);
@@ -12918,7 +13077,6 @@ function loadCustomerIntoForm(c) {
   $('#c-zip').value = c.zip || '';
   $('#c-county').value = c.county || '';
   $('#c-notes').value = c.notes || '';
-  $('#c-cameraId').value = c.cameraId || '';
   updateGetDirectionsBtn();   /* Item 1: show when the customer has an address */
   updateCallTextButtons();    /* Item 3: show when the customer has a phone */
   $('#deleteCustomerBtn').style.display = 'block';
@@ -13029,16 +13187,17 @@ function hubProceed(action, jobId, c) {
     setView('add');
     applyCustomerToPesticideForm(c);
   } else if (action === 'assign-camera') {
-    /* With properties on file, cameras live on the property records. */
+    /* Item 1 (v2-patch-6): the property editor is the ONE assignment door.
+       No properties yet → open the editor to create the first one. */
     const props = propertiesForCustomer(editingCustomerId);
+    const card = $('#customerPropertiesCard');
+    if (card) card.scrollIntoView({ behavior: 'smooth', block: 'start' });
     if (props.length) {
-      const card = $('#customerPropertiesCard');
-      if (card) card.scrollIntoView({ behavior: 'smooth', block: 'start' });
       toast('Cameras are assigned per property — edit a property below.');
-      return;
+    } else {
+      openPropertyEditor(null);
+      toast('Cameras are assigned per property — add this customer’s property first.');
     }
-    const field = $('#c-cameraId');
-    if (field) { field.scrollIntoView({ behavior: 'smooth', block: 'center' }); setTimeout(() => field.focus(), 300); }
   }
 }
 
@@ -13128,8 +13287,10 @@ function closePropertyEditor() {
   $('#propertyForm').classList.add('hidden');
 }
 
-/* M23: Camera IDs route photos — a duplicate across properties/customers
-   silently sends every photo to an arbitrary one of the owners. */
+/* M23 / Item 1 (v2-patch-6): Camera IDs route photos — a duplicate across
+   properties silently sends every photo to an arbitrary one of the owners.
+   Property records are the only place cameraId lives, so uniqueness is
+   checked against properties only. */
 function cameraIdOwner(cameraId, opts = {}) {
   const K = (cameraId || '').trim().toUpperCase();
   if (!K) return null;
@@ -13140,10 +13301,6 @@ function cameraIdOwner(cameraId, opts = {}) {
     const owner = cachedCustomers.find((c) => c.id === prop.customerId);
     return { label: [owner && owner.name, prop.siteNickname].filter(Boolean).join(' · ') || 'another property' };
   }
-  const cust = cachedCustomers.find((c) =>
-    c.id !== (opts.excludeCustomerId || null) &&
-    (c.cameraId || '').trim().toUpperCase() === K);
-  if (cust) return { label: cust.name || 'another customer' };
   return null;
 }
 
@@ -13254,7 +13411,8 @@ function readCustomerForm() {
     zip: $('#c-zip').value.trim(),
     county: $('#c-county').value,
     notes: $('#c-notes').value.trim(),
-    cameraId: $('#c-cameraId').value.trim().toUpperCase().replace(/\s+/g, ''),
+    /* Item 1 (v2-patch-6): customer-level cameraId is deprecated — never
+       written again. Cameras are assigned on property records only. */
     active: $('#c-active').checked
   };
   if (editingCustomerId) c.id = editingCustomerId;
@@ -13268,11 +13426,6 @@ async function handleSaveCustomer(e) {
   if (!c.name) { toast('Customer name is required', 'error'); $('#c-name').focus(); return; }
   /* Item 7: multi-address values validate on the first address only. */
   if (c.email && !EMAIL_RE.test(extractPrimaryEmail(c.email))) { toast('Enter a valid email or leave it blank', 'error'); return; }
-  /* M24: same 10-char Camera ID rule as the property editor. */
-  if (c.cameraId && c.cameraId.length > 10) { toast('Camera ID can\'t exceed 10 characters', 'error'); $('#c-cameraId').focus(); return; }
-  /* M23: no duplicate Camera IDs across customers/properties. */
-  const camDup = cameraIdOwner(c.cameraId, { excludeCustomerId: editingCustomerId });
-  if (camDup) { toast(`Camera ID ${c.cameraId} is already assigned to ${camDup.label}`, 'error'); $('#c-cameraId').focus(); return; }
   if (c.phone && !isValidPhone(c.phone)) { toast('Phone must be 10 digits or left blank', 'error'); $('#c-phone').focus(); return; }
   if (c.zip && !/^\d{5}(-\d{4})?$/.test(c.zip)) { toast('ZIP must be 5 digits (or ZIP+4) or left blank', 'error'); $('#c-zip').focus(); return; }
   if (c.phone) c.phone = formatPhone(c.phone);
@@ -14423,6 +14576,8 @@ async function init() {
     if (appMode !== 'settings') setAppModeQuiet('settings');
     setView('assign-legacy');
   });
+  /* Item 1 (v2-patch-6): camera migration + reconciliation audit */
+  $('#cameraMigrationBtn').addEventListener('click', runCameraMigrationAudit);
   $('#assignLegacyView').addEventListener('click', (e) => {
     if (e.target.closest('#assignLegacyBackBtn')) { setView('dashboard'); return; }
     const assign = e.target.closest('[data-lg-assign]');
@@ -14550,6 +14705,7 @@ async function init() {
         (trapper ? `<br><span class="muted">Trapper: ${escapeHtml(trapper)}</span>` : '') +
         `<br><span class="muted" style="font-size:12px;">App version: ${escapeHtml(APP_VERSION)}</span>`;
       $('#wipeBtn').style.display = isAdmin() ? 'flex' : 'none';   /* Item 5: snav row */
+      $('#cameraMigrationBtn').style.display = isAdmin() ? 'flex' : 'none';   /* Item 1 (v2-patch-6) */
       $('#pesticideDbCard').classList.toggle('hidden', !isAdmin());
       try { await maybeMigrateLocalRecords(); } catch (e) { console.error('Migration error', e); }
       subscribeToRecords();
