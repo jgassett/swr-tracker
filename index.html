@@ -9597,9 +9597,16 @@ async function restoreFromFile(file) {
     const txt = await file.text();
     const data = JSON.parse(txt);
     if (!data || !Array.isArray(data.records)) throw new Error('Invalid backup file');
-    const ok = await confirmDialog('Restore backup?',
-      `This will add ${data.records.length} records from the backup file. Existing records will be kept.`);
-    if (!ok) return;
+    /* Item 22 (v2-patch-5): two-step confirmation. Step 1 explains what
+       happens and that it can't be undone; step 2 requires typing CONFIRM. */
+    const step1 = await confirmDialog('Restore backup?',
+      `This will add ${data.records.length} record${data.records.length === 1 ? '' : 's'} from the backup file to the shared cloud collection for every operator. Existing records are kept — restoring twice creates duplicates. This action cannot be undone.`,
+      { okText: 'Continue' });
+    if (!step1) return;
+    const step2 = await confirmDialog('Type CONFIRM to restore',
+      `Final check: type CONFIRM below to add the ${data.records.length} backup record${data.records.length === 1 ? '' : 's'}.`,
+      { sentinel: 'CONFIRM', okText: 'Restore Backup' });
+    if (!step2) return;
     for (const r of data.records) {
       const copy = { ...r };
       delete copy.id;
@@ -9622,12 +9629,21 @@ async function wipeAll() {
     toast('Only the admin account can clear all records.', 'error');
     return;
   }
-  const ok = await confirmDialog(
+  /* Item 22 (v2-patch-5): two-step confirmation. Step 1 explains what
+     happens and that it can't be undone; step 2 requires typing CONFIRM
+     before the action button enables. */
+  const step1 = await confirmDialog(
     'Clear ALL cloud records?',
-    'This permanently deletes every record for every trapper from the shared cloud collection. Cannot be undone. Download a JSON backup first if you might need this data later. Type CONFIRM to proceed.',
+    'This permanently deletes every trapping record for every trapper from the shared cloud collection. It cannot be undone. Download a JSON backup first if you might need this data later.',
+    { okText: 'Continue' }
+  );
+  if (!step1) return;
+  const step2 = await confirmDialog(
+    'Type CONFIRM to delete everything',
+    'Final check: type CONFIRM below to permanently delete every record.',
     { sentinel: 'CONFIRM', okText: 'Delete Everything' }
   );
-  if (!ok) return;
+  if (!step2) return;
   await dbClear();
   toast('All records cleared');
   await refreshAll();
