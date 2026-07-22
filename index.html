@@ -1675,6 +1675,11 @@
       <svg viewBox="0 0 24 24"><path d="M4 4h16v4H4z"/><path d="M4 12h10"/><path d="M4 16h10"/><path d="M4 20h7"/><path d="M18 13v7"/><path d="M15 16l3-3 3 3"/></svg>
       <span>Estimates</span>
     </button>
+    <!-- Item 7 (v2-patch-6): per-operator private Notes module. -->
+    <button type="button" class="lb-btn" data-banner="notes" aria-label="Notes">
+      <svg viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+      <span>Notes</span>
+    </button>
     <button type="button" class="lb-btn" data-banner="notifications" aria-label="Notifications">
       <svg viewBox="0 0 24 24"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
       <span>Notifications</span>
@@ -3300,6 +3305,39 @@
       <div class="form-actions"><button type="button" class="btn btn-cancel btn-ghost" data-settings-back>Back to Settings</button></div>
     </section>
 
+    <!-- NOTES (Item 7, v2-patch-6): per-operator PRIVATE notes. Each
+         operator sees only their own; Firestore rules enforce owner-only
+         read/write (admin included — Jon cannot read other operators'
+         notes). -->
+    <section id="view-notes" class="view hidden">
+      <div class="greeting">
+        <h2>Notes</h2>
+        <p class="muted">Your private notes — no other operator (or admin) can see them.</p>
+      </div>
+      <div class="card" id="notesList"></div>
+    </section>
+
+    <!-- NOTES: editor -->
+    <section id="view-add-note" class="view hidden">
+      <form id="noteForm" novalidate>
+        <input type="hidden" id="n-id">
+        <div class="form-group">
+          <label for="n-title">Title<span class="opt">(optional)</span></label>
+          <input type="text" id="n-title" autocomplete="off" maxlength="120">
+        </div>
+        <div class="form-group">
+          <label for="n-body">Note</label>
+          <textarea id="n-body" rows="10" placeholder="Write your note…"></textarea>
+        </div>
+        <div class="hint" id="noteTimestamps"></div>
+        <div class="form-actions">
+          <button type="submit" class="btn btn-primary" id="saveNoteBtn">Save Note</button>
+          <button type="button" class="btn btn-cancel btn-ghost" id="cancelNoteBtn">Cancel</button>
+        </div>
+        <button type="button" class="btn btn-danger" id="deleteNoteBtn" style="margin-top:10px; display:none;">Delete Note</button>
+      </form>
+    </section>
+
     <!-- SETTINGS → Tax Jurisdiction Reports (Item 5, v2-patch-6) — jobs by
          work-property jurisdiction for occupational tax filings. Admin only. -->
     <section id="view-settings-taxreports" class="view hidden">
@@ -4371,7 +4409,7 @@ let modeSelected = false;
    Trapping and Pesticides as tabs inside it — both appModes ('trap' and
    'pesticide') present as the Field Work module in the header. Cameras ->
    Monitoring (Item 17, v2-patch-1). */
-const MODULE_LABELS = { trap: 'Field Work', pesticide: 'Field Work', customer: 'Customers', pricing: 'Pricing', jobs: 'Jobs', field: 'Monitoring', schedule: 'Schedule', settings: 'Settings', allrecords: 'All Records', closeout: 'Close Out' };
+const MODULE_LABELS = { trap: 'Field Work', pesticide: 'Field Work', customer: 'Customers', pricing: 'Pricing', jobs: 'Jobs', field: 'Monitoring', schedule: 'Schedule', settings: 'Settings', allrecords: 'All Records', closeout: 'Close Out', notes: 'Notes' };
 
 /* Bottom-nav layout per module. The main landing page has no bottom nav.
    `fab: true` renders the raised amber add button (kept from the original
@@ -4428,6 +4466,12 @@ const NAV_CONFIGS = {
   closeout: [
     { view: 'menu', label: 'Home', icon: 'home' },
     { view: 'dashboard', label: 'Close Out', icon: 'check' }
+  ],
+  /* Item 7 (v2-patch-6): private per-operator notes. */
+  notes: [
+    { view: 'menu', label: 'Home', icon: 'home' },
+    { view: 'dashboard', label: 'Notes', icon: 'note' },
+    { view: 'add', label: 'New', icon: 'plus', fab: true }
   ]
 };
 
@@ -4442,7 +4486,8 @@ const NAV_ICONS = {
   camera: '<path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/>',
   calendar: '<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>',
   briefcase: '<rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/>',
-  check: '<path d="M20 6 9 17l-5-5"/>'
+  check: '<path d="M20 6 9 17l-5-5"/>',
+  note: '<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/>'
 };
 
 function renderBottomNav() {
@@ -6596,6 +6641,7 @@ const VIEW_TITLES = {
   field:     { dashboard: 'Monitoring' },
   schedule:  { dashboard: 'Calendar', add: 'New Task', 'edit-legacy': 'Edit Job', 'add-appointment': 'New Appointment', 'appointment-detail': 'Appointment', 'job-detail': 'Job', 'add-task': 'New Task', 'task-detail': 'Task' },
   closeout:  { dashboard: 'Close Out', 'closeout-confirm': 'Confirm Close Out' },
+  notes:     { dashboard: 'Notes', add: 'Note' },   /* Item 7 (v2-patch-6) */
   settings:  { dashboard: 'Settings', 'assign-legacy': 'Assign Legacy Records',
                'settings-contractors': 'Contractors', 'settings-business': 'Business Info',
                'settings-licensing': 'Licensing & Permits', 'settings-pesticide-db': 'Pesticide Database',
@@ -6620,7 +6666,7 @@ function setView(name, opts) {
    'jobs','add-job','job-detail','add-appointment','appointment-detail','assign-legacy',
    'add-task','task-detail','closeout','closeout-confirm',
    'settings-contractors','settings-business','settings-licensing','settings-pesticide-db',
-   'settings-taxreports',
+   'settings-taxreports','notes','add-note',
    'notifications','records-all','export','settings'].forEach((v) => {
     const el = document.getElementById(`view-${v}`);
     if (el) el.classList.add('hidden');
@@ -6650,6 +6696,9 @@ function setView(name, opts) {
     if (name === 'dashboard') actualId = 'closeout';   /* Item 7 */
   } else if (appMode === 'allrecords') {
     if (name === 'dashboard') actualId = 'records-all';   /* Items 8 & 9 */
+  } else if (appMode === 'notes') {
+    if (name === 'dashboard') actualId = 'notes';         /* Item 7 (v2-patch-6) */
+    if (name === 'add') actualId = 'add-note';
   }
   const showEl = document.getElementById(`view-${actualId}`);
   if (showEl) showEl.classList.remove('hidden');
@@ -6676,6 +6725,8 @@ function setView(name, opts) {
       if (!editingTaskId) resetTaskForm();   /* Item 16: schedule adds tasks */
     } else if (appMode === 'jobs') {
       if (!editingLifecycleJobId) resetLifecycleJobForm();
+    } else if (appMode === 'notes') {
+      if (!editingNoteId) resetNoteForm();   /* Item 7 (v2-patch-6) */
     }
   }
   if (name === 'add-appointment' && !editingAppointment && !preserveForm) resetAppointmentForm();
@@ -6702,6 +6753,9 @@ function setView(name, opts) {
   }
   if (appMode === 'closeout' && name === 'dashboard') {
     renderCloseoutList();   /* Item 7 (v2-patch-2) */
+  }
+  if (appMode === 'notes' && name === 'dashboard') {
+    renderNotesList();   /* Item 7 (v2-patch-6) */
   }
   if (name === 'assign-legacy') renderAssignLegacyView();
   if (name === 'settings' || appMode === 'settings') renderSettingsStatus();
@@ -13272,6 +13326,131 @@ function hubProceed(action, jobId, c) {
 }
 
 /* =====================================================================
+ * Item 7 (v2-patch-6): Notes module — per-operator PRIVATE notes.
+ * ---------------------------------------------------------------------
+ * Cloud-stored in the `notes` collection; each doc carries ownerUid and
+ * the subscription queries only the signed-in operator's docs. Firestore
+ * rules enforce owner-only read/write — including for the admin: Jon
+ * cannot read other operators' notes. Simple CRUD, newest first.
+ * ===================================================================== */
+let notesUnsub = null;
+let notesRetryTimer = null;
+let cachedNotes = [];
+let editingNoteId = null;
+
+function subscribeToNotes() {
+  if (notesUnsub || !currentUser) return;
+  const qy = query(collection(fbDb, 'notes'), where('ownerUid', '==', currentUser.uid));
+  notesUnsub = onSnapshot(qy, (snap) => {
+    cachedNotes = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    cachedNotes.sort((a, b) => (b.updatedAt || b.createdAt || '').localeCompare(a.updatedAt || a.createdAt || ''));
+    if (appMode === 'notes' && !$('#view-notes').classList.contains('hidden')) renderNotesList();
+  }, (err) => {
+    console.error('Notes subscription error', err);
+    notesUnsub = null;
+    if (notesRetryTimer) clearTimeout(notesRetryTimer);
+    notesRetryTimer = setTimeout(() => { if (currentUser) subscribeToNotes(); }, 5000);
+  });
+}
+function unsubscribeFromNotes() {
+  if (notesUnsub) { notesUnsub(); notesUnsub = null; }
+  cachedNotes = [];
+  editingNoteId = null;
+}
+
+function renderNotesList() {
+  const root = $('#notesList');
+  if (!root) return;
+  if (!cachedNotes.length) {
+    root.innerHTML = '<div class="muted" style="padding:14px 4px;">No notes yet — tap <strong>+</strong> to write your first one. Notes are private to you.</div>';
+    return;
+  }
+  root.innerHTML = cachedNotes.map((n) => {
+    const preview = (n.body || '').replace(/\s+/g, ' ').slice(0, 90);
+    const when = fmtNotifTime(n.updatedAt || n.createdAt);
+    return `<div class="biz-row" data-note-open="${escapeHtml(n.id)}" style="align-items:flex-start;cursor:pointer;">
+      <span style="min-width:0;">
+        <span style="font-weight:600;color:var(--green-deep);">${escapeHtml(n.title || 'Untitled note')}</span><br>
+        ${preview ? `<span class="muted" style="font-size:13px;">${escapeHtml(preview)}${(n.body || '').length > 90 ? '…' : ''}</span><br>` : ''}
+        <span class="muted" style="font-size:12px;">${escapeHtml(when)}</span>
+      </span>
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="var(--ink-soft)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;margin-top:4px;"><path d="m9 18 6-6-6-6"/></svg>
+    </div>`;
+  }).join('');
+}
+
+function resetNoteForm() {
+  editingNoteId = null;
+  $('#n-id').value = '';
+  $('#n-title').value = '';
+  $('#n-body').value = '';
+  $('#noteTimestamps').textContent = '';
+  $('#deleteNoteBtn').style.display = 'none';
+  $('#saveNoteBtn').textContent = 'Save Note';
+}
+
+function openNoteEditor(id) {
+  const n = id ? cachedNotes.find((x) => x.id === id) : null;
+  resetNoteForm();
+  if (n) {
+    editingNoteId = n.id;
+    $('#n-id').value = n.id;
+    $('#n-title').value = n.title || '';
+    $('#n-body').value = n.body || '';
+    $('#noteTimestamps').textContent =
+      `Created ${fmtNotifTime(n.createdAt)}${n.updatedAt && n.updatedAt !== n.createdAt ? ` · updated ${fmtNotifTime(n.updatedAt)}` : ''}`;
+    $('#deleteNoteBtn').style.display = 'block';
+    $('#saveNoteBtn').textContent = 'Save Changes';
+  }
+  setView('add', { preserveForm: true });
+  $('#n-body').focus();
+}
+
+async function handleSaveNote(e) {
+  e.preventDefault();
+  if (!currentUser) return;
+  const body = $('#n-body').value.trim();
+  const title = $('#n-title').value.trim();
+  if (!body && !title) { toast('Write something first', 'error'); $('#n-body').focus(); return; }
+  const now = new Date().toISOString();
+  try {
+    if (editingNoteId) {
+      await writeWithRetry(() => setDoc(doc(fbDb, 'notes', editingNoteId),
+        { title, body, updatedAt: now }, { merge: true }));
+      toast('Note updated');
+    } else {
+      await writeWithRetry(() => setDoc(doc(collection(fbDb, 'notes')), {
+        ownerUid: currentUser.uid,
+        ownerEmail: currentUser.email.toLowerCase(),
+        title,
+        body,
+        createdAt: now,
+        updatedAt: now
+      }));
+      toast('Note saved');
+    }
+    resetNoteForm();
+    setView('dashboard');
+  } catch (err) {
+    toast('Save failed: ' + ((err && err.message) || 'error'), 'error');
+  }
+}
+
+async function handleDeleteNote() {
+  if (!editingNoteId) return;
+  const ok = await confirmDialog('Delete this note?', 'This cannot be undone.');
+  if (!ok) return;
+  try {
+    await writeWithRetry(() => deleteDoc(doc(fbDb, 'notes', editingNoteId)));
+    toast('Note deleted');
+    resetNoteForm();
+    setView('dashboard');
+  } catch (err) {
+    toast('Delete failed: ' + ((err && err.message) || 'error'), 'error');
+  }
+}
+
+/* =====================================================================
  * Customer Properties sub-model (Item 9)
  * ---------------------------------------------------------------------
  * customers/{id}/properties/{propId}: siteNickname, address, city, county,
@@ -13988,6 +14167,15 @@ async function init() {
   });
   $$('[data-settings-back]').forEach((b) => b.addEventListener('click', () => setView('dashboard')));
 
+  /* Item 7 (v2-patch-6): Notes module */
+  $('#notesList').addEventListener('click', (e) => {
+    const row = e.target.closest('[data-note-open]');
+    if (row) openNoteEditor(row.dataset.noteOpen);
+  });
+  $('#noteForm').addEventListener('submit', handleSaveNote);
+  $('#cancelNoteBtn').addEventListener('click', () => { resetNoteForm(); setView('dashboard'); });
+  $('#deleteNoteBtn').addEventListener('click', handleDeleteNote);
+
   /* Item 5 (v2-patch-6): tax jurisdiction reports */
   $('#taxRptRunBtn').addEventListener('click', renderTaxReports);
   $('#taxRptScottCsvBtn').addEventListener('click', () => downloadTaxReportCsv('scott'));
@@ -14078,6 +14266,7 @@ async function init() {
       const which = lb.dataset.banner;
       if (which === 'records') setAppMode('allrecords');
       else if (which === 'estimates') setAppMode('pricing');
+      else if (which === 'notes') setAppMode('notes');   /* Item 7 (v2-patch-6) */
       else if (which === 'notifications') {
         notifReturnView = '__landing__';
         setAppModeQuiet(appMode || 'trap');
@@ -14833,6 +15022,7 @@ async function init() {
       subscribeToTasks();   /* Item 15 */
       subscribeToProperties();
       subscribeToNotifications();
+      subscribeToNotes();   /* Item 7 (v2-patch-6) */
       renderBusinessCard();
       renderCertCard();
       /* Route to the three-module landing page after sign-in (Item 7). */
@@ -14856,6 +15046,7 @@ async function init() {
       unsubscribeFromTasks();
       unsubscribeFromProperties();
       unsubscribeFromNotifications();
+      unsubscribeFromNotes();   /* Item 7 (v2-patch-6) */
       modeSelected = false;
       $('#accountInfo').textContent = 'Not signed in';
       $('#wipeBtn').style.display = 'none';

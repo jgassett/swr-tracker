@@ -258,6 +258,29 @@ service cloud.firestore {
                     && resource.data.recipientEmail == request.auth.token.email.lower();
     }
 
+    /* Private per-operator notes (Item 7, v2-patch-6). OWNER-ONLY read and
+       write — matched on the signed-in UID against the note's ownerUid.
+       There is deliberately NO admin exception: the admin cannot read
+       other operators' notes. Creates must stamp the caller's own uid and
+       a bounded shape; updates may never reassign ownership. */
+    match /notes/{noteId} {
+      allow read:   if signedIn()
+                    && resource.data.ownerUid == request.auth.uid;
+      allow create: if signedIn()
+                    && request.resource.data.ownerUid == request.auth.uid
+                    && request.resource.data.keys().hasOnly(
+                         ['ownerUid', 'ownerEmail', 'title', 'body', 'createdAt', 'updatedAt'])
+                    && request.resource.data.title is string
+                    && request.resource.data.title.size() <= 200
+                    && request.resource.data.body is string
+                    && request.resource.data.body.size() <= 20000;
+      allow update: if signedIn()
+                    && resource.data.ownerUid == request.auth.uid
+                    && request.resource.data.ownerUid == resource.data.ownerUid;
+      allow delete: if signedIn()
+                    && resource.data.ownerUid == request.auth.uid;
+    }
+
     /* Graph API 401 diagnostics (Item 7) — written server-side by the email
        pipeline (Admin SDK); clients read for visibility only. */
     match /graphErrors/{errorId} {
