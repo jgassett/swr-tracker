@@ -12470,10 +12470,17 @@ function renderAssignLegacyView() {
     <div class="form-actions"><button class="btn btn-cancel btn-ghost" id="assignLegacyBackBtn">Back to Settings</button></div>`;
 }
 
-async function assignLegacyGroup(index, jobId) {
+/* Item 20 (v2-patch-5): in-flight lock — a second tap while an assignment is
+   still committing must be a no-op, never a second write sequence. */
+let legacyAssignBusy = false;
+
+async function assignLegacyGroup(index, jobId, btn) {
+  if (legacyAssignBusy) return;
   const g = legacyGroupsCache[index];
   const j = cachedJobs.find((x) => x.id === jobId);
   if (!g || !j) { toast('Pick a job first', 'error'); return; }
+  legacyAssignBusy = true;
+  if (btn) { btn.disabled = true; btn.textContent = 'Assigning…'; }
   const batch = writeBatch(fbDb);
   const now = new Date().toISOString();
   for (const it of g.items) {
@@ -12499,15 +12506,33 @@ async function assignLegacyGroup(index, jobId) {
     }
   };
   patchLocalCaches(jobId);
-  /* Optimistic write (H1): fire without awaiting so linking works offline. */
-  batch.commit().catch((err) => {
+  try {
+    /* Item 20: ONLINE, await the commit so the first confirmed tap is a
+       committed write (a failure reverts + toasts instead of silently
+       looking saved). Offline, fire-and-forget — Firestore queues it and
+       the optimistic cache patch keeps the UI correct. */
+    const commit = batch.commit();
+    if (navigator.onLine) {
+      await commit;
+    } else {
+      commit.catch((err) => {
+        console.error('Legacy assign failed', err);
+        patchLocalCaches(null);   /* revert so the group shows as unassigned again */
+        if (!$('#view-assign-legacy').classList.contains('hidden')) renderAssignLegacyView();
+        toast('Assign failed to sync: ' + ((err && err.message) || 'error'), 'error');
+      });
+    }
+    toast(`Linked ${g.items.length} record${g.items.length === 1 ? '' : 's'} to ${j.jobNumber}`);
+    renderAssignLegacyView();
+  } catch (err) {
     console.error('Legacy assign failed', err);
-    patchLocalCaches(null);   /* revert so the group shows as unassigned again */
+    patchLocalCaches(null);
     if (!$('#view-assign-legacy').classList.contains('hidden')) renderAssignLegacyView();
-    toast('Assign failed to sync: ' + ((err && err.message) || 'error'), 'error');
-  });
-  toast(`Linked ${g.items.length} record${g.items.length === 1 ? '' : 's'} to ${j.jobNumber}`);
-  renderAssignLegacyView();
+    toast('Assign failed: ' + ((err && err.message) || 'error'), 'error');
+    if (btn) { btn.disabled = false; btn.textContent = 'Assign'; }
+  } finally {
+    legacyAssignBusy = false;
+  }
 }
 
 async function createJobForLegacyGroup(index) {
@@ -14289,7 +14314,9 @@ async function init() {
     if (assign) {
       const i = parseInt(assign.dataset.lgAssign, 10);
       const sel = document.querySelector(`select[data-lg-job="${i}"]`);
-      assignLegacyGroup(i, sel ? sel.value : '');
+      /* Item 20: pass the button so it can show a busy state and can't
+         double-fire while the write commits. */
+      assignLegacyGroup(i, sel ? sel.value : '', assign);
       return;
     }
     const newJob = e.target.closest('[data-lg-newjob]');
