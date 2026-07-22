@@ -2489,6 +2489,18 @@
             <input type="email" id="c-email" inputmode="email" autocomplete="off">
           </div>
         </div>
+        <!-- Item 3 (v2-patch-5): click-to-call / click-to-text — rendered only
+             when the customer has a phone number on file. -->
+        <div class="btn-row" id="callTextRow" style="display:none; margin-bottom:14px;">
+          <button type="button" class="btn btn-amber" id="callCustomerBtn">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+            Call
+          </button>
+          <button type="button" class="btn btn-amber" id="textCustomerBtn">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+            Text
+          </button>
+        </div>
 
         <h3 class="form-section">Address</h3>
         <div class="form-group">
@@ -3702,6 +3714,15 @@ function extractPrimaryEmail(emailString) {
   for (const p of parts) {
     if (EMAIL_RE.test(p)) return p;
   }
+  return parts[0] || '';
+}
+
+/* Item 3 (v2-patch-5): phone twin of extractPrimaryEmail — customers may hold
+   several numbers separated by commas or semicolons; the tel:/sms: links use
+   only the first one. The stored value is left untouched. */
+function extractPrimaryPhone(phoneString) {
+  if (!phoneString) return '';
+  const parts = String(phoneString).split(/[,;]/).map((s) => s.trim()).filter(Boolean);
   return parts[0] || '';
 }
 
@@ -12225,6 +12246,30 @@ function updateGetDirectionsBtn() {
   if (!btn) return;
   btn.style.display = $('#c-address').value.trim() ? '' : 'none';
 }
+
+/* ---- Item 3 (v2-patch-5): click-to-call / click-to-text ----
+   Buttons show only when the customer has a phone number on file. On phones
+   the tel:/sms: schemes open the native dialer / SMS app pre-filled with the
+   first number; on desktop (where the schemes may not work gracefully) the
+   buttons stay visible but tapping shows a pointer toast instead. */
+function isMobileDevice() {
+  return isIOSDevice() || /Android/i.test(navigator.userAgent);
+}
+function updateCallTextButtons() {
+  const row = $('#callTextRow');
+  if (!row) return;
+  row.style.display = extractPrimaryPhone($('#c-phone').value.trim()) ? '' : 'none';
+}
+function openCustomerComm(scheme) {
+  const phone = extractPrimaryPhone($('#c-phone').value.trim());
+  if (!phone) { toast('No phone number on file for this customer', 'error'); return; }
+  if (!isMobileDevice()) {
+    toast('Open on your phone to call or text');
+    return;
+  }
+  const digits = phone.replace(/[^\d+]/g, '');
+  window.location.href = `${scheme}:${digits}`;
+}
 function openDirectionsToCustomer() {
   const dest = customerFormDestination();
   if (!dest) { toast('No address on file for this customer', 'error'); return; }
@@ -12249,6 +12294,7 @@ function resetCustomerForm() {
   $('#c-active').checked = false;
   fillGroupedSelect('c-county', COUNTY_GROUPS, '— select county —');
   updateGetDirectionsBtn();   /* Item 1: no address yet → hidden */
+  updateCallTextButtons();    /* Item 3: no phone yet → hidden */
   $('#deleteCustomerBtn').style.display = 'none';
   $('#retryQbPushBtn').style.display = 'none';
   $('#retryQbPushHint').style.display = 'none';
@@ -12278,6 +12324,7 @@ function loadCustomerIntoForm(c) {
   $('#c-notes').value = c.notes || '';
   $('#c-cameraId').value = c.cameraId || '';
   updateGetDirectionsBtn();   /* Item 1: show when the customer has an address */
+  updateCallTextButtons();    /* Item 3: show when the customer has a phone */
   $('#deleteCustomerBtn').style.display = 'block';
   /* Existing customer never (or unsuccessfully) pushed to QuickBooks — offer a
      manual retry of the qbCreateCustomer call that fires on first save. */
@@ -13338,6 +13385,10 @@ async function init() {
   /* Item 1: Get Directions — follows the address field live. */
   $('#getDirectionsBtn').addEventListener('click', openDirectionsToCustomer);
   $('#c-address').addEventListener('input', updateGetDirectionsBtn);
+  /* Item 3 (v2-patch-5): Call / Text — follow the phone field live. */
+  $('#callCustomerBtn').addEventListener('click', () => openCustomerComm('tel'));
+  $('#textCustomerBtn').addEventListener('click', () => openCustomerComm('sms'));
+  $('#c-phone').addEventListener('input', updateCallTextButtons);
   /* Item 5 (v2-patch-2): Quick Controls switches. QBO Sync and Test
      Notifications are momentary — they flip on while running and settle
      back off; QBO Reconnect and Enable Notifications reflect real state. */
