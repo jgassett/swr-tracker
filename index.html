@@ -2373,6 +2373,9 @@
         <h2 id="custGreetingTitle">Customer Directory</h2>
         <p class="muted" id="custGreetingSub">Shared across trapping and pesticide records.</p>
       </div>
+      <!-- Item 5 (v2-patch-5): Add Customer is the first interactive element
+           in the module — the search box and filters moved below it. -->
+      <button class="btn btn-amber" id="addCustomerBtn" style="margin-bottom:14px;">+ Add Customer</button>
       <div class="search-bar">
         <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
         <input type="text" id="custSearch" placeholder="Search name, address, city, phone…" autocomplete="off">
@@ -2385,7 +2388,6 @@
         </select>
         <select id="custFilterCounty"><option value="">All counties</option></select>
       </div>
-      <button class="btn btn-amber" id="addCustomerBtn" style="margin-bottom:14px;">+ Add Customer</button>
       <div class="card" id="customerList"></div>
     </section>
 
