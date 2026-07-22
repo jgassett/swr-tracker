@@ -157,7 +157,9 @@
       padding: 8px 10px calc(var(--safe-bot) + 8px);
       background: var(--green-deep);
       border-top: 1px solid rgba(196,119,42,0.35);
-      display: grid; grid-template-columns: repeat(4, 1fr);
+      /* Item 7 (v2-patch-6): five buttons — Records | Estimates | Notes |
+         Notifications | Settings. */
+      display: grid; grid-template-columns: repeat(5, 1fr);
       z-index: 98;
     }
     .lb-btn {
@@ -169,8 +171,13 @@
     .lb-btn svg { width: 24px; height: 24px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
     .lb-btn:active, .lb-btn:hover { color: var(--amber); }
     .lb-btn .bell-badge { top: 0; right: calc(50% - 24px); }
-    /* Keep the workflow grid clear of the fixed banner. */
-    #modePicker { padding-bottom: calc(var(--safe-bot) + 96px); }
+    /* Keep the workflow grid clear of the fixed banner. Item 11
+       (v2-patch-6): on iPhone 16 Pro the grid's bottom row sat flush
+       against the banner ribbon — the grid gets its own bottom margin
+       (both rows move together; snake layout untouched) and the page
+       padding grows to match. */
+    #modePicker { padding-bottom: calc(var(--safe-bot) + 112px); }
+    .flow-grid { margin-bottom: 16px; }
     .settings-group { font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-soft); margin: 16px 4px 6px; }
     .settings-group.first { margin-top: 4px; }
     .conn-status { font-size: 13px; font-weight: 600; margin-top: 4px; }
