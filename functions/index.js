@@ -1101,6 +1101,9 @@ async function logGraphError(status, path, context = {}) {
       status: status || null,
       path: String(path || '').slice(0, 300),
       subject: context.subject || null,
+      /* Item 10 (v2-patch-5): the camera-key extraction attempt, so a
+         status email that matched no camera record is diagnosable. */
+      cameraKey: context.cameraKey || null,
       message: context.message || null
     });
   } catch (e) {
@@ -1224,17 +1227,82 @@ async function handlePhotoMessage(m, keyMap) {
   return { photos, unassigned: !match, key, match, receivedAt: m.receivedDateTime || new Date().toISOString() };
 }
 
+/* Item 10 (v2-patch-5): a status report that can't be parsed or matched must
+ * never vanish silently (or loop unread forever). Log the raw subject, the
+ * camera-key extraction attempt, and the failure reason to graphErrors, and
+ * drop a pending-queue row into cameraHealth — the same manual-assignment
+ * pattern unmatched photos use: it surfaces in the Monitoring module as an
+ * unlinked group Jon can assign to a customer. */
+async function queueUnmatchedReport(m, keyAttempt, reason) {
+  await logGraphError(null, 'cuddeback-report', {
+    subject: m.subject || '',
+    cameraKey: keyAttempt || null,
+    message: `status report not ingested: ${reason}`
+  });
+  try {
+    const key = keyAttempt || 'UNKNOWN';
+    await db.doc(`cameraHealth/${key}__pending`).set({
+      customerKey: key,
+      customerId: null,
+      customerName: null,
+      propertyId: null,
+      cameraNumber: '—',
+      cameraName: 'Status report (needs manual review)',
+      mode: null,
+      reportDate: null,
+      battery: null,
+      batteryOk: null,
+      sdFreeSpace: null,
+      sdFreeGB: null,
+      photoQueue: null,
+      fwVersion: null,
+      clVersion: null,
+      deficiencies: [],
+      status: 'red',
+      dateCurrent: false,
+      pending: true,
+      pendingReason: String(reason).slice(0, 300),
+      subject: m.subject || '',
+      receivedAt: m.receivedDateTime || new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    }, { merge: true });
+  } catch (e) {
+    console.error('pending report queue write failed', e);
+  }
+}
+
 async function handleReportMessage(m, keyMap) {
   const ctx = { subject: m.subject || '' };
+  const keyAttempt = cb.subjectKey(m.subject);
   const atts = await graphGet(`/users/${PHOTOS_MAILBOX}/messages/${m.id}/attachments?$select=id,name,contentType,isInline`, ctx);
   const htmlAtt = (atts.value || []).find((a) => /html/i.test(a.contentType || '') || /\.html?$/i.test(a.name || ''));
-  if (!htmlAtt) throw new Error('report message has no HTML attachment');
+  if (!htmlAtt) {
+    /* Not retryable — queue it and mark the message read (Item 10). */
+    await queueUnmatchedReport(m, keyAttempt, 'report message has no HTML attachment');
+    return { devices: 0, pending: true };
+  }
   const buf = await graphGetBytes(`/users/${PHOTOS_MAILBOX}/messages/${m.id}/attachments/${htmlAtt.id}/$value`, ctx);
   const parsed = cb.parseReportHtml(buf.toString('utf8'));
-  if (!parsed || !parsed.network) throw new Error('could not parse report HTML');
+  if (!parsed || !parsed.network) {
+    await queueUnmatchedReport(m, keyAttempt, 'could not parse report HTML (no table or Network header — possible new firmware format)');
+    return { devices: 0, pending: true };
+  }
+  if (!parsed.devices.length) {
+    await queueUnmatchedReport(m, parsed.network || keyAttempt, 'report parsed but contained no device rows (unrecognized row format)');
+    return { devices: 0, pending: true };
+  }
 
   const today = cb.todayMDY(REPORT_TZ);
   const match = keyMap.get(parsed.network) || null;
+  if (!match) {
+    /* Rows below are still written (unassigned) — the existing unmatched
+       pattern; this log makes the miss visible with the attempted key. */
+    await logGraphError(null, 'cuddeback-report', {
+      subject: m.subject || '',
+      cameraKey: parsed.network,
+      message: `status report network "${parsed.network}" matched no camera record — health rows written unassigned for manual assignment`
+    });
+  }
   const nowIso = new Date().toISOString();
   const batch = db.batch();
   for (const d of parsed.devices) {
