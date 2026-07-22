@@ -2983,12 +2983,16 @@
 
     <!-- NOTIFICATIONS (Items 12 & 17) — reachable from any screen via the bell -->
     <section id="view-notifications" class="view hidden">
-      <div class="row" style="margin-bottom:12px;">
+      <div class="row" style="margin-bottom:12px; align-items:flex-start;">
         <div class="greeting" style="margin:0;">
           <h2>Notifications</h2>
           <p class="muted" id="notifsSub">Appointments, camera alerts, and job updates.</p>
         </div>
-        <button type="button" class="map-btn ghost" id="clearAllNotifsBtn" style="flex-shrink:0;">Clear all</button>
+        <div style="display:flex; flex-direction:column; gap:6px; flex-shrink:0; align-items:flex-end;">
+          <button type="button" class="map-btn ghost" id="clearAllNotifsBtn">Clear all</button>
+          <!-- Item 8 (v2-patch-5): deletes this operator's read notifications. -->
+          <button type="button" class="map-btn ghost" id="clearReadNotifsBtn">Clear Read Notifications</button>
+        </div>
       </div>
       <div class="card" id="notificationsList"></div>
       <div class="form-actions">
@@ -10097,6 +10101,9 @@ function renderNotificationsPage() {
   if (sub) sub.textContent = unread.length ? `${unread.length} unread` : 'All caught up.';
   const clearBtn = $('#clearAllNotifsBtn');
   if (clearBtn) clearBtn.style.display = unread.length ? '' : 'none';
+  /* Item 8 (v2-patch-5): offered only when read notifications exist. */
+  const clearReadBtn = $('#clearReadNotifsBtn');
+  if (clearReadBtn) clearReadBtn.style.display = read.length ? '' : 'none';
   const caughtUp = '<div class="empty"><div class="em-check" aria-hidden="true">✓</div><div class="em-title">No new notifications — you are all caught up</div><div>Appointment, camera, and job alerts will land here.</div></div>';
   if (!cachedNotifications.length) {
     root.innerHTML = caughtUp;
@@ -10139,6 +10146,33 @@ async function clearAllNotifications() {
     }
     if (ops) await batch.commit();
     toast('Notifications cleared');
+  } catch (err) {
+    toast('Clear failed: ' + ((err && err.message) || 'error'), 'error');
+  }
+}
+
+/* Item 8 (v2-patch-5): permanently delete this operator's READ notifications.
+   Unread ones are untouched. The live subscription refreshes the feed as the
+   deletes land. */
+async function clearReadNotifications() {
+  const read = cachedNotifications.filter((n) => n.read);
+  if (!read.length) { toast('No read notifications to clear'); return; }
+  const ok = await confirmDialog(
+    'Clear read notifications?',
+    `Deletes ${read.length} read notification${read.length === 1 ? '' : 's'} from your feed. Unread notifications are kept. This cannot be undone.`,
+    { okText: 'Delete Read' }
+  );
+  if (!ok) return;
+  try {
+    let batch = writeBatch(fbDb);
+    let ops = 0;
+    for (const n of read) {
+      batch.delete(doc(fbDb, 'notifications', n.id));
+      if (++ops >= 450) { await batch.commit(); batch = writeBatch(fbDb); ops = 0; }
+    }
+    if (ops) await batch.commit();
+    toast(`Deleted ${read.length} read notification${read.length === 1 ? '' : 's'}`);
+    renderNotificationsPage();
   } catch (err) {
     toast('Clear failed: ' + ((err && err.message) || 'error'), 'error');
   }
@@ -14016,6 +14050,7 @@ async function init() {
     setView(back && back !== 'notifications' ? back : 'dashboard', { preserveForm: true });
   });
   $('#clearAllNotifsBtn').addEventListener('click', clearAllNotifications);
+  $('#clearReadNotifsBtn').addEventListener('click', clearReadNotifications);   /* Item 8 */
   $('#notificationsList').addEventListener('click', (e) => {
     const btn = e.target.closest('[data-notif-dismiss]');
     if (btn) dismissNotification(btn.dataset.notifDismiss);

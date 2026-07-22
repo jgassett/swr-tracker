@@ -1006,6 +1006,35 @@ exports.cleanupNotifications = functions
     return null;
   });
 
+/* Item 8 (v2-patch-5): daily cleanup of READ notifications older than 30
+ * days, across all operators. Complements cleanupNotifications (which
+ * removes everything past 60 days regardless of read state) by pruning the
+ * already-read history sooner. Single-field range query on createdAt (no
+ * composite index needed); the read flag is filtered in code. */
+exports.cleanupReadNotifications = functions
+  .region(REGION)
+  .runWith({ timeoutSeconds: 300, memory: '256MB' })
+  .pubsub.schedule('every day 04:00')
+  .timeZone(REPORT_TZ)
+  .onRun(async () => {
+    try {
+      const cutoff = new Date(Date.now() - 30 * 86400000).toISOString();
+      const snap = await db.collection('notifications').where('createdAt', '<', cutoff).get();
+      const stale = snap.docs.filter((d) => d.get('read') === true);
+      if (!stale.length) { console.log('cleanupReadNotifications: no read notifications older than 30 days'); return null; }
+      let batch = db.batch(); let ops = 0; let deleted = 0;
+      for (const d of stale) {
+        batch.delete(d.ref); deleted++;
+        if (++ops >= 450) { await batch.commit(); batch = db.batch(); ops = 0; }
+      }
+      if (ops) await batch.commit();
+      console.log(`cleanupReadNotifications: deleted ${deleted} read notifications older than 30 days`);
+    } catch (err) {
+      console.error('cleanupReadNotifications failed', err);
+    }
+    return null;
+  });
+
 /* Daily scheduled sync. */
 exports.qbDailySync = functions
   .region(REGION)
