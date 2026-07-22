@@ -2477,7 +2477,10 @@
           </div>
           <div class="form-group">
             <label for="pr-address">Address</label>
-            <input type="text" id="pr-address" autocomplete="off">
+            <div class="autocomplete-wrap">
+              <input type="text" id="pr-address" autocomplete="off">
+              <div class="autocomplete-list hidden" id="pr-address-ac"></div>
+            </div>
           </div>
           <div class="form-group">
             <label for="pr-city">City</label>
@@ -2488,6 +2491,18 @@
           <div class="form-group hidden" id="prCountyGroup" aria-hidden="true">
             <label for="pr-county">County</label>
             <select id="pr-county" tabindex="-1"><option value="">— select county —</option></select>
+          </div>
+          <!-- Item 4d (v2-patch-6): manual override for boundary cases where
+               the geocoded/mailing city doesn't match actual municipal limits.
+               Used by the tax jurisdiction reports. Default: unset (auto). -->
+          <div class="form-group">
+            <label for="pr-cityLimits">City Limits<span class="opt">(tax jurisdiction)</span></label>
+            <select id="pr-cityLimits">
+              <option value="">Auto — use the address city</option>
+              <option value="true">Inside city limits (override)</option>
+              <option value="false">Outside city limits (override)</option>
+            </select>
+            <div class="hint">Only set this when the mailing-address city doesn't match the actual municipal boundary.</div>
           </div>
           <div class="form-group">
             <label for="pr-cameraId">Camera ID</label>
@@ -4208,7 +4223,16 @@ function disposalDisplay(rec) {
 function countyDisplay(rec) {
   /* Legacy: old records may still hold the typed-county sentinel — fall back to countyOther.
      v2 (Item 15): the silently-captured countyOfCollection backs a blank dropdown value. */
-  return rec.county === COUNTY_OTHER_LEGACY && rec.countyOther ? rec.countyOther : (rec.county || rec.countyOfCollection || '');
+  if (rec.county === COUNTY_OTHER_LEGACY && rec.countyOther) return rec.countyOther;
+  const stored = rec.county || rec.countyOfCollection || '';
+  if (stored) return stored;
+  /* Item 4c (v2-patch-6): County of Collection resolves from the linked
+     PROPERTY when the record itself stored none — never from the customer. */
+  if (rec.propertyId) {
+    const p = cachedProperties.find((x) => x.id === rec.propertyId);
+    if (p && p.county) return p.county;
+  }
+  return '';
 }
 function releaseCountyDisplay(rec) {
   return rec.releaseCounty === COUNTY_OTHER_LEGACY && rec.releaseCountyOther ? rec.releaseCountyOther : (rec.releaseCounty || rec.countyOfRelease || '');
@@ -13305,7 +13329,17 @@ function openPropertyEditor(prop) {
   $('#pr-address').value = prop ? (prop.address || '') : '';
   $('#pr-city').value = prop ? (prop.city || '') : '';
   $('#pr-county').value = prop ? (prop.county || '') : '';
+  /* Item 4d (v2-patch-6): tri-state city-limits override (null = auto). */
+  $('#pr-cityLimits').value = prop && prop.insideCityLimits === true ? 'true'
+    : prop && prop.insideCityLimits === false ? 'false' : '';
   const cust = cachedCustomers.find((c) => c.id === editingCustomerId);
+  /* Item 4a (v2-patch-6): the customer's county/city are a convenience
+     default that pre-fills a NEW property; the property's own values are
+     authoritative from then on. */
+  if (!prop && cust) {
+    if (cust.city && !$('#pr-city').value) $('#pr-city').value = cust.city;
+    if (cust.county) selectCountyIfKnown('pr-county', cust.county);
+  }
   if (prop) {
     $('#pr-cameraId').value = prop.cameraId || '';
   } else {
@@ -13348,12 +13382,15 @@ async function saveProperty() {
   if (cameraId && cameraId.length > 10) { toast('Camera ID can\'t exceed 10 characters', 'error'); $('#pr-cameraId').focus(); return; }
   const dup = cameraIdOwner(cameraId, { excludePropertyId: editingPropertyId });
   if (dup) { toast(`Camera ID ${cameraId} is already assigned to ${dup.label}`, 'error'); $('#pr-cameraId').focus(); return; }
+  /* Item 4d (v2-patch-6): tri-state — true / false / null (auto). */
+  const limitsRaw = $('#pr-cityLimits').value;
   const data = {
     customerId: editingCustomerId,
     siteNickname,
     address: $('#pr-address').value.trim(),
     city: $('#pr-city').value.trim(),
     county: $('#pr-county').value,
+    insideCityLimits: limitsRaw === 'true' ? true : limitsRaw === 'false' ? false : null,
     cameraId,
     updatedAt: new Date().toISOString()
   };
@@ -13651,6 +13688,12 @@ function applyCustomerToTrapForm(c) {
   /* Property selector (Item 9): shown when the customer has property records. */
   trapFormCustomerId = c.id || null;
   populatePropertySelect('f-property', 'f-property-group', trapFormCustomerId, '');
+  /* Item 4c (v2-patch-6): the county of record derives from the PROPERTY
+     where the work occurs. A sole property is auto-selected by the populate
+     call above — apply it so its address/county override the customer-level
+     values (which remain only a fallback for property-less customers). */
+  const autoProp = cachedProperties.find((x) => x.id === $('#f-property').value);
+  if (autoProp) applyPropertyToTrapForm(autoProp);
 }
 
 /* Pre-fill the trap location from a selected property (Item 9). */
@@ -13688,6 +13731,10 @@ function applyCustomerToPesticideForm(c) {
   /* Property selector (Item 9). */
   pestFormCustomerId = c.id || null;
   populatePropertySelect('pa-property', 'pa-property-group', pestFormCustomerId, '');
+  /* Item 4c (v2-patch-6): a sole property is auto-selected — apply it so
+     the treatment county derives from the property, not the customer. */
+  const autoProp = cachedProperties.find((x) => x.id === $('#pa-property').value);
+  if (autoProp) applyPropertyToPesticideForm(autoProp);
 }
 
 /* Pre-fill the pesticide client address from a selected property (Item 9). */
@@ -13700,6 +13747,14 @@ function applyPropertyToPesticideForm(p) {
     delete a.dataset.lastValidated;
   }
   if (p.city) $('#pa-client-city').value = p.city;
+  /* Item 4c (v2-patch-6): County of Treatment derives from the property.
+     A later treatment-location geocode still wins (it captures the actual
+     site), same as the trap form. */
+  if (p.county) {
+    silentPaCounty = p.county;
+    const match = matchingOptionValue('pa-county', p.county);
+    if (match) $('#pa-county').value = match;
+  }
 }
 
 /* ---- Use-My-Location → suggest a matching customer ---- */
@@ -14284,6 +14339,14 @@ async function init() {
     /* County: silently stored via the county select (existing customer field). */
     if (s.county) selectCountyIfKnown('c-county', s.county);
     updateGetDirectionsBtn();
+  });
+  /* Item 4b (v2-patch-6): property editor address — city AND county are
+     captured silently from the geocode, same pattern as the customer form.
+     The property is the county/city of record for all work done there. */
+  wireMapboxAutocomplete('pr-address', 'pr-address-ac', (s) => {
+    $('#pr-address').value = s.street || s.placeName;
+    if (s.city) $('#pr-city').value = s.city;
+    if (s.county) selectCountyIfKnown('pr-county', s.county);
   });
   wireMapboxAutocomplete('trapLocInput', 'trapLocInput-ac', (s) => {
     $('#trapLocInput').value = s.placeName;
