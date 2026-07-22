@@ -3053,8 +3053,14 @@
       <div class="filter-row">
         <select id="allRecType">
           <option value="">All record types</option>
-          <option value="trap">Trapping</option>
-          <option value="pest">Pesticide</option>
+          <option value="trap">Trapping Only</option>
+          <option value="pest">Pesticides Only</option>
+        </select>
+        <!-- Item 19 (v2-patch-5): sort control for the unified list. -->
+        <select id="allRecSort">
+          <option value="date">Sort: Date (newest first)</option>
+          <option value="contractor">Sort: Contractor</option>
+          <option value="customer">Sort: Customer</option>
         </select>
       </div>
       <div class="card" id="allRecordsList"></div>
@@ -9224,6 +9230,7 @@ function allRecordsEntries() {
   const trap = cachedRecords.map((r) => ({
     kind: 'trap',
     id: r.id,
+    jobId: r.jobId || null,   /* Item 19: Unlinked badge */
     date: r.dateCollected || '',
     customer: r.clientName || '',
     contractor: r.trapper || '',
@@ -9238,6 +9245,7 @@ function allRecordsEntries() {
     return {
       kind: 'pest',
       id: r.id,
+      jobId: r.jobId || null,   /* Item 19: Unlinked badge */
       date: (r.appliedAt || '').slice(0, 10),
       customer: r.clientName || '',
       contractor: r.applicator || '',
@@ -9271,7 +9279,7 @@ function renderAllRecords() {
   const cust = $('#allRecCustomer').value;
   const who = $('#allRecContractor').value;
   const type = $('#allRecType').value;
-  const list = allRecordsEntries().filter((e) => {
+  let list = allRecordsEntries().filter((e) => {
     if (type && e.kind !== type) return false;
     if (from && e.date < from) return false;
     if (to && e.date > to) return false;
@@ -9280,18 +9288,39 @@ function renderAllRecords() {
     if (q && !e.hay.includes(q)) return false;
     return true;
   });
+  /* Item 19 (v2-patch-5): sort — Date (default, newest first) / Contractor /
+     Customer, matching the Field Work module's pattern. */
+  const sortMode = ($('#allRecSort') && $('#allRecSort').value) || 'date';
+  list = sortFieldWorkRecords(list, sortMode,
+    (e) => e.contractor, (e) => e.customer, (e) => e.date);
   if (!list.length) {
     root.innerHTML = '<div class="empty"><div class="em-title">No matching records</div><div>Adjust the search or filters above.</div></div>';
     return;
   }
-  root.innerHTML = list.map((e) => `
+  const row = (e) => `
     <div class="rec" data-allrec-kind="${e.kind}" data-allrec-id="${escapeHtml(e.id)}">
       <div class="rec-thumb">${e.kind === 'pest' ? 'PA' : escapeHtml(speciesInitial(e.title))}</div>
       <div class="rec-body">
-        <div class="rec-title">${escapeHtml(e.title)}<span class="rec-tag ${e.kind === 'pest' ? 'tag-X' : 'tag-R'}">${e.kind === 'pest' ? 'Pesticide' : 'Trapping'}</span></div>
+        <div class="rec-title">${escapeHtml(e.title)}<span class="rec-tag ${e.kind === 'pest' ? 'tag-X' : 'tag-R'}">${e.kind === 'pest' ? 'Pesticide' : 'Trapping'}</span>${e.jobId ? '' : '<span class="rec-tag" style="background:rgba(196,119,42,0.14);color:var(--amber);">Unlinked</span>'}</div>
         <div class="rec-meta">${escapeHtml(fmtShortDate(e.date) || 'no date')} · ${escapeHtml(e.sub)}</div>
       </div>
-    </div>`).join('');
+    </div>`;
+  if (sortMode === 'contractor') {
+    /* Group under contractor headers — unlinked records sit inline. */
+    let html = '';
+    let lastGroup = null;
+    for (const e of list) {
+      const g = e.contractor || '(no contractor)';
+      if (g !== lastGroup) {
+        lastGroup = g;
+        html += `<div style="color:var(--amber);font-weight:700;font-size:12px;text-transform:uppercase;letter-spacing:.04em;padding:10px 0 2px;">${escapeHtml(g)}</div>`;
+      }
+      html += row(e);
+    }
+    root.innerHTML = html;
+  } else {
+    root.innerHTML = list.map(row).join('');
+  }
 }
 
 async function fetchPesticideWeather() {
@@ -14232,7 +14261,7 @@ async function init() {
   });
 
   /* ---- Unified records view wiring (Items 8 & 9) ---- */
-  ['allRecSearch', 'allRecFrom', 'allRecTo', 'allRecCustomer', 'allRecContractor', 'allRecType'].forEach((id) => {
+  ['allRecSearch', 'allRecFrom', 'allRecTo', 'allRecCustomer', 'allRecContractor', 'allRecType', 'allRecSort'].forEach((id) => {
     const el = $('#' + id);
     if (!el) return;
     el.addEventListener('input', renderAllRecords);
