@@ -5571,8 +5571,10 @@ async function seedPriceListIfNeeded() {
  * ===================================================================== */
 let cachedCameraHealth = [];
 let cachedCameraPhotos = [];
+let cachedCameraStatus = [];   /* Item 21 (v2-patch-5): per-camera lastSeen + removal flags */
 let cameraHealthUnsub = null;
 let cameraPhotosUnsub = null;
+let cameraStatusUnsub = null;
 let currentFieldKey = null;
 const STATUS_RANK = { red: 0, yellow: 1, green: 2, none: 3 };
 /* Resolved Storage download URLs, keyed by storagePath (avoids re-resolving on re-render). */
@@ -5692,13 +5694,24 @@ function subscribeToFieldData() {
       if (!$('#app').classList.contains('hidden') && appMode === 'field') refreshFieldViews();
     }, (err) => console.error('cameraPhotos subscription error', err));
   }
+  /* Item 21 (v2-patch-5): cameraStatus keeps cameras visible (and carries
+     the pendingRemoval / removalConfirmed flags) even after all photos or
+     health rows are gone. */
+  if (!cameraStatusUnsub) {
+    cameraStatusUnsub = onSnapshot(collection(fbDb, 'cameraStatus'), (snap) => {
+      cachedCameraStatus = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      if (!$('#app').classList.contains('hidden') && appMode === 'field') refreshFieldViews();
+    }, (err) => console.error('cameraStatus subscription error', err));
+  }
 }
 function unsubscribeFromFieldData() {
   if (cameraHealthUnsub) { cameraHealthUnsub(); cameraHealthUnsub = null; }
   if (cameraPhotosUnsub) { cameraPhotosUnsub(); cameraPhotosUnsub = null; }
+  if (cameraStatusUnsub) { cameraStatusUnsub(); cameraStatusUnsub = null; }
   if (graphStatusUnsub) { graphStatusUnsub(); graphStatusUnsub = null; }
   cachedCameraHealth = [];
   cachedCameraPhotos = [];
+  cachedCameraStatus = [];
   graphStatusData = null;
 }
 function refreshFieldViews() {
@@ -5733,6 +5746,38 @@ function fieldGroups() {
     if (!g.customerId && p.customerId) g.customerId = p.customerId;
     if (!g.propertyId && p.propertyId) g.propertyId = p.propertyId;   /* M25 */
   }
+  /* Item 21 (v2-patch-5): cameraStatus rows keep a camera's group alive even
+     with zero photos (per-operator deletes) and zero health rows, and carry
+     the removal flags. */
+  for (const s of cachedCameraStatus) {
+    const g = get(s.customerKey || s.id);
+    if (!g.name && s.customerName) g.name = s.customerName;
+    if (!g.customerId && s.customerId) g.customerId = s.customerId;
+    if (!g.propertyId && s.propertyId) g.propertyId = s.propertyId;
+    g.statusDoc = s;
+  }
+  /* Item 21: a camera on file (property/customer Camera ID) whose customer
+     has an Active job is ALWAYS visible — even before its first ingest. */
+  const activeCustomerIds = new Set(lifecycleJobs()
+    .filter((x) => (x.status || 'Active') === 'Active')
+    .map((x) => x.customerId).filter(Boolean));
+  for (const p of cachedProperties) {
+    const cam = (p.cameraId || '').trim().toUpperCase();
+    if (!cam || !p.customerId || !activeCustomerIds.has(p.customerId)) continue;
+    const g = get(cam);
+    if (!g.customerId) {
+      g.customerId = p.customerId;
+      const c = cachedCustomers.find((x) => x.id === p.customerId);
+      if (!g.name && c) g.name = c.name || '';
+    }
+    if (!g.propertyId) g.propertyId = p.id;
+  }
+  for (const c of cachedCustomers) {
+    const cam = (c.cameraId || '').trim().toUpperCase();
+    if (!cam || !activeCustomerIds.has(c.id)) continue;
+    const g = get(cam);
+    if (!g.customerId) { g.customerId = c.id; if (!g.name) g.name = c.name || ''; }
+  }
   const arr = [...groups.values()];
   for (const g of arr) {
     g.status = worstOf(g.devices.map((d) => deviceStatusLive(d)));
@@ -5743,9 +5788,16 @@ function fieldGroups() {
       const r = resolveCustomerForKey(g.key);
       if (r) { g.customerId = r.id; g.name = r.name; g.propertyId = r.propertyId || g.propertyId || null; }
     }
+    /* Item 21: awaiting Jon's removal confirmation — visible with an
+       indicator until confirmed. A customer back on an active job cancels
+       the pending state client-side immediately. */
+    g.pendingRemoval = !!(g.statusDoc && g.statusDoc.pendingRemoval && !g.statusDoc.removalConfirmed
+      && !(g.customerId && activeCustomerIds.has(g.customerId)));
   }
-  arr.sort((a, b) => (STATUS_RANK[a.status] - STATUS_RANK[b.status]) || (a.name || a.key).localeCompare(b.name || b.key));
-  return arr;
+  /* Item 21: confirmed removals are hidden from active monitoring. */
+  const visible = arr.filter((g) => !(g.statusDoc && g.statusDoc.removalConfirmed));
+  visible.sort((a, b) => (STATUS_RANK[a.status] - STATUS_RANK[b.status]) || (a.name || a.key).localeCompare(b.name || b.key));
+  return visible;
 }
 
 function renderFieldDashboard() {
@@ -5767,11 +5819,13 @@ function renderFieldDashboard() {
     const label = g.name
       ? escapeHtml([g.name, gProp && gProp.siteNickname].filter(Boolean).join(' · '))
       : `${escapeHtml(g.key)}<span class="unlinked">unlinked</span>`;
+    /* Item 21: flagged for removal but awaiting Jon's confirmation. */
+    const pending = g.pendingRemoval ? '<span class="unlinked">pending removal</span>' : '';
     const nCam = g.devices.length, nPh = g.photos.length;
     return `<div class="field-row" data-field-key="${escapeHtml(g.key)}">
       <span class="cam-dot ${g.status}"></span>
       <div class="fr-body">
-        <div class="fr-name">${label}</div>
+        <div class="fr-name">${label}${pending}</div>
         <div class="fr-meta">${nPh} photo${nPh === 1 ? '' : 's'}</div>
       </div>
       <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="var(--ink-soft)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
@@ -5817,15 +5871,21 @@ function renderFieldDetail(key) {
     `<div class="btn-row" style="margin-top:10px;"><button class="btn btn-amber" id="fieldAssignBtn">Assign these photos to a customer</button></div>
      <div class="autocomplete-wrap" style="margin-top:8px;"><input type="text" id="field-assign-cust" class="hidden" autocomplete="off" placeholder="Search customer…"><div class="autocomplete-list hidden" id="field-assign-ac"></div></div>`;
 
+  /* Item 21 (v2-patch-5): pending-removal banner + Jon's explicit confirm. */
+  const removal = g.pendingRemoval
+    ? `<div class="hint" style="color:var(--amber);margin-top:8px;font-weight:600;">⚠ Pending Removal — no photo or status report in 14+ days and the job is closed. ${isAdmin() ? 'Confirm below to remove it from active monitoring.' : 'An admin must confirm the removal; until then the camera stays visible.'}</div>`
+    : '';
   box.innerHTML = `
     <div class="card">
       <div style="display:flex;align-items:center;gap:10px;"><span class="cam-dot ${g.status}"></span><h3 style="margin:0;">${title}</h3></div>
       ${g.customerId ? '' : '<div class="muted" style="margin-top:6px;">Not linked to a customer — the camera key didn’t match an active customer.</div>'}
+      ${removal}
       ${assign}
     </div>
     <div class="card"><h3 style="margin-top:0;">Camera Health</h3>${health}</div>
     <div class="card"><h3 style="margin-top:0;">Photos (${g.photos.length})</h3>${photos}</div>
     <div class="form-actions">
+      ${g.pendingRemoval && isAdmin() ? '<button class="btn btn-danger" id="fieldConfirmRemovalBtn">Confirm Camera Removal</button>' : ''}
       <button class="btn btn-danger" id="fieldClearBtn">Delete Photos</button>
       <button class="btn btn-cancel btn-ghost" id="fieldBackBtn">Back to Monitoring</button>
     </div>`;
@@ -5943,6 +6003,34 @@ async function clearFieldGroup(key) {
     renderFieldDashboard();
   } catch (err) {
     toast('Delete failed: ' + ((err && err.message) || 'error'), 'error');
+  }
+}
+
+/* Item 21 (v2-patch-5): Jon's explicit confirmation hides a pending-removal
+   camera from active monitoring. The ingest pipeline clears the flags (and
+   the camera reappears) automatically if it ever reports again. */
+async function confirmCameraRemoval(key) {
+  if (!isAdmin()) { toast('Only an administrator can confirm a camera removal.', 'error'); return; }
+  const g = fieldGroups().find((x) => x.key === key);
+  if (!g || !g.statusDoc) return;
+  const ok = await confirmDialog(
+    'Remove this camera from Monitoring?',
+    `${g.name || g.key} has sent no photo or status report in 14+ days and its job is closed. Confirming hides it from active monitoring — it returns automatically if it reports again.`,
+    { okText: 'Confirm Removal' }
+  );
+  if (!ok) return;
+  try {
+    await writeWithRetry(() => setDoc(doc(fbDb, 'cameraStatus', g.statusDoc.id), {
+      removalConfirmed: true,
+      removalConfirmedAt: new Date().toISOString(),
+      removalConfirmedBy: currentUser ? currentUser.email : null,
+      updatedAt: new Date().toISOString()
+    }, { merge: true }));
+    toast(`${g.name || g.key} removed from active monitoring`);
+    currentFieldKey = null;
+    setView('dashboard');
+  } catch (err) {
+    toast('Removal failed: ' + ((err && err.message) || 'error'), 'error');
   }
 }
 
@@ -14334,6 +14422,7 @@ async function init() {
   $('#fieldDetail').addEventListener('click', (e) => {
     if (e.target.closest('#fieldBackBtn')) { currentFieldKey = null; setView('dashboard'); return; }
     if (e.target.closest('#fieldClearBtn')) { clearFieldGroup(currentFieldKey); return; }
+    if (e.target.closest('#fieldConfirmRemovalBtn')) { confirmCameraRemoval(currentFieldKey); return; }   /* Item 21 */
     if (e.target.closest('#fieldAssignBtn')) {
       const i = $('#field-assign-cust');
       if (i) {

@@ -1488,6 +1488,53 @@ exports.cameraWatchdog = functions
         await notifyAllOperators({ type: 'camera', title: 'Camera offline', body, relatedId: d.id, tag: `cam-offline-${d.id}` });
         await d.ref.set({ lastNotifiedAt: { offline: new Date(now).toISOString() } }, { merge: true });
       }
+      /* Item 21 (v2-patch-5): pending-removal flow. A camera is flagged for
+         removal only when BOTH hold: its customer has no Active job (job
+         closed) AND it has sent no photo or status report in 14 days.
+         Flagging notifies jon@ (push + in-app feed); the camera stays
+         visible with a Pending Removal indicator until Jon explicitly
+         confirms in the app (removalConfirmed). Fresh activity clears both
+         flags so a revived camera reappears automatically. */
+      const REMOVAL_SILENCE_MS = 14 * 24 * 60 * 60 * 1000;
+      const JON = 'jon@southern-wildlife.com';
+      let activeJobCustomers = null;
+      try {
+        const activeJobs = await db.collection('jobs').where('status', '==', 'Active').get();
+        activeJobCustomers = new Set(activeJobs.docs.map((jd) => jd.get('customerId')).filter(Boolean));
+      } catch (e) {
+        console.error('active-job lookup for camera removal failed', e);
+      }
+      if (activeJobCustomers) {
+        for (const d of snap.docs) {
+          const s = d.data();
+          const last = s.lastSeen ? Date.parse(s.lastSeen) : 0;
+          const fresh = last && (now - last) < REMOVAL_SILENCE_MS;
+          if (fresh) {
+            /* Camera is alive again — clear any removal state. */
+            if (s.pendingRemoval || s.removalConfirmed) {
+              await d.ref.set({
+                pendingRemoval: false,
+                removalConfirmed: false,
+                updatedAt: new Date(now).toISOString()
+              }, { merge: true });
+            }
+            continue;
+          }
+          if (s.pendingRemoval || s.removalConfirmed) continue;   /* already flagged/hidden */
+          if (!s.customerId) continue;   /* unlinked cameras go through manual assignment, not removal */
+          if (activeJobCustomers.has(s.customerId)) continue;     /* job still active — camera stays */
+          await d.ref.set({
+            pendingRemoval: true,
+            pendingRemovalAt: new Date(now).toISOString()
+          }, { merge: true });
+          const body = `Camera ${d.id} · ${s.customerName || 'customer'} · job closed and no photo or status report in 14+ days. It will be removed from active monitoring once you confirm in the app.`;
+          const payload = { type: 'camera', title: 'Camera pending removal', body, relatedId: d.id, tag: `cam-removal-${d.id}` };
+          try { await sendPushToEmails([JON], payload); }
+          catch (e) { console.error('camera removal push failed', d.id, e); }
+          try { await createNotifications([JON], payload); }
+          catch (e) { console.error('camera removal feed notification failed', d.id, e); }
+        }
+      }
       /* M15: a whole network's daily report can stop arriving — then
          handleReportMessage never runs for it (its `noreport` check only
          fires when a report DOES arrive with a camera missing), and photo

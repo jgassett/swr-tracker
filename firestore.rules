@@ -210,10 +210,14 @@ service cloud.firestore {
     }
 
     /* Per-camera lastSeen tracking (Item 14) — written server-side by the
-       photo pipeline and read by the watchdog; clients read only. */
+       photo pipeline and read by the watchdog; clients read only.
+       v2-patch-5 Item 21: the admin may UPDATE a row to confirm a pending
+       camera removal (removalConfirmed flags) — mirrors the app's
+       admin-gated Confirm Camera Removal button. */
     match /cameraStatus/{cameraKey} {
-      allow read:  if request.auth != null;
-      allow write: if false;
+      allow read:   if request.auth != null;
+      allow update: if isAdmin();
+      allow create, delete: if false;
     }
 
     /* Camera health snapshots (per device), written server-side from the daily
