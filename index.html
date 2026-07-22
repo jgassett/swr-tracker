@@ -2861,17 +2861,12 @@
           <label for="lj-jobtype-other">Describe job type<span class="req">*</span></label>
           <input type="text" id="lj-jobtype-other" placeholder="e.g. Chimney Sweep">
         </div>
-        <!-- Item 15 (v2-patch-1): start/end dates on the job container. -->
-        <div class="field-row two">
-          <div class="form-group">
-            <label for="lj-start">Start date<span class="req">*</span></label>
-            <input type="date" id="lj-start" required>
-          </div>
-          <div class="form-group">
-            <label for="lj-end">End date<span class="req">*</span></label>
-            <input type="date" id="lj-end" required>
-            <div class="hint">Defaults to 30 days out — adjust as needed.</div>
-          </div>
+        <!-- Item 15 (v2-patch-5): end date removed from the job form — a job
+             stays open until closed out; a 30-day duration reminder nudges
+             the admin instead. Existing records keep any stored endDate. -->
+        <div class="form-group">
+          <label for="lj-start">Start date<span class="req">*</span></label>
+          <input type="date" id="lj-start" required>
         </div>
         <div class="form-group">
           <label for="lj-estimate">Linked estimate<span class="opt">(optional — one per job)</span></label>
@@ -10598,8 +10593,9 @@ function renderJobsList() {
   }
   el.innerHTML = list.map((j) => {
     const nTasks = tasksForJob(j.id).filter((t) => t.status !== 'Cancelled').length;
+    /* Item 15 (v2-patch-5): end date is no longer shown. */
     const dates = j.startDate
-      ? `${fmtShortDate(j.startDate)} – ${fmtShortDate(j.endDate) || 'open'}`
+      ? `started ${fmtShortDate(j.startDate)}`
       : (j.createdAt ? 'opened ' + fmtShortDate(j.createdAt.slice(0, 10)) : '');
     const who = (j.assigneeNames || []).join(', ');
     const bits = [dates, `${nTasks} task${nTasks === 1 ? '' : 's'}`, who].filter(Boolean);
@@ -10627,9 +10623,8 @@ function resetLifecycleJobForm() {
   /* Item 14: Other description hidden and empty on a fresh form. */
   $('#lj-jobtype-other').value = '';
   toggleGroup('cg-lj-jobtypeOther', false);
-  /* Item 15: start today, end 30 days out (adjustable). */
+  /* Item 15 (v2-patch-5): start today; no end date on the form. */
   $('#lj-start').value = todayISO();
-  $('#lj-end').value = addDaysISO(todayISO(), 30);
   const hint = $('#lj-customer-hint');
   if (hint) { hint.textContent = 'Pick a customer already on file — add them in Customers first if needed.'; hint.className = 'hint'; }
   populateLifecycleJobEstimates(null);
@@ -10729,12 +10724,9 @@ async function handleSaveLifecycleJob(e) {
   /* Item 14 (v2-patch-5): Other requires the description text. */
   const jobTypeOther = jobType === 'Other' ? $('#lj-jobtype-other').value.trim() : '';
   if (jobType === 'Other' && !jobTypeOther) { toast('Describe the job type', 'error'); $('#lj-jobtype-other').focus(); return; }
-  /* Item 15: start/end dates on the job container. */
+  /* Item 15 (v2-patch-5): only the start date lives on the form now. */
   const startDate = $('#lj-start').value;
-  const endDate = $('#lj-end').value;
   if (!startDate) { toast('Start date is required', 'error'); $('#lj-start').focus(); return; }
-  if (!endDate) { toast('End date is required', 'error'); $('#lj-end').focus(); return; }
-  if (endDate < startDate) { toast('End date can’t be before the start date', 'error'); $('#lj-end').focus(); return; }
   const operators = checkedEmails('lj-operators');
   const estimateId = $('#lj-estimate').value || null;
   const propertyId = ($('#lj-property') && $('#lj-property').value) || null;
@@ -10751,8 +10743,7 @@ async function handleSaveLifecycleJob(e) {
         propertyId,
         jobType,
         jobTypeOther,   /* Item 14 */
-        startDate,
-        endDate,
+        startDate,      /* Item 15: endDate no longer written from the UI */
         estimateId,
         estimateNumber: est ? (est.estimateNumber || '') : '',
         assignedOperators: operators,
@@ -10792,8 +10783,7 @@ async function handleSaveLifecycleJob(e) {
         /* Item 15: a new job is Active until Jon closes it out (Complete)
            or it's cancelled. */
         status: 'Active',
-        startDate,
-        endDate,
+        startDate,      /* Item 15: no endDate on new jobs */
         estimateId,
         estimateNumber: est ? (est.estimateNumber || '') : '',
         qbInvoiceNumber: null,
@@ -10843,9 +10833,9 @@ function editLifecycleJob(id) {
   /* Item 14: restore the Other description. */
   $('#lj-jobtype-other').value = j.jobTypeOther || '';
   toggleGroup('cg-lj-jobtypeOther', j.jobType === 'Other');
-  /* Item 15: start/end dates (legacy jobs pick up defaults on first edit). */
+  /* Item 15 (v2-patch-5): start date only (legacy endDate stays in storage,
+     just never shown or editable). */
   $('#lj-start').value = j.startDate || (j.createdAt ? j.createdAt.slice(0, 10) : todayISO());
-  $('#lj-end').value = j.endDate || addDaysISO($('#lj-start').value, 30);
   lifecycleJobCustomer = j.customerId ? { id: j.customerId, name: j.customerName || '' } : null;
   $('#lj-customer').value = j.customerName || '';
   const hint = $('#lj-customer-hint');
@@ -10944,7 +10934,6 @@ function renderTaskModelJobDetail(j) {
   if (isOpen) {
     actions += `<button class="btn btn-amber" data-ljob-action="add-task" data-id="${escapeHtml(id)}">+ Add Task</button>`;
     actions += `<button class="btn btn-ghost" data-ljob-action="add-contractor" data-id="${escapeHtml(id)}">Add Contractor</button>`;
-    actions += `<button class="btn btn-ghost" data-ljob-action="extend-end" data-id="${escapeHtml(id)}">Extend End Date</button>`;
     actions += `<button class="btn btn-primary" data-ljob-action="log-trap" data-id="${escapeHtml(id)}">Log Trap Activity</button>`;
     actions += `<button class="btn btn-primary" data-ljob-action="log-pesticide" data-id="${escapeHtml(id)}">Log Pesticide Activity</button>`;
   }
@@ -10966,7 +10955,7 @@ function renderTaskModelJobDetail(j) {
         : `<div style="margin-top:6px;font-weight:600;color:var(--green-deep);font-size:17px;">${escapeHtml(j.customerName || '')}</div>`}
       ${prop ? `<div class="muted" style="font-size:13px;">${escapeHtml([prop.siteNickname, prop.address].filter(Boolean).join(' · '))}</div>`
         : cust && cust.address ? `<div class="muted" style="font-size:13px;">${escapeHtml([cust.address, cust.city].filter(Boolean).join(', '))}</div>` : ''}
-      <div class="muted" style="font-size:13px;margin-top:4px;">${escapeHtml(fmtShortDate(j.startDate))} – ${escapeHtml(fmtShortDate(j.endDate) || 'open')} · ${escapeHtml((j.assigneeNames || []).join(', ') || 'unassigned')}</div>
+      <div class="muted" style="font-size:13px;margin-top:4px;">Started ${escapeHtml(fmtShortDate(j.startDate) || '—')} · ${escapeHtml((j.assigneeNames || []).join(', ') || 'unassigned')}</div>
       ${jobTaskProgressHtml(id)}
     </div>
     <div class="card">
@@ -11400,23 +11389,9 @@ function addContractorToJob(id) {
   renderLifecycleJobDetail(id);
 }
 
-function extendJobEndDate(id) {
-  const j = cachedJobs.find((x) => x.id === id);
-  if (!j) return;
-  const current = j.endDate || todayISO();
-  const suggestion = addDaysISO(current, 30);
-  const input = prompt(`New end date for ${j.jobNumber || 'this job'} (currently ${fmtShortDate(current)}):`, suggestion);
-  if (input === null) return;
-  const v = input.trim();
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(v)) { toast('Enter the date as YYYY-MM-DD', 'error'); return; }
-  if (j.startDate && v < j.startDate) { toast('End date can’t be before the start date', 'error'); return; }
-  writeWithRetry(() => setDoc(doc(fbDb, 'jobs', id), { endDate: v, updatedAt: new Date().toISOString() }, { merge: true }))
-    .catch((err) => { console.error('End-date extend failed', err); toast('Change failed to sync: ' + ((err && err.message) || 'error'), 'error'); });
-  const jdx = cachedJobs.findIndex((x) => x.id === id);
-  if (jdx >= 0) cachedJobs[jdx] = { ...cachedJobs[jdx], endDate: v };
-  toast(`End date moved to ${fmtShortDate(v)}`);
-  renderLifecycleJobDetail(id);
-}
+/* Item 15 (v2-patch-5): extendJobEndDate removed — endDate is no longer
+   shown or editable in the UI; the jobDurationReminder Cloud Function nudges
+   the admin every 30 days a job stays open instead. */
 
 /* Cancel every remaining Open task on a job (used by Close Out and Cancel).
    Optimistic batch — offline-safe like the other job writes. */
@@ -11509,7 +11484,7 @@ function renderCloseoutConfirm(id) {
       </div>
       ${j.jobType ? `<div style="margin-top:8px;"><span class="job-type-tag" style="font-size:13px;padding:3px 10px;">${escapeHtml(jobTypeDisplay(j))}</span></div>` : ''}
       <div style="margin-top:6px;font-weight:600;color:var(--green-deep);font-size:17px;">${escapeHtml(j.customerName || '')}</div>
-      <div class="muted" style="font-size:13px;margin-top:4px;">${escapeHtml(fmtShortDate(j.startDate))} – ${escapeHtml(fmtShortDate(j.endDate) || 'open')}</div>
+      <div class="muted" style="font-size:13px;margin-top:4px;">Started ${escapeHtml(fmtShortDate(j.startDate) || '—')}</div>
     </div>
     <div class="card">
       <h3 style="margin:0 0 8px;">Completed tasks</h3>
@@ -14013,7 +13988,7 @@ async function init() {
       setView('add-task');
     }
     else if (action === 'add-contractor') addContractorToJob(id);
-    else if (action === 'extend-end') extendJobEndDate(id);
+    /* Item 15 (v2-patch-5): 'extend-end' removed with the endDate UI. */
     /* Item 7 (v2-patch-2): 'close-out' removed — see the Close Out module. */
     else if (action === 'cancel-job') {
       const j = cachedJobs.find((x) => x.id === id);

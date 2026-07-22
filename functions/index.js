@@ -1398,6 +1398,54 @@ async function handleReportMessage(m, keyMap) {
 }
 
 /* =====================================================================
+ * Item 15 (v2-patch-5): 30-day job duration reminder — Cloud Scheduler,
+ * daily. Any lifecycle job (has a jobNumber) that has been Active for 30+
+ * days without being closed sends a push and in-app notification to
+ * jon@southern-wildlife.com ONLY, repeating every 30 days (tracked via
+ * lastDurationReminderAt on the job doc) until the job is closed.
+ * ===================================================================== */
+exports.jobDurationReminder = functions
+  .region(REGION)
+  .runWith({ timeoutSeconds: 300, memory: '256MB' })
+  .pubsub.schedule('every day 05:00')
+  .timeZone(REPORT_TZ)
+  .onRun(async () => {
+    const REMIND_MS = 30 * 24 * 60 * 60 * 1000;
+    const JON = 'jon@southern-wildlife.com';
+    try {
+      const snap = await db.collection('jobs').where('status', '==', 'Active').get();
+      const now = Date.now();
+      let sent = 0;
+      for (const d of snap.docs) {
+        const j = d.data();
+        if (!j.jobNumber) continue;   /* legacy schedule docs aren't jobs */
+        const activeSince = Date.parse(j.startDate || j.createdAt || '') || 0;
+        if (!activeSince || now - activeSince < REMIND_MS) continue;
+        const last = j.lastDurationReminderAt ? Date.parse(j.lastDurationReminderAt) : 0;
+        if (last && now - last < REMIND_MS) continue;   /* repeats every 30 days */
+        const days = Math.floor((now - activeSince) / 86400000);
+        const payload = {
+          type: 'job',
+          title: 'Job still open — 30 days',
+          body: `${j.jobNumber} · ${j.customerName || 'no customer'} · open ${days} days. Consider closing this job or extending it.`,
+          relatedId: d.id,
+          tag: `job-duration-${d.id}`
+        };
+        try { await sendPushToEmails([JON], payload); }
+        catch (e) { console.error('job duration push failed', d.id, e); }
+        try { await createNotifications([JON], payload); }
+        catch (e) { console.error('job duration feed notification failed', d.id, e); }
+        await d.ref.set({ lastDurationReminderAt: new Date(now).toISOString() }, { merge: true });
+        sent++;
+      }
+      console.log(`jobDurationReminder: ${sent} reminder${sent === 1 ? '' : 's'} sent`);
+    } catch (err) {
+      console.error('jobDurationReminder failed', err);
+    }
+    return null;
+  });
+
+/* =====================================================================
  * Camera watchdog (Item 14) — Cloud Scheduler, every 60 minutes.
  * Checks lastSeen across active camera records; any camera silent for more
  * than 390 minutes (6.5 hours) alerts every operator. Action-triggered
