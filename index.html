@@ -2679,9 +2679,9 @@
         <p class="muted">Camera health &amp; photos by customer, pulled from the trap cameras.</p>
       </div>
       <div class="conn-status" id="graphConnStatus" style="margin-bottom:8px;"></div>
-      <div class="btn-row" style="margin-bottom:10px;">
-        <button class="btn btn-ghost" id="fieldSyncBtn">Sync Now</button>
-      </div>
+      <!-- Item 3 (v2-patch-6): Sync Now button removed — the module auto-syncs
+           on open when the last completed sync is over 5 minutes old. -->
+      <div class="muted" id="fieldLastSynced" style="font-size:12px;margin:0 2px 10px;"></div>
       <div class="sync-now-status" id="fieldSyncStatus"></div>
       <div class="filter-row">
         <select id="fieldFilter">
@@ -4543,8 +4543,11 @@ function closeHowItWorksSheet() {
 }
 
 function setAppMode(mode, opts = {}) {
+  const prevMode = appMode;
   appMode = mode;
   modeSelected = true;
+  /* Item 3 (v2-patch-6): opening Monitoring auto-syncs (throttled, once). */
+  if (mode === 'field' && prevMode !== 'field') maybeAutoFieldSync();
   updateModuleUI();
   renderBottomNav();
   if (!opts.skipShowApp) {
@@ -4782,7 +4785,9 @@ async function autoSyncOnOpen(force) {
   if (!force && now - lastAutoSyncAt < 10 * 60 * 1000) return;   /* at most once / 10 min */
   lastAutoSyncAt = now;
   try { await handleSyncNow(); } catch (e) { /* inline status only */ }
-  try { await handleFieldSync(); } catch (e) { /* inline status only */ }
+  /* Item 3 (v2-patch-6): mailbox ingest goes through the throttled auto-sync
+     (skipped when the last completed sync is under 5 minutes old). */
+  try { await maybeAutoFieldSync(); } catch (e) { /* inline status only */ }
 }
 
 /* ---------- Firestore subscription ---------- */
@@ -5669,6 +5674,23 @@ function renderGraphConnStatus() {
   }
   el.textContent = text;
   el.className = 'conn-status ' + (stale ? 'off' : 'ok');
+  renderFieldLastSynced();   /* Item 3 (v2-patch-6): keep the header line current */
+}
+
+/* Item 3 (v2-patch-6): "Last synced X min ago" header line — replaces the
+   Sync Now button's feedback role. Driven by org/graphStatus.lastPollAt,
+   which the server stamps after every completed ingest (scheduled or
+   auto-triggered). */
+function renderFieldLastSynced() {
+  const el = $('#fieldLastSynced');
+  if (!el) return;
+  if (fieldAutoSyncInFlight) { el.textContent = 'Syncing…'; return; }
+  const last = graphStatusData && graphStatusData.lastPollAt ? Date.parse(graphStatusData.lastPollAt) : 0;
+  if (!last) { el.textContent = 'Not synced yet — photos and reports appear as they arrive.'; return; }
+  const mins = Math.round((Date.now() - last) / 60000);
+  el.textContent = mins < 1 ? 'Last synced just now'
+    : mins < 60 ? `Last synced ${mins} min ago`
+    : `Last synced ${Math.round(mins / 60)} hr ago`;
 }
 
 function subscribeToFieldData() {
@@ -5814,7 +5836,7 @@ function renderFieldDashboard() {
   let groups = fieldGroups();
   if (filter === 'alerts') groups = groups.filter((g) => g.status === 'red' || g.status === 'yellow');
   if (!groups.length) {
-    root.innerHTML = '<div style="padding:16px;color:var(--ink-soft);">No camera data yet. Photos and daily reports populate automatically as they arrive; tap <strong>Sync Now</strong> to pull the latest.</div>';
+    root.innerHTML = '<div style="padding:16px;color:var(--ink-soft);">No cameras installed yet. Assign a Camera ID to a customer’s property to see it here; photos and daily reports populate automatically as they arrive.</div>';
     return;
   }
   root.innerHTML = groups.map((g) => {
@@ -6206,34 +6228,43 @@ async function confirmCameraRemoval(key) {
   }
 }
 
-async function handleFieldSync() {
-  const btn = $('#fieldSyncBtn'), status = $('#fieldSyncStatus');
-  if (btn) { btn.disabled = true; btn.textContent = 'Syncing…'; }
+/* Item 3 (v2-patch-6): the manual Sync Now button is gone. Opening the
+   Monitoring module fires at most ONE automatic fieldSyncNow, and only when
+   the last completed sync (org/graphStatus.lastPollAt) is older than 5
+   minutes — otherwise the module renders straight from Firestore (the
+   scheduled cuddebackIngest runs every 15 minutes anyway). */
+const FIELD_AUTO_SYNC_MAX_AGE_MS = 5 * 60 * 1000;
+let fieldAutoSyncInFlight = false;
+
+async function maybeAutoFieldSync() {
+  if (fieldAutoSyncInFlight) return;               /* never two per open */
+  const status = $('#fieldSyncStatus');
+  const last = graphStatusData && graphStatusData.lastPollAt ? Date.parse(graphStatusData.lastPollAt) : 0;
+  if (last && Date.now() - last < FIELD_AUTO_SYNC_MAX_AGE_MS) {
+    if (status) status.textContent = '';
+    renderFieldLastSynced();
+    return;   /* fresh enough — render from Firestore, no sync */
+  }
+  fieldAutoSyncInFlight = true;
+  renderFieldLastSynced();
   if (status) { status.style.color = 'var(--ink-soft)'; status.textContent = 'Checking the mailbox…'; }
   try {
     const res = await httpsCallable(fbFunctions, 'fieldSyncNow')();
     const r = (res && res.data) || {};
-    /* M16: the server holds an ingest lease — a manual sync that overlaps
+    /* M16: the server holds an ingest lease — an auto-sync that overlaps
        the scheduled poll reports busy instead of double-processing. */
     if (r.busy) {
-      if (status) { status.style.color = 'var(--ink-soft)'; status.textContent = 'A sync is already running — try again in a minute.'; }
-      toast('Sync already in progress');
+      if (status) { status.textContent = ''; }
       return;
     }
-    if (status) {
-      status.style.color = 'var(--green-deep)';
-      status.innerHTML = `✓ Processed ${r.processed ?? 0} email${r.processed === 1 ? '' : 's'} — ` +
-        `<strong>${r.photos ?? 0}</strong> photo${r.photos === 1 ? '' : 's'}, <strong>${r.reports ?? 0}</strong> report${r.reports === 1 ? '' : 's'}` +
-        `${r.unassigned ? `, ${r.unassigned} unassigned` : ''}.`;
-    }
-    toast('Field sync complete');
+    if (status) status.textContent = '';
   } catch (err) {
     const code = (err && err.code) || '';
-    const msg = code === 'functions/unauthenticated' ? 'Please sign in again.' : ('Sync failed: ' + ((err && err.message) || 'error'));
+    const msg = code === 'functions/unauthenticated' ? 'Please sign in again.' : ('Auto-sync failed: ' + ((err && err.message) || 'error'));
     if (status) { status.style.color = 'var(--amber)'; status.textContent = msg; }
-    toast('Field sync failed', 'error');
   } finally {
-    if (btn) { btn.disabled = false; btn.textContent = 'Sync Now'; }
+    fieldAutoSyncInFlight = false;
+    renderFieldLastSynced();
   }
 }
 
@@ -11192,8 +11223,11 @@ function editLifecycleJob(id) {
 
 /* Switch module without the dashboard flash setAppMode() causes. */
 function setAppModeQuiet(mode) {
+  const prevMode = appMode;
   appMode = mode;
   modeSelected = true;
+  /* Item 3 (v2-patch-6): opening Monitoring auto-syncs (throttled, once). */
+  if (mode === 'field' && prevMode !== 'field') maybeAutoFieldSync();
   updateModuleUI();
   renderBottomNav();
   $('#modePicker').classList.add('hidden');
@@ -14597,7 +14631,7 @@ async function init() {
 
   /* ---- Monitoring (camera) wiring ---- */
   /* Item 4 (v2-patch-2): landing-page camera alert banner removed. */
-  $('#fieldSyncBtn').addEventListener('click', handleFieldSync);
+  /* Item 3 (v2-patch-6): Sync Now button removed — auto-sync on module open. */
   $('#fieldFilter').addEventListener('change', renderFieldDashboard);
   $('#fieldList').addEventListener('click', (e) => {
     const row = e.target.closest('[data-field-key]');
