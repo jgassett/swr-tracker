@@ -10997,7 +10997,9 @@ function renderTaskModelJobDetail(j) {
       <div class="appt-timeline">${taskRows}</div>
     </div>
     ${j.notes ? `<div class="card"><h3 style="margin-top:0;">Notes</h3><div>${escapeHtml(j.notes)}</div></div>` : ''}
-    <div class="form-actions">${actions}<button class="btn btn-cancel btn-ghost" data-ljob-action="back">Back to Jobs</button></div>`;
+    <div class="form-actions">${actions}</div>`;
+    /* Item 17 (v2-patch-5): the Return to Jobs button is gone — the Jobs
+       icon in the bottom banner already navigates back to the list. */
 }
 
 function renderLifecycleJobDetail(id) {
@@ -11091,7 +11093,9 @@ function renderLifecycleJobDetail(id) {
       <div class="appt-timeline">${apptRows}</div>
     </div>
     ${j.notes ? `<div class="card"><h3 style="margin-top:0;">Notes</h3><div>${escapeHtml(j.notes)}</div></div>` : ''}
-    <div class="form-actions">${actions}<button class="btn btn-cancel btn-ghost" data-ljob-action="back">Back to Jobs</button></div>`;
+    <div class="form-actions">${actions}</div>`;
+    /* Item 17 (v2-patch-5): the Return to Jobs button is gone — the Jobs
+       icon in the bottom banner already navigates back to the list. */
 }
 
 /* ---- Job payment (Items 3 & 5) ----
