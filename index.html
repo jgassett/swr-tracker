@@ -1749,17 +1749,16 @@
         <p id="greetingSub">Here's how your reporting period is shaping up.</p>
       </div>
 
-      <div class="stat-grid stats-2">
+      <!-- Item 8 (v2-patch-6): contractor panels are generated dynamically
+           from the operator list (TRAPPERS) — the SWR total plus one panel
+           per operator, never hard-coded names. -->
+      <div class="stat-grid stats-2" id="dashStatGrid">
         <div class="stat">
           <div class="label">SWR · This Period</div>
           <div class="value" id="statTotalSwr">0</div>
           <div class="sub" id="statTotalSwrSub">all trappers</div>
         </div>
-        <div class="stat">
-          <div class="label">You · This Period</div>
-          <div class="value" id="statTotalUser">0</div>
-          <div class="sub" id="statTotalUserSub">your records</div>
-        </div>
+        <div id="contractorStats" style="display:contents;"></div>
       </div>
 
 
@@ -8190,6 +8189,23 @@ function renderSingleMode(list) {
 }
 
 /* ---------- Dashboard ---------- */
+/* Item 8 (v2-patch-6): per-contractor stat panels, generated from the
+   operator list (TRAPPERS) — never hard-coded names, no certification-based
+   hiding (Tanya's panel renders like the others). Counts match on the
+   record's stored contractor name (trapper / applicator). */
+function renderContractorStats(records, nameOf, noun) {
+  const root = $('#contractorStats');
+  if (!root) return;
+  root.innerHTML = TRAPPERS.map((name) => {
+    const n = records.filter((r) => (nameOf(r) || '') === name).length;
+    return `<div class="stat">
+      <div class="label">${escapeHtml(name)}</div>
+      <div class="value">${n}</div>
+      <div class="sub">${n === 1 ? noun : noun + 's'} this period</div>
+    </div>`;
+  }).join('');
+}
+
 function renderDashboard() {
   if (appMode === 'pesticide') return renderPesticideDashboard();
   const period = reportPeriod();
@@ -8205,9 +8221,10 @@ function renderDashboard() {
   const minePeriod = inP.filter((r) => (r.createdByEmail || '').toLowerCase() === myEmail);
 
   $('#statTotalSwr').textContent = inP.length;
-  $('#statTotalUser').textContent = minePeriod.length;
   $('#statTotalSwrSub').textContent = 'all trappers';
-  $('#statTotalUserSub').textContent = minePeriod.length === 1 ? 'your record' : 'your records';
+  /* Item 8 (v2-patch-6): one panel per operator, generated from TRAPPERS —
+     all four contractors appear regardless of certification status. */
+  renderContractorStats(inP, (r) => r.trapper, 'record');
 
   /* Top species */
   const scope = topSpeciesScope === 'me' ? minePeriod : inP;
@@ -8273,9 +8290,9 @@ function renderPesticideDashboard() {
   const mine = inP.filter((r) => (r.createdByEmail || '').toLowerCase() === myEmail);
 
   $('#statTotalSwr').textContent = inP.length;
-  $('#statTotalUser').textContent = mine.length;
   $('#statTotalSwrSub').textContent = 'all applicators';
-  $('#statTotalUserSub').textContent = mine.length === 1 ? 'your application' : 'your applications';
+  /* Item 8 (v2-patch-6): per-operator panels from TRAPPERS. */
+  renderContractorStats(inP, (r) => r.applicator, 'application');
 
   /* Top products (by application count, not weighted) — reuse #topSpeciesList */
   const counts = {};
