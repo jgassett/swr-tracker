@@ -726,6 +726,9 @@ async function createNotifications(emails, payload) {
       title: String(payload.title || ''),
       body: String(payload.body || ''),
       relatedId: payload.relatedId || null,
+      /* Item 6 (v2-patch-6): pinned notices stay at the top of the feed and
+         are exempt from age-based cleanup until read/dismissed. */
+      pinned: !!payload.pinned,
       read: false,
       createdAt: now
     });
@@ -995,6 +998,9 @@ exports.cleanupNotifications = functions
       if (snap.empty) { console.log('cleanupNotifications: nothing older than 60 days'); return null; }
       let batch = db.batch(); let ops = 0; let deleted = 0;
       for (const d of snap.docs) {
+        /* Item 6 (v2-patch-6): a pinned notice (KDFWR rollover) survives
+           every age-based cleanup until it has been read/dismissed. */
+        if (d.get('pinned') === true && d.get('read') !== true) continue;
         batch.delete(d.ref); ops++; deleted++;
         if (ops >= 450) { await batch.commit(); batch = db.batch(); ops = 0; }
       }
@@ -1424,6 +1430,86 @@ exports.jobDurationReminder = functions
       console.log(`jobDurationReminder: ${sent} reminder${sent === 1 ? '' : 's'} sent`);
     } catch (err) {
       console.error('jobDurationReminder failed', err);
+    }
+    return null;
+  });
+
+/* =====================================================================
+ * Item 6 (v2-patch-6): KDFWR reporting-period automation. The cycle is
+ * hard-coded — Feb 1 through Jan 31, rolling automatically each year; the
+ * period is no longer user-editable in the app. Daily check at 06:00 ET:
+ *  - Jan 25 (through Jan 31 as a catch-up window): advance notice to Jon
+ *    ONLY — the reporting period closes Jan 31; prepare the KDFWR annual
+ *    report.
+ *  - Feb 1 (any February day as a catch-up window): notice to Jon that the
+ *    period has closed and the just-ended period's report must be
+ *    downloaded (Export → Prior period) and submitted, then org/swr is
+ *    rolled to the new period. The in-app notice is PINNED — it stays in
+ *    the Notifications feed, exempt from age-based cleanup, until Jon
+ *    dismisses it.
+ * Dedup: org/swr.kdfwrAdvanceNoticeFor / kdfwrRolloverFor record the cycle
+ * already handled, so retries and catch-up days can't repeat a notice.
+ * ===================================================================== */
+exports.kdfwrPeriodRollover = functions
+  .region(REGION)
+  .runWith({ timeoutSeconds: 120, memory: '256MB' })
+  .pubsub.schedule('every day 06:00')
+  .timeZone(REPORT_TZ)
+  .onRun(async () => {
+    const JON = 'jon@southern-wildlife.com';
+    try {
+      /* Calendar date in the report timezone, not UTC. */
+      const todayIso = new Date().toLocaleDateString('en-CA', { timeZone: REPORT_TZ });
+      const [y, m, d] = todayIso.split('-').map(Number);
+      const orgRef = db.doc('org/swr');
+      const orgSnap = await orgRef.get();
+      const org = orgSnap.exists ? orgSnap.data() : {};
+
+      if (m === 1 && d >= 25) {
+        /* The period closing Jan 31 of year y started Feb 1 of y-1. */
+        const startYear = y - 1;
+        if (org.kdfwrAdvanceNoticeFor !== startYear) {
+          const payload = {
+            type: 'kdfwr',
+            title: 'KDFWR reporting period closes Jan 31',
+            body: `The current KDFWR reporting period (Feb 1, ${startYear} – Jan 31, ${y}) closes on January 31. Prepare the KDFWR annual report.`,
+            relatedId: 'kdfwr-period',
+            tag: `kdfwr-advance-${startYear}`
+          };
+          try { await sendPushToEmails([JON], payload); }
+          catch (e) { console.error('KDFWR advance push failed', e); }
+          try { await createNotifications([JON], payload); }
+          catch (e) { console.error('KDFWR advance feed notification failed', e); }
+          await orgRef.set({ kdfwrAdvanceNoticeFor: startYear }, { merge: true });
+          console.log(`kdfwrPeriodRollover: advance notice sent for period starting ${startYear}`);
+        }
+      }
+
+      if (m === 2 && org.kdfwrRolloverFor !== y) {
+        const endedStartYear = y - 1;
+        const payload = {
+          type: 'kdfwr',
+          title: 'KDFWR period closed — submit the annual report',
+          body: `The KDFWR reporting period Feb 1, ${endedStartYear} – Jan 31, ${y} has closed. Download the PRIOR period's KDFWR CSV from the Export screen and submit it to KDFWR. This notice stays pinned until you dismiss it.`,
+          relatedId: 'kdfwr-period',
+          tag: `kdfwr-rollover-${y}`,
+          pinned: true
+        };
+        try { await sendPushToEmails([JON], payload); }
+        catch (e) { console.error('KDFWR rollover push failed', e); }
+        try { await createNotifications([JON], payload); }
+        catch (e) { console.error('KDFWR rollover feed notification failed', e); }
+        /* Roll org/swr to the new period (server-maintained bookkeeping —
+           the app computes the cycle itself and never edits these). */
+        await orgRef.set({
+          kdfwrRolloverFor: y,
+          reportingPeriodStart: `${y}-02-01`,
+          reportingPeriodEnd: `${y + 1}-01-31`
+        }, { merge: true });
+        console.log(`kdfwrPeriodRollover: rolled org/swr to Feb 1, ${y} – Jan 31, ${y + 1}`);
+      }
+    } catch (err) {
+      console.error('kdfwrPeriodRollover failed', err);
     }
     return null;
   });

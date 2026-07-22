@@ -3153,29 +3153,9 @@
           <select id="photoRetentionDays" class="cfg-select"></select>
         </div>
         <div class="hint" id="photoRetentionHint"></div>
-        <hr class="div" style="margin:10px 0;">
-        <div class="cfg-row" style="align-items:flex-start;">
-          <label style="padding-top:6px;">Reporting Period</label>
-          <div class="rpt-selectors">
-            <div class="rpt-line">
-              <span class="rpt-k">Start</span>
-              <select id="rptStartMonth" aria-label="Start month"></select>
-              <select id="rptStartDay" aria-label="Start day"></select>
-              <select id="rptStartYear" aria-label="Start year"></select>
-            </div>
-            <div class="rpt-line">
-              <span class="rpt-k">End</span>
-              <select id="rptEndMonth" aria-label="End month"></select>
-              <select id="rptEndDay" aria-label="End day"></select>
-              <select id="rptEndYear" aria-label="End year"></select>
-            </div>
-          </div>
-        </div>
-        <div class="hint" id="rptHint"></div>
-        <div class="btn-row" id="rptActions" style="margin-top:8px;">
-          <button class="btn btn-primary btn-compact" id="saveRptBtn">Save Period</button>
-          <button class="btn btn-ghost btn-compact" id="resetRptBtn">KDFWR Default</button>
-        </div>
+        <!-- Item 6 (v2-patch-6): the Reporting Period selectors are gone —
+             the KDFWR cycle (Feb 1 – Jan 31) is hard-coded and rolls
+             automatically each year (server-side rollover on Feb 1). -->
       </div>
 
       <!-- Section 3: Management -->
@@ -3980,13 +3960,10 @@ function fmtShortDate(iso) {
   return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 }
 function reportPeriod(refDate = new Date()) {
-  /* If admin has set an explicit period in the org config, honor it. */
-  if (orgSettings.reportingPeriodStart && orgSettings.reportingPeriodEnd) {
-    const start = orgSettings.reportingPeriodStart;
-    const end = orgSettings.reportingPeriodEnd;
-    return { start, end, startYear: parseInt(start.slice(0, 4), 10) };
-  }
-  /* Default: KDFWR Feb 1 – Jan 31. */
+  /* Item 6 (v2-patch-6): the KDFWR cycle is HARD-CODED — Feb 1 through
+     Jan 31, rolling automatically each year. The org/swr copy of the period
+     is server-maintained bookkeeping (Feb 1 rollover function) and is no
+     longer consulted or user-editable. */
   const y = refDate.getFullYear();
   const startYear = refDate.getMonth() >= 1 ? y : y - 1;
   const start = `${startYear}-02-01`;
@@ -4994,7 +4971,6 @@ function subscribeToOrg() {
       };
     }
     renderBusinessCard();
-    renderReportingCard();
     renderCertCard();
     renderPhotoRetentionCard();
     refreshApplicatorDropdown();
@@ -8514,14 +8490,19 @@ function fillExportPeriods() {
   const sel = $('#exportPeriod');
   sel.innerHTML = '';
   const cur = reportPeriod();
+  const labels = ['Current period', 'Prior period'];
   for (let off = 0; off < 4; off++) {
     const start = `${cur.startYear - off}-02-01`;
     const end = `${cur.startYear - off + 1}-01-31`;
     const o = document.createElement('option');
     o.value = `${start}|${end}`;
-    o.textContent = `${fmtDate(start)} – ${fmtDate(end)}`;
+    o.textContent = `${labels[off] ? labels[off] + ' · ' : ''}${fmtDate(start)} – ${fmtDate(end)}`;
     sel.appendChild(o);
   }
+  /* Item 6d (v2-patch-6): after the Feb 1 rollover the report being
+     submitted is the PRIOR period's — default to it through February so
+     the rollover reminder points at a working export. */
+  if (new Date().getMonth() === 1 && sel.options.length > 1) sel.selectedIndex = 1;
 }
 
 function exportKdfwr() {
@@ -8594,75 +8575,10 @@ function renderBusinessCard() {
   $('#permitEdit').classList.toggle('hidden', !isAdmin());
 }
 
-/* Item 5 (v2-patch-2): reporting period as compact day/month/year dropdowns
-   on the Settings Configuration card. Defaults to the KDFWR Feb 1 – Jan 31
-   period; admin-set custom dates are stored in the same org fields as
-   before, so dashboard stats and CSV exports (both Trapping and Pesticide
-   modules) keep using reportPeriod() unchanged. */
-const RPT_MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-function fillRptSelectors(prefix, iso) {
-  const [y, m, d] = (iso || '').split('-').map(Number);
-  const mSel = $(`#rpt${prefix}Month`), dSel = $(`#rpt${prefix}Day`), ySel = $(`#rpt${prefix}Year`);
-  if (!mSel || !dSel || !ySel) return;
-  if (!mSel.options.length) {
-    RPT_MONTHS.forEach((name, i) => {
-      const o = document.createElement('option');
-      o.value = String(i + 1); o.textContent = name;
-      mSel.appendChild(o);
-    });
-    for (let day = 1; day <= 31; day++) {
-      const o = document.createElement('option');
-      o.value = String(day); o.textContent = String(day);
-      dSel.appendChild(o);
-    }
-  }
-  /* Years re-fill each render so the range tracks the current period. */
-  const thisYear = new Date().getFullYear();
-  ySel.innerHTML = '';
-  for (let yr = thisYear - 2; yr <= thisYear + 2; yr++) {
-    const o = document.createElement('option');
-    o.value = String(yr); o.textContent = String(yr);
-    ySel.appendChild(o);
-  }
-  if (y && !Array.from(ySel.options).some((o) => o.value === String(y))) {
-    const o = document.createElement('option');
-    o.value = String(y); o.textContent = String(y);
-    ySel.appendChild(o);
-  }
-  if (m) mSel.value = String(m);
-  if (d) dSel.value = String(d);
-  if (y) ySel.value = String(y);
-}
-function readRptSelectors(prefix) {
-  const m = parseInt($(`#rpt${prefix}Month`).value, 10);
-  const d = parseInt($(`#rpt${prefix}Day`).value, 10);
-  const y = parseInt($(`#rpt${prefix}Year`).value, 10);
-  if (!m || !d || !y) return null;
-  /* The day list always offers 1–31 — reject combinations that don't
-     exist (e.g. Feb 31) instead of storing an ISO string that rolls over. */
-  const roundTrip = new Date(y, m - 1, d);
-  if (roundTrip.getFullYear() !== y || roundTrip.getMonth() !== m - 1 || roundTrip.getDate() !== d) return null;
-  return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-}
-function renderReportingCard() {
-  const p = reportPeriod();
-  fillRptSelectors('Start', p.start);
-  fillRptSelectors('End', p.end);
-  const custom = !!(orgSettings.reportingPeriodStart && orgSettings.reportingPeriodEnd);
-  const hint = $('#rptHint');
-  if (hint) {
-    hint.textContent = isAdmin()
-      ? (custom ? 'Custom period (admin set) — applies to dashboards and CSV exports for both modules.'
-                : 'KDFWR default (Feb 1 – Jan 31).')
-      : 'Only an admin can change the reporting period.';
-  }
-  const admin = isAdmin();
-  ['rptStartMonth', 'rptStartDay', 'rptStartYear', 'rptEndMonth', 'rptEndDay', 'rptEndYear'].forEach((id) => {
-    const el = $('#' + id); if (el) el.disabled = !admin;
-  });
-  const actions = $('#rptActions');
-  if (actions) actions.style.display = admin ? '' : 'none';
-}
+/* Item 6 (v2-patch-6): the Reporting Period editor (fillRptSelectors /
+   readRptSelectors / renderReportingCard / handleSaveReporting /
+   handleResetReporting) is removed — the KDFWR cycle is hard-coded in
+   reportPeriod() and rolls automatically (server-side, Feb 1). */
 
 async function handleSaveBusiness() {
   if (!isAdmin()) return;
@@ -9907,48 +9823,6 @@ async function deletePesticide(id) {
   }
 }
 
-/* Item 5 (v2-patch-2): reads the day/month/year dropdowns; storage fields
-   and reportPeriod() semantics are unchanged. */
-async function handleSaveReporting() {
-  if (!isAdmin()) return;
-  const start = readRptSelectors('Start');
-  const end = readRptSelectors('End');
-  if (!start || !end) {
-    toast('Pick valid start and end dates (that day doesn’t exist in that month).', 'error');
-    return;
-  }
-  if (start > end) {
-    toast('Start date must come before end date.', 'error');
-    return;
-  }
-  const body = `Set reporting period to ${fmtDate(start)} – ${fmtDate(end)}. This applies to every trapper's dashboard stats and CSV exports (Trapping and Pesticide). Type CONFIRM to proceed.`;
-  const ok = await confirmDialog('Save reporting period?', body, { sentinel: 'CONFIRM', okText: 'Save' });
-  if (!ok) return;
-  try {
-    await saveOrgConfig({
-      reportingPeriodStart: start,
-      reportingPeriodEnd: end
-    });
-    toast('Reporting period saved');
-  } catch (err) {
-    toast(`Save failed: ${err.message || err}`, 'error');
-  }
-}
-
-/* Item 5: revert to the auto-computed KDFWR default (Feb 1 – Jan 31). */
-async function handleResetReporting() {
-  if (!isAdmin()) return;
-  const ok = await confirmDialog('Revert to KDFWR default?',
-    'This clears the custom period and returns to the auto-computed KDFWR default (Feb 1 – Jan 31). Type CONFIRM to proceed.',
-    { sentinel: 'CONFIRM', okText: 'Revert' });
-  if (!ok) return;
-  try {
-    await saveOrgConfig({ reportingPeriodStart: null, reportingPeriodEnd: null });
-    toast('Reporting period reset to KDFWR default');
-  } catch (err) {
-    toast(`Save failed: ${err.message || err}`, 'error');
-  }
-}
 async function restoreFromFile(file) {
   try {
     const txt = await file.text();
@@ -10661,7 +10535,8 @@ function updateBellBadge() {
 const NOTIF_TYPE_META = {
   appointment: { icon: '📅', label: 'Appointment' },
   camera: { icon: '📷', label: 'Camera alert' },
-  job: { icon: '💼', label: 'Job update' }
+  job: { icon: '💼', label: 'Job update' },
+  kdfwr: { icon: '📋', label: 'KDFWR reporting' }   /* Item 6 (v2-patch-6) */
 };
 
 function fmtNotifTime(iso) {
@@ -10718,20 +10593,25 @@ function renderNotificationsPage() {
   const row = (n) => {
     const meta = NOTIF_TYPE_META[n.type] || { icon: '🔔', label: n.type || 'Notice' };
     const source = notifSourceName(n);
+    /* Item 6 (v2-patch-6): pinned notices (KDFWR rollover) carry a pin and
+       sit at the very top until dismissed. */
+    const pin = n.pinned && !n.read ? '📌 ' : '';
     return `<div class="notif-row${n.read ? '' : ' unread'}">
       <div class="nf-icon">${meta.icon}</div>
       <div class="nf-body">
-        <div class="nf-title">${escapeHtml(n.title || meta.label)}</div>
+        <div class="nf-title">${pin}${escapeHtml(n.title || meta.label)}</div>
         ${n.body ? `<div class="nf-text">${escapeHtml(n.body)}</div>` : ''}
         <div class="nf-meta">${escapeHtml([meta.label, source, fmtNotifTime(n.createdAt)].filter(Boolean).join(' · '))}</div>
       </div>
       ${n.read ? '' : `<button type="button" class="nf-dismiss" data-notif-dismiss="${escapeHtml(n.id)}" aria-label="Dismiss">×</button>`}
     </div>`;
   };
-  /* Unread first, then read — each newest-first. With no unread left, the
-     caught-up state still shows above the history so an empty inbox reads
-     as "working", not "broken". */
-  root.innerHTML = (unread.length ? '' : caughtUp) + [...unread, ...read].map(row).join('');
+  /* Pinned-unread first (Item 6), then unread, then read — each
+     newest-first. With no unread left, the caught-up state still shows
+     above the history so an empty inbox reads as "working", not "broken". */
+  const pinnedUnread = unread.filter((n) => n.pinned);
+  const restUnread = unread.filter((n) => !n.pinned);
+  root.innerHTML = (unread.length ? '' : caughtUp) + [...pinnedUnread, ...restUnread, ...read].map(row).join('');
 }
 
 function dismissNotification(id) {
@@ -14098,8 +13978,7 @@ async function init() {
 
   $('#saveBizBtn').addEventListener('click', handleSaveBusiness);
   $('#savePermitBtn').addEventListener('click', handleSavePermit);   /* Item 5 */
-  $('#saveRptBtn').addEventListener('click', handleSaveReporting);
-  $('#resetRptBtn').addEventListener('click', handleResetReporting); /* Item 5 */
+  /* Item 6 (v2-patch-6): Reporting Period editor removed — no wiring. */
   $('#saveCertBtn').addEventListener('click', handleSaveCerts);
 
   /* Item 5 (v2-patch-2): Settings sub-screen navigation. */
@@ -14955,7 +14834,6 @@ async function init() {
       subscribeToProperties();
       subscribeToNotifications();
       renderBusinessCard();
-      renderReportingCard();
       renderCertCard();
       /* Route to the three-module landing page after sign-in (Item 7). */
       showLanding();
