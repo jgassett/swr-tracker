@@ -4435,28 +4435,29 @@ const NAV_CONFIGS = {
     { view: 'add', label: 'Add', icon: 'plus', fab: true },
     { view: 'export', label: 'Export', icon: 'export' }
   ],
+  /* Item 10 (v2-patch-6): the per-page label icons (a bottom-nav button
+     naming the current page — "Customers" on Customers, "Monitoring" on
+     Monitoring, "Close Out" on Close Out, …) are removed app-wide. They
+     duplicated the page header and were mistaken for action buttons.
+     Functional navigation (Home, Records, Add/New, Export) stays; detail
+     screens keep/regain explicit Back buttons. */
   customer: [
     { view: 'menu', label: 'Home', icon: 'home' },
-    { view: 'dashboard', label: 'Customers', icon: 'users' },
     { view: 'add', label: 'Add', icon: 'plus', fab: true }
   ],
   pricing: [
     { view: 'menu', label: 'Home', icon: 'home' },
-    { view: 'dashboard', label: 'Estimates', icon: 'list' },
     { view: 'add', label: 'New', icon: 'plus', fab: true }
   ],
   jobs: [
     { view: 'menu', label: 'Home', icon: 'home' },
-    { view: 'dashboard', label: 'Jobs', icon: 'briefcase' },
     { view: 'add', label: 'New', icon: 'plus', fab: true }
   ],
   field: [
-    { view: 'menu', label: 'Home', icon: 'home' },
-    { view: 'dashboard', label: 'Monitoring', icon: 'camera' }
+    { view: 'menu', label: 'Home', icon: 'home' }
   ],
   schedule: [
     { view: 'menu', label: 'Home', icon: 'home' },
-    { view: 'dashboard', label: 'Calendar', icon: 'calendar' },
     { view: 'add', label: 'New', icon: 'plus', fab: true }
   ],
   settings: [
@@ -4468,13 +4469,11 @@ const NAV_CONFIGS = {
   ],
   /* Item 7 (v2-patch-2): Close Out workflow step. */
   closeout: [
-    { view: 'menu', label: 'Home', icon: 'home' },
-    { view: 'dashboard', label: 'Close Out', icon: 'check' }
+    { view: 'menu', label: 'Home', icon: 'home' }
   ],
   /* Item 7 (v2-patch-6): private per-operator notes. */
   notes: [
     { view: 'menu', label: 'Home', icon: 'home' },
-    { view: 'dashboard', label: 'Notes', icon: 'note' },
     { view: 'add', label: 'New', icon: 'plus', fab: true }
   ]
 };
@@ -11462,9 +11461,9 @@ function renderTaskModelJobDetail(j) {
       <div class="appt-timeline">${taskRows}</div>
     </div>
     ${j.notes ? `<div class="card"><h3 style="margin-top:0;">Notes</h3><div>${escapeHtml(j.notes)}</div></div>` : ''}
-    <div class="form-actions">${actions}</div>`;
-    /* Item 17 (v2-patch-5): the Return to Jobs button is gone — the Jobs
-       icon in the bottom banner already navigates back to the list. */
+    <div class="form-actions">${actions}<button class="btn btn-cancel btn-ghost" data-ljob-action="back">Back to Jobs</button></div>`;
+    /* Item 10 (v2-patch-6): explicit Back to Jobs restored — the bottom-nav
+       Jobs label icon it relied on (Item 17, v2-patch-5) is removed. */
 }
 
 function renderLifecycleJobDetail(id) {
@@ -11562,9 +11561,10 @@ function renderLifecycleJobDetail(id) {
       <div class="appt-timeline">${apptRows}</div>
     </div>
     ${j.notes ? `<div class="card"><h3 style="margin-top:0;">Notes</h3><div>${escapeHtml(j.notes)}</div></div>` : ''}
-    <div class="form-actions">${actions}</div>`;
-    /* Item 17 (v2-patch-5): the Return to Jobs button is gone — the Jobs
-       icon in the bottom banner already navigates back to the list. */
+    <div class="form-actions">${actions}<button class="btn btn-cancel btn-ghost" data-ljob-action="back">Back to Jobs</button></div>`;
+    /* Item 10 (v2-patch-6): the bottom-nav Jobs icon is gone, so the
+       explicit Back to Jobs button returns (Item 17 v2-patch-5 had removed
+       it in favor of that icon). */
 }
 
 /* ---- Job payment (Items 3 & 5) ----
