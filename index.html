@@ -1925,6 +1925,18 @@
         </div>
 
         <h3 class="form-section">Capture Site</h3>
+        <!-- Item 6 (v2-patch-5): location type selector. Customer Address
+             (default) pre-fills from the customer's primary/selected property
+             address; Trap Site Address clears it and activates the
+             three-option location picker for independent entry. Shown for
+             every customer type. -->
+        <div class="form-group">
+          <label>Location type<span class="req">*</span></label>
+          <div class="radio-row">
+            <label><input type="radio" name="f-address-type" value="customerAddress" checked> Customer Address</label>
+            <label><input type="radio" name="f-address-type" value="trapSiteAddress"> Trap Site Address</label>
+          </div>
+        </div>
         <div class="form-group">
           <label for="f-address">Location<span class="req">*</span></label>
           <div class="autocomplete-wrap">
@@ -6420,6 +6432,9 @@ function resetForm() {
     delete $('#f-address').dataset.fromMap;
     delete $('#f-address').dataset.lastValidated;
   }
+  /* Item 6 (v2-patch-5): the form reset re-checks Customer Address (the HTML
+     default) — sync the picker visibility with it. */
+  updateTrapAddressTypeUI();
   const _addrHint = $('#addressValidationHint');
   if (_addrHint) { _addrHint.textContent = ''; _addrHint.className = 'hint'; }
   resetPhotoUI();
@@ -6475,6 +6490,11 @@ function loadIntoForm(rec) {
   }
   $('#f-county').value = formCounty;
   $('#f-address').value = rec.address || '';
+  /* Item 6 (v2-patch-5): restore the location type. Legacy records without
+     one that carry independent coordinates read as Trap Site Address so the
+     picker (and their map pin) stays reachable on edit. */
+  setTrapAddressType(rec.addressType
+    || (rec.trapLat != null && rec.trapLng != null ? 'trapSiteAddress' : 'customerAddress'));
   $('#f-capture').value = rec.captureMethod || '';
   $('#f-capture-other').value = rec.captureOther || '';
   $('#f-disposal').value = rec.disposalMethod || '';
@@ -6561,6 +6581,8 @@ function readForm() {
   r.customerId = linkedJob ? (linkedJob.customerId || null) : (trapFormCustomerId || null);
   r.customerName = linkedJob ? (linkedJob.customerName || '') : '';
   r.propertyId = ($('#f-property') && $('#f-property').value) || null;
+  /* Item 6 (v2-patch-5): which address the record's location refers to. */
+  r.addressType = trapAddressType();
   /* Items 10 & 15: silently-captured counties. Fall back to the hidden
      dropdown values so the KDFWR export columns are always populated. */
   r.countyOfCollection = silentTrapCounty || r.county || null;
@@ -7163,6 +7185,61 @@ function matchingOptionValue(selectId, value) {
    user-facing county field. */
 let silentTrapCounty = null;
 
+/* ---- Item 6 (v2-patch-5): Customer Address vs Trap Site Address ----
+   customerAddress (default): the address field carries the customer's
+   primary or selected-property address; the three-option picker is hidden.
+   trapSiteAddress: the field is cleared and the picker (Use My Location /
+   Enter an Address / Locate on Map) takes over for independent entry.
+   Stored as `addressType` on the record and shown on the detail view. */
+function trapAddressType() {
+  const el = document.querySelector('input[name="f-address-type"]:checked');
+  return (el && el.value) || 'customerAddress';
+}
+function setTrapAddressType(type) {
+  const el = document.querySelector(`input[name="f-address-type"][value="${type}"]`);
+  if (el) el.checked = true;
+  updateTrapAddressTypeUI();
+}
+function updateTrapAddressTypeUI() {
+  const isSite = trapAddressType() === 'trapSiteAddress';
+  const opts = $('#trapLocOptions');
+  if (opts) opts.classList.toggle('hidden', !isSite);
+  if (!isSite) {
+    ['trapLocEntry', 'trapMapGroup'].forEach((id) => {
+      const el = document.getElementById(id);
+      if (el) el.classList.add('hidden');
+    });
+    document.querySelectorAll('#trapLocOptions .active').forEach((b) => b.classList.remove('active'));
+  }
+}
+function handleTrapAddressTypeChange() {
+  const isSite = trapAddressType() === 'trapSiteAddress';
+  if (isSite) {
+    /* Independent entry: clear the customer prefill so the picker starts clean. */
+    $('#f-address').value = '';
+    $('#f-trap-lat').value = '';
+    $('#f-trap-lng').value = '';
+    silentTrapCounty = null;
+    $('#f-county').value = '';
+    addressManuallyEdited = false;
+    delete $('#f-address').dataset.fromMap;
+    delete $('#f-address').dataset.lastValidated;
+    if (trapMapInstance) trapMapInstance.clear();
+    const hint = $('#addressValidationHint');
+    if (hint) { hint.textContent = 'Set the trap site with an option below.'; hint.className = 'hint'; }
+  } else {
+    /* Back to the customer's address: re-prefill from the selected property
+       or customer, if one is on the form. */
+    addressManuallyEdited = false;
+    const propId = ($('#f-property') && $('#f-property').value) || null;
+    const prop = propId ? cachedProperties.find((p) => p.id === propId) : null;
+    const cust = trapFormCustomerId ? cachedCustomers.find((c) => c.id === trapFormCustomerId) : null;
+    if (prop) applyPropertyToTrapForm(prop);
+    else if (cust) applyCustomerToTrapForm(cust);
+  }
+  updateTrapAddressTypeUI();
+}
+
 /* Item 2 (v2-patch-5): the county field must NEVER appear on screen under
    any circumstances. The old offline/geocoder-down fallback that un-hid the
    dropdown is gone — when the county can't be derived, null is stored
@@ -7728,6 +7805,10 @@ function buildDetailRows(r) {
   head('Location');
   push('County', countyDisplay(r));
   push('Address', r.address);
+  /* Item 6 (v2-patch-5): make clear which address the location used. */
+  if (r.addressType) {
+    push('Address Type', r.addressType === 'trapSiteAddress' ? 'Trap Site Address' : 'Customer Address');
+  }
 
   head('Capture & Disposal');
   push('Capture', captureDisplay(r));
@@ -12858,14 +12939,17 @@ function applyCustomerToTrapForm(c) {
   if (c.email) $('#f-client-email').value = c.email;
   const fullAddr = [c.address, c.city].filter(Boolean).join(', ');
   /* Item 5: prefill is a convenience only — a hand-edited address is locked
-     against any later customer selection in this form session. */
-  if (fullAddr && !addressManuallyEdited) {
+     against any later customer selection in this form session.
+     Item 6 (v2-patch-5): in Trap Site Address mode the customer never
+     overwrites the independently entered location. */
+  const customerAddrMode = trapAddressType() !== 'trapSiteAddress';
+  if (fullAddr && !addressManuallyEdited && customerAddrMode) {
     const a = $('#f-address');
     a.value = fullAddr;
     delete a.dataset.fromMap;
     delete a.dataset.lastValidated;
   }
-  if (c.county && !addressManuallyEdited) selectCountyIfKnown('f-county', c.county);
+  if (c.county && !addressManuallyEdited && customerAddrMode) selectCountyIfKnown('f-county', c.county);
   const hint = $('#addressValidationHint');
   if (hint) { hint.textContent = `✓ Customer on file: ${c.name}`; hint.className = 'hint success'; }
   hideTrapCustomerSuggest();
@@ -12878,14 +12962,16 @@ function applyCustomerToTrapForm(c) {
 function applyPropertyToTrapForm(p) {
   if (!p) return;
   const fullAddr = [p.address, p.city].filter(Boolean).join(', ');
-  /* Item 5: a hand-edited address is never overwritten by property selection. */
-  if (fullAddr && !addressManuallyEdited) {
+  /* Item 5: a hand-edited address is never overwritten by property selection.
+     Item 6: nor is an independently entered Trap Site Address. */
+  const customerAddrMode = trapAddressType() !== 'trapSiteAddress';
+  if (fullAddr && !addressManuallyEdited && customerAddrMode) {
     const a = $('#f-address');
     a.value = fullAddr;
     delete a.dataset.fromMap;
     delete a.dataset.lastValidated;
   }
-  if (p.county && !addressManuallyEdited) selectCountyIfKnown('f-county', p.county);
+  if (p.county && !addressManuallyEdited && customerAddrMode) selectCountyIfKnown('f-county', p.county);
 }
 
 /* Fill pesticide-form client fields from a chosen customer. */
@@ -12995,6 +13081,10 @@ async function init() {
 
   ['f-species','f-capture','f-disposal'].forEach((id) => {
     $('#' + id).addEventListener('change', updateConditionals);
+  });
+  /* Item 6 (v2-patch-5): Customer Address ↔ Trap Site Address selector. */
+  document.querySelectorAll('input[name="f-address-type"]').forEach((el) => {
+    el.addEventListener('change', handleTrapAddressTypeChange);
   });
   $('#recordForm').addEventListener('submit', reviewForm);
   $('#cancelBtn').addEventListener('click', () => {
