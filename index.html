@@ -1316,6 +1316,11 @@
     .job-lc-row .jl-num { font-weight: 600; color: var(--green-deep); font-family: ui-monospace, 'SF Mono', monospace; font-size: 13px; }
     .job-lc-row .jl-name { font-weight: 600; color: var(--green-deep); }
     .job-lc-row .jl-meta { font-size: 12px; color: var(--ink-soft); margin-top: 2px; }
+    /* Item 9 (v2-patch-6): .btn defaults to width:100%, so the Close Out
+       card's action button stretched over the job/customer text on
+       iPhone-width viewports. Inside a job card row a button sizes to its
+       own label and never shrinks into the text column. */
+    .job-lc-row .btn { width: auto; flex-shrink: 0; white-space: nowrap; }
     /* Item 2 (v2-patch-2): job type label — amber tag on job cards + detail. */
     .job-type-tag {
       display: inline-block; background: rgba(196,119,42,0.14); color: var(--amber);
