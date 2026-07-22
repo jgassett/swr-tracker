@@ -1737,11 +1737,8 @@
 
     <!-- DASHBOARD -->
     <section id="view-dashboard" class="view">
-      <div class="card period-banner">
-        <div class="period-banner-label">Reporting Period</div>
-        <div class="period-banner-value" id="periodValue">—</div>
-      </div>
-
+      <!-- Item 12 (v2-patch-5): the Reporting Period banner is gone — the
+           period is managed (and visible) in Settings only. -->
       <div class="greeting">
         <h2 id="greetingTitle">Welcome back</h2>
         <p id="greetingSub">Here's how your reporting period is shaping up.</p>
@@ -4323,55 +4320,57 @@ const MODULE_LABELS = { trap: 'Field Work', pesticide: 'Field Work', customer: '
 /* Bottom-nav layout per module. The main landing page has no bottom nav.
    `fab: true` renders the raised amber add button (kept from the original
    design); `menu` returns to the landing page. */
+/* Item 12 (v2-patch-5): the landing-page button is labeled Home everywhere
+   (was Menu) — it always returns to the main landing page with the six
+   workflow grid steps. The Field Work module's internal Home button (which
+   returned to the module's own landing) was redundant and is gone. */
 const NAV_CONFIGS = {
   trap: [
-    { view: 'menu', label: 'Menu', icon: 'menu' },
-    { view: 'dashboard', label: 'Home', icon: 'home' },
+    { view: 'menu', label: 'Home', icon: 'home' },
     { view: 'records', label: 'Records', icon: 'list' },
     { view: 'add', label: 'Add', icon: 'plus', fab: true },
     { view: 'export', label: 'Export', icon: 'export' }
   ],
   pesticide: [
-    { view: 'menu', label: 'Menu', icon: 'menu' },
-    { view: 'dashboard', label: 'Home', icon: 'home' },
+    { view: 'menu', label: 'Home', icon: 'home' },
     { view: 'records', label: 'Records', icon: 'list' },
     { view: 'add', label: 'Add', icon: 'plus', fab: true },
     { view: 'export', label: 'Export', icon: 'export' }
   ],
   customer: [
-    { view: 'menu', label: 'Menu', icon: 'menu' },
+    { view: 'menu', label: 'Home', icon: 'home' },
     { view: 'dashboard', label: 'Customers', icon: 'users' },
     { view: 'add', label: 'Add', icon: 'plus', fab: true }
   ],
   pricing: [
-    { view: 'menu', label: 'Menu', icon: 'menu' },
+    { view: 'menu', label: 'Home', icon: 'home' },
     { view: 'dashboard', label: 'Estimates', icon: 'list' },
     { view: 'add', label: 'New', icon: 'plus', fab: true }
   ],
   jobs: [
-    { view: 'menu', label: 'Menu', icon: 'menu' },
+    { view: 'menu', label: 'Home', icon: 'home' },
     { view: 'dashboard', label: 'Jobs', icon: 'briefcase' },
     { view: 'add', label: 'New', icon: 'plus', fab: true }
   ],
   field: [
-    { view: 'menu', label: 'Menu', icon: 'menu' },
+    { view: 'menu', label: 'Home', icon: 'home' },
     { view: 'dashboard', label: 'Monitoring', icon: 'camera' }
   ],
   schedule: [
-    { view: 'menu', label: 'Menu', icon: 'menu' },
+    { view: 'menu', label: 'Home', icon: 'home' },
     { view: 'dashboard', label: 'Calendar', icon: 'calendar' },
     { view: 'add', label: 'New', icon: 'plus', fab: true }
   ],
   settings: [
-    { view: 'menu', label: 'Home', icon: 'menu' }
+    { view: 'menu', label: 'Home', icon: 'home' }
   ],
   /* Items 8 & 9: unified records view opened from the landing banner. */
   allrecords: [
-    { view: 'menu', label: 'Menu', icon: 'menu' }
+    { view: 'menu', label: 'Home', icon: 'home' }
   ],
   /* Item 7 (v2-patch-2): Close Out workflow step. */
   closeout: [
-    { view: 'menu', label: 'Menu', icon: 'menu' },
+    { view: 'menu', label: 'Home', icon: 'home' },
     { view: 'dashboard', label: 'Close Out', icon: 'check' }
   ]
 };
@@ -7698,8 +7697,6 @@ function renderSingleMode(list) {
 function renderDashboard() {
   if (appMode === 'pesticide') return renderPesticideDashboard();
   const period = reportPeriod();
-  $('#periodValue').textContent = periodLabel(period);
-
   const hr = new Date().getHours();
   const greet = hr < 12 ? 'Good morning' : hr < 18 ? 'Good afternoon' : 'Good evening';
   const friendlyName = currentUser && EMAIL_TO_TRAPPER[currentUser.email.toLowerCase()]
@@ -7764,7 +7761,6 @@ function renderDashboard() {
 
 function renderPesticideDashboard() {
   const period = reportPeriod();
-  $('#periodValue').textContent = periodLabel(period);
   const hr = new Date().getHours();
   const greet = hr < 12 ? 'Good morning' : hr < 18 ? 'Good afternoon' : 'Good evening';
   const friendlyName = currentUser && EMAIL_TO_TRAPPER[currentUser.email.toLowerCase()]
