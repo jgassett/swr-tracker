@@ -131,7 +131,15 @@
     .flow-turn svg { width: 24px; height: 24px; stroke: var(--amber); fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
     .flow-help-row { text-align: center; }
     /* Item 6 (v2-patch-2): sync status centered just beneath the landing logo. */
-    .landing-sync { display: flex; justify-content: center; margin: -4px 0 8px; }
+    /* Item 12 (v2-patch-6): home header row — Sync left, version right. */
+    .landing-header-row {
+      width: 100%; display: flex; align-items: center;
+      justify-content: space-between; gap: 10px; margin-bottom: 6px;
+    }
+    .landing-version {
+      color: var(--amber-soft); font-size: 12px; font-weight: 600;
+      white-space: nowrap; flex-shrink: 0;
+    }
     .flow-help {
       background: none; border: none; color: var(--amber-soft);
       font-size: 11.5px; text-decoration: underline; white-space: nowrap;
@@ -1660,13 +1668,15 @@
 <!-- Mode picker (after sign-in) -->
 <div id="modePicker" class="hidden">
   <div class="mode-picker-wrap">
-    <!-- Item 12 (v2-patch-1): the bell moved to the bottom banner.
-         Item 6 (v2-patch-2): sync status sits beneath the SWR logo. -->
+    <!-- Item 12 (v2-patch-6): home header row — Sync status on the LEFT,
+         app version + update date on the RIGHT (both from APP_VERSION /
+         APP_VERSION_DATE, the single version constant). -->
+    <div class="landing-header-row">
+      <button type="button" class="sync-indicator under-brand" id="syncIndicatorLanding" data-state="offline" title="Sync status"><span class="dot"></span><span class="label">Offline</span></button>
+      <span class="landing-version" id="landingVersion"></span>
+    </div>
     <img class="brand-logo" src="logo.png" alt="SWR"
          onload="this.classList.add('loaded');" onerror="this.remove();">
-    <div class="landing-sync">
-      <button type="button" class="sync-indicator under-brand" id="syncIndicatorLanding" data-state="offline" title="Sync status"><span class="dot"></span><span class="label">Offline</span></button>
-    </div>
     <h1>What are you doing today?</h1>
     <div class="mode-sub">Follow the job from first call to paid invoice — tap a step to open it. Return here any time with the ← button.</div>
     <!-- Item 4 (v2-patch-2): camera alert banner removed — camera health
@@ -3850,10 +3860,20 @@ let orgSettings = {
 };
 
 const PESTICIDE_EMAILJS_TEMPLATE_ID = 'template_4aa3u5a';
-const APP_VERSION = 'v2.3';  /* bump in lockstep with the SW cache version */
-/* Single source of truth: keep the footer label in sync with APP_VERSION so
-   the two version displays can't drift apart again. */
-{ const _fv = document.getElementById('footerVersion'); if (_fv) _fv.textContent = APP_VERSION; }
+/* Item 12 (v2-patch-6): THE single version constant — bump in lockstep
+   with the SW cache version and version.txt. Every version display (home
+   header row, Settings footer, account info) reads from these two values;
+   nothing else may hard-code a version string. */
+const APP_VERSION = 'v2.3';
+const APP_VERSION_DATE = 'Jul 21, 2026';
+/* Single source of truth: paint both displays from the constant so they
+   can't drift apart again. */
+{
+  const _fv = document.getElementById('footerVersion');
+  if (_fv) _fv.textContent = APP_VERSION;
+  const _lv = document.getElementById('landingVersion');
+  if (_lv) _lv.textContent = `${APP_VERSION} · ${APP_VERSION_DATE}`;
+}
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
