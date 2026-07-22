@@ -2700,6 +2700,15 @@
           <button type="button" data-sched-view="agenda">Agenda</button>
         </div>
       </div>
+      <!-- Item 9 (v2-patch-5): agenda sort — By Contractor (default) groups
+           each day's tasks under contractor headers; By Time is a plain
+           chronological list. Choice persists for the session. -->
+      <div id="agendaSortWrap" class="hidden" style="display:flex;justify-content:center;margin-bottom:8px;">
+        <div class="sched-toggle" id="agendaSortToggle">
+          <button type="button" data-agenda-sort="contractor" class="active">By Contractor</button>
+          <button type="button" data-agenda-sort="time">By Time</button>
+        </div>
+      </div>
       <div id="calendarWrap"></div>
       <div id="agendaWrap" class="hidden"></div>
     </section>
@@ -9554,6 +9563,10 @@ function renderSchedule() {
   const cal = $('#calendarWrap'), ag = $('#agendaWrap');
   if (cal) cal.classList.toggle('hidden', schedView !== 'month');
   if (ag) ag.classList.toggle('hidden', schedView !== 'agenda');
+  /* Item 9: the sort toggle belongs to the agenda view only. */
+  const sortWrap = $('#agendaSortWrap');
+  if (sortWrap) sortWrap.classList.toggle('hidden', schedView !== 'agenda');
+  $$('#agendaSortToggle button').forEach((b) => b.classList.toggle('active', b.dataset.agendaSort === agendaSortMode));
   if (schedView === 'month') renderCalendarMonth();
   else renderAgenda();
 }
@@ -9590,7 +9603,8 @@ function allCalendarEntries() {
  * Item 16 (v2-patch-1): the Schedule module reads TASKS, not appointments.
  * The calendar and agenda views are unchanged — only the data source moved.
  * Each entry shows task type, job number, customer, operators, and time.
- * Contractors (non-admins) see only the tasks assigned to them.
+ * Item 9 (v2-patch-5): every operator sees every contractor's tasks; the
+ * agenda offers By Contractor (default) / By Time sorting for the session.
  * ===================================================================== */
 function calendarEntryFromTask(t) {
   return {
@@ -9598,14 +9612,14 @@ function calendarEntryFromTask(t) {
     durationMins: 60,
     title: taskTypeLabel(t),
     sub: [t.jobNumber, t.customerName, (t.assigneeNames || []).join(', ')].filter(Boolean).join(' · '),
+    assigneeNames: t.assigneeNames || [],   /* Item 9: contractor grouping */
     status: t.status || 'Open'
   };
 }
+/* Item 9 (v2-patch-5): the full calendar is visible to every operator —
+   all tasks for all contractors, no per-operator filtering. */
 function visibleScheduleTasks() {
-  if (isAdmin()) return cachedTasks;
-  const me = currentUser ? currentUser.email.toLowerCase() : '';
-  return cachedTasks.filter((t) =>
-    (t.assignedOperators || []).some((e) => String(e).toLowerCase() === me));
+  return cachedTasks;
 }
 function scheduleEntries() { return visibleScheduleTasks().map(calendarEntryFromTask); }
 
@@ -9674,6 +9688,9 @@ function renderCalDayList(dateStr) {
   el.innerHTML = `<h4 style="font-size:13px;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px;">${escapeHtml(longDate(dateStr))}</h4>${rows}`;
 }
 
+/* Item 9 (v2-patch-5): agenda sort preference — session-scoped. */
+let agendaSortMode = 'contractor';   /* 'contractor' (default) | 'time' */
+
 function renderAgenda() {
   const wrap = $('#agendaWrap');
   if (!wrap) return;
@@ -9686,7 +9703,35 @@ function renderAgenda() {
   const byDay = new Map();
   for (const e of upcoming) { if (!byDay.has(e.date)) byDay.set(e.date, []); byDay.get(e.date).push(e); }
   let html = '';
-  for (const [date, entries] of byDay) html += `<div class="agenda-day"><h4>${escapeHtml(longDate(date))}</h4>${entries.map(jobRowHtml).join('')}</div>`;
+  for (const [date, entries] of byDay) {
+    let body = '';
+    if (agendaSortMode === 'contractor') {
+      /* Item 9: group under contractor headers, alphabetical by first name
+         (names are "First Last" so a plain compare sorts by first name).
+         A task with two contractors appears under each of their sections. */
+      const byWho = new Map();
+      for (const e of entries) {
+        const names = (e.assigneeNames && e.assigneeNames.length) ? e.assigneeNames : ['Unassigned'];
+        for (const name of names) {
+          if (!byWho.has(name)) byWho.set(name, []);
+          byWho.get(name).push(e);
+        }
+      }
+      const who = [...byWho.keys()].sort((a, b) => {
+        if (a === 'Unassigned') return 1;
+        if (b === 'Unassigned') return -1;
+        return a.localeCompare(b);
+      });
+      body = who.map((name) =>
+        `<div style="font-size:12px;font-weight:700;color:var(--amber);margin:8px 0 2px;">${escapeHtml(name)}</div>` +
+        byWho.get(name).map(jobRowHtml).join('')
+      ).join('');
+    } else {
+      /* By Time: chronological, no contractor grouping. */
+      body = entries.map(jobRowHtml).join('');
+    }
+    html += `<div class="agenda-day"><h4>${escapeHtml(longDate(date))}</h4>${body}</div>`;
+  }
   wrap.innerHTML = html;
 }
 
@@ -13755,6 +13800,13 @@ async function init() {
     const b = e.target.closest('button[data-sched-view]');
     if (!b) return;
     schedView = b.dataset.schedView;
+    renderSchedule();
+  });
+  /* Item 9 (v2-patch-5): agenda sort toggle. */
+  $('#agendaSortToggle').addEventListener('click', (e) => {
+    const b = e.target.closest('button[data-agenda-sort]');
+    if (!b) return;
+    agendaSortMode = b.dataset.agendaSort;
     renderSchedule();
   });
   $('#calendarWrap').addEventListener('click', (e) => {
