@@ -1327,6 +1327,16 @@
     .job-stat-row .jsk { font-size: 12px; letter-spacing: 0.05em; text-transform: uppercase; color: var(--ink-soft); }
     .job-stat-row .jsv { font-weight: 600; color: var(--green-deep); text-align: right; }
     .job-stat-row .jsv .link-like { color: var(--amber); text-decoration: underline; cursor: pointer; background: none; border: none; font: inherit; font-weight: 600; padding: 0; }
+    /* Item 7 (v2-patch-5): tappable customer name on the Job Detail screen. */
+    .jd-cust-link {
+      display: inline-flex; align-items: center; gap: 7px;
+      background: none; border: none; padding: 0; margin-top: 6px;
+      font-family: inherit; font-weight: 600; color: var(--green-deep); font-size: 17px;
+      text-decoration: underline; text-decoration-color: var(--amber-soft);
+      text-underline-offset: 3px; cursor: pointer; text-align: left;
+    }
+    .jd-cust-link svg { width: 17px; height: 17px; stroke: var(--amber); fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0; }
+    .jd-cust-link:active { color: var(--amber); }
     .appt-timeline { margin-top: 4px; }
     .appt-timeline .at-row { display: flex; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--rule, #eef1ee); cursor: pointer; }
     .appt-timeline .at-row:last-child { border-bottom: none; }
@@ -1727,11 +1737,8 @@
 
     <!-- DASHBOARD -->
     <section id="view-dashboard" class="view">
-      <div class="card period-banner">
-        <div class="period-banner-label">Reporting Period</div>
-        <div class="period-banner-value" id="periodValue">—</div>
-      </div>
-
+      <!-- Item 12 (v2-patch-5): the Reporting Period banner is gone — the
+           period is managed (and visible) in Settings only. -->
       <div class="greeting">
         <h2 id="greetingTitle">Welcome back</h2>
         <p id="greetingSub">Here's how your reporting period is shaping up.</p>
@@ -1781,6 +1788,15 @@
           <option value="R">Released / Relocated</option>
           <option value="D">Euthanized</option>
           <option value="X">Excluded / Dispersed / Other</option>
+        </select>
+      </div>
+      <!-- Item 11 (v2-patch-5): sort control — selection persists for the
+           session within this tab (the element keeps its value). -->
+      <div class="filter-row" style="grid-template-columns:1fr;">
+        <select id="trapSortBy">
+          <option value="date">Sort: Date (newest first)</option>
+          <option value="contractor">Sort: Contractor</option>
+          <option value="customer">Sort: Customer</option>
         </select>
       </div>
 
@@ -1925,6 +1941,18 @@
         </div>
 
         <h3 class="form-section">Capture Site</h3>
+        <!-- Item 6 (v2-patch-5): location type selector. Customer Address
+             (default) pre-fills from the customer's primary/selected property
+             address; Trap Site Address clears it and activates the
+             three-option location picker for independent entry. Shown for
+             every customer type. -->
+        <div class="form-group">
+          <label>Location type<span class="req">*</span></label>
+          <div class="radio-row">
+            <label><input type="radio" name="f-address-type" value="customerAddress" checked> Customer Address</label>
+            <label><input type="radio" name="f-address-type" value="trapSiteAddress"> Trap Site Address</label>
+          </div>
+        </div>
         <div class="form-group">
           <label for="f-address">Location<span class="req">*</span></label>
           <div class="autocomplete-wrap">
@@ -2095,6 +2123,14 @@
       <div class="filter-row">
         <select id="pestFilterApplicator"><option value="">All applicators</option></select>
         <select id="pestFilterMethod"><option value="">All methods</option></select>
+      </div>
+      <!-- Item 11 (v2-patch-5): sort control, session-persistent per tab. -->
+      <div class="filter-row" style="grid-template-columns:1fr;">
+        <select id="pestSortBy">
+          <option value="date">Sort: Date (newest first)</option>
+          <option value="contractor">Sort: Contractor</option>
+          <option value="customer">Sort: Customer</option>
+        </select>
       </div>
       <button type="button" id="pestUnlinkedBanner" class="unlinked-banner hidden"></button>
       <div class="card" id="pesticideRecordList"></div>
@@ -2373,6 +2409,9 @@
         <h2 id="custGreetingTitle">Customer Directory</h2>
         <p class="muted" id="custGreetingSub">Shared across trapping and pesticide records.</p>
       </div>
+      <!-- Item 5 (v2-patch-5): Add Customer is the first interactive element
+           in the module — the search box and filters moved below it. -->
+      <button class="btn btn-amber" id="addCustomerBtn" style="margin-bottom:14px;">+ Add Customer</button>
       <div class="search-bar">
         <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
         <input type="text" id="custSearch" placeholder="Search name, address, city, phone…" autocomplete="off">
@@ -2385,12 +2424,14 @@
         </select>
         <select id="custFilterCounty"><option value="">All counties</option></select>
       </div>
-      <button class="btn btn-amber" id="addCustomerBtn" style="margin-bottom:14px;">+ Add Customer</button>
       <div class="card" id="customerList"></div>
     </section>
 
     <!-- ADD / EDIT CUSTOMER -->
     <section id="view-add-customer" class="view hidden">
+      <!-- Item 7 (v2-patch-5): shown only when this screen was reached from a
+           Job Detail screen — returns to that job without losing context. -->
+      <button type="button" class="btn btn-ghost hidden" id="backToJobBtn" style="margin-bottom:12px;">← Back to Job</button>
       <!-- Customer Action Hub (Item 4) — shown only for existing customers -->
       <div class="card hidden" id="customerActionHub">
         <h3 style="margin:0 0 10px;">Quick Actions</h3>
@@ -2438,15 +2479,15 @@
             <label for="pr-address">Address</label>
             <input type="text" id="pr-address" autocomplete="off">
           </div>
-          <div class="field-row two">
-            <div class="form-group">
-              <label for="pr-city">City</label>
-              <input type="text" id="pr-city" autocomplete="off">
-            </div>
-            <div class="form-group">
-              <label for="pr-county">County</label>
-              <select id="pr-county"><option value="">— select county —</option></select>
-            </div>
+          <div class="form-group">
+            <label for="pr-city">City</label>
+            <input type="text" id="pr-city" autocomplete="off">
+          </div>
+          <!-- Item 2 (v2-patch-5): county never appears in form UI — hidden
+               value holder keeps stored values intact on edit/save. -->
+          <div class="form-group hidden" id="prCountyGroup" aria-hidden="true">
+            <label for="pr-county">County</label>
+            <select id="pr-county" tabindex="-1"><option value="">— select county —</option></select>
           </div>
           <div class="form-group">
             <label for="pr-cameraId">Camera ID</label>
@@ -2489,6 +2530,18 @@
             <input type="email" id="c-email" inputmode="email" autocomplete="off">
           </div>
         </div>
+        <!-- Item 3 (v2-patch-5): click-to-call / click-to-text — rendered only
+             when the customer has a phone number on file. -->
+        <div class="btn-row" id="callTextRow" style="display:none; margin-bottom:14px;">
+          <button type="button" class="btn btn-amber" id="callCustomerBtn">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+            Call
+          </button>
+          <button type="button" class="btn btn-amber" id="textCustomerBtn">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+            Text
+          </button>
+        </div>
 
         <h3 class="form-section">Address</h3>
         <div class="form-group">
@@ -2508,9 +2561,11 @@
             <input type="text" id="c-zip" inputmode="numeric" maxlength="10" autocomplete="postal-code">
           </div>
         </div>
-        <div class="form-group">
+        <!-- Item 2 (v2-patch-5): county is captured silently (Mapbox address
+             autocomplete) and never shown — hidden value holder only. -->
+        <div class="form-group hidden" id="custCountyGroup" aria-hidden="true">
           <label for="c-county">County</label>
-          <select id="c-county"><option value="">— select county —</option></select>
+          <select id="c-county" tabindex="-1"><option value="">— select county —</option></select>
         </div>
         <!-- Item 1 (v2-patch-1): Get Directions — shown only when the customer
              has a street address on file. Opens the device's map app. -->
@@ -2659,6 +2714,15 @@
           <button type="button" data-sched-view="agenda">Agenda</button>
         </div>
       </div>
+      <!-- Item 9 (v2-patch-5): agenda sort — By Contractor (default) groups
+           each day's tasks under contractor headers; By Time is a plain
+           chronological list. Choice persists for the session. -->
+      <div id="agendaSortWrap" class="hidden" style="display:flex;justify-content:center;margin-bottom:8px;">
+        <div class="sched-toggle" id="agendaSortToggle">
+          <button type="button" data-agenda-sort="contractor" class="active">By Contractor</button>
+          <button type="button" data-agenda-sort="time">By Time</button>
+        </div>
+      </div>
       <div id="calendarWrap"></div>
       <div id="agendaWrap" class="hidden"></div>
     </section>
@@ -2792,17 +2856,22 @@
           <label for="lj-jobtype">Job Type<span class="req">*</span></label>
           <select id="lj-jobtype" required><option value="">— select job type —</option></select>
         </div>
-        <!-- Item 15 (v2-patch-1): start/end dates on the job container. -->
-        <div class="field-row two">
-          <div class="form-group">
-            <label for="lj-start">Start date<span class="req">*</span></label>
-            <input type="date" id="lj-start" required>
-          </div>
-          <div class="form-group">
-            <label for="lj-end">End date<span class="req">*</span></label>
-            <input type="date" id="lj-end" required>
-            <div class="hint">Defaults to 30 days out — adjust as needed.</div>
-          </div>
+        <!-- Item 14 (v2-patch-5): required description when the type is Other. -->
+        <div class="form-group conditional" id="cg-lj-jobtypeOther">
+          <label for="lj-jobtype-other">Describe job type<span class="req">*</span></label>
+          <input type="text" id="lj-jobtype-other" placeholder="e.g. Chimney Sweep">
+        </div>
+        <!-- Item 16 (v2-patch-5): optional species (KDFWR list). -->
+        <div class="form-group">
+          <label for="lj-species">Species<span class="opt">(optional)</span></label>
+          <select id="lj-species"><option value="">— none —</option></select>
+        </div>
+        <!-- Item 15 (v2-patch-5): end date removed from the job form — a job
+             stays open until closed out; a 30-day duration reminder nudges
+             the admin instead. Existing records keep any stored endDate. -->
+        <div class="form-group">
+          <label for="lj-start">Start date<span class="req">*</span></label>
+          <input type="date" id="lj-start" required>
         </div>
         <div class="form-group">
           <label for="lj-estimate">Linked estimate<span class="opt">(optional — one per job)</span></label>
@@ -2942,12 +3011,16 @@
 
     <!-- NOTIFICATIONS (Items 12 & 17) — reachable from any screen via the bell -->
     <section id="view-notifications" class="view hidden">
-      <div class="row" style="margin-bottom:12px;">
+      <div class="row" style="margin-bottom:12px; align-items:flex-start;">
         <div class="greeting" style="margin:0;">
           <h2>Notifications</h2>
           <p class="muted" id="notifsSub">Appointments, camera alerts, and job updates.</p>
         </div>
-        <button type="button" class="map-btn ghost" id="clearAllNotifsBtn" style="flex-shrink:0;">Clear all</button>
+        <div style="display:flex; flex-direction:column; gap:6px; flex-shrink:0; align-items:flex-end;">
+          <button type="button" class="map-btn ghost" id="clearAllNotifsBtn">Clear all</button>
+          <!-- Item 8 (v2-patch-5): deletes this operator's read notifications. -->
+          <button type="button" class="map-btn ghost" id="clearReadNotifsBtn">Clear Read Notifications</button>
+        </div>
       </div>
       <div class="card" id="notificationsList"></div>
       <div class="form-actions">
@@ -2980,8 +3053,14 @@
       <div class="filter-row">
         <select id="allRecType">
           <option value="">All record types</option>
-          <option value="trap">Trapping</option>
-          <option value="pest">Pesticide</option>
+          <option value="trap">Trapping Only</option>
+          <option value="pest">Pesticides Only</option>
+        </select>
+        <!-- Item 19 (v2-patch-5): sort control for the unified list. -->
+        <select id="allRecSort">
+          <option value="date">Sort: Date (newest first)</option>
+          <option value="contractor">Sort: Contractor</option>
+          <option value="customer">Sort: Customer</option>
         </select>
       </div>
       <div class="card" id="allRecordsList"></div>
@@ -3269,6 +3348,16 @@
   <div id="rebaitBody"></div>
 </div>
 
+<!-- Item 18 (v2-patch-5): camera assignment selector for the Job Detail
+     screen — lists property camera IDs not already on another Active job. -->
+<div class="sheet" id="cameraSheet">
+  <div class="sheet-handle"></div>
+  <h2>Assign Camera</h2>
+  <p class="muted" style="font-size:13px;">Camera IDs from the properties on file that aren't assigned to another active job.</p>
+  <div id="cameraSheetBody"></div>
+  <button type="button" class="btn btn-cancel btn-ghost" id="cameraSheetCancel" style="margin-top:12px;width:100%;">Cancel</button>
+</div>
+
 <!-- 'How it works' — plain-language workflow explainer opened from the
      landing-page flow strip. Own backdrop: the landing page stacks above
      the shared sheet layers. -->
@@ -3372,7 +3461,7 @@ import {
   query, orderBy, onSnapshot, writeBatch, arrayUnion, arrayRemove, updateDoc, collectionGroup, where, runTransaction
 } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import {
-  getStorage, ref as storageRef, uploadBytes, getDownloadURL
+  getStorage, ref as storageRef, uploadBytes, getDownloadURL, deleteObject
 } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-storage.js";
 import {
   getFunctions, httpsCallable
@@ -3683,7 +3772,7 @@ let orgSettings = {
 };
 
 const PESTICIDE_EMAILJS_TEMPLATE_ID = 'template_4aa3u5a';
-const APP_VERSION = 'v2.2';  /* bump in lockstep with the SW cache version */
+const APP_VERSION = 'v2.3';  /* bump in lockstep with the SW cache version */
 /* Single source of truth: keep the footer label in sync with APP_VERSION so
    the two version displays can't drift apart again. */
 { const _fv = document.getElementById('footerVersion'); if (_fv) _fv.textContent = APP_VERSION; }
@@ -3700,6 +3789,15 @@ function extractPrimaryEmail(emailString) {
   for (const p of parts) {
     if (EMAIL_RE.test(p)) return p;
   }
+  return parts[0] || '';
+}
+
+/* Item 3 (v2-patch-5): phone twin of extractPrimaryEmail — customers may hold
+   several numbers separated by commas or semicolons; the tel:/sms: links use
+   only the first one. The stored value is left untouched. */
+function extractPrimaryPhone(phoneString) {
+  if (!phoneString) return '';
+  const parts = String(phoneString).split(/[,;]/).map((s) => s.trim()).filter(Boolean);
   return parts[0] || '';
 }
 
@@ -4243,55 +4341,57 @@ const MODULE_LABELS = { trap: 'Field Work', pesticide: 'Field Work', customer: '
 /* Bottom-nav layout per module. The main landing page has no bottom nav.
    `fab: true` renders the raised amber add button (kept from the original
    design); `menu` returns to the landing page. */
+/* Item 12 (v2-patch-5): the landing-page button is labeled Home everywhere
+   (was Menu) — it always returns to the main landing page with the six
+   workflow grid steps. The Field Work module's internal Home button (which
+   returned to the module's own landing) was redundant and is gone. */
 const NAV_CONFIGS = {
   trap: [
-    { view: 'menu', label: 'Menu', icon: 'menu' },
-    { view: 'dashboard', label: 'Home', icon: 'home' },
+    { view: 'menu', label: 'Home', icon: 'home' },
     { view: 'records', label: 'Records', icon: 'list' },
     { view: 'add', label: 'Add', icon: 'plus', fab: true },
     { view: 'export', label: 'Export', icon: 'export' }
   ],
   pesticide: [
-    { view: 'menu', label: 'Menu', icon: 'menu' },
-    { view: 'dashboard', label: 'Home', icon: 'home' },
+    { view: 'menu', label: 'Home', icon: 'home' },
     { view: 'records', label: 'Records', icon: 'list' },
     { view: 'add', label: 'Add', icon: 'plus', fab: true },
     { view: 'export', label: 'Export', icon: 'export' }
   ],
   customer: [
-    { view: 'menu', label: 'Menu', icon: 'menu' },
+    { view: 'menu', label: 'Home', icon: 'home' },
     { view: 'dashboard', label: 'Customers', icon: 'users' },
     { view: 'add', label: 'Add', icon: 'plus', fab: true }
   ],
   pricing: [
-    { view: 'menu', label: 'Menu', icon: 'menu' },
+    { view: 'menu', label: 'Home', icon: 'home' },
     { view: 'dashboard', label: 'Estimates', icon: 'list' },
     { view: 'add', label: 'New', icon: 'plus', fab: true }
   ],
   jobs: [
-    { view: 'menu', label: 'Menu', icon: 'menu' },
+    { view: 'menu', label: 'Home', icon: 'home' },
     { view: 'dashboard', label: 'Jobs', icon: 'briefcase' },
     { view: 'add', label: 'New', icon: 'plus', fab: true }
   ],
   field: [
-    { view: 'menu', label: 'Menu', icon: 'menu' },
+    { view: 'menu', label: 'Home', icon: 'home' },
     { view: 'dashboard', label: 'Monitoring', icon: 'camera' }
   ],
   schedule: [
-    { view: 'menu', label: 'Menu', icon: 'menu' },
+    { view: 'menu', label: 'Home', icon: 'home' },
     { view: 'dashboard', label: 'Calendar', icon: 'calendar' },
     { view: 'add', label: 'New', icon: 'plus', fab: true }
   ],
   settings: [
-    { view: 'menu', label: 'Home', icon: 'menu' }
+    { view: 'menu', label: 'Home', icon: 'home' }
   ],
   /* Items 8 & 9: unified records view opened from the landing banner. */
   allrecords: [
-    { view: 'menu', label: 'Menu', icon: 'menu' }
+    { view: 'menu', label: 'Home', icon: 'home' }
   ],
   /* Item 7 (v2-patch-2): Close Out workflow step. */
   closeout: [
-    { view: 'menu', label: 'Menu', icon: 'menu' },
+    { view: 'menu', label: 'Home', icon: 'home' },
     { view: 'dashboard', label: 'Close Out', icon: 'check' }
   ]
 };
@@ -5471,8 +5571,10 @@ async function seedPriceListIfNeeded() {
  * ===================================================================== */
 let cachedCameraHealth = [];
 let cachedCameraPhotos = [];
+let cachedCameraStatus = [];   /* Item 21 (v2-patch-5): per-camera lastSeen + removal flags */
 let cameraHealthUnsub = null;
 let cameraPhotosUnsub = null;
+let cameraStatusUnsub = null;
 let currentFieldKey = null;
 const STATUS_RANK = { red: 0, yellow: 1, green: 2, none: 3 };
 /* Resolved Storage download URLs, keyed by storagePath (avoids re-resolving on re-render). */
@@ -5592,13 +5694,24 @@ function subscribeToFieldData() {
       if (!$('#app').classList.contains('hidden') && appMode === 'field') refreshFieldViews();
     }, (err) => console.error('cameraPhotos subscription error', err));
   }
+  /* Item 21 (v2-patch-5): cameraStatus keeps cameras visible (and carries
+     the pendingRemoval / removalConfirmed flags) even after all photos or
+     health rows are gone. */
+  if (!cameraStatusUnsub) {
+    cameraStatusUnsub = onSnapshot(collection(fbDb, 'cameraStatus'), (snap) => {
+      cachedCameraStatus = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      if (!$('#app').classList.contains('hidden') && appMode === 'field') refreshFieldViews();
+    }, (err) => console.error('cameraStatus subscription error', err));
+  }
 }
 function unsubscribeFromFieldData() {
   if (cameraHealthUnsub) { cameraHealthUnsub(); cameraHealthUnsub = null; }
   if (cameraPhotosUnsub) { cameraPhotosUnsub(); cameraPhotosUnsub = null; }
+  if (cameraStatusUnsub) { cameraStatusUnsub(); cameraStatusUnsub = null; }
   if (graphStatusUnsub) { graphStatusUnsub(); graphStatusUnsub = null; }
   cachedCameraHealth = [];
   cachedCameraPhotos = [];
+  cachedCameraStatus = [];
   graphStatusData = null;
 }
 function refreshFieldViews() {
@@ -5621,13 +5734,49 @@ function fieldGroups() {
     if (!g.customerId && h.customerId) g.customerId = h.customerId;
     if (!g.propertyId && h.propertyId) g.propertyId = h.propertyId;   /* M25 */
   }
+  const myEmail = currentUser ? currentUser.email.toLowerCase() : '';
   for (const p of cachedCameraPhotos) {
-    if (p.archived) continue;   /* cleared from the app; file persists in Storage */
+    if (p.archived) continue;   /* legacy global clear; file persists in Storage */
+    /* Item 4 (v2-patch-5): per-operator deletion — a photo an operator
+       deleted is hidden for them only; everyone else still sees it. */
+    if (Array.isArray(p.deletedBy) && p.deletedBy.some((e) => String(e).toLowerCase() === myEmail)) continue;
     const g = get(p.customerKey);
     g.photos.push(p);
     if (!g.name && p.customerName) g.name = p.customerName;
     if (!g.customerId && p.customerId) g.customerId = p.customerId;
     if (!g.propertyId && p.propertyId) g.propertyId = p.propertyId;   /* M25 */
+  }
+  /* Item 21 (v2-patch-5): cameraStatus rows keep a camera's group alive even
+     with zero photos (per-operator deletes) and zero health rows, and carry
+     the removal flags. */
+  for (const s of cachedCameraStatus) {
+    const g = get(s.customerKey || s.id);
+    if (!g.name && s.customerName) g.name = s.customerName;
+    if (!g.customerId && s.customerId) g.customerId = s.customerId;
+    if (!g.propertyId && s.propertyId) g.propertyId = s.propertyId;
+    g.statusDoc = s;
+  }
+  /* Item 21: a camera on file (property/customer Camera ID) whose customer
+     has an Active job is ALWAYS visible — even before its first ingest. */
+  const activeCustomerIds = new Set(lifecycleJobs()
+    .filter((x) => (x.status || 'Active') === 'Active')
+    .map((x) => x.customerId).filter(Boolean));
+  for (const p of cachedProperties) {
+    const cam = (p.cameraId || '').trim().toUpperCase();
+    if (!cam || !p.customerId || !activeCustomerIds.has(p.customerId)) continue;
+    const g = get(cam);
+    if (!g.customerId) {
+      g.customerId = p.customerId;
+      const c = cachedCustomers.find((x) => x.id === p.customerId);
+      if (!g.name && c) g.name = c.name || '';
+    }
+    if (!g.propertyId) g.propertyId = p.id;
+  }
+  for (const c of cachedCustomers) {
+    const cam = (c.cameraId || '').trim().toUpperCase();
+    if (!cam || !activeCustomerIds.has(c.id)) continue;
+    const g = get(cam);
+    if (!g.customerId) { g.customerId = c.id; if (!g.name) g.name = c.name || ''; }
   }
   const arr = [...groups.values()];
   for (const g of arr) {
@@ -5639,9 +5788,16 @@ function fieldGroups() {
       const r = resolveCustomerForKey(g.key);
       if (r) { g.customerId = r.id; g.name = r.name; g.propertyId = r.propertyId || g.propertyId || null; }
     }
+    /* Item 21: awaiting Jon's removal confirmation — visible with an
+       indicator until confirmed. A customer back on an active job cancels
+       the pending state client-side immediately. */
+    g.pendingRemoval = !!(g.statusDoc && g.statusDoc.pendingRemoval && !g.statusDoc.removalConfirmed
+      && !(g.customerId && activeCustomerIds.has(g.customerId)));
   }
-  arr.sort((a, b) => (STATUS_RANK[a.status] - STATUS_RANK[b.status]) || (a.name || a.key).localeCompare(b.name || b.key));
-  return arr;
+  /* Item 21: confirmed removals are hidden from active monitoring. */
+  const visible = arr.filter((g) => !(g.statusDoc && g.statusDoc.removalConfirmed));
+  visible.sort((a, b) => (STATUS_RANK[a.status] - STATUS_RANK[b.status]) || (a.name || a.key).localeCompare(b.name || b.key));
+  return visible;
 }
 
 function renderFieldDashboard() {
@@ -5663,11 +5819,13 @@ function renderFieldDashboard() {
     const label = g.name
       ? escapeHtml([g.name, gProp && gProp.siteNickname].filter(Boolean).join(' · '))
       : `${escapeHtml(g.key)}<span class="unlinked">unlinked</span>`;
+    /* Item 21: flagged for removal but awaiting Jon's confirmation. */
+    const pending = g.pendingRemoval ? '<span class="unlinked">pending removal</span>' : '';
     const nCam = g.devices.length, nPh = g.photos.length;
     return `<div class="field-row" data-field-key="${escapeHtml(g.key)}">
       <span class="cam-dot ${g.status}"></span>
       <div class="fr-body">
-        <div class="fr-name">${label}</div>
+        <div class="fr-name">${label}${pending}</div>
         <div class="fr-meta">${nPh} photo${nPh === 1 ? '' : 's'}</div>
       </div>
       <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="var(--ink-soft)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
@@ -5713,16 +5871,22 @@ function renderFieldDetail(key) {
     `<div class="btn-row" style="margin-top:10px;"><button class="btn btn-amber" id="fieldAssignBtn">Assign these photos to a customer</button></div>
      <div class="autocomplete-wrap" style="margin-top:8px;"><input type="text" id="field-assign-cust" class="hidden" autocomplete="off" placeholder="Search customer…"><div class="autocomplete-list hidden" id="field-assign-ac"></div></div>`;
 
+  /* Item 21 (v2-patch-5): pending-removal banner + Jon's explicit confirm. */
+  const removal = g.pendingRemoval
+    ? `<div class="hint" style="color:var(--amber);margin-top:8px;font-weight:600;">⚠ Pending Removal — no photo or status report in 14+ days and the job is closed. ${isAdmin() ? 'Confirm below to remove it from active monitoring.' : 'An admin must confirm the removal; until then the camera stays visible.'}</div>`
+    : '';
   box.innerHTML = `
     <div class="card">
       <div style="display:flex;align-items:center;gap:10px;"><span class="cam-dot ${g.status}"></span><h3 style="margin:0;">${title}</h3></div>
       ${g.customerId ? '' : '<div class="muted" style="margin-top:6px;">Not linked to a customer — the camera key didn’t match an active customer.</div>'}
+      ${removal}
       ${assign}
     </div>
     <div class="card"><h3 style="margin-top:0;">Camera Health</h3>${health}</div>
     <div class="card"><h3 style="margin-top:0;">Photos (${g.photos.length})</h3>${photos}</div>
     <div class="form-actions">
-      <button class="btn btn-danger" id="fieldClearBtn">Delete Photos From App</button>
+      ${g.pendingRemoval && isAdmin() ? '<button class="btn btn-danger" id="fieldConfirmRemovalBtn">Confirm Camera Removal</button>' : ''}
+      <button class="btn btn-danger" id="fieldClearBtn">Delete Photos</button>
       <button class="btn btn-cancel btn-ghost" id="fieldBackBtn">Back to Monitoring</button>
     </div>`;
 
@@ -5789,38 +5953,84 @@ async function assignFieldPhotos(key, customer) {
   }
 }
 
-/* "Delete Photos From App" — clears a finished job's camera group without
-   touching cloud storage. Photos are ARCHIVED (hidden from the app; the files
-   stay in Storage until the retention job deletes them) and the group's
-   cameraHealth rows are deleted (the ingest recreates them automatically if
-   the camera reports under this key again). Available to every operator. */
+/* "Delete Photos From App" — Item 4 (v2-patch-5): deletion is PER-OPERATOR.
+   An operator's delete stamps their email into each photo's `deletedBy`
+   array; the photo disappears from their view only (Storage file and
+   Firestore doc untouched) and every other operator still sees it. Only
+   Jon (admin) deletes permanently — Storage file + Firestore doc removed
+   for everyone. Camera health rows are never touched here: active cameras
+   stay visible in Monitoring even with all photos deleted (Item 21). */
 async function clearFieldGroup(key) {
   if (!key) return;
   const g = fieldGroups().find((x) => x.key === key);
   if (!g) return;
-  const nP = g.photos.length, nD = g.devices.length;
+  const nP = g.photos.length;
+  if (!nP) { toast('No photos to delete for this camera'); return; }
+  const admin = isAdmin();
+  const note = 'Deleting removes this photo from your view only. Other operators can still see it. Admins can permanently delete.';
   const ok = await confirmDialog(
     `Delete ${g.name || g.key} photos?`,
-    `Removes ${nP} photo${nP === 1 ? '' : 's'} and ${nD} camera health row${nD === 1 ? '' : 's'} from the app. ` +
-    `Photo files stay in cloud storage until the retention window deletes them, and health rows return ` +
-    `automatically if this camera reports again. This can't be undone in the app.`,
-    { okText: 'Delete From App' }
+    admin
+      ? `As admin, this PERMANENTLY deletes ${nP} photo${nP === 1 ? '' : 's'} (files and records) for every operator. This cannot be undone. ${note}`
+      : `Removes ${nP} photo${nP === 1 ? '' : 's'} from your view. ${note}`,
+    { okText: admin ? 'Delete Permanently' : 'Delete From My View' }
   );
   if (!ok) return;
   try {
-    const now = new Date().toISOString();
-    for (const p of g.photos) {
-      await writeWithRetry(() => setDoc(doc(fbDb, 'cameraPhotos', p.id),
-        { archived: true, archivedAt: now, archivedBy: currentUser ? currentUser.email : null }, { merge: true }));
+    if (admin) {
+      for (const p of g.photos) {
+        if (p.storagePath) {
+          try { await deleteObject(storageRef(fbStorage, p.storagePath)); }
+          catch (err) {
+            /* Already-gone files are fine; anything else keeps the doc so
+               the delete can be retried. */
+            if (!err || err.code !== 'storage/object-not-found') throw err;
+          }
+        }
+        await writeWithRetry(() => deleteDoc(doc(fbDb, 'cameraPhotos', p.id)));
+      }
+      toast(`${g.name || g.key} photos permanently deleted`);
+    } else {
+      const email = currentUser ? currentUser.email.toLowerCase() : null;
+      if (!email) return;
+      for (const p of g.photos) {
+        await writeWithRetry(() => setDoc(doc(fbDb, 'cameraPhotos', p.id),
+          { deletedBy: arrayUnion(email) }, { merge: true }));
+      }
+      toast(`${g.name || g.key} photos hidden from your view`);
     }
-    for (const d of g.devices) {
-      await writeWithRetry(() => deleteDoc(doc(fbDb, 'cameraHealth', d.id)));
-    }
-    toast(`${g.name || g.key} cleared from the app`);
+    renderFieldDetail(key);
+    renderFieldDashboard();
+  } catch (err) {
+    toast('Delete failed: ' + ((err && err.message) || 'error'), 'error');
+  }
+}
+
+/* Item 21 (v2-patch-5): Jon's explicit confirmation hides a pending-removal
+   camera from active monitoring. The ingest pipeline clears the flags (and
+   the camera reappears) automatically if it ever reports again. */
+async function confirmCameraRemoval(key) {
+  if (!isAdmin()) { toast('Only an administrator can confirm a camera removal.', 'error'); return; }
+  const g = fieldGroups().find((x) => x.key === key);
+  if (!g || !g.statusDoc) return;
+  const ok = await confirmDialog(
+    'Remove this camera from Monitoring?',
+    `${g.name || g.key} has sent no photo or status report in 14+ days and its job is closed. Confirming hides it from active monitoring — it returns automatically if it reports again.`,
+    { okText: 'Confirm Removal' }
+  );
+  if (!ok) return;
+  try {
+    await writeWithRetry(() => setDoc(doc(fbDb, 'cameraStatus', g.statusDoc.id), {
+      removalConfirmed: true,
+      removalConfirmedAt: new Date().toISOString(),
+      removalConfirmedBy: currentUser ? currentUser.email : null,
+      updatedAt: new Date().toISOString()
+    }, { merge: true }));
+    toast(`${g.name || g.key} removed from active monitoring`);
     currentFieldKey = null;
     setView('dashboard');
   } catch (err) {
-    toast('Clear failed: ' + ((err && err.message) || 'error'), 'error');
+    toast('Removal failed: ' + ((err && err.message) || 'error'), 'error');
   }
 }
 
@@ -6373,6 +6583,9 @@ function resetForm() {
     delete $('#f-address').dataset.fromMap;
     delete $('#f-address').dataset.lastValidated;
   }
+  /* Item 6 (v2-patch-5): the form reset re-checks Customer Address (the HTML
+     default) — sync the picker visibility with it. */
+  updateTrapAddressTypeUI();
   const _addrHint = $('#addressValidationHint');
   if (_addrHint) { _addrHint.textContent = ''; _addrHint.className = 'hint'; }
   resetPhotoUI();
@@ -6428,6 +6641,11 @@ function loadIntoForm(rec) {
   }
   $('#f-county').value = formCounty;
   $('#f-address').value = rec.address || '';
+  /* Item 6 (v2-patch-5): restore the location type. Legacy records without
+     one that carry independent coordinates read as Trap Site Address so the
+     picker (and their map pin) stays reachable on edit. */
+  setTrapAddressType(rec.addressType
+    || (rec.trapLat != null && rec.trapLng != null ? 'trapSiteAddress' : 'customerAddress'));
   $('#f-capture').value = rec.captureMethod || '';
   $('#f-capture-other').value = rec.captureOther || '';
   $('#f-disposal').value = rec.disposalMethod || '';
@@ -6514,6 +6732,8 @@ function readForm() {
   r.customerId = linkedJob ? (linkedJob.customerId || null) : (trapFormCustomerId || null);
   r.customerName = linkedJob ? (linkedJob.customerName || '') : '';
   r.propertyId = ($('#f-property') && $('#f-property').value) || null;
+  /* Item 6 (v2-patch-5): which address the record's location refers to. */
+  r.addressType = trapAddressType();
   /* Items 10 & 15: silently-captured counties. Fall back to the hidden
      dropdown values so the KDFWR export columns are always populated. */
   r.countyOfCollection = silentTrapCounty || r.county || null;
@@ -6549,8 +6769,8 @@ function validateRecord(r) {
   if (SPECIFY_SPECIES.has(r.species) && !r.speciesOther) errs.push('Specify species');
   if (needsAnimalCount(r.species) && (!r.animalCount || r.animalCount < 1)) errs.push('Number of animals');
   else if (needsAnimalCount(r.species) && r.animalCount > 500) errs.push('Number of animals can’t exceed 500 per record');
-  /* Item 15: county is derived silently from the location. */
-  if (!r.county && !r.countyOfCollection) errs.push('Capture location (county could not be derived — set the location)');
+  /* Items 15 & 2 (v2-patch-5): county is derived silently from the location;
+     when geocoding fails, null is stored silently — never blocks the save. */
   if (!r.address) errs.push('Capture location');
   if (!r.captureMethod) errs.push('Capture method');
   if (SPECIFY_CAPTURES.has(r.captureMethod) && !r.captureOther) errs.push('Specify capture');
@@ -6558,7 +6778,7 @@ function validateRecord(r) {
   if (SPECIFY_DISPOSALS.has(r.disposalMethod) && !r.disposalOther) errs.push('Specify disposal');
   if (EUTHANIZE_DISPOSALS.has(r.disposalMethod) && !r.dispatchMethod) errs.push('Dispatch method');
   if (RELEASE_DISPOSALS.has(r.disposalMethod)) {
-    if (!r.releaseCounty && !r.countyOfRelease) errs.push('Release location (county could not be derived — set the location)');
+    /* Item 2 (v2-patch-5): release county too is silent — null on failure. */
     if (!r.releaseDate) errs.push('Release date');
   }
   if (EXCLUDE_DISPOSALS.has(r.disposalMethod) && !isBatOrBird(r.species) && r.species !== OTHER_ANIMAL) {
@@ -6594,12 +6814,8 @@ async function reviewForm(e) {
   const rec = readForm();
   const errs = validateRecord(rec);
   if (errs.length) {
-    /* Catch-all for the offline county dead end: if the county couldn't be
-       derived, expose the manual dropdown so the save isn't blocked. */
-    if (!rec.county && !rec.countyOfCollection) setCountyFallback('trapCountyGroup', true);
-    if (RELEASE_DISPOSALS.has(rec.disposalMethod) && !rec.releaseCounty && !rec.countyOfRelease) {
-      setCountyFallback('releaseCountyGroup', true);
-    }
+    /* Item 2 (v2-patch-5): no county fallback reveal — an underivable county
+       is stored as null silently and never blocks or appears on screen. */
     toast('Required: ' + errs.join(', '), 'error');
     return;
   }
@@ -7120,18 +7336,73 @@ function matchingOptionValue(selectId, value) {
    user-facing county field. */
 let silentTrapCounty = null;
 
-/* Offline / geocoder-down fallback: when the county can't be derived from
-   the location (no network, Nominatim down, or no county in the result),
-   un-hide the county dropdown so the record can still be saved with a
-   manually picked county. Hidden again on the next successful lookup and
-   on form reset. */
-function setCountyFallback(groupId, show) {
+/* ---- Item 6 (v2-patch-5): Customer Address vs Trap Site Address ----
+   customerAddress (default): the address field carries the customer's
+   primary or selected-property address; the three-option picker is hidden.
+   trapSiteAddress: the field is cleared and the picker (Use My Location /
+   Enter an Address / Locate on Map) takes over for independent entry.
+   Stored as `addressType` on the record and shown on the detail view. */
+function trapAddressType() {
+  const el = document.querySelector('input[name="f-address-type"]:checked');
+  return (el && el.value) || 'customerAddress';
+}
+function setTrapAddressType(type) {
+  const el = document.querySelector(`input[name="f-address-type"][value="${type}"]`);
+  if (el) el.checked = true;
+  updateTrapAddressTypeUI();
+}
+function updateTrapAddressTypeUI() {
+  const isSite = trapAddressType() === 'trapSiteAddress';
+  const opts = $('#trapLocOptions');
+  if (opts) opts.classList.toggle('hidden', !isSite);
+  if (!isSite) {
+    ['trapLocEntry', 'trapMapGroup'].forEach((id) => {
+      const el = document.getElementById(id);
+      if (el) el.classList.add('hidden');
+    });
+    document.querySelectorAll('#trapLocOptions .active').forEach((b) => b.classList.remove('active'));
+  }
+}
+function handleTrapAddressTypeChange() {
+  const isSite = trapAddressType() === 'trapSiteAddress';
+  if (isSite) {
+    /* Independent entry: clear the customer prefill so the picker starts clean. */
+    $('#f-address').value = '';
+    $('#f-trap-lat').value = '';
+    $('#f-trap-lng').value = '';
+    silentTrapCounty = null;
+    $('#f-county').value = '';
+    addressManuallyEdited = false;
+    delete $('#f-address').dataset.fromMap;
+    delete $('#f-address').dataset.lastValidated;
+    if (trapMapInstance) trapMapInstance.clear();
+    const hint = $('#addressValidationHint');
+    if (hint) { hint.textContent = 'Set the trap site with an option below.'; hint.className = 'hint'; }
+  } else {
+    /* Back to the customer's address: re-prefill from the selected property
+       or customer, if one is on the form. */
+    addressManuallyEdited = false;
+    const propId = ($('#f-property') && $('#f-property').value) || null;
+    const prop = propId ? cachedProperties.find((p) => p.id === propId) : null;
+    const cust = trapFormCustomerId ? cachedCustomers.find((c) => c.id === trapFormCustomerId) : null;
+    if (prop) applyPropertyToTrapForm(prop);
+    else if (cust) applyCustomerToTrapForm(cust);
+  }
+  updateTrapAddressTypeUI();
+}
+
+/* Item 2 (v2-patch-5): the county field must NEVER appear on screen under
+   any circumstances. The old offline/geocoder-down fallback that un-hid the
+   dropdown is gone — when the county can't be derived, null is stored
+   silently. The function is kept (call sites remain as reset hygiene) but
+   it now only ever hides the group. */
+function setCountyFallback(groupId, show) {   /* eslint-disable-line no-unused-vars */
   const g = document.getElementById(groupId);
   if (!g) return;
-  g.classList.toggle('hidden', !show);
-  if (show) g.removeAttribute('aria-hidden'); else g.setAttribute('aria-hidden', 'true');
+  g.classList.add('hidden');
+  g.setAttribute('aria-hidden', 'true');
   const sel = g.querySelector('select');
-  if (sel) { if (show) sel.removeAttribute('tabindex'); else sel.setAttribute('tabindex', '-1'); }
+  if (sel) sel.setAttribute('tabindex', '-1');
 }
 
 async function handleTrapLocationChange(lat, lng, source, geoHint) {
@@ -7185,7 +7456,7 @@ async function handleTrapLocationChange(lat, lng, source, geoHint) {
        previous location so the manual pick below actually wins (Item 2). */
     silentTrapCounty = null;
     setCountyFallback('trapCountyGroup', true);
-    const failText = `Coordinates saved (${lat.toFixed(5)}, ${lng.toFixed(5)}) — address lookup failed. Pick the County of Collection below.`;
+    const failText = `Coordinates saved (${lat.toFixed(5)}, ${lng.toFixed(5)}) — address lookup failed.`;
     setMapStatus('trapMapStatus', failText, 'error');
     if (hint) { hint.textContent = failText; hint.className = 'hint error'; }
   }
@@ -7257,7 +7528,7 @@ async function handlePesticideLocationChange(lat, lng, source, geoHint) {
        manual pick. */
     silentPaCounty = null;
     setCountyFallback('paCountyGroup', true);
-    const failText = `Coordinates saved (${lat.toFixed(5)}, ${lng.toFixed(5)}). Geocoder offline — fill address fields manually and pick the County of Treatment below.`;
+    const failText = `Coordinates saved (${lat.toFixed(5)}, ${lng.toFixed(5)}). Geocoder offline — fill the address fields manually.`;
     setMapStatus('paMapStatus', failText, 'error');
     if (paHint) { paHint.textContent = failText; paHint.className = 'hint error'; }
   }
@@ -7309,7 +7580,7 @@ async function handleReleaseLocationChange(lat, lng, source, geoHint) {
        the manual pick below actually wins (Item 2). */
     silentReleaseCounty = null;
     setCountyFallback('releaseCountyGroup', true);
-    const failText = `Coordinates saved (${lat.toFixed(5)}, ${lng.toFixed(5)}) — location lookup failed. Pick the County of Release below.`;
+    const failText = `Coordinates saved (${lat.toFixed(5)}, ${lng.toFixed(5)}) — location lookup failed.`;
     setMapStatus('releaseMapStatus', failText, 'error');
     if (hint) { hint.textContent = failText; hint.className = 'hint error'; }
   }
@@ -7384,13 +7655,29 @@ async function loadRecords() {
   cachedRecords = (await dbAll()).sort((a, b) => (b.dateCollected || '').localeCompare(a.dateCollected || '') || b.id - a.id);
 }
 
+/* Item 11 (v2-patch-5): Field Work sort — Date (default, newest first),
+   Contractor (alphabetical, then date), Customer (alphabetical, then date).
+   The <select> elements hold the per-tab session state. */
+function sortFieldWorkRecords(list, mode, getContractor, getCustomer, getDate) {
+  const byDateDesc = (a, b) => (getDate(b) || '').localeCompare(getDate(a) || '');
+  const sorted = list.slice();
+  if (mode === 'contractor') {
+    sorted.sort((a, b) => (getContractor(a) || '').localeCompare(getContractor(b) || '') || byDateDesc(a, b));
+  } else if (mode === 'customer') {
+    sorted.sort((a, b) => (getCustomer(a) || '').localeCompare(getCustomer(b) || '') || byDateDesc(a, b));
+  } else {
+    sorted.sort(byDateDesc);
+  }
+  return sorted;
+}
+
 function filteredRecords() {
   const q = $('#recSearch').value.trim().toLowerCase();
   const ft = $('#filterTrapper').value;
   const fs = $('#filterSpecies').value;
   const fc = $('#filterCounty').value;
   const fd = $('#filterDisposal').value;
-  return cachedRecords.filter((r) => {
+  const list = cachedRecords.filter((r) => {
     if (trapRecFilter.unlinkedOnly && r.jobId) return false;
     if (trapRecFilter.jobId && r.jobId !== trapRecFilter.jobId) return false;
     if (ft && r.trapper !== ft) return false;
@@ -7408,6 +7695,10 @@ function filteredRecords() {
     }
     return true;
   });
+  /* Item 11: apply the tab's sort selection. */
+  const sortMode = ($('#trapSortBy') && $('#trapSortBy').value) || 'date';
+  return sortFieldWorkRecords(list, sortMode,
+    (r) => r.trapper, (r) => r.clientName, (r) => r.dateCollected);
 }
 
 function speciesInitial(name) {
@@ -7445,8 +7736,17 @@ function renderListMode(list) {
   wrap.classList.remove('hidden');
   empty.classList.add('hidden');
   body.innerHTML = '';
+  /* Item 11: contractor sort groups the rows under name headers. */
+  const groupByContractor = ($('#trapSortBy') && $('#trapSortBy').value) === 'contractor';
+  let lastGroup = null;
   for (let i = 0; i < list.length; i++) {
     const r = list[i];
+    if (groupByContractor && (r.trapper || '(no contractor)') !== lastGroup) {
+      lastGroup = r.trapper || '(no contractor)';
+      const gtr = document.createElement('tr');
+      gtr.innerHTML = `<td colspan="7" style="background:rgba(196,119,42,0.10);color:var(--amber);font-weight:700;font-size:12px;text-transform:uppercase;letter-spacing:.04em;">${escapeHtml(lastGroup)}</td>`;
+      body.appendChild(gtr);
+    }
     const code = disposalCode(r.disposalMethod);
     const tag = code === 'R' ? 'R' : code === 'D' ? 'D' : 'X';
     const tagLabel = code === 'R' ? 'Released' : code === 'D' ? 'Euthanized' : 'Other';
@@ -7506,8 +7806,6 @@ function renderSingleMode(list) {
 function renderDashboard() {
   if (appMode === 'pesticide') return renderPesticideDashboard();
   const period = reportPeriod();
-  $('#periodValue').textContent = periodLabel(period);
-
   const hr = new Date().getHours();
   const greet = hr < 12 ? 'Good morning' : hr < 18 ? 'Good afternoon' : 'Good evening';
   const friendlyName = currentUser && EMAIL_TO_TRAPPER[currentUser.email.toLowerCase()]
@@ -7572,7 +7870,6 @@ function renderDashboard() {
 
 function renderPesticideDashboard() {
   const period = reportPeriod();
-  $('#periodValue').textContent = periodLabel(period);
   const hr = new Date().getHours();
   const greet = hr < 12 ? 'Good morning' : hr < 18 ? 'Good afternoon' : 'Good evening';
   const friendlyName = currentUser && EMAIL_TO_TRAPPER[currentUser.email.toLowerCase()]
@@ -7685,6 +7982,10 @@ function buildDetailRows(r) {
   head('Location');
   push('County', countyDisplay(r));
   push('Address', r.address);
+  /* Item 6 (v2-patch-5): make clear which address the location used. */
+  if (r.addressType) {
+    push('Address Type', r.addressType === 'trapSiteAddress' ? 'Trap Site Address' : 'Customer Address');
+  }
 
   head('Capture & Disposal');
   push('Capture', captureDisplay(r));
@@ -8945,7 +9246,7 @@ function filteredPesticideRecords() {
   const q = ($('#pestRecSearch') ? $('#pestRecSearch').value : '').trim().toLowerCase();
   const fa = $('#pestFilterApplicator') ? $('#pestFilterApplicator').value : '';
   const fm = $('#pestFilterMethod') ? $('#pestFilterMethod').value : '';
-  return cachedPesticideRecords.filter((r) => {
+  const list = cachedPesticideRecords.filter((r) => {
     if (pestRecFilter.unlinkedOnly && r.jobId) return false;
     if (pestRecFilter.jobId && r.jobId !== pestRecFilter.jobId) return false;
     if (fa && r.applicator !== fa) return false;
@@ -8959,6 +9260,10 @@ function filteredPesticideRecords() {
     }
     return true;
   });
+  /* Item 11: apply the tab's sort selection. */
+  const sortMode = ($('#pestSortBy') && $('#pestSortBy').value) || 'date';
+  return sortFieldWorkRecords(list, sortMode,
+    (r) => r.applicator, (r) => r.clientName, (r) => r.appliedAt);
 }
 
 function renderPesticideRecordsList() {
@@ -8971,7 +9276,17 @@ function renderPesticideRecordsList() {
     return;
   }
   root.innerHTML = '';
+  /* Item 11: contractor sort groups the rows under name headers. */
+  const groupByContractor = ($('#pestSortBy') && $('#pestSortBy').value) === 'contractor';
+  let lastGroup = null;
   for (const r of list) {
+    if (groupByContractor && (r.applicator || '(no contractor)') !== lastGroup) {
+      lastGroup = r.applicator || '(no contractor)';
+      const gh = document.createElement('div');
+      gh.style.cssText = 'color:var(--amber);font-weight:700;font-size:12px;text-transform:uppercase;letter-spacing:.04em;padding:10px 0 2px;';
+      gh.textContent = lastGroup;
+      root.appendChild(gh);
+    }
     const div = document.createElement('div');
     div.className = 'rec';
     const brand = (r.products && r.products[0]) ? brandLabel(r.products[0]) : '(no product)';
@@ -9003,6 +9318,7 @@ function allRecordsEntries() {
   const trap = cachedRecords.map((r) => ({
     kind: 'trap',
     id: r.id,
+    jobId: r.jobId || null,   /* Item 19: Unlinked badge */
     date: r.dateCollected || '',
     customer: r.clientName || '',
     contractor: r.trapper || '',
@@ -9017,6 +9333,7 @@ function allRecordsEntries() {
     return {
       kind: 'pest',
       id: r.id,
+      jobId: r.jobId || null,   /* Item 19: Unlinked badge */
       date: (r.appliedAt || '').slice(0, 10),
       customer: r.clientName || '',
       contractor: r.applicator || '',
@@ -9050,7 +9367,7 @@ function renderAllRecords() {
   const cust = $('#allRecCustomer').value;
   const who = $('#allRecContractor').value;
   const type = $('#allRecType').value;
-  const list = allRecordsEntries().filter((e) => {
+  let list = allRecordsEntries().filter((e) => {
     if (type && e.kind !== type) return false;
     if (from && e.date < from) return false;
     if (to && e.date > to) return false;
@@ -9059,18 +9376,39 @@ function renderAllRecords() {
     if (q && !e.hay.includes(q)) return false;
     return true;
   });
+  /* Item 19 (v2-patch-5): sort — Date (default, newest first) / Contractor /
+     Customer, matching the Field Work module's pattern. */
+  const sortMode = ($('#allRecSort') && $('#allRecSort').value) || 'date';
+  list = sortFieldWorkRecords(list, sortMode,
+    (e) => e.contractor, (e) => e.customer, (e) => e.date);
   if (!list.length) {
     root.innerHTML = '<div class="empty"><div class="em-title">No matching records</div><div>Adjust the search or filters above.</div></div>';
     return;
   }
-  root.innerHTML = list.map((e) => `
+  const row = (e) => `
     <div class="rec" data-allrec-kind="${e.kind}" data-allrec-id="${escapeHtml(e.id)}">
       <div class="rec-thumb">${e.kind === 'pest' ? 'PA' : escapeHtml(speciesInitial(e.title))}</div>
       <div class="rec-body">
-        <div class="rec-title">${escapeHtml(e.title)}<span class="rec-tag ${e.kind === 'pest' ? 'tag-X' : 'tag-R'}">${e.kind === 'pest' ? 'Pesticide' : 'Trapping'}</span></div>
+        <div class="rec-title">${escapeHtml(e.title)}<span class="rec-tag ${e.kind === 'pest' ? 'tag-X' : 'tag-R'}">${e.kind === 'pest' ? 'Pesticide' : 'Trapping'}</span>${e.jobId ? '' : '<span class="rec-tag" style="background:rgba(196,119,42,0.14);color:var(--amber);">Unlinked</span>'}</div>
         <div class="rec-meta">${escapeHtml(fmtShortDate(e.date) || 'no date')} · ${escapeHtml(e.sub)}</div>
       </div>
-    </div>`).join('');
+    </div>`;
+  if (sortMode === 'contractor') {
+    /* Group under contractor headers — unlinked records sit inline. */
+    let html = '';
+    let lastGroup = null;
+    for (const e of list) {
+      const g = e.contractor || '(no contractor)';
+      if (g !== lastGroup) {
+        lastGroup = g;
+        html += `<div style="color:var(--amber);font-weight:700;font-size:12px;text-transform:uppercase;letter-spacing:.04em;padding:10px 0 2px;">${escapeHtml(g)}</div>`;
+      }
+      html += row(e);
+    }
+    root.innerHTML = html;
+  } else {
+    root.innerHTML = list.map(row).join('');
+  }
 }
 
 async function fetchPesticideWeather() {
@@ -9259,9 +9597,16 @@ async function restoreFromFile(file) {
     const txt = await file.text();
     const data = JSON.parse(txt);
     if (!data || !Array.isArray(data.records)) throw new Error('Invalid backup file');
-    const ok = await confirmDialog('Restore backup?',
-      `This will add ${data.records.length} records from the backup file. Existing records will be kept.`);
-    if (!ok) return;
+    /* Item 22 (v2-patch-5): two-step confirmation. Step 1 explains what
+       happens and that it can't be undone; step 2 requires typing CONFIRM. */
+    const step1 = await confirmDialog('Restore backup?',
+      `This will add ${data.records.length} record${data.records.length === 1 ? '' : 's'} from the backup file to the shared cloud collection for every operator. Existing records are kept — restoring twice creates duplicates. This action cannot be undone.`,
+      { okText: 'Continue' });
+    if (!step1) return;
+    const step2 = await confirmDialog('Type CONFIRM to restore',
+      `Final check: type CONFIRM below to add the ${data.records.length} backup record${data.records.length === 1 ? '' : 's'}.`,
+      { sentinel: 'CONFIRM', okText: 'Restore Backup' });
+    if (!step2) return;
     for (const r of data.records) {
       const copy = { ...r };
       delete copy.id;
@@ -9284,12 +9629,21 @@ async function wipeAll() {
     toast('Only the admin account can clear all records.', 'error');
     return;
   }
-  const ok = await confirmDialog(
+  /* Item 22 (v2-patch-5): two-step confirmation. Step 1 explains what
+     happens and that it can't be undone; step 2 requires typing CONFIRM
+     before the action button enables. */
+  const step1 = await confirmDialog(
     'Clear ALL cloud records?',
-    'This permanently deletes every record for every trapper from the shared cloud collection. Cannot be undone. Download a JSON backup first if you might need this data later. Type CONFIRM to proceed.',
+    'This permanently deletes every trapping record for every trapper from the shared cloud collection. It cannot be undone. Download a JSON backup first if you might need this data later.',
+    { okText: 'Continue' }
+  );
+  if (!step1) return;
+  const step2 = await confirmDialog(
+    'Type CONFIRM to delete everything',
+    'Final check: type CONFIRM below to permanently delete every record.',
     { sentinel: 'CONFIRM', okText: 'Delete Everything' }
   );
-  if (!ok) return;
+  if (!step2) return;
   await dbClear();
   toast('All records cleared');
   await refreshAll();
@@ -9413,6 +9767,10 @@ function renderSchedule() {
   const cal = $('#calendarWrap'), ag = $('#agendaWrap');
   if (cal) cal.classList.toggle('hidden', schedView !== 'month');
   if (ag) ag.classList.toggle('hidden', schedView !== 'agenda');
+  /* Item 9: the sort toggle belongs to the agenda view only. */
+  const sortWrap = $('#agendaSortWrap');
+  if (sortWrap) sortWrap.classList.toggle('hidden', schedView !== 'agenda');
+  $$('#agendaSortToggle button').forEach((b) => b.classList.toggle('active', b.dataset.agendaSort === agendaSortMode));
   if (schedView === 'month') renderCalendarMonth();
   else renderAgenda();
 }
@@ -9449,7 +9807,8 @@ function allCalendarEntries() {
  * Item 16 (v2-patch-1): the Schedule module reads TASKS, not appointments.
  * The calendar and agenda views are unchanged — only the data source moved.
  * Each entry shows task type, job number, customer, operators, and time.
- * Contractors (non-admins) see only the tasks assigned to them.
+ * Item 9 (v2-patch-5): every operator sees every contractor's tasks; the
+ * agenda offers By Contractor (default) / By Time sorting for the session.
  * ===================================================================== */
 function calendarEntryFromTask(t) {
   return {
@@ -9457,14 +9816,14 @@ function calendarEntryFromTask(t) {
     durationMins: 60,
     title: taskTypeLabel(t),
     sub: [t.jobNumber, t.customerName, (t.assigneeNames || []).join(', ')].filter(Boolean).join(' · '),
+    assigneeNames: t.assigneeNames || [],   /* Item 9: contractor grouping */
     status: t.status || 'Open'
   };
 }
+/* Item 9 (v2-patch-5): the full calendar is visible to every operator —
+   all tasks for all contractors, no per-operator filtering. */
 function visibleScheduleTasks() {
-  if (isAdmin()) return cachedTasks;
-  const me = currentUser ? currentUser.email.toLowerCase() : '';
-  return cachedTasks.filter((t) =>
-    (t.assignedOperators || []).some((e) => String(e).toLowerCase() === me));
+  return cachedTasks;
 }
 function scheduleEntries() { return visibleScheduleTasks().map(calendarEntryFromTask); }
 
@@ -9533,6 +9892,9 @@ function renderCalDayList(dateStr) {
   el.innerHTML = `<h4 style="font-size:13px;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px;">${escapeHtml(longDate(dateStr))}</h4>${rows}`;
 }
 
+/* Item 9 (v2-patch-5): agenda sort preference — session-scoped. */
+let agendaSortMode = 'contractor';   /* 'contractor' (default) | 'time' */
+
 function renderAgenda() {
   const wrap = $('#agendaWrap');
   if (!wrap) return;
@@ -9545,7 +9907,35 @@ function renderAgenda() {
   const byDay = new Map();
   for (const e of upcoming) { if (!byDay.has(e.date)) byDay.set(e.date, []); byDay.get(e.date).push(e); }
   let html = '';
-  for (const [date, entries] of byDay) html += `<div class="agenda-day"><h4>${escapeHtml(longDate(date))}</h4>${entries.map(jobRowHtml).join('')}</div>`;
+  for (const [date, entries] of byDay) {
+    let body = '';
+    if (agendaSortMode === 'contractor') {
+      /* Item 9: group under contractor headers, alphabetical by first name
+         (names are "First Last" so a plain compare sorts by first name).
+         A task with two contractors appears under each of their sections. */
+      const byWho = new Map();
+      for (const e of entries) {
+        const names = (e.assigneeNames && e.assigneeNames.length) ? e.assigneeNames : ['Unassigned'];
+        for (const name of names) {
+          if (!byWho.has(name)) byWho.set(name, []);
+          byWho.get(name).push(e);
+        }
+      }
+      const who = [...byWho.keys()].sort((a, b) => {
+        if (a === 'Unassigned') return 1;
+        if (b === 'Unassigned') return -1;
+        return a.localeCompare(b);
+      });
+      body = who.map((name) =>
+        `<div style="font-size:12px;font-weight:700;color:var(--amber);margin:8px 0 2px;">${escapeHtml(name)}</div>` +
+        byWho.get(name).map(jobRowHtml).join('')
+      ).join('');
+    } else {
+      /* By Time: chronological, no contractor grouping. */
+      body = entries.map(jobRowHtml).join('');
+    }
+    html += `<div class="agenda-day"><h4>${escapeHtml(longDate(date))}</h4>${body}</div>`;
+  }
   wrap.innerHTML = html;
 }
 
@@ -9960,6 +10350,9 @@ function renderNotificationsPage() {
   if (sub) sub.textContent = unread.length ? `${unread.length} unread` : 'All caught up.';
   const clearBtn = $('#clearAllNotifsBtn');
   if (clearBtn) clearBtn.style.display = unread.length ? '' : 'none';
+  /* Item 8 (v2-patch-5): offered only when read notifications exist. */
+  const clearReadBtn = $('#clearReadNotifsBtn');
+  if (clearReadBtn) clearReadBtn.style.display = read.length ? '' : 'none';
   const caughtUp = '<div class="empty"><div class="em-check" aria-hidden="true">✓</div><div class="em-title">No new notifications — you are all caught up</div><div>Appointment, camera, and job alerts will land here.</div></div>';
   if (!cachedNotifications.length) {
     root.innerHTML = caughtUp;
@@ -10002,6 +10395,33 @@ async function clearAllNotifications() {
     }
     if (ops) await batch.commit();
     toast('Notifications cleared');
+  } catch (err) {
+    toast('Clear failed: ' + ((err && err.message) || 'error'), 'error');
+  }
+}
+
+/* Item 8 (v2-patch-5): permanently delete this operator's READ notifications.
+   Unread ones are untouched. The live subscription refreshes the feed as the
+   deletes land. */
+async function clearReadNotifications() {
+  const read = cachedNotifications.filter((n) => n.read);
+  if (!read.length) { toast('No read notifications to clear'); return; }
+  const ok = await confirmDialog(
+    'Clear read notifications?',
+    `Deletes ${read.length} read notification${read.length === 1 ? '' : 's'} from your feed. Unread notifications are kept. This cannot be undone.`,
+    { okText: 'Delete Read' }
+  );
+  if (!ok) return;
+  try {
+    let batch = writeBatch(fbDb);
+    let ops = 0;
+    for (const n of read) {
+      batch.delete(doc(fbDb, 'notifications', n.id));
+      if (++ops >= 450) { await batch.commit(); batch = writeBatch(fbDb); ops = 0; }
+    }
+    if (ops) await batch.commit();
+    toast(`Deleted ${read.length} read notification${read.length === 1 ? '' : 's'}`);
+    renderNotificationsPage();
   } catch (err) {
     toast('Clear failed: ' + ((err && err.message) || 'error'), 'error');
   }
@@ -10056,8 +10476,28 @@ const VISIT_TYPES = [
  * lifecycle jobs (7-status) keep their existing behavior.
  * ===================================================================== */
 const TASK_MODEL_STATUSES = ['Active', 'Complete', 'Cancelled'];
-/* Item 2 (v2-patch-2): required Job Type on every new/edited job. */
-const JOB_TYPES = ['Inspection', 'Service Call', 'Cleanup', 'Repair', 'Exclusion', 'Trapping', 'Culling'];
+/* Item 2 (v2-patch-2): required Job Type on every new/edited job.
+   Item 14 (v2-patch-5): 'Other' requires a jobTypeOther description, shown
+   in place of 'Other' everywhere job type appears. */
+const JOB_TYPES = ['Inspection', 'Service Call', 'Cleanup', 'Repair', 'Exclusion', 'Trapping', 'Culling', 'Other'];
+
+/* Item 14 (v2-patch-5): display text for a job's type — the jobTypeOther
+   description replaces the literal 'Other'. */
+function jobTypeDisplay(j) {
+  if (!j || !j.jobType) return '';
+  return j.jobType === 'Other' && j.jobTypeOther ? j.jobTypeOther : j.jobType;
+}
+
+/* Item 16 (v2-patch-5): "Job Type — Species" line, bold, directly under the
+   customer name on job cards and detail screens — only when a species is
+   set. Other types use their description: "Other (Chimney Sweep) — Raccoon". */
+function jobTypeSpeciesHtml(j) {
+  if (!j || !j.species) return '';
+  const type = j.jobType === 'Other' && j.jobTypeOther
+    ? `Other (${j.jobTypeOther})`
+    : (j.jobType || 'Job');
+  return `<div style="font-weight:700;color:var(--green-deep);font-size:13.5px;margin-top:2px;">${escapeHtml(type)} — ${escapeHtml(j.species)}</div>`;
+}
 const TASK_TYPES = [
   'Set Trap', 'Re-bait Trap', 'Check Trap', 'Pull Trap', 'Check Camera',
   'Inspection', 'Service Call', 'Pesticide Application', 'Repair',
@@ -10312,15 +10752,19 @@ function renderJobsList() {
   }
   el.innerHTML = list.map((j) => {
     const nTasks = tasksForJob(j.id).filter((t) => t.status !== 'Cancelled').length;
+    /* Item 15 (v2-patch-5): end date is no longer shown. */
     const dates = j.startDate
-      ? `${fmtShortDate(j.startDate)} – ${fmtShortDate(j.endDate) || 'open'}`
+      ? `started ${fmtShortDate(j.startDate)}`
       : (j.createdAt ? 'opened ' + fmtShortDate(j.createdAt.slice(0, 10)) : '');
     const who = (j.assigneeNames || []).join(', ');
     const bits = [dates, `${nTasks} task${nTasks === 1 ? '' : 's'}`, who].filter(Boolean);
     return `<div class="job-lc-row" data-ljob-open="${escapeHtml(j.id)}">
       <div class="jl-body">
-        <div class="jl-num">${escapeHtml(j.jobNumber || '')}${j.jobType ? ` <span class="job-type-tag">${escapeHtml(j.jobType)}</span>` : ''}</div>
-        <div class="jl-name">${escapeHtml(j.customerName || '(no customer)')}</div>
+        <div class="jl-num">${escapeHtml(j.jobNumber || '')}${j.jobType ? ` <span class="job-type-tag">${escapeHtml(jobTypeDisplay(j))}</span>` : ''}</div>
+        ${j.customerId
+          ? `<div><button type="button" class="jd-cust-link" style="margin-top:0;font-size:15px;" data-job-cust="${escapeHtml(j.customerId)}" title="View customer">${escapeHtml(j.customerName || 'Customer')}</button></div>`
+          : `<div class="jl-name">${escapeHtml(j.customerName || '(no customer)')}</div>`}
+        ${jobTypeSpeciesHtml(j)}
         <div class="jl-meta">${escapeHtml(bits.join(' · '))}</div>
         ${jobTaskProgressHtml(j.id)}
       </div>
@@ -10338,9 +10782,14 @@ function resetLifecycleJobForm() {
   /* Item 2: job type dropdown (required, no default). */
   fillSelect('lj-jobtype', JOB_TYPES, true, '— select job type —');
   $('#lj-jobtype').value = '';
-  /* Item 15: start today, end 30 days out (adjustable). */
+  /* Item 14: Other description hidden and empty on a fresh form. */
+  $('#lj-jobtype-other').value = '';
+  toggleGroup('cg-lj-jobtypeOther', false);
+  /* Item 16: optional species from the KDFWR list. */
+  fillGroupedSelect('lj-species', SPECIES_GROUPS, '— none —');
+  $('#lj-species').value = '';
+  /* Item 15 (v2-patch-5): start today; no end date on the form. */
   $('#lj-start').value = todayISO();
-  $('#lj-end').value = addDaysISO(todayISO(), 30);
   const hint = $('#lj-customer-hint');
   if (hint) { hint.textContent = 'Pick a customer already on file — add them in Customers first if needed.'; hint.className = 'hint'; }
   populateLifecycleJobEstimates(null);
@@ -10437,12 +10886,12 @@ async function handleSaveLifecycleJob(e) {
   /* Item 2: job type is required. */
   const jobType = $('#lj-jobtype').value;
   if (!jobType) { toast('Pick a job type', 'error'); $('#lj-jobtype').focus(); return; }
-  /* Item 15: start/end dates on the job container. */
+  /* Item 14 (v2-patch-5): Other requires the description text. */
+  const jobTypeOther = jobType === 'Other' ? $('#lj-jobtype-other').value.trim() : '';
+  if (jobType === 'Other' && !jobTypeOther) { toast('Describe the job type', 'error'); $('#lj-jobtype-other').focus(); return; }
+  /* Item 15 (v2-patch-5): only the start date lives on the form now. */
   const startDate = $('#lj-start').value;
-  const endDate = $('#lj-end').value;
   if (!startDate) { toast('Start date is required', 'error'); $('#lj-start').focus(); return; }
-  if (!endDate) { toast('End date is required', 'error'); $('#lj-end').focus(); return; }
-  if (endDate < startDate) { toast('End date can’t be before the start date', 'error'); $('#lj-end').focus(); return; }
   const operators = checkedEmails('lj-operators');
   const estimateId = $('#lj-estimate').value || null;
   const propertyId = ($('#lj-property') && $('#lj-property').value) || null;
@@ -10458,8 +10907,9 @@ async function handleSaveLifecycleJob(e) {
         customerName: lifecycleJobCustomer.name,
         propertyId,
         jobType,
-        startDate,
-        endDate,
+        jobTypeOther,   /* Item 14 */
+        species: $('#lj-species').value || null,   /* Item 16 */
+        startDate,      /* Item 15: endDate no longer written from the UI */
         estimateId,
         estimateNumber: est ? (est.estimateNumber || '') : '',
         assignedOperators: operators,
@@ -10495,11 +10945,12 @@ async function handleSaveLifecycleJob(e) {
         customerName: lifecycleJobCustomer.name,
         propertyId,
         jobType,
+        jobTypeOther,   /* Item 14 */
+        species: $('#lj-species').value || null,   /* Item 16 */
         /* Item 15: a new job is Active until Jon closes it out (Complete)
            or it's cancelled. */
         status: 'Active',
-        startDate,
-        endDate,
+        startDate,      /* Item 15: no endDate on new jobs */
         estimateId,
         estimateNumber: est ? (est.estimateNumber || '') : '',
         qbInvoiceNumber: null,
@@ -10546,9 +10997,15 @@ function editLifecycleJob(id) {
   /* Item 2: job type (jobs created before v2.2 have none until saved). */
   fillSelect('lj-jobtype', JOB_TYPES, true, '— select job type —');
   $('#lj-jobtype').value = j.jobType || '';
-  /* Item 15: start/end dates (legacy jobs pick up defaults on first edit). */
+  /* Item 14: restore the Other description. */
+  $('#lj-jobtype-other').value = j.jobTypeOther || '';
+  toggleGroup('cg-lj-jobtypeOther', j.jobType === 'Other');
+  /* Item 16: restore the species. */
+  fillGroupedSelect('lj-species', SPECIES_GROUPS, '— none —');
+  $('#lj-species').value = j.species || '';
+  /* Item 15 (v2-patch-5): start date only (legacy endDate stays in storage,
+     just never shown or editable). */
   $('#lj-start').value = j.startDate || (j.createdAt ? j.createdAt.slice(0, 10) : todayISO());
-  $('#lj-end').value = j.endDate || addDaysISO($('#lj-start').value, 30);
   lifecycleJobCustomer = j.customerId ? { id: j.customerId, name: j.customerName || '' } : null;
   $('#lj-customer').value = j.customerName || '';
   const hint = $('#lj-customer-hint');
@@ -10647,7 +11104,6 @@ function renderTaskModelJobDetail(j) {
   if (isOpen) {
     actions += `<button class="btn btn-amber" data-ljob-action="add-task" data-id="${escapeHtml(id)}">+ Add Task</button>`;
     actions += `<button class="btn btn-ghost" data-ljob-action="add-contractor" data-id="${escapeHtml(id)}">Add Contractor</button>`;
-    actions += `<button class="btn btn-ghost" data-ljob-action="extend-end" data-id="${escapeHtml(id)}">Extend End Date</button>`;
     actions += `<button class="btn btn-primary" data-ljob-action="log-trap" data-id="${escapeHtml(id)}">Log Trap Activity</button>`;
     actions += `<button class="btn btn-primary" data-ljob-action="log-pesticide" data-id="${escapeHtml(id)}">Log Pesticide Activity</button>`;
   }
@@ -10662,18 +11118,26 @@ function renderTaskModelJobDetail(j) {
         <h3 style="margin:0;font-family:ui-monospace,'SF Mono',monospace;font-size:16px;">${escapeHtml(j.jobNumber || 'Job')}</h3>
         <span class="status-pill ${jobLifeStatusClass(j.status)}">${escapeHtml(j.status || 'Active')}</span>
       </div>
-      ${j.jobType ? `<div style="margin-top:8px;"><span class="job-type-tag" style="font-size:13px;padding:3px 10px;">${escapeHtml(j.jobType)}</span></div>` : ''}
-      <div style="margin-top:6px;font-weight:600;color:var(--green-deep);font-size:17px;">${escapeHtml(j.customerName || '')}</div>
+      ${j.jobType ? `<div style="margin-top:8px;"><span class="job-type-tag" style="font-size:13px;padding:3px 10px;">${escapeHtml(jobTypeDisplay(j))}</span></div>` : ''}
+      ${j.customerId
+        ? `<div><button type="button" class="jd-cust-link" data-ljob-action="view-customer" data-id="${escapeHtml(id)}" data-cust="${escapeHtml(j.customerId)}" title="View customer">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>${escapeHtml(j.customerName || 'Customer')}</button></div>`
+        : `<div style="margin-top:6px;font-weight:600;color:var(--green-deep);font-size:17px;">${escapeHtml(j.customerName || '')}</div>`}
+      ${jobTypeSpeciesHtml(j)}
       ${prop ? `<div class="muted" style="font-size:13px;">${escapeHtml([prop.siteNickname, prop.address].filter(Boolean).join(' · '))}</div>`
         : cust && cust.address ? `<div class="muted" style="font-size:13px;">${escapeHtml([cust.address, cust.city].filter(Boolean).join(', '))}</div>` : ''}
-      <div class="muted" style="font-size:13px;margin-top:4px;">${escapeHtml(fmtShortDate(j.startDate))} – ${escapeHtml(fmtShortDate(j.endDate) || 'open')} · ${escapeHtml((j.assigneeNames || []).join(', ') || 'unassigned')}</div>
+      <div class="muted" style="font-size:13px;margin-top:4px;">Started ${escapeHtml(fmtShortDate(j.startDate) || '—')} · ${escapeHtml((j.assigneeNames || []).join(', ') || 'unassigned')}</div>
       ${jobTaskProgressHtml(id)}
     </div>
     <div class="card">
       <div class="job-stat-row"><span class="jsk">Estimate</span><span class="jsv">${est ? `${escapeHtml(est.estimateNumber || '')} · ${fmtUSD(est.grandTotal)} <button class="link-like" data-ljob-action="view-estimate" data-est="${escapeHtml(est.id)}">view</button>` : '—'}</span></div>
       <div class="job-stat-row"><span class="jsk">Trap records</span><span class="jsv">${trapRecs.length ? `${trapRecs.length} <button class="link-like" data-ljob-action="view-traps" data-id="${escapeHtml(id)}">view</button>` : '0'}</span></div>
       <div class="job-stat-row"><span class="jsk">Pesticide applications</span><span class="jsv">${pestRecs.length ? `${pestRecs.length} <button class="link-like" data-ljob-action="view-pests" data-id="${escapeHtml(id)}">view</button>` : '0'}</span></div>
-      <div class="job-stat-row"><span class="jsk">Camera</span><span class="jsv">${cameraId ? escapeHtml(cameraId) : 'Not assigned'}</span></div>
+      <div class="job-stat-row"><span class="jsk">Camera</span><span class="jsv">${
+        j.cameraId
+          ? `${escapeHtml(j.cameraId)} <button class="link-like" data-ljob-action="view-camera" data-cam="${escapeHtml(j.cameraId)}">view</button> <button class="link-like" data-ljob-action="remove-camera" data-id="${escapeHtml(id)}">Remove Camera</button>`
+          : `${cameraId ? escapeHtml(cameraId) + ' (from property) ' : ''}<button class="link-like" data-ljob-action="assign-camera" data-id="${escapeHtml(id)}">Assign Camera</button>`
+      }</span></div>
       <div class="job-stat-row"><span class="jsk">QB Invoice #</span><span class="jsv">${escapeHtml(String(j.qbInvoiceNumber || '—'))}</span></div>
       ${j.rebaitActive ? `<div class="job-stat-row"><span class="jsk">Rebait schedule</span><span class="jsv">every ${escapeHtml(String(j.rebaitInterval || '?'))} day${j.rebaitInterval === 1 ? '' : 's'} through ${escapeHtml(fmtShortDate(j.rebaitEndDate) || '—')}</span></div>` : ''}
     </div>
@@ -10682,7 +11146,9 @@ function renderTaskModelJobDetail(j) {
       <div class="appt-timeline">${taskRows}</div>
     </div>
     ${j.notes ? `<div class="card"><h3 style="margin-top:0;">Notes</h3><div>${escapeHtml(j.notes)}</div></div>` : ''}
-    <div class="form-actions">${actions}<button class="btn btn-cancel btn-ghost" data-ljob-action="back">Back to Jobs</button></div>`;
+    <div class="form-actions">${actions}</div>`;
+    /* Item 17 (v2-patch-5): the Return to Jobs button is gone — the Jobs
+       icon in the bottom banner already navigates back to the list. */
 }
 
 function renderLifecycleJobDetail(id) {
@@ -10752,8 +11218,12 @@ function renderLifecycleJobDetail(id) {
         <h3 style="margin:0;font-family:ui-monospace,'SF Mono',monospace;font-size:16px;">${escapeHtml(j.jobNumber || 'Job')}</h3>
         <span class="status-pill ${jobLifeStatusClass(j.status)}">${escapeHtml(j.status || 'Lead')}</span>
       </div>
-      ${j.jobType ? `<div style="margin-top:8px;"><span class="job-type-tag" style="font-size:13px;padding:3px 10px;">${escapeHtml(j.jobType)}</span></div>` : ''}
-      <div style="margin-top:6px;font-weight:600;color:var(--green-deep);font-size:17px;">${escapeHtml(j.customerName || '')}</div>
+      ${j.jobType ? `<div style="margin-top:8px;"><span class="job-type-tag" style="font-size:13px;padding:3px 10px;">${escapeHtml(jobTypeDisplay(j))}</span></div>` : ''}
+      ${j.customerId
+        ? `<div><button type="button" class="jd-cust-link" data-ljob-action="view-customer" data-id="${escapeHtml(id)}" data-cust="${escapeHtml(j.customerId)}" title="View customer">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>${escapeHtml(j.customerName || 'Customer')}</button></div>`
+        : `<div style="margin-top:6px;font-weight:600;color:var(--green-deep);font-size:17px;">${escapeHtml(j.customerName || '')}</div>`}
+      ${jobTypeSpeciesHtml(j)}
       ${prop ? `<div class="muted" style="font-size:13px;">${escapeHtml([prop.siteNickname, prop.address].filter(Boolean).join(' · '))}</div>`
         : cust && cust.address ? `<div class="muted" style="font-size:13px;">${escapeHtml([cust.address, cust.city].filter(Boolean).join(', '))}</div>` : ''}
       ${jobProgressHtml(j)}
@@ -10763,7 +11233,11 @@ function renderLifecycleJobDetail(id) {
       <div class="job-stat-row"><span class="jsk">Estimate</span><span class="jsv">${est ? `${escapeHtml(est.estimateNumber || '')} · ${fmtUSD(est.grandTotal)} <button class="link-like" data-ljob-action="view-estimate" data-est="${escapeHtml(est.id)}">view</button>` : '—'}</span></div>
       <div class="job-stat-row"><span class="jsk">Trap records</span><span class="jsv">${trapRecs.length ? `${trapRecs.length} <button class="link-like" data-ljob-action="view-traps" data-id="${escapeHtml(id)}">view</button>` : '0'}</span></div>
       <div class="job-stat-row"><span class="jsk">Pesticide applications</span><span class="jsv">${pestRecs.length ? `${pestRecs.length} <button class="link-like" data-ljob-action="view-pests" data-id="${escapeHtml(id)}">view</button>` : '0'}</span></div>
-      <div class="job-stat-row"><span class="jsk">Camera</span><span class="jsv">${cameraId ? escapeHtml(cameraId) : 'Not assigned'}</span></div>
+      <div class="job-stat-row"><span class="jsk">Camera</span><span class="jsv">${
+        j.cameraId
+          ? `${escapeHtml(j.cameraId)} <button class="link-like" data-ljob-action="view-camera" data-cam="${escapeHtml(j.cameraId)}">view</button> <button class="link-like" data-ljob-action="remove-camera" data-id="${escapeHtml(id)}">Remove Camera</button>`
+          : `${cameraId ? escapeHtml(cameraId) + ' (from property) ' : ''}<button class="link-like" data-ljob-action="assign-camera" data-id="${escapeHtml(id)}">Assign Camera</button>`
+      }</span></div>
       <div class="job-stat-row"><span class="jsk">QuickBooks</span><span class="jsv">${qbStatus}</span></div>
       <div class="job-stat-row"><span class="jsk">Assigned to</span><span class="jsv">${escapeHtml((j.assigneeNames || []).join(', ') || '—')}</span></div>
     </div>
@@ -10772,7 +11246,9 @@ function renderLifecycleJobDetail(id) {
       <div class="appt-timeline">${apptRows}</div>
     </div>
     ${j.notes ? `<div class="card"><h3 style="margin-top:0;">Notes</h3><div>${escapeHtml(j.notes)}</div></div>` : ''}
-    <div class="form-actions">${actions}<button class="btn btn-cancel btn-ghost" data-ljob-action="back">Back to Jobs</button></div>`;
+    <div class="form-actions">${actions}</div>`;
+    /* Item 17 (v2-patch-5): the Return to Jobs button is gone — the Jobs
+       icon in the bottom banner already navigates back to the list. */
 }
 
 /* ---- Job payment (Items 3 & 5) ----
@@ -10790,6 +11266,109 @@ async function markJobPaid(id) {
     paymentStatus: 'Paid',
     paymentReceivedAt: new Date().toISOString()
   });
+}
+
+/* =====================================================================
+ * Item 18 (v2-patch-5): camera assignment from the Job Detail screen.
+ * ---------------------------------------------------------------------
+ * Assign Camera opens a bottom sheet listing every property Camera ID not
+ * already assigned to another Active job. Selecting one stamps cameraId on
+ * the job and reflects it onto the job's own property (or customer) record
+ * when that record has no Camera ID yet — so the Monitoring photo routing
+ * ties the camera's photos to this job's customer context. Remove Camera
+ * clears the job's assignment.
+ * ===================================================================== */
+let cameraSheetJobId = null;
+
+function cameraSheetOpen() { return $('#cameraSheet').classList.contains('open'); }
+function closeCameraSheet() {
+  $('#cameraSheet').classList.remove('open');
+  $('#sheetBackdrop').classList.remove('open');
+  cameraSheetJobId = null;
+}
+
+function availableCamerasForAssignment(excludeJobId) {
+  const taken = new Set(lifecycleJobs()
+    .filter((x) => x.id !== excludeJobId && (x.status || 'Active') === 'Active' && x.cameraId)
+    .map((x) => String(x.cameraId).trim().toUpperCase()));
+  return cachedProperties
+    .filter((p) => (p.cameraId || '').trim())
+    .map((p) => {
+      const c = cachedCustomers.find((x) => x.id === p.customerId);
+      return {
+        cameraId: p.cameraId.trim().toUpperCase(),
+        propertyId: p.id,
+        customerId: p.customerId || null,
+        label: [c && c.name, p.siteNickname].filter(Boolean).join(' · ') || '(unnamed property)'
+      };
+    })
+    .filter((e) => !taken.has(e.cameraId))
+    .sort((a, b) => a.cameraId.localeCompare(b.cameraId));
+}
+
+function openCameraSheet(jobId) {
+  cameraSheetJobId = jobId;
+  const list = availableCamerasForAssignment(jobId);
+  const body = $('#cameraSheetBody');
+  if (body) {
+    body.innerHTML = list.length ? list.map((e) => `
+      <button type="button" class="snav-btn" data-cam-pick="${escapeHtml(e.cameraId)}">
+        <span><strong>${escapeHtml(e.cameraId)}</strong><br><span class="muted" style="font-size:12px;font-weight:400;">${escapeHtml(e.label)}</span></span>
+        <span class="chev">›</span>
+      </button>`).join('')
+      : '<div class="muted" style="padding:10px 0;">No unassigned camera IDs on file. Add a Camera ID to a property in the Customers module first.</div>';
+  }
+  $('#sheetBackdrop').classList.add('open');
+  $('#cameraSheet').classList.add('open');
+}
+
+function assignJobCamera(jobId, cameraId) {
+  const j = cachedJobs.find((x) => x.id === jobId);
+  if (!j || !cameraId) return;
+  const K = String(cameraId).trim().toUpperCase();
+  const now = new Date().toISOString();
+  /* Optimistic write (H1 pattern) — offline-safe like the other job writes. */
+  writeWithRetry(() => setDoc(doc(fbDb, 'jobs', jobId), { cameraId: K, updatedAt: now }, { merge: true }))
+    .catch((err) => {
+      console.error('camera assign failed', err);
+      toast('Camera assignment failed to sync: ' + ((err && err.message) || 'error'), 'error');
+    });
+  const jdx = cachedJobs.findIndex((x) => x.id === jobId);
+  if (jdx >= 0) cachedJobs[jdx] = { ...cachedJobs[jdx], cameraId: K };
+  /* Reflect onto the job's own property (or customer) so photo routing links
+     this camera to the job's context — but never overwrite a record already
+     routing a different camera. */
+  const prop = j.propertyId ? cachedProperties.find((p) => p.id === j.propertyId) : null;
+  if (prop && j.customerId && !(prop.cameraId || '').trim()) {
+    writeWithRetry(() => setDoc(doc(fbDb, 'customers', j.customerId, 'properties', prop.id),
+      { cameraId: K, updatedAt: now }, { merge: true }))
+      .catch((err) => console.error('property camera reflect failed', err));
+  } else if (!prop && j.customerId) {
+    const cust = cachedCustomers.find((c) => c.id === j.customerId);
+    if (cust && !(cust.cameraId || '').trim()) {
+      writeWithRetry(() => setDoc(doc(fbDb, 'customers', j.customerId),
+        { cameraId: K, updatedAt: now }, { merge: true }))
+        .catch((err) => console.error('customer camera reflect failed', err));
+    }
+  }
+  toast(`Camera ${K} assigned to ${j.jobNumber || 'the job'}`);
+  closeCameraSheet();
+  renderLifecycleJobDetail(jobId);
+}
+
+function removeJobCamera(jobId) {
+  const j = cachedJobs.find((x) => x.id === jobId);
+  if (!j || !j.cameraId) return;
+  const removed = String(j.cameraId).toUpperCase();
+  writeWithRetry(() => setDoc(doc(fbDb, 'jobs', jobId), { cameraId: null, updatedAt: new Date().toISOString() }, { merge: true }))
+    .catch((err) => {
+      console.error('camera remove failed', err);
+      toast('Camera removal failed to sync: ' + ((err && err.message) || 'error'), 'error');
+    });
+  const jdx = cachedJobs.findIndex((x) => x.id === jobId);
+  if (jdx >= 0) cachedJobs[jdx] = { ...cachedJobs[jdx], cameraId: null };
+  toast(`Camera ${removed} removed from ${j.jobNumber || 'the job'}`);
+  renderLifecycleJobDetail(jobId);
 }
 
 /* =====================================================================
@@ -11097,23 +11676,9 @@ function addContractorToJob(id) {
   renderLifecycleJobDetail(id);
 }
 
-function extendJobEndDate(id) {
-  const j = cachedJobs.find((x) => x.id === id);
-  if (!j) return;
-  const current = j.endDate || todayISO();
-  const suggestion = addDaysISO(current, 30);
-  const input = prompt(`New end date for ${j.jobNumber || 'this job'} (currently ${fmtShortDate(current)}):`, suggestion);
-  if (input === null) return;
-  const v = input.trim();
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(v)) { toast('Enter the date as YYYY-MM-DD', 'error'); return; }
-  if (j.startDate && v < j.startDate) { toast('End date can’t be before the start date', 'error'); return; }
-  writeWithRetry(() => setDoc(doc(fbDb, 'jobs', id), { endDate: v, updatedAt: new Date().toISOString() }, { merge: true }))
-    .catch((err) => { console.error('End-date extend failed', err); toast('Change failed to sync: ' + ((err && err.message) || 'error'), 'error'); });
-  const jdx = cachedJobs.findIndex((x) => x.id === id);
-  if (jdx >= 0) cachedJobs[jdx] = { ...cachedJobs[jdx], endDate: v };
-  toast(`End date moved to ${fmtShortDate(v)}`);
-  renderLifecycleJobDetail(id);
-}
+/* Item 15 (v2-patch-5): extendJobEndDate removed — endDate is no longer
+   shown or editable in the UI; the jobDurationReminder Cloud Function nudges
+   the admin every 30 days a job stays open instead. */
 
 /* Cancel every remaining Open task on a job (used by Close Out and Cancel).
    Optimistic batch — offline-safe like the other job writes. */
@@ -11167,7 +11732,7 @@ function renderCloseoutList() {
   }
   el.innerHTML = list.map((j) => `<div class="job-lc-row" style="cursor:default;">
       <div class="jl-body">
-        <div class="jl-num">${escapeHtml(j.jobNumber || '')}${j.jobType ? ` <span class="job-type-tag">${escapeHtml(j.jobType)}</span>` : ''}</div>
+        <div class="jl-num">${escapeHtml(j.jobNumber || '')}${j.jobType ? ` <span class="job-type-tag">${escapeHtml(jobTypeDisplay(j))}</span>` : ''}</div>
         <div class="jl-name">${escapeHtml(j.customerName || '(no customer)')}</div>
         <div class="jl-meta">Started ${escapeHtml(fmtDate(j.startDate) || '—')}</div>
       </div>
@@ -11204,9 +11769,9 @@ function renderCloseoutConfirm(id) {
         <h3 style="margin:0;font-family:ui-monospace,'SF Mono',monospace;font-size:16px;">${escapeHtml(j.jobNumber || 'Job')}</h3>
         <span class="status-pill ${jobLifeStatusClass(j.status)}">${escapeHtml(j.status || 'Active')}</span>
       </div>
-      ${j.jobType ? `<div style="margin-top:8px;"><span class="job-type-tag" style="font-size:13px;padding:3px 10px;">${escapeHtml(j.jobType)}</span></div>` : ''}
+      ${j.jobType ? `<div style="margin-top:8px;"><span class="job-type-tag" style="font-size:13px;padding:3px 10px;">${escapeHtml(jobTypeDisplay(j))}</span></div>` : ''}
       <div style="margin-top:6px;font-weight:600;color:var(--green-deep);font-size:17px;">${escapeHtml(j.customerName || '')}</div>
-      <div class="muted" style="font-size:13px;margin-top:4px;">${escapeHtml(fmtShortDate(j.startDate))} – ${escapeHtml(fmtShortDate(j.endDate) || 'open')}</div>
+      <div class="muted" style="font-size:13px;margin-top:4px;">Started ${escapeHtml(fmtShortDate(j.startDate) || '—')}</div>
     </div>
     <div class="card">
       <h3 style="margin:0 0 8px;">Completed tasks</h3>
@@ -11217,6 +11782,7 @@ function renderCloseoutConfirm(id) {
       <div class="job-stat-row"><span class="jsk">Linked estimate</span><span class="jsv">${est ? `${escapeHtml(est.estimateNumber || '')} · ${fmtUSD(est.grandTotal)}` : '—'}</span></div>
     </div>
     <div class="hint" style="margin:0 4px 12px;">Closing out marks the job Complete and switches off its rebait schedule. Invoicing and payment tracking continue in QuickBooks — no invoice is generated in the app.</div>
+    <div class="hint" style="margin:0 4px 12px;">If this is the customer's only active job they will be set to inactive automatically.</div>
     <div class="form-actions">
       ${isAdmin()
         ? `<button type="button" class="btn btn-amber" data-closeout-action="confirm" data-id="${escapeHtml(id)}">Confirm Close Out</button>`
@@ -11244,6 +11810,26 @@ async function confirmCloseOutJob(id) {
   const jdx = cachedJobs.findIndex((x) => x.id === id);
   if (jdx >= 0) cachedJobs[jdx] = { ...cachedJobs[jdx], status: 'Complete', rebaitActive: false, closedOutAt: now, closedOutBy: me };
   cancelOpenTasksForJob(id);
+  /* Item 13 (v2-patch-5): post-close check — if this was the customer's only
+     Active job, flip the customer's app-only `active` flag to false. Fully
+     automatic, no operator input. QuickBooks is never touched: `active` is
+     the app-controlled flag the QB sync never writes. */
+  if (j.customerId) {
+    const otherActive = lifecycleJobs().some((x) =>
+      x.id !== id && x.customerId === j.customerId && (x.status || 'Active') === 'Active');
+    if (!otherActive) {
+      const cust = cachedCustomers.find((c) => c.id === j.customerId);
+      if (cust && cust.active) {
+        writeWithRetry(() => setDoc(doc(fbDb, 'customers', j.customerId),
+          { active: false, updatedAt: now }, { merge: true }))
+          .then(() => toast(`${cust.name || 'Customer'} set to inactive — no other active jobs`))
+          .catch((err) => {
+            console.error('customer auto-deactivate failed', err);
+            toast('Customer deactivation failed to sync: ' + ((err && err.message) || 'error'), 'error');
+          });
+      }
+    }
+  }
   currentCloseoutJobId = null;
   setView('dashboard');   /* back to the Close Out list */
 }
@@ -11990,10 +12576,17 @@ function renderAssignLegacyView() {
     <div class="form-actions"><button class="btn btn-cancel btn-ghost" id="assignLegacyBackBtn">Back to Settings</button></div>`;
 }
 
-async function assignLegacyGroup(index, jobId) {
+/* Item 20 (v2-patch-5): in-flight lock — a second tap while an assignment is
+   still committing must be a no-op, never a second write sequence. */
+let legacyAssignBusy = false;
+
+async function assignLegacyGroup(index, jobId, btn) {
+  if (legacyAssignBusy) return;
   const g = legacyGroupsCache[index];
   const j = cachedJobs.find((x) => x.id === jobId);
   if (!g || !j) { toast('Pick a job first', 'error'); return; }
+  legacyAssignBusy = true;
+  if (btn) { btn.disabled = true; btn.textContent = 'Assigning…'; }
   const batch = writeBatch(fbDb);
   const now = new Date().toISOString();
   for (const it of g.items) {
@@ -12019,15 +12612,33 @@ async function assignLegacyGroup(index, jobId) {
     }
   };
   patchLocalCaches(jobId);
-  /* Optimistic write (H1): fire without awaiting so linking works offline. */
-  batch.commit().catch((err) => {
+  try {
+    /* Item 20: ONLINE, await the commit so the first confirmed tap is a
+       committed write (a failure reverts + toasts instead of silently
+       looking saved). Offline, fire-and-forget — Firestore queues it and
+       the optimistic cache patch keeps the UI correct. */
+    const commit = batch.commit();
+    if (navigator.onLine) {
+      await commit;
+    } else {
+      commit.catch((err) => {
+        console.error('Legacy assign failed', err);
+        patchLocalCaches(null);   /* revert so the group shows as unassigned again */
+        if (!$('#view-assign-legacy').classList.contains('hidden')) renderAssignLegacyView();
+        toast('Assign failed to sync: ' + ((err && err.message) || 'error'), 'error');
+      });
+    }
+    toast(`Linked ${g.items.length} record${g.items.length === 1 ? '' : 's'} to ${j.jobNumber}`);
+    renderAssignLegacyView();
+  } catch (err) {
     console.error('Legacy assign failed', err);
-    patchLocalCaches(null);   /* revert so the group shows as unassigned again */
+    patchLocalCaches(null);
     if (!$('#view-assign-legacy').classList.contains('hidden')) renderAssignLegacyView();
-    toast('Assign failed to sync: ' + ((err && err.message) || 'error'), 'error');
-  });
-  toast(`Linked ${g.items.length} record${g.items.length === 1 ? '' : 's'} to ${j.jobNumber}`);
-  renderAssignLegacyView();
+    toast('Assign failed: ' + ((err && err.message) || 'error'), 'error');
+    if (btn) { btn.disabled = false; btn.textContent = 'Assign'; }
+  } finally {
+    legacyAssignBusy = false;
+  }
 }
 
 async function createJobForLegacyGroup(index) {
@@ -12209,18 +12820,47 @@ function isIOSDevice() {
     || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1); /* iPadOS reports MacIntel */
 }
 function customerFormDestination() {
+  /* Item 1 (v2-patch-5): constrain routing to Kentucky. The map app gets
+     "street address, <County> County, Kentucky" (e.g. "129 Neal Lane,
+     Scott County, Kentucky") so it can't match a same-named street in
+     another state. No county on file → append Kentucky only. */
+  const street = $('#c-address').value.trim();
+  const county = $('#c-county').value;
   const parts = [
-    $('#c-address').value.trim(),
-    $('#c-city').value.trim(),
-    $('#c-county').value ? 'KY' : '',   /* bias in-state when a KY county is set */
-    $('#c-zip').value.trim()
+    street,
+    county ? `${county} County` : '',
+    'Kentucky'
   ].filter(Boolean);
-  return parts.join(', ');
+  return street ? parts.join(', ') : '';
 }
 function updateGetDirectionsBtn() {
   const btn = $('#getDirectionsBtn');
   if (!btn) return;
   btn.style.display = $('#c-address').value.trim() ? '' : 'none';
+}
+
+/* ---- Item 3 (v2-patch-5): click-to-call / click-to-text ----
+   Buttons show only when the customer has a phone number on file. On phones
+   the tel:/sms: schemes open the native dialer / SMS app pre-filled with the
+   first number; on desktop (where the schemes may not work gracefully) the
+   buttons stay visible but tapping shows a pointer toast instead. */
+function isMobileDevice() {
+  return isIOSDevice() || /Android/i.test(navigator.userAgent);
+}
+function updateCallTextButtons() {
+  const row = $('#callTextRow');
+  if (!row) return;
+  row.style.display = extractPrimaryPhone($('#c-phone').value.trim()) ? '' : 'none';
+}
+function openCustomerComm(scheme) {
+  const phone = extractPrimaryPhone($('#c-phone').value.trim());
+  if (!phone) { toast('No phone number on file for this customer', 'error'); return; }
+  if (!isMobileDevice()) {
+    toast('Open on your phone to call or text');
+    return;
+  }
+  const digits = phone.replace(/[^\d+]/g, '');
+  window.location.href = `${scheme}:${digits}`;
 }
 function openDirectionsToCustomer() {
   const dest = customerFormDestination();
@@ -12241,11 +12881,16 @@ let customerFormBaseline = null;
 function resetCustomerForm() {
   editingCustomerId = null;
   customerFormBaseline = null;
+  /* Item 7: the Back to Job shortcut is re-shown by loadCustomerIntoForm
+     when the screen was reached from a Job Detail screen. */
+  const backBtn = $('#backToJobBtn');
+  if (backBtn) backBtn.classList.add('hidden');
   $('#customerForm').reset();
   $('#c-id').value = '';
   $('#c-active').checked = false;
   fillGroupedSelect('c-county', COUNTY_GROUPS, '— select county —');
   updateGetDirectionsBtn();   /* Item 1: no address yet → hidden */
+  updateCallTextButtons();    /* Item 3: no phone yet → hidden */
   $('#deleteCustomerBtn').style.display = 'none';
   $('#retryQbPushBtn').style.display = 'none';
   $('#retryQbPushHint').style.display = 'none';
@@ -12275,6 +12920,7 @@ function loadCustomerIntoForm(c) {
   $('#c-notes').value = c.notes || '';
   $('#c-cameraId').value = c.cameraId || '';
   updateGetDirectionsBtn();   /* Item 1: show when the customer has an address */
+  updateCallTextButtons();    /* Item 3: show when the customer has a phone */
   $('#deleteCustomerBtn').style.display = 'block';
   /* Existing customer never (or unsuccessfully) pushed to QuickBooks — offer a
      manual retry of the qbCreateCustomer call that fires on first save. */
@@ -12283,6 +12929,7 @@ function loadCustomerIntoForm(c) {
   $('#saveCustomerBtn').textContent = 'Save Changes';
   const hub = $('#customerActionHub');
   if (hub) hub.classList.remove('hidden');
+  updateBackToJobBtn();   /* Item 7: show when navigated from a job */
   closePropertyEditor();
   renderPropertiesCard();
   /* M6: snapshot the just-loaded form so hub actions can detect unsaved
@@ -12576,9 +13223,23 @@ function populatePropertySelect(selectId, groupId, customerId, selectedId) {
   sel.value = selectedId || (props.length === 1 ? props[0].id : '');
 }
 
-function editCustomer(id) {
+/* Item 7 (v2-patch-5): job the Customer Detail screen was opened from, so
+   "Back to Job" can return without losing context. Set only by the Job
+   Detail customer link; cleared on every other route into the screen. */
+let customerReturnJobId = null;
+
+function updateBackToJobBtn() {
+  const btn = $('#backToJobBtn');
+  if (!btn) return;
+  const j = customerReturnJobId ? cachedJobs.find((x) => x.id === customerReturnJobId) : null;
+  btn.classList.toggle('hidden', !customerReturnJobId);
+  btn.textContent = j && j.jobNumber ? `← Back to ${j.jobNumber}` : '← Back to Job';
+}
+
+function editCustomer(id, opts = {}) {
   const c = cachedCustomers.find((x) => x.id === id);
   if (!c) return;
+  customerReturnJobId = opts.fromJobId || null;   /* Item 7 */
   setView('add');
   loadCustomerIntoForm(c);
 }
@@ -12784,14 +13445,17 @@ function applyCustomerToTrapForm(c) {
   if (c.email) $('#f-client-email').value = c.email;
   const fullAddr = [c.address, c.city].filter(Boolean).join(', ');
   /* Item 5: prefill is a convenience only — a hand-edited address is locked
-     against any later customer selection in this form session. */
-  if (fullAddr && !addressManuallyEdited) {
+     against any later customer selection in this form session.
+     Item 6 (v2-patch-5): in Trap Site Address mode the customer never
+     overwrites the independently entered location. */
+  const customerAddrMode = trapAddressType() !== 'trapSiteAddress';
+  if (fullAddr && !addressManuallyEdited && customerAddrMode) {
     const a = $('#f-address');
     a.value = fullAddr;
     delete a.dataset.fromMap;
     delete a.dataset.lastValidated;
   }
-  if (c.county && !addressManuallyEdited) selectCountyIfKnown('f-county', c.county);
+  if (c.county && !addressManuallyEdited && customerAddrMode) selectCountyIfKnown('f-county', c.county);
   const hint = $('#addressValidationHint');
   if (hint) { hint.textContent = `✓ Customer on file: ${c.name}`; hint.className = 'hint success'; }
   hideTrapCustomerSuggest();
@@ -12804,14 +13468,16 @@ function applyCustomerToTrapForm(c) {
 function applyPropertyToTrapForm(p) {
   if (!p) return;
   const fullAddr = [p.address, p.city].filter(Boolean).join(', ');
-  /* Item 5: a hand-edited address is never overwritten by property selection. */
-  if (fullAddr && !addressManuallyEdited) {
+  /* Item 5: a hand-edited address is never overwritten by property selection.
+     Item 6: nor is an independently entered Trap Site Address. */
+  const customerAddrMode = trapAddressType() !== 'trapSiteAddress';
+  if (fullAddr && !addressManuallyEdited && customerAddrMode) {
     const a = $('#f-address');
     a.value = fullAddr;
     delete a.dataset.fromMap;
     delete a.dataset.lastValidated;
   }
-  if (p.county && !addressManuallyEdited) selectCountyIfKnown('f-county', p.county);
+  if (p.county && !addressManuallyEdited && customerAddrMode) selectCountyIfKnown('f-county', p.county);
 }
 
 /* Fill pesticide-form client fields from a chosen customer. */
@@ -12922,6 +13588,10 @@ async function init() {
   ['f-species','f-capture','f-disposal'].forEach((id) => {
     $('#' + id).addEventListener('change', updateConditionals);
   });
+  /* Item 6 (v2-patch-5): Customer Address ↔ Trap Site Address selector. */
+  document.querySelectorAll('input[name="f-address-type"]').forEach((el) => {
+    el.addEventListener('change', handleTrapAddressTypeChange);
+  });
   $('#recordForm').addEventListener('submit', reviewForm);
   $('#cancelBtn').addEventListener('click', () => {
     const wasEdit = !!editingId;
@@ -12943,7 +13613,7 @@ async function init() {
     }
   });
 
-  ['recSearch','filterTrapper','filterSpecies','filterCounty','filterDisposal'].forEach((id) => {
+  ['recSearch','filterTrapper','filterSpecies','filterCounty','filterDisposal','trapSortBy'].forEach((id) => {
     $('#' + id).addEventListener('input', () => { singleIndex = 0; renderRecords(); });
     $('#' + id).addEventListener('change', () => { singleIndex = 0; renderRecords(); });
   });
@@ -12979,6 +13649,7 @@ async function init() {
   });
 
   $('#sheetBackdrop').addEventListener('click', () => {
+    if (cameraSheetOpen()) { closeCameraSheet(); return; }   /* Item 18 */
     if (rebaitSheetOpen()) { closeRebaitSheet(); return; }   /* Item 13 */
     if (sheetMode === 'review') {
       /* Reviewing — backdrop tap should not silently discard. Keep open. */
@@ -13133,7 +13804,7 @@ async function init() {
   $('#paPhotoReplaceBtn').addEventListener('click', () => $('#paPhotoInput').click());
   $('#paPhotoRemoveBtn').addEventListener('click', handlePaPhotoRemove);
   $('#paPhotoInput').addEventListener('change', handlePaPhotoSelected);
-  ['pestRecSearch','pestFilterApplicator','pestFilterMethod'].forEach((id) => {
+  ['pestRecSearch','pestFilterApplicator','pestFilterMethod','pestSortBy'].forEach((id) => {
     const el = $('#' + id);
     if (!el) return;
     el.addEventListener('input', renderPesticideRecordsList);
@@ -13335,6 +14006,18 @@ async function init() {
   /* Item 1: Get Directions — follows the address field live. */
   $('#getDirectionsBtn').addEventListener('click', openDirectionsToCustomer);
   $('#c-address').addEventListener('input', updateGetDirectionsBtn);
+  /* Item 3 (v2-patch-5): Call / Text — follow the phone field live. */
+  $('#callCustomerBtn').addEventListener('click', () => openCustomerComm('tel'));
+  $('#textCustomerBtn').addEventListener('click', () => openCustomerComm('sms'));
+  $('#c-phone').addEventListener('input', updateCallTextButtons);
+  /* Item 7 (v2-patch-5): return to the job this customer was opened from. */
+  $('#backToJobBtn').addEventListener('click', () => {
+    const jid = customerReturnJobId;
+    customerReturnJobId = null;
+    if (!jid) return;
+    resetCustomerForm();
+    openLifecycleJob(jid);
+  });
   /* Item 5 (v2-patch-2): Quick Controls switches. QBO Sync and Test
      Notifications are momentary — they flip on while running and settle
      back off; QBO Reconnect and Enable Notifications reflect real state. */
@@ -13509,6 +14192,13 @@ async function init() {
     schedView = b.dataset.schedView;
     renderSchedule();
   });
+  /* Item 9 (v2-patch-5): agenda sort toggle. */
+  $('#agendaSortToggle').addEventListener('click', (e) => {
+    const b = e.target.closest('button[data-agenda-sort]');
+    if (!b) return;
+    agendaSortMode = b.dataset.agendaSort;
+    renderSchedule();
+  });
   $('#calendarWrap').addEventListener('click', (e) => {
     const nav = e.target.closest('[data-cal-nav]');
     if (nav) {
@@ -13554,6 +14244,15 @@ async function init() {
   fillSelect('jobsFilterType', JOB_TYPES, true, 'All job types');
   $('#jobsFilterType').addEventListener('change', renderJobsList);
   $('#jobsList').addEventListener('click', (e) => {
+    /* Item 23 (v2-patch-5): tapping the customer name on a job card jumps
+       straight to that customer's Customer Detail screen (phone, email,
+       directions, action hub) — the rest of the card still opens the job. */
+    const cust = e.target.closest('[data-job-cust]');
+    if (cust) {
+      setAppModeQuiet('customer');
+      editCustomer(cust.dataset.jobCust);
+      return;
+    }
     const row = e.target.closest('[data-ljob-open]');
     if (row) openLifecycleJob(row.dataset.ljobOpen);
   });
@@ -13565,6 +14264,10 @@ async function init() {
     if (wasEdit) openLifecycleJob(wasEdit); else setView('dashboard');
   });
   wireAutocomplete('lj-customer', 'lj-customer-ac', applyLifecycleJobCustomer);
+  /* Item 14 (v2-patch-5): Other job type reveals the description field. */
+  $('#lj-jobtype').addEventListener('change', () => {
+    toggleGroup('cg-lj-jobtypeOther', $('#lj-jobtype').value === 'Other');
+  });
   $('#lifecycleJobDetail').addEventListener('click', (e) => {
     /* Item 15: task rows + inline complete buttons on the new job detail. */
     const doneBtn = e.target.closest('[data-task-complete]');
@@ -13576,6 +14279,12 @@ async function init() {
     if (btn.dataset.apptOpen) { openAppointment(btn.dataset.apptJob, btn.dataset.apptOpen); return; }
     const action = btn.dataset.ljobAction, id = btn.dataset.id;
     if (action === 'back') { currentLifecycleJobId = null; setView('dashboard'); }
+    /* Item 7 (v2-patch-5): tap the customer name → Customer Detail, with a
+       Back to Job button waiting there. */
+    else if (action === 'view-customer') {
+      setAppModeQuiet('customer');
+      editCustomer(btn.dataset.cust, { fromJobId: id });
+    }
     else if (action === 'schedule-visit') {
       editingAppointment = null;
       pendingAppointmentJobId = id;    /* consumed by resetAppointmentForm inside setView */
@@ -13584,11 +14293,11 @@ async function init() {
     }
     else if (action === 'log-trap') startWorkLog(id, 'trap');
     else if (action === 'log-pesticide') startWorkLog(id, 'pesticide');
-    else if (action === 'assign-camera') {
-      const j = cachedJobs.find((x) => x.id === id);
-      if (j && j.customerId) { setAppModeQuiet('customer'); editCustomer(j.customerId); }
-      else toast('This job has no linked customer to assign a camera to', 'error');
-    }
+    /* Item 18 (v2-patch-5): fully functional in place — bottom sheet picker
+       (was a jump to the customer form). */
+    else if (action === 'assign-camera') openCameraSheet(id);
+    else if (action === 'remove-camera') removeJobCamera(id);
+    else if (action === 'view-camera') { setAppModeQuiet('field'); showFieldDetail(btn.dataset.cam); }
     else if (action === 'create-estimate') startEstimateForJob(id);
     else if (action === 'pending-close') setJobLifecycleStatus(id, 'Pending Close');
     else if (action === 'mark-paid') markJobPaid(id);
@@ -13601,7 +14310,7 @@ async function init() {
       setView('add-task');
     }
     else if (action === 'add-contractor') addContractorToJob(id);
-    else if (action === 'extend-end') extendJobEndDate(id);
+    /* Item 15 (v2-patch-5): 'extend-end' removed with the endDate UI. */
     /* Item 7 (v2-patch-2): 'close-out' removed — see the Close Out module. */
     else if (action === 'cancel-job') {
       const j = cachedJobs.find((x) => x.id === id);
@@ -13672,6 +14381,13 @@ async function init() {
     else if (action === 'open-job') openLifecycleJob(jobId);
   });
 
+  /* ---- Camera assignment sheet wiring (Item 18, v2-patch-5) ---- */
+  $('#cameraSheetBody').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-cam-pick]');
+    if (b && cameraSheetJobId) assignJobCamera(cameraSheetJobId, b.dataset.camPick);
+  });
+  $('#cameraSheetCancel').addEventListener('click', closeCameraSheet);
+
   /* ---- Close Out wiring (Item 7, v2-patch-2) ---- */
   $('#closeoutList').addEventListener('click', (e) => {
     const btn = e.target.closest('[data-closeout-open]');
@@ -13685,7 +14401,7 @@ async function init() {
   });
 
   /* ---- Unified records view wiring (Items 8 & 9) ---- */
-  ['allRecSearch', 'allRecFrom', 'allRecTo', 'allRecCustomer', 'allRecContractor', 'allRecType'].forEach((id) => {
+  ['allRecSearch', 'allRecFrom', 'allRecTo', 'allRecCustomer', 'allRecContractor', 'allRecType', 'allRecSort'].forEach((id) => {
     const el = $('#' + id);
     if (!el) return;
     el.addEventListener('input', renderAllRecords);
@@ -13713,7 +14429,9 @@ async function init() {
     if (assign) {
       const i = parseInt(assign.dataset.lgAssign, 10);
       const sel = document.querySelector(`select[data-lg-job="${i}"]`);
-      assignLegacyGroup(i, sel ? sel.value : '');
+      /* Item 20: pass the button so it can show a busy state and can't
+         double-fire while the write commits. */
+      assignLegacyGroup(i, sel ? sel.value : '', assign);
       return;
     }
     const newJob = e.target.closest('[data-lg-newjob]');
@@ -13731,6 +14449,7 @@ async function init() {
   $('#fieldDetail').addEventListener('click', (e) => {
     if (e.target.closest('#fieldBackBtn')) { currentFieldKey = null; setView('dashboard'); return; }
     if (e.target.closest('#fieldClearBtn')) { clearFieldGroup(currentFieldKey); return; }
+    if (e.target.closest('#fieldConfirmRemovalBtn')) { confirmCameraRemoval(currentFieldKey); return; }   /* Item 21 */
     if (e.target.closest('#fieldAssignBtn')) {
       const i = $('#field-assign-cust');
       if (i) {
@@ -13796,6 +14515,7 @@ async function init() {
     setView(back && back !== 'notifications' ? back : 'dashboard', { preserveForm: true });
   });
   $('#clearAllNotifsBtn').addEventListener('click', clearAllNotifications);
+  $('#clearReadNotifsBtn').addEventListener('click', clearReadNotifications);   /* Item 8 */
   $('#notificationsList').addEventListener('click', (e) => {
     const btn = e.target.closest('[data-notif-dismiss]');
     if (btn) dismissNotification(btn.dataset.notifDismiss);

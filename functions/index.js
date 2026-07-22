@@ -1006,6 +1006,35 @@ exports.cleanupNotifications = functions
     return null;
   });
 
+/* Item 8 (v2-patch-5): daily cleanup of READ notifications older than 30
+ * days, across all operators. Complements cleanupNotifications (which
+ * removes everything past 60 days regardless of read state) by pruning the
+ * already-read history sooner. Single-field range query on createdAt (no
+ * composite index needed); the read flag is filtered in code. */
+exports.cleanupReadNotifications = functions
+  .region(REGION)
+  .runWith({ timeoutSeconds: 300, memory: '256MB' })
+  .pubsub.schedule('every day 04:00')
+  .timeZone(REPORT_TZ)
+  .onRun(async () => {
+    try {
+      const cutoff = new Date(Date.now() - 30 * 86400000).toISOString();
+      const snap = await db.collection('notifications').where('createdAt', '<', cutoff).get();
+      const stale = snap.docs.filter((d) => d.get('read') === true);
+      if (!stale.length) { console.log('cleanupReadNotifications: no read notifications older than 30 days'); return null; }
+      let batch = db.batch(); let ops = 0; let deleted = 0;
+      for (const d of stale) {
+        batch.delete(d.ref); deleted++;
+        if (++ops >= 450) { await batch.commit(); batch = db.batch(); ops = 0; }
+      }
+      if (ops) await batch.commit();
+      console.log(`cleanupReadNotifications: deleted ${deleted} read notifications older than 30 days`);
+    } catch (err) {
+      console.error('cleanupReadNotifications failed', err);
+    }
+    return null;
+  });
+
 /* Daily scheduled sync. */
 exports.qbDailySync = functions
   .region(REGION)
@@ -1072,6 +1101,9 @@ async function logGraphError(status, path, context = {}) {
       status: status || null,
       path: String(path || '').slice(0, 300),
       subject: context.subject || null,
+      /* Item 10 (v2-patch-5): the camera-key extraction attempt, so a
+         status email that matched no camera record is diagnosable. */
+      cameraKey: context.cameraKey || null,
       message: context.message || null
     });
   } catch (e) {
@@ -1195,17 +1227,82 @@ async function handlePhotoMessage(m, keyMap) {
   return { photos, unassigned: !match, key, match, receivedAt: m.receivedDateTime || new Date().toISOString() };
 }
 
+/* Item 10 (v2-patch-5): a status report that can't be parsed or matched must
+ * never vanish silently (or loop unread forever). Log the raw subject, the
+ * camera-key extraction attempt, and the failure reason to graphErrors, and
+ * drop a pending-queue row into cameraHealth — the same manual-assignment
+ * pattern unmatched photos use: it surfaces in the Monitoring module as an
+ * unlinked group Jon can assign to a customer. */
+async function queueUnmatchedReport(m, keyAttempt, reason) {
+  await logGraphError(null, 'cuddeback-report', {
+    subject: m.subject || '',
+    cameraKey: keyAttempt || null,
+    message: `status report not ingested: ${reason}`
+  });
+  try {
+    const key = keyAttempt || 'UNKNOWN';
+    await db.doc(`cameraHealth/${key}__pending`).set({
+      customerKey: key,
+      customerId: null,
+      customerName: null,
+      propertyId: null,
+      cameraNumber: '—',
+      cameraName: 'Status report (needs manual review)',
+      mode: null,
+      reportDate: null,
+      battery: null,
+      batteryOk: null,
+      sdFreeSpace: null,
+      sdFreeGB: null,
+      photoQueue: null,
+      fwVersion: null,
+      clVersion: null,
+      deficiencies: [],
+      status: 'red',
+      dateCurrent: false,
+      pending: true,
+      pendingReason: String(reason).slice(0, 300),
+      subject: m.subject || '',
+      receivedAt: m.receivedDateTime || new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    }, { merge: true });
+  } catch (e) {
+    console.error('pending report queue write failed', e);
+  }
+}
+
 async function handleReportMessage(m, keyMap) {
   const ctx = { subject: m.subject || '' };
+  const keyAttempt = cb.subjectKey(m.subject);
   const atts = await graphGet(`/users/${PHOTOS_MAILBOX}/messages/${m.id}/attachments?$select=id,name,contentType,isInline`, ctx);
   const htmlAtt = (atts.value || []).find((a) => /html/i.test(a.contentType || '') || /\.html?$/i.test(a.name || ''));
-  if (!htmlAtt) throw new Error('report message has no HTML attachment');
+  if (!htmlAtt) {
+    /* Not retryable — queue it and mark the message read (Item 10). */
+    await queueUnmatchedReport(m, keyAttempt, 'report message has no HTML attachment');
+    return { devices: 0, pending: true };
+  }
   const buf = await graphGetBytes(`/users/${PHOTOS_MAILBOX}/messages/${m.id}/attachments/${htmlAtt.id}/$value`, ctx);
   const parsed = cb.parseReportHtml(buf.toString('utf8'));
-  if (!parsed || !parsed.network) throw new Error('could not parse report HTML');
+  if (!parsed || !parsed.network) {
+    await queueUnmatchedReport(m, keyAttempt, 'could not parse report HTML (no table or Network header — possible new firmware format)');
+    return { devices: 0, pending: true };
+  }
+  if (!parsed.devices.length) {
+    await queueUnmatchedReport(m, parsed.network || keyAttempt, 'report parsed but contained no device rows (unrecognized row format)');
+    return { devices: 0, pending: true };
+  }
 
   const today = cb.todayMDY(REPORT_TZ);
   const match = keyMap.get(parsed.network) || null;
+  if (!match) {
+    /* Rows below are still written (unassigned) — the existing unmatched
+       pattern; this log makes the miss visible with the attempted key. */
+    await logGraphError(null, 'cuddeback-report', {
+      subject: m.subject || '',
+      cameraKey: parsed.network,
+      message: `status report network "${parsed.network}" matched no camera record — health rows written unassigned for manual assignment`
+    });
+  }
   const nowIso = new Date().toISOString();
   const batch = db.batch();
   for (const d of parsed.devices) {
@@ -1301,6 +1398,54 @@ async function handleReportMessage(m, keyMap) {
 }
 
 /* =====================================================================
+ * Item 15 (v2-patch-5): 30-day job duration reminder — Cloud Scheduler,
+ * daily. Any lifecycle job (has a jobNumber) that has been Active for 30+
+ * days without being closed sends a push and in-app notification to
+ * jon@southern-wildlife.com ONLY, repeating every 30 days (tracked via
+ * lastDurationReminderAt on the job doc) until the job is closed.
+ * ===================================================================== */
+exports.jobDurationReminder = functions
+  .region(REGION)
+  .runWith({ timeoutSeconds: 300, memory: '256MB' })
+  .pubsub.schedule('every day 05:00')
+  .timeZone(REPORT_TZ)
+  .onRun(async () => {
+    const REMIND_MS = 30 * 24 * 60 * 60 * 1000;
+    const JON = 'jon@southern-wildlife.com';
+    try {
+      const snap = await db.collection('jobs').where('status', '==', 'Active').get();
+      const now = Date.now();
+      let sent = 0;
+      for (const d of snap.docs) {
+        const j = d.data();
+        if (!j.jobNumber) continue;   /* legacy schedule docs aren't jobs */
+        const activeSince = Date.parse(j.startDate || j.createdAt || '') || 0;
+        if (!activeSince || now - activeSince < REMIND_MS) continue;
+        const last = j.lastDurationReminderAt ? Date.parse(j.lastDurationReminderAt) : 0;
+        if (last && now - last < REMIND_MS) continue;   /* repeats every 30 days */
+        const days = Math.floor((now - activeSince) / 86400000);
+        const payload = {
+          type: 'job',
+          title: 'Job still open — 30 days',
+          body: `${j.jobNumber} · ${j.customerName || 'no customer'} · open ${days} days. Consider closing this job or extending it.`,
+          relatedId: d.id,
+          tag: `job-duration-${d.id}`
+        };
+        try { await sendPushToEmails([JON], payload); }
+        catch (e) { console.error('job duration push failed', d.id, e); }
+        try { await createNotifications([JON], payload); }
+        catch (e) { console.error('job duration feed notification failed', d.id, e); }
+        await d.ref.set({ lastDurationReminderAt: new Date(now).toISOString() }, { merge: true });
+        sent++;
+      }
+      console.log(`jobDurationReminder: ${sent} reminder${sent === 1 ? '' : 's'} sent`);
+    } catch (err) {
+      console.error('jobDurationReminder failed', err);
+    }
+    return null;
+  });
+
+/* =====================================================================
  * Camera watchdog (Item 14) — Cloud Scheduler, every 60 minutes.
  * Checks lastSeen across active camera records; any camera silent for more
  * than 390 minutes (6.5 hours) alerts every operator. Action-triggered
@@ -1342,6 +1487,53 @@ exports.cameraWatchdog = functions
         ].filter(Boolean).join(' · ');
         await notifyAllOperators({ type: 'camera', title: 'Camera offline', body, relatedId: d.id, tag: `cam-offline-${d.id}` });
         await d.ref.set({ lastNotifiedAt: { offline: new Date(now).toISOString() } }, { merge: true });
+      }
+      /* Item 21 (v2-patch-5): pending-removal flow. A camera is flagged for
+         removal only when BOTH hold: its customer has no Active job (job
+         closed) AND it has sent no photo or status report in 14 days.
+         Flagging notifies jon@ (push + in-app feed); the camera stays
+         visible with a Pending Removal indicator until Jon explicitly
+         confirms in the app (removalConfirmed). Fresh activity clears both
+         flags so a revived camera reappears automatically. */
+      const REMOVAL_SILENCE_MS = 14 * 24 * 60 * 60 * 1000;
+      const JON = 'jon@southern-wildlife.com';
+      let activeJobCustomers = null;
+      try {
+        const activeJobs = await db.collection('jobs').where('status', '==', 'Active').get();
+        activeJobCustomers = new Set(activeJobs.docs.map((jd) => jd.get('customerId')).filter(Boolean));
+      } catch (e) {
+        console.error('active-job lookup for camera removal failed', e);
+      }
+      if (activeJobCustomers) {
+        for (const d of snap.docs) {
+          const s = d.data();
+          const last = s.lastSeen ? Date.parse(s.lastSeen) : 0;
+          const fresh = last && (now - last) < REMOVAL_SILENCE_MS;
+          if (fresh) {
+            /* Camera is alive again — clear any removal state. */
+            if (s.pendingRemoval || s.removalConfirmed) {
+              await d.ref.set({
+                pendingRemoval: false,
+                removalConfirmed: false,
+                updatedAt: new Date(now).toISOString()
+              }, { merge: true });
+            }
+            continue;
+          }
+          if (s.pendingRemoval || s.removalConfirmed) continue;   /* already flagged/hidden */
+          if (!s.customerId) continue;   /* unlinked cameras go through manual assignment, not removal */
+          if (activeJobCustomers.has(s.customerId)) continue;     /* job still active — camera stays */
+          await d.ref.set({
+            pendingRemoval: true,
+            pendingRemovalAt: new Date(now).toISOString()
+          }, { merge: true });
+          const body = `Camera ${d.id} · ${s.customerName || 'customer'} · job closed and no photo or status report in 14+ days. It will be removed from active monitoring once you confirm in the app.`;
+          const payload = { type: 'camera', title: 'Camera pending removal', body, relatedId: d.id, tag: `cam-removal-${d.id}` };
+          try { await sendPushToEmails([JON], payload); }
+          catch (e) { console.error('camera removal push failed', d.id, e); }
+          try { await createNotifications([JON], payload); }
+          catch (e) { console.error('camera removal feed notification failed', d.id, e); }
+        }
       }
       /* M15: a whole network's daily report can stop arriving — then
          handleReportMessage never runs for it (its `noreport` check only

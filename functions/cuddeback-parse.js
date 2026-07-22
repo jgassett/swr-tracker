@@ -7,11 +7,19 @@
 const SD_FREE_MIN_GB = 4;    // free space BELOW this = deficiency (card nearly full)
 const PHOTO_QUEUE_MAX = 5;   // photos in queue ABOVE this = deficiency
 
-/* Photo/report subject → customer key (text before the first " - "). */
+/* Photo/report subject → customer key (text before the first " - ").
+ * Handles every observed subject shape:
+ *   "KEY - date - time"                (photo emails)
+ *   "Report - KEY - date - time"       (status reports)
+ *   "Daily Report - KEY - date - time" (firmware variants prefix "Report"
+ *                                       with extra words)
+ * The key itself may be the LastnameF multi-property format with a trailing
+ * property number (e.g. "HAYDENT1") — it is passed through verbatim,
+ * uppercased, exactly as stored in property/customer Camera IDs. */
 function subjectKey(subject) {
   if (!subject) return null;
   let s = subject.trim();
-  s = s.replace(/^Report\s*-\s*/i, ''); // report subjects are "Report - KEY - date - time"
+  s = s.replace(/^[^-]*\breport\s*-\s*/i, ''); // strip "…Report - " prefixes
   const idx = s.indexOf(' - ');
   const key = (idx === -1 ? s : s.slice(0, idx)).trim();
   return key ? key.toUpperCase() : null;
@@ -44,10 +52,17 @@ function sdFreeGB(s) {
 }
 
 /* Parse the report HTML attachment. Returns { reportDate, network, devices[] }
- * from the FIRST (latest) daily table. */
+ * from the FIRST (latest) daily table.
+ *
+ * Item 10 (v2-patch-5) hardening — known format variations:
+ *  - <table> may carry attributes on newer firmware (<table border="1">):
+ *    the split now tolerates them.
+ *  - Device rows are normally <tr class="cl-entry">; firmware that drops or
+ *    renames the class falls back to scanning every <tr> with enough cells.
+ *  - Date:/Network: header text is unchanged across observed versions. */
 function parseReportHtml(html) {
   if (!html) return null;
-  const tables = html.split(/<table>/i).slice(1);
+  const tables = html.split(/<table[^>]*>/i).slice(1);
   if (!tables.length) return null;
   const first = tables[0];
 
@@ -56,7 +71,12 @@ function parseReportHtml(html) {
   const reportDate = dateMatch ? dateMatch[1].trim() : null;
   const network = netMatch ? netMatch[1].trim().toUpperCase() : null;
 
-  const rows = first.match(/<tr class="cl-entry">[\s\S]*?<\/tr>/gi) || [];
+  let rows = first.match(/<tr class="cl-entry">[\s\S]*?<\/tr>/gi) || [];
+  if (!rows.length) {
+    /* Firmware variant without the cl-entry class: take every row; the
+       cell-count and camera-number guards below drop headers and filler. */
+    rows = first.match(/<tr[^>]*>[\s\S]*?<\/tr>/gi) || [];
+  }
   const devices = [];
   for (const row of rows) {
     const cells = [...row.matchAll(/<td[^>]*>([\s\S]*?)<\/td>/gi)]
