@@ -3386,7 +3386,7 @@ import {
   query, orderBy, onSnapshot, writeBatch, arrayUnion, arrayRemove, updateDoc, collectionGroup, where, runTransaction
 } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import {
-  getStorage, ref as storageRef, uploadBytes, getDownloadURL
+  getStorage, ref as storageRef, uploadBytes, getDownloadURL, deleteObject
 } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-storage.js";
 import {
   getFunctions, httpsCallable
@@ -5644,8 +5644,12 @@ function fieldGroups() {
     if (!g.customerId && h.customerId) g.customerId = h.customerId;
     if (!g.propertyId && h.propertyId) g.propertyId = h.propertyId;   /* M25 */
   }
+  const myEmail = currentUser ? currentUser.email.toLowerCase() : '';
   for (const p of cachedCameraPhotos) {
-    if (p.archived) continue;   /* cleared from the app; file persists in Storage */
+    if (p.archived) continue;   /* legacy global clear; file persists in Storage */
+    /* Item 4 (v2-patch-5): per-operator deletion — a photo an operator
+       deleted is hidden for them only; everyone else still sees it. */
+    if (Array.isArray(p.deletedBy) && p.deletedBy.some((e) => String(e).toLowerCase() === myEmail)) continue;
     const g = get(p.customerKey);
     g.photos.push(p);
     if (!g.name && p.customerName) g.name = p.customerName;
@@ -5745,7 +5749,7 @@ function renderFieldDetail(key) {
     <div class="card"><h3 style="margin-top:0;">Camera Health</h3>${health}</div>
     <div class="card"><h3 style="margin-top:0;">Photos (${g.photos.length})</h3>${photos}</div>
     <div class="form-actions">
-      <button class="btn btn-danger" id="fieldClearBtn">Delete Photos From App</button>
+      <button class="btn btn-danger" id="fieldClearBtn">Delete Photos</button>
       <button class="btn btn-cancel btn-ghost" id="fieldBackBtn">Back to Monitoring</button>
     </div>`;
 
@@ -5812,38 +5816,56 @@ async function assignFieldPhotos(key, customer) {
   }
 }
 
-/* "Delete Photos From App" — clears a finished job's camera group without
-   touching cloud storage. Photos are ARCHIVED (hidden from the app; the files
-   stay in Storage until the retention job deletes them) and the group's
-   cameraHealth rows are deleted (the ingest recreates them automatically if
-   the camera reports under this key again). Available to every operator. */
+/* "Delete Photos From App" — Item 4 (v2-patch-5): deletion is PER-OPERATOR.
+   An operator's delete stamps their email into each photo's `deletedBy`
+   array; the photo disappears from their view only (Storage file and
+   Firestore doc untouched) and every other operator still sees it. Only
+   Jon (admin) deletes permanently — Storage file + Firestore doc removed
+   for everyone. Camera health rows are never touched here: active cameras
+   stay visible in Monitoring even with all photos deleted (Item 21). */
 async function clearFieldGroup(key) {
   if (!key) return;
   const g = fieldGroups().find((x) => x.key === key);
   if (!g) return;
-  const nP = g.photos.length, nD = g.devices.length;
+  const nP = g.photos.length;
+  if (!nP) { toast('No photos to delete for this camera'); return; }
+  const admin = isAdmin();
+  const note = 'Deleting removes this photo from your view only. Other operators can still see it. Admins can permanently delete.';
   const ok = await confirmDialog(
     `Delete ${g.name || g.key} photos?`,
-    `Removes ${nP} photo${nP === 1 ? '' : 's'} and ${nD} camera health row${nD === 1 ? '' : 's'} from the app. ` +
-    `Photo files stay in cloud storage until the retention window deletes them, and health rows return ` +
-    `automatically if this camera reports again. This can't be undone in the app.`,
-    { okText: 'Delete From App' }
+    admin
+      ? `As admin, this PERMANENTLY deletes ${nP} photo${nP === 1 ? '' : 's'} (files and records) for every operator. This cannot be undone. ${note}`
+      : `Removes ${nP} photo${nP === 1 ? '' : 's'} from your view. ${note}`,
+    { okText: admin ? 'Delete Permanently' : 'Delete From My View' }
   );
   if (!ok) return;
   try {
-    const now = new Date().toISOString();
-    for (const p of g.photos) {
-      await writeWithRetry(() => setDoc(doc(fbDb, 'cameraPhotos', p.id),
-        { archived: true, archivedAt: now, archivedBy: currentUser ? currentUser.email : null }, { merge: true }));
+    if (admin) {
+      for (const p of g.photos) {
+        if (p.storagePath) {
+          try { await deleteObject(storageRef(fbStorage, p.storagePath)); }
+          catch (err) {
+            /* Already-gone files are fine; anything else keeps the doc so
+               the delete can be retried. */
+            if (!err || err.code !== 'storage/object-not-found') throw err;
+          }
+        }
+        await writeWithRetry(() => deleteDoc(doc(fbDb, 'cameraPhotos', p.id)));
+      }
+      toast(`${g.name || g.key} photos permanently deleted`);
+    } else {
+      const email = currentUser ? currentUser.email.toLowerCase() : null;
+      if (!email) return;
+      for (const p of g.photos) {
+        await writeWithRetry(() => setDoc(doc(fbDb, 'cameraPhotos', p.id),
+          { deletedBy: arrayUnion(email) }, { merge: true }));
+      }
+      toast(`${g.name || g.key} photos hidden from your view`);
     }
-    for (const d of g.devices) {
-      await writeWithRetry(() => deleteDoc(doc(fbDb, 'cameraHealth', d.id)));
-    }
-    toast(`${g.name || g.key} cleared from the app`);
-    currentFieldKey = null;
-    setView('dashboard');
+    renderFieldDetail(key);
+    renderFieldDashboard();
   } catch (err) {
-    toast('Clear failed: ' + ((err && err.message) || 'error'), 'error');
+    toast('Delete failed: ' + ((err && err.message) || 'error'), 'error');
   }
 }
 
