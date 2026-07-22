@@ -3342,6 +3342,16 @@
   <div id="rebaitBody"></div>
 </div>
 
+<!-- Item 18 (v2-patch-5): camera assignment selector for the Job Detail
+     screen — lists property camera IDs not already on another Active job. -->
+<div class="sheet" id="cameraSheet">
+  <div class="sheet-handle"></div>
+  <h2>Assign Camera</h2>
+  <p class="muted" style="font-size:13px;">Camera IDs from the properties on file that aren't assigned to another active job.</p>
+  <div id="cameraSheetBody"></div>
+  <button type="button" class="btn btn-cancel btn-ghost" id="cameraSheetCancel" style="margin-top:12px;width:100%;">Cancel</button>
+</div>
+
 <!-- 'How it works' — plain-language workflow explainer opened from the
      landing-page flow strip. Own backdrop: the landing page stacks above
      the shared sheet layers. -->
@@ -10988,7 +10998,11 @@ function renderTaskModelJobDetail(j) {
       <div class="job-stat-row"><span class="jsk">Estimate</span><span class="jsv">${est ? `${escapeHtml(est.estimateNumber || '')} · ${fmtUSD(est.grandTotal)} <button class="link-like" data-ljob-action="view-estimate" data-est="${escapeHtml(est.id)}">view</button>` : '—'}</span></div>
       <div class="job-stat-row"><span class="jsk">Trap records</span><span class="jsv">${trapRecs.length ? `${trapRecs.length} <button class="link-like" data-ljob-action="view-traps" data-id="${escapeHtml(id)}">view</button>` : '0'}</span></div>
       <div class="job-stat-row"><span class="jsk">Pesticide applications</span><span class="jsv">${pestRecs.length ? `${pestRecs.length} <button class="link-like" data-ljob-action="view-pests" data-id="${escapeHtml(id)}">view</button>` : '0'}</span></div>
-      <div class="job-stat-row"><span class="jsk">Camera</span><span class="jsv">${cameraId ? escapeHtml(cameraId) : 'Not assigned'}</span></div>
+      <div class="job-stat-row"><span class="jsk">Camera</span><span class="jsv">${
+        j.cameraId
+          ? `${escapeHtml(j.cameraId)} <button class="link-like" data-ljob-action="view-camera" data-cam="${escapeHtml(j.cameraId)}">view</button> <button class="link-like" data-ljob-action="remove-camera" data-id="${escapeHtml(id)}">Remove Camera</button>`
+          : `${cameraId ? escapeHtml(cameraId) + ' (from property) ' : ''}<button class="link-like" data-ljob-action="assign-camera" data-id="${escapeHtml(id)}">Assign Camera</button>`
+      }</span></div>
       <div class="job-stat-row"><span class="jsk">QB Invoice #</span><span class="jsv">${escapeHtml(String(j.qbInvoiceNumber || '—'))}</span></div>
       ${j.rebaitActive ? `<div class="job-stat-row"><span class="jsk">Rebait schedule</span><span class="jsv">every ${escapeHtml(String(j.rebaitInterval || '?'))} day${j.rebaitInterval === 1 ? '' : 's'} through ${escapeHtml(fmtShortDate(j.rebaitEndDate) || '—')}</span></div>` : ''}
     </div>
@@ -11084,7 +11098,11 @@ function renderLifecycleJobDetail(id) {
       <div class="job-stat-row"><span class="jsk">Estimate</span><span class="jsv">${est ? `${escapeHtml(est.estimateNumber || '')} · ${fmtUSD(est.grandTotal)} <button class="link-like" data-ljob-action="view-estimate" data-est="${escapeHtml(est.id)}">view</button>` : '—'}</span></div>
       <div class="job-stat-row"><span class="jsk">Trap records</span><span class="jsv">${trapRecs.length ? `${trapRecs.length} <button class="link-like" data-ljob-action="view-traps" data-id="${escapeHtml(id)}">view</button>` : '0'}</span></div>
       <div class="job-stat-row"><span class="jsk">Pesticide applications</span><span class="jsv">${pestRecs.length ? `${pestRecs.length} <button class="link-like" data-ljob-action="view-pests" data-id="${escapeHtml(id)}">view</button>` : '0'}</span></div>
-      <div class="job-stat-row"><span class="jsk">Camera</span><span class="jsv">${cameraId ? escapeHtml(cameraId) : 'Not assigned'}</span></div>
+      <div class="job-stat-row"><span class="jsk">Camera</span><span class="jsv">${
+        j.cameraId
+          ? `${escapeHtml(j.cameraId)} <button class="link-like" data-ljob-action="view-camera" data-cam="${escapeHtml(j.cameraId)}">view</button> <button class="link-like" data-ljob-action="remove-camera" data-id="${escapeHtml(id)}">Remove Camera</button>`
+          : `${cameraId ? escapeHtml(cameraId) + ' (from property) ' : ''}<button class="link-like" data-ljob-action="assign-camera" data-id="${escapeHtml(id)}">Assign Camera</button>`
+      }</span></div>
       <div class="job-stat-row"><span class="jsk">QuickBooks</span><span class="jsv">${qbStatus}</span></div>
       <div class="job-stat-row"><span class="jsk">Assigned to</span><span class="jsv">${escapeHtml((j.assigneeNames || []).join(', ') || '—')}</span></div>
     </div>
@@ -11113,6 +11131,109 @@ async function markJobPaid(id) {
     paymentStatus: 'Paid',
     paymentReceivedAt: new Date().toISOString()
   });
+}
+
+/* =====================================================================
+ * Item 18 (v2-patch-5): camera assignment from the Job Detail screen.
+ * ---------------------------------------------------------------------
+ * Assign Camera opens a bottom sheet listing every property Camera ID not
+ * already assigned to another Active job. Selecting one stamps cameraId on
+ * the job and reflects it onto the job's own property (or customer) record
+ * when that record has no Camera ID yet — so the Monitoring photo routing
+ * ties the camera's photos to this job's customer context. Remove Camera
+ * clears the job's assignment.
+ * ===================================================================== */
+let cameraSheetJobId = null;
+
+function cameraSheetOpen() { return $('#cameraSheet').classList.contains('open'); }
+function closeCameraSheet() {
+  $('#cameraSheet').classList.remove('open');
+  $('#sheetBackdrop').classList.remove('open');
+  cameraSheetJobId = null;
+}
+
+function availableCamerasForAssignment(excludeJobId) {
+  const taken = new Set(lifecycleJobs()
+    .filter((x) => x.id !== excludeJobId && (x.status || 'Active') === 'Active' && x.cameraId)
+    .map((x) => String(x.cameraId).trim().toUpperCase()));
+  return cachedProperties
+    .filter((p) => (p.cameraId || '').trim())
+    .map((p) => {
+      const c = cachedCustomers.find((x) => x.id === p.customerId);
+      return {
+        cameraId: p.cameraId.trim().toUpperCase(),
+        propertyId: p.id,
+        customerId: p.customerId || null,
+        label: [c && c.name, p.siteNickname].filter(Boolean).join(' · ') || '(unnamed property)'
+      };
+    })
+    .filter((e) => !taken.has(e.cameraId))
+    .sort((a, b) => a.cameraId.localeCompare(b.cameraId));
+}
+
+function openCameraSheet(jobId) {
+  cameraSheetJobId = jobId;
+  const list = availableCamerasForAssignment(jobId);
+  const body = $('#cameraSheetBody');
+  if (body) {
+    body.innerHTML = list.length ? list.map((e) => `
+      <button type="button" class="snav-btn" data-cam-pick="${escapeHtml(e.cameraId)}">
+        <span><strong>${escapeHtml(e.cameraId)}</strong><br><span class="muted" style="font-size:12px;font-weight:400;">${escapeHtml(e.label)}</span></span>
+        <span class="chev">›</span>
+      </button>`).join('')
+      : '<div class="muted" style="padding:10px 0;">No unassigned camera IDs on file. Add a Camera ID to a property in the Customers module first.</div>';
+  }
+  $('#sheetBackdrop').classList.add('open');
+  $('#cameraSheet').classList.add('open');
+}
+
+function assignJobCamera(jobId, cameraId) {
+  const j = cachedJobs.find((x) => x.id === jobId);
+  if (!j || !cameraId) return;
+  const K = String(cameraId).trim().toUpperCase();
+  const now = new Date().toISOString();
+  /* Optimistic write (H1 pattern) — offline-safe like the other job writes. */
+  writeWithRetry(() => setDoc(doc(fbDb, 'jobs', jobId), { cameraId: K, updatedAt: now }, { merge: true }))
+    .catch((err) => {
+      console.error('camera assign failed', err);
+      toast('Camera assignment failed to sync: ' + ((err && err.message) || 'error'), 'error');
+    });
+  const jdx = cachedJobs.findIndex((x) => x.id === jobId);
+  if (jdx >= 0) cachedJobs[jdx] = { ...cachedJobs[jdx], cameraId: K };
+  /* Reflect onto the job's own property (or customer) so photo routing links
+     this camera to the job's context — but never overwrite a record already
+     routing a different camera. */
+  const prop = j.propertyId ? cachedProperties.find((p) => p.id === j.propertyId) : null;
+  if (prop && j.customerId && !(prop.cameraId || '').trim()) {
+    writeWithRetry(() => setDoc(doc(fbDb, 'customers', j.customerId, 'properties', prop.id),
+      { cameraId: K, updatedAt: now }, { merge: true }))
+      .catch((err) => console.error('property camera reflect failed', err));
+  } else if (!prop && j.customerId) {
+    const cust = cachedCustomers.find((c) => c.id === j.customerId);
+    if (cust && !(cust.cameraId || '').trim()) {
+      writeWithRetry(() => setDoc(doc(fbDb, 'customers', j.customerId),
+        { cameraId: K, updatedAt: now }, { merge: true }))
+        .catch((err) => console.error('customer camera reflect failed', err));
+    }
+  }
+  toast(`Camera ${K} assigned to ${j.jobNumber || 'the job'}`);
+  closeCameraSheet();
+  renderLifecycleJobDetail(jobId);
+}
+
+function removeJobCamera(jobId) {
+  const j = cachedJobs.find((x) => x.id === jobId);
+  if (!j || !j.cameraId) return;
+  const removed = String(j.cameraId).toUpperCase();
+  writeWithRetry(() => setDoc(doc(fbDb, 'jobs', jobId), { cameraId: null, updatedAt: new Date().toISOString() }, { merge: true }))
+    .catch((err) => {
+      console.error('camera remove failed', err);
+      toast('Camera removal failed to sync: ' + ((err && err.message) || 'error'), 'error');
+    });
+  const jdx = cachedJobs.findIndex((x) => x.id === jobId);
+  if (jdx >= 0) cachedJobs[jdx] = { ...cachedJobs[jdx], cameraId: null };
+  toast(`Camera ${removed} removed from ${j.jobNumber || 'the job'}`);
+  renderLifecycleJobDetail(jobId);
 }
 
 /* =====================================================================
@@ -13368,6 +13489,7 @@ async function init() {
   });
 
   $('#sheetBackdrop').addEventListener('click', () => {
+    if (cameraSheetOpen()) { closeCameraSheet(); return; }   /* Item 18 */
     if (rebaitSheetOpen()) { closeRebaitSheet(); return; }   /* Item 13 */
     if (sheetMode === 'review') {
       /* Reviewing — backdrop tap should not silently discard. Keep open. */
@@ -14002,11 +14124,11 @@ async function init() {
     }
     else if (action === 'log-trap') startWorkLog(id, 'trap');
     else if (action === 'log-pesticide') startWorkLog(id, 'pesticide');
-    else if (action === 'assign-camera') {
-      const j = cachedJobs.find((x) => x.id === id);
-      if (j && j.customerId) { setAppModeQuiet('customer'); editCustomer(j.customerId); }
-      else toast('This job has no linked customer to assign a camera to', 'error');
-    }
+    /* Item 18 (v2-patch-5): fully functional in place — bottom sheet picker
+       (was a jump to the customer form). */
+    else if (action === 'assign-camera') openCameraSheet(id);
+    else if (action === 'remove-camera') removeJobCamera(id);
+    else if (action === 'view-camera') { setAppModeQuiet('field'); showFieldDetail(btn.dataset.cam); }
     else if (action === 'create-estimate') startEstimateForJob(id);
     else if (action === 'pending-close') setJobLifecycleStatus(id, 'Pending Close');
     else if (action === 'mark-paid') markJobPaid(id);
@@ -14089,6 +14211,13 @@ async function init() {
     }
     else if (action === 'open-job') openLifecycleJob(jobId);
   });
+
+  /* ---- Camera assignment sheet wiring (Item 18, v2-patch-5) ---- */
+  $('#cameraSheetBody').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-cam-pick]');
+    if (b && cameraSheetJobId) assignJobCamera(cameraSheetJobId, b.dataset.camPick);
+  });
+  $('#cameraSheetCancel').addEventListener('click', closeCameraSheet);
 
   /* ---- Close Out wiring (Item 7, v2-patch-2) ---- */
   $('#closeoutList').addEventListener('click', (e) => {
