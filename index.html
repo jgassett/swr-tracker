@@ -5753,24 +5753,19 @@ function fieldGroups() {
     if (!g.propertyId && s.propertyId) g.propertyId = s.propertyId;
     g.statusDoc = s;
   }
-  /* Item 21: a camera on file (property/customer Camera ID) whose customer
-     has an Active job is ALWAYS visible — even before its first ingest. */
+  /* Item 2 (v2-patch-6): every INSTALLED camera — a property record holds
+     its cameraId — is always visible, including deployed-but-silent cameras
+     that have never phoned home (intentional: a camera that never reports
+     must not be invisible). Cameras are never enumerated from customer or
+     job records. */
   const activeCustomerIds = new Set(lifecycleJobs()
     .filter((x) => (x.status || 'Active') === 'Active')
     .map((x) => x.customerId).filter(Boolean));
   for (const p of cachedProperties) {
     const cam = (p.cameraId || '').trim().toUpperCase();
-    if (!cam || !p.customerId || !activeCustomerIds.has(p.customerId)) continue;
-    const g = get(cam);
-    if (!g.customerId) {
-      g.customerId = p.customerId;
-      const c = cachedCustomers.find((x) => x.id === p.customerId);
-      if (!g.name && c) g.name = c.name || '';
-    }
-    if (!g.propertyId) g.propertyId = p.id;
+    if (!cam || !p.customerId) continue;
+    get(cam);   /* group identity only — the join below fills in the rest */
   }
-  /* Item 1 (v2-patch-6): cameras are never enumerated from customer records
-     — property records are the only source of camera assignment. */
   const arr = [...groups.values()];
   for (const g of arr) {
     g.status = worstOf(g.devices.map((d) => deviceStatusLive(d)));
@@ -5798,8 +5793,15 @@ function fieldGroups() {
     g.pendingRemoval = !!(g.statusDoc && g.statusDoc.pendingRemoval && !g.statusDoc.removalConfirmed
       && !(g.customerId && activeCustomerIds.has(g.customerId)));
   }
-  /* Item 21: confirmed removals are hidden from active monitoring. */
-  const visible = arr.filter((g) => !(g.statusDoc && g.statusDoc.removalConfirmed));
+  /* Item 2 (v2-patch-6): the Monitoring feed shows only
+     (a) INSTALLED cameras — a property record holds the cameraId — and
+     (b) the pending/unmatched queue: ingested camera data (health rows or
+         photos) whose key matches no property.
+     Customers/jobs with no camera assigned never appear. Item 21:
+     confirmed removals stay hidden from active monitoring. */
+  const visible = arr.filter((g) =>
+    (g.installed || g.devices.length || g.photos.length) &&
+    !(g.statusDoc && g.statusDoc.removalConfirmed));
   visible.sort((a, b) => (STATUS_RANK[a.status] - STATUS_RANK[b.status]) || (a.name || a.key).localeCompare(b.name || b.key));
   return visible;
 }
