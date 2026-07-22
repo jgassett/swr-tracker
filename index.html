@@ -2438,15 +2438,15 @@
             <label for="pr-address">Address</label>
             <input type="text" id="pr-address" autocomplete="off">
           </div>
-          <div class="field-row two">
-            <div class="form-group">
-              <label for="pr-city">City</label>
-              <input type="text" id="pr-city" autocomplete="off">
-            </div>
-            <div class="form-group">
-              <label for="pr-county">County</label>
-              <select id="pr-county"><option value="">— select county —</option></select>
-            </div>
+          <div class="form-group">
+            <label for="pr-city">City</label>
+            <input type="text" id="pr-city" autocomplete="off">
+          </div>
+          <!-- Item 2 (v2-patch-5): county never appears in form UI — hidden
+               value holder keeps stored values intact on edit/save. -->
+          <div class="form-group hidden" id="prCountyGroup" aria-hidden="true">
+            <label for="pr-county">County</label>
+            <select id="pr-county" tabindex="-1"><option value="">— select county —</option></select>
           </div>
           <div class="form-group">
             <label for="pr-cameraId">Camera ID</label>
@@ -2508,9 +2508,11 @@
             <input type="text" id="c-zip" inputmode="numeric" maxlength="10" autocomplete="postal-code">
           </div>
         </div>
-        <div class="form-group">
+        <!-- Item 2 (v2-patch-5): county is captured silently (Mapbox address
+             autocomplete) and never shown — hidden value holder only. -->
+        <div class="form-group hidden" id="custCountyGroup" aria-hidden="true">
           <label for="c-county">County</label>
-          <select id="c-county"><option value="">— select county —</option></select>
+          <select id="c-county" tabindex="-1"><option value="">— select county —</option></select>
         </div>
         <!-- Item 1 (v2-patch-1): Get Directions — shown only when the customer
              has a street address on file. Opens the device's map app. -->
@@ -6549,8 +6551,8 @@ function validateRecord(r) {
   if (SPECIFY_SPECIES.has(r.species) && !r.speciesOther) errs.push('Specify species');
   if (needsAnimalCount(r.species) && (!r.animalCount || r.animalCount < 1)) errs.push('Number of animals');
   else if (needsAnimalCount(r.species) && r.animalCount > 500) errs.push('Number of animals can’t exceed 500 per record');
-  /* Item 15: county is derived silently from the location. */
-  if (!r.county && !r.countyOfCollection) errs.push('Capture location (county could not be derived — set the location)');
+  /* Items 15 & 2 (v2-patch-5): county is derived silently from the location;
+     when geocoding fails, null is stored silently — never blocks the save. */
   if (!r.address) errs.push('Capture location');
   if (!r.captureMethod) errs.push('Capture method');
   if (SPECIFY_CAPTURES.has(r.captureMethod) && !r.captureOther) errs.push('Specify capture');
@@ -6558,7 +6560,7 @@ function validateRecord(r) {
   if (SPECIFY_DISPOSALS.has(r.disposalMethod) && !r.disposalOther) errs.push('Specify disposal');
   if (EUTHANIZE_DISPOSALS.has(r.disposalMethod) && !r.dispatchMethod) errs.push('Dispatch method');
   if (RELEASE_DISPOSALS.has(r.disposalMethod)) {
-    if (!r.releaseCounty && !r.countyOfRelease) errs.push('Release location (county could not be derived — set the location)');
+    /* Item 2 (v2-patch-5): release county too is silent — null on failure. */
     if (!r.releaseDate) errs.push('Release date');
   }
   if (EXCLUDE_DISPOSALS.has(r.disposalMethod) && !isBatOrBird(r.species) && r.species !== OTHER_ANIMAL) {
@@ -6594,12 +6596,8 @@ async function reviewForm(e) {
   const rec = readForm();
   const errs = validateRecord(rec);
   if (errs.length) {
-    /* Catch-all for the offline county dead end: if the county couldn't be
-       derived, expose the manual dropdown so the save isn't blocked. */
-    if (!rec.county && !rec.countyOfCollection) setCountyFallback('trapCountyGroup', true);
-    if (RELEASE_DISPOSALS.has(rec.disposalMethod) && !rec.releaseCounty && !rec.countyOfRelease) {
-      setCountyFallback('releaseCountyGroup', true);
-    }
+    /* Item 2 (v2-patch-5): no county fallback reveal — an underivable county
+       is stored as null silently and never blocks or appears on screen. */
     toast('Required: ' + errs.join(', '), 'error');
     return;
   }
@@ -7120,18 +7118,18 @@ function matchingOptionValue(selectId, value) {
    user-facing county field. */
 let silentTrapCounty = null;
 
-/* Offline / geocoder-down fallback: when the county can't be derived from
-   the location (no network, Nominatim down, or no county in the result),
-   un-hide the county dropdown so the record can still be saved with a
-   manually picked county. Hidden again on the next successful lookup and
-   on form reset. */
-function setCountyFallback(groupId, show) {
+/* Item 2 (v2-patch-5): the county field must NEVER appear on screen under
+   any circumstances. The old offline/geocoder-down fallback that un-hid the
+   dropdown is gone — when the county can't be derived, null is stored
+   silently. The function is kept (call sites remain as reset hygiene) but
+   it now only ever hides the group. */
+function setCountyFallback(groupId, show) {   /* eslint-disable-line no-unused-vars */
   const g = document.getElementById(groupId);
   if (!g) return;
-  g.classList.toggle('hidden', !show);
-  if (show) g.removeAttribute('aria-hidden'); else g.setAttribute('aria-hidden', 'true');
+  g.classList.add('hidden');
+  g.setAttribute('aria-hidden', 'true');
   const sel = g.querySelector('select');
-  if (sel) { if (show) sel.removeAttribute('tabindex'); else sel.setAttribute('tabindex', '-1'); }
+  if (sel) sel.setAttribute('tabindex', '-1');
 }
 
 async function handleTrapLocationChange(lat, lng, source, geoHint) {
@@ -7185,7 +7183,7 @@ async function handleTrapLocationChange(lat, lng, source, geoHint) {
        previous location so the manual pick below actually wins (Item 2). */
     silentTrapCounty = null;
     setCountyFallback('trapCountyGroup', true);
-    const failText = `Coordinates saved (${lat.toFixed(5)}, ${lng.toFixed(5)}) — address lookup failed. Pick the County of Collection below.`;
+    const failText = `Coordinates saved (${lat.toFixed(5)}, ${lng.toFixed(5)}) — address lookup failed.`;
     setMapStatus('trapMapStatus', failText, 'error');
     if (hint) { hint.textContent = failText; hint.className = 'hint error'; }
   }
@@ -7257,7 +7255,7 @@ async function handlePesticideLocationChange(lat, lng, source, geoHint) {
        manual pick. */
     silentPaCounty = null;
     setCountyFallback('paCountyGroup', true);
-    const failText = `Coordinates saved (${lat.toFixed(5)}, ${lng.toFixed(5)}). Geocoder offline — fill address fields manually and pick the County of Treatment below.`;
+    const failText = `Coordinates saved (${lat.toFixed(5)}, ${lng.toFixed(5)}). Geocoder offline — fill the address fields manually.`;
     setMapStatus('paMapStatus', failText, 'error');
     if (paHint) { paHint.textContent = failText; paHint.className = 'hint error'; }
   }
@@ -7309,7 +7307,7 @@ async function handleReleaseLocationChange(lat, lng, source, geoHint) {
        the manual pick below actually wins (Item 2). */
     silentReleaseCounty = null;
     setCountyFallback('releaseCountyGroup', true);
-    const failText = `Coordinates saved (${lat.toFixed(5)}, ${lng.toFixed(5)}) — location lookup failed. Pick the County of Release below.`;
+    const failText = `Coordinates saved (${lat.toFixed(5)}, ${lng.toFixed(5)}) — location lookup failed.`;
     setMapStatus('releaseMapStatus', failText, 'error');
     if (hint) { hint.textContent = failText; hint.className = 'hint error'; }
   }
