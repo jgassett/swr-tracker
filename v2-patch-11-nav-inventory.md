@@ -95,3 +95,32 @@ setView/backToLanding), settings + 5 sub-screens (each with
    landing entry above any restored history — restored entries would sit
    unreachable beneath it. History is per-app-lifetime by design; after a
    reload, Back appears once you navigate.
+
+## Verification (Item 4)
+
+**Scripted simulation** — `admin-tools/nav-sim.mjs` mirrors the shipped
+logic (recordNavArrival / goBackNav / closeTopOverlay / landing Back) and
+asserts screen + full stack contents at 22 steps across 12+ navigations:
+the brief's acceptance sequence (landing → Jobs → Job Detail → records →
+record sheet, Back ×N: sheet, Job Detail, Jobs, landing), Home
+mid-sequence with Back-after-Home, both former Class-c paths (camera
+detail, legacy schedule detail) now returning to their dashboards instead
+of landing, two stacked overlays (sheet + confirm) peeled one per Back
+press, drain-to-empty, and Back-on-empty = Home with no stack growth.
+All 22 assertions pass.
+
+**iPhone-viewport exit affordances** (static CSS verification — every
+value checked in the stylesheet):
+- All five `.sheet` overlays: the new ✕ sits in a `position: sticky;
+  top: 0` zero-height row placed directly after the sheet handle, inside
+  the sheet's own scroll container (`max-height: 86vh; overflow-y:
+  auto`), and `openSheet` resets `scrollTop` — the ✕ is on screen the
+  moment the sheet opens and stays pinned while scrolling, at any
+  viewport width including 375 pt iPhone.
+- Every full-screen view: the exit is the ribbon Back in `#bottomNav`
+  (`position: fixed; bottom: 0; z-index: 50`) — never scrolls off.
+- Landing page: Back lives in the `landing-banner` (`position: fixed;
+  bottom: 0`).
+- `#pesticideEditOverlay`: ✕ in its fixed `.edit-modal-header` at the top
+  of the overlay.
+- `#confirm` dialog: compact centered modal; buttons always in view.
