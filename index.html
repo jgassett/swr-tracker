@@ -12024,13 +12024,23 @@ function cancelOpenTasksForJob(jobId) {
   const open = tasksForJob(jobId).filter((t) => t.status === 'Open');
   if (!open.length) return 0;
   const now = new Date().toISOString();
-  const batch = writeBatch(fbDb);
   for (const t of open) {
-    batch.set(doc(fbDb, 'tasks', t.id), { status: 'Cancelled', updatedAt: now }, { merge: true });
     const idx = cachedTasks.findIndex((x) => x.id === t.id);
     if (idx >= 0) cachedTasks[idx] = { ...cachedTasks[idx], status: 'Cancelled' };
   }
-  batch.commit().catch((err) => {
+  /* Item 15 / M5 (v2-patch-6): the job's Complete write retries
+     (writeWithRetry) but this cancellation batch didn't — one transient
+     failure stranded Open tasks on a Complete job with no recovery path.
+     Rebuild the batch inside the retry closure (a WriteBatch commits only
+     once) so the cancellations get the same 3-attempt resilience. */
+  const commitCancellations = () => {
+    const batch = writeBatch(fbDb);
+    for (const t of open) {
+      batch.set(doc(fbDb, 'tasks', t.id), { status: 'Cancelled', updatedAt: now }, { merge: true });
+    }
+    return batch.commit();
+  };
+  writeWithRetry(commitCancellations).catch((err) => {
     console.error('Open-task cancellation failed', err);
     toast('Task cancellations failed to sync: ' + ((err && err.message) || 'error'), 'error');
   });
