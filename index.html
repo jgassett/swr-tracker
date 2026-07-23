@@ -4484,7 +4484,21 @@ async function backfillRecordNumbers() {
   }
 }
 
+/* Error text for user-facing failure toasts: always include the Firestore
+   error code when present so a screenshot is diagnosable ([permission-denied],
+   [unavailable], …), falling back to the message. */
+function errText(err) {
+  if (!err) return 'unknown error';
+  const code = err.code ? String(err.code) : '';
+  const msg = (err.message ? String(err.message) : String(err)).trim();
+  if (code && msg && msg !== code) return `[${code}] ${msg}`;
+  return msg || code || 'unknown error';
+}
+
 function toast(msg, type = '') {
+  /* While the terminated-client reload is pending, per-path failure toasts
+     would overwrite "Connection reset — reloading" — keep that one visible. */
+  if (terminatedHandled && type === 'error' && !/reloading/i.test(msg)) return;
   const el = $('#toast');
   el.textContent = msg;
   el.className = type ? `show ${type}` : 'show';
@@ -5028,7 +5042,7 @@ async function enablePushNotifications() {
     const testBtn = $('#pushTestBtn'); if (testBtn) testBtn.style.display = '';
   } catch (err) {
     console.error('enable push failed', err);
-    setStatus('Enable failed: ' + ((err && err.message) || 'error'));
+    setStatus('Enable failed: ' + errText(err));
   }
 }
 async function sendTestNotification() {
@@ -5037,7 +5051,7 @@ async function sendTestNotification() {
     const r = (res && res.data) || {};
     toast(r.sent ? 'Test sent — check for the notification' : 'No devices registered yet');
   } catch (err) {
-    toast('Test failed: ' + ((err && err.message) || 'error'), 'error');
+    toast('Test failed: ' + errText(err), 'error');
   }
 }
 
@@ -5601,7 +5615,7 @@ function saveEstimate(status) {
   const notes = ($('#est-notes').value || '').trim();
   const onWriteError = (err) => {
     console.error('Estimate write failed', err);
-    toast('An estimate change failed to sync: ' + ((err && err.message) || 'error'), 'error');
+    toast('An estimate change failed to sync: ' + errText(err), 'error');
   };
   /* Optimistic (M3): fire the write and don't await the server ack. Returns
      { id, estimateNumber } so a job-linked save can stamp the job (Item 5). */
@@ -5646,7 +5660,10 @@ async function handleSaveEstimate(status) {
           estimateNumber: saved.estimateNumber || '',
           updatedAt: new Date().toISOString()
         }, { merge: true }).then(() => advanceJobStatusAuto(jobId, 'Estimated'))
-          .catch((err) => console.error('job estimate link failed', err));
+          .catch((err) => {
+            console.error('job estimate link failed', err);
+            toast('Estimate saved, but linking it to the job failed: ' + errText(err), 'error');
+          });
       }
     }
     toast(offline ? 'Saved offline — will sync when connected' : (status === 'Draft' ? 'Draft saved' : 'Submitted for approval'));
@@ -5654,7 +5671,7 @@ async function handleSaveEstimate(status) {
     if (jobId) { openLifecycleJob(jobId); return; }
     setView('dashboard');
   } catch (err) {
-    toast((err && err.message) || 'Save failed', 'error');
+    toast('Save failed: ' + errText(err), 'error');
   } finally {
     btns.forEach((b) => { const el = $('#' + b); if (el) el.disabled = false; });
   }
@@ -5800,7 +5817,7 @@ async function submitEstimateForApproval(id) {
     await writeWithRetry(() => setDoc(doc(fbDb, 'estimates', id), { status: 'Pending Approval', updatedAt: new Date().toISOString() }, { merge: true }));
     toast('Submitted for approval');
   } catch (err) {
-    toast('Submit failed: ' + ((err && err.message) || 'error'), 'error');
+    toast('Submit failed: ' + errText(err), 'error');
   }
 }
 
@@ -5815,7 +5832,7 @@ async function deleteEstimateDraft(id) {
     currentEstimateId = null;
     setView('dashboard');
   } catch (err) {
-    toast('Delete failed: ' + ((err && err.message) || 'error'), 'error');
+    toast('Delete failed: ' + errText(err), 'error');
   }
 }
 
@@ -5826,7 +5843,7 @@ async function rejectEstimate(id) {
     await writeWithRetry(() => setDoc(doc(fbDb, 'estimates', id), { status: 'Rejected', rejectionNote: note.trim(), updatedAt: new Date().toISOString() }, { merge: true }));
     toast('Estimate rejected');
   } catch (err) {
-    toast('Reject failed: ' + ((err && err.message) || 'error'), 'error');
+    toast('Reject failed: ' + errText(err), 'error');
   }
 }
 
@@ -6307,7 +6324,7 @@ async function setFieldGroupInternal(key, flag) {
     renderFieldDetail(key);
     renderFieldDashboard();
   } catch (err) {
-    toast('Update failed: ' + ((err && err.message) || 'error'), 'error');
+    toast('Update failed: ' + errText(err), 'error');
   }
 }
 
@@ -6336,7 +6353,7 @@ function assignFieldPhotos(key, customer) {
             { customerId: customer.id, customerName: customer.name || '', propertyId: propId || null, assigned: true, updatedAt: new Date().toISOString() }, { merge: true }));
         }
       } catch (err) {
-        toast('Photo re-stamp failed: ' + ((err && err.message) || 'error'), 'error');
+        toast('Photo re-stamp failed: ' + errText(err), 'error');
       }
       if (currentFieldKey) renderFieldDetail(currentFieldKey);
       renderFieldDashboard();
@@ -6517,7 +6534,7 @@ async function handleCamAssignSave() {
     closeCamAssignSheet();
     if (done) done(K, propId);
   } catch (err) {
-    toast('Assign failed: ' + ((err && err.message) || 'error'), 'error');
+    toast('Assign failed: ' + errText(err), 'error');
   } finally {
     btn.disabled = false;
   }
@@ -6591,7 +6608,7 @@ async function runPrimaryPropertyBackfill() {
   } catch (err) {
     const code = (err && err.code) || '';
     const msg = code === 'functions/permission-denied' ? 'Only an administrator can run this tool.'
-      : ((err && err.message) || 'error');
+      : errText(err);
     toast('Backfill failed: ' + msg, 'error');
   } finally {
     if (btn) btn.disabled = false;
@@ -6625,7 +6642,7 @@ async function runCameraRelink() {
   } catch (err) {
     const code = (err && err.code) || '';
     const msg = code === 'functions/permission-denied' ? 'Only an administrator can run this tool.'
-      : ((err && err.message) || 'error');
+      : errText(err);
     toast('Re-link failed: ' + msg, 'error');
   } finally {
     if (btn) btn.disabled = false;
@@ -6682,7 +6699,7 @@ async function clearFieldGroup(key) {
     renderFieldDetail(key);
     renderFieldDashboard();
   } catch (err) {
-    toast('Delete failed: ' + ((err && err.message) || 'error'), 'error');
+    toast('Delete failed: ' + errText(err), 'error');
   }
 }
 
@@ -6710,7 +6727,7 @@ async function confirmCameraRemoval(key) {
     currentFieldKey = null;
     setView('dashboard');
   } catch (err) {
-    toast('Removal failed: ' + ((err && err.message) || 'error'), 'error');
+    toast('Removal failed: ' + errText(err), 'error');
   }
 }
 
@@ -6746,7 +6763,7 @@ async function maybeAutoFieldSync() {
     if (status) status.textContent = '';
   } catch (err) {
     const code = (err && err.code) || '';
-    const msg = code === 'functions/unauthenticated' ? 'Please sign in again.' : ('Auto-sync failed: ' + ((err && err.message) || 'error'));
+    const msg = code === 'functions/unauthenticated' ? 'Please sign in again.' : ('Auto-sync failed: ' + errText(err));
     if (status) { status.style.color = 'var(--amber)'; status.textContent = msg; }
   } finally {
     fieldAutoSyncInFlight = false;
@@ -6763,6 +6780,9 @@ async function writeWithRetry(fn, attempts = 3) {
     try { return await fn(); }
     catch (err) {
       lastErr = err;
+      /* A terminated client never recovers — trigger the reload path now
+         instead of burning retries against a dead SDK. */
+      if (isTerminatedClientError(err)) { handleTerminatedClient(err); throw err; }
       /* Permission / not-found errors won't fix themselves — fail fast. */
       const code = err && err.code || '';
       if (code === 'permission-denied' || code === 'not-found' || code === 'unauthenticated') throw err;
@@ -6793,7 +6813,7 @@ function saveCustomer(customer) {
      surface via a toast. */
   setDoc(ref, data, { merge: true }).catch((err) => {
     console.error('Customer write failed', err);
-    toast('A saved customer failed to sync: ' + ((err && err.message) || 'error'), 'error');
+    toast('A saved customer failed to sync: ' + errText(err), 'error');
   });
   return ref.id;
 }
@@ -6810,7 +6830,7 @@ async function toggleCustomerActive(c) {
     await writeWithRetry(() => setDoc(doc(fbDb, 'customers', c.id), { active: next, updatedAt: new Date().toISOString() }, { merge: true }));
     toast(`${c.name || 'Customer'} marked ${next ? 'active' : 'inactive'}`);
   } catch (err) {
-    toast('Could not update: ' + ((err && err.message) || 'error'), 'error');
+    toast('Could not update: ' + errText(err), 'error');
   }
 }
 
@@ -6940,7 +6960,7 @@ async function handleSignOut() {
     await fbSignOut(fbAuth);
   } catch (err) {
     console.error('Sign out failed', err);
-    toast('Sign out failed: ' + ((err && err.message) || 'error'), 'error');
+    toast('Sign out failed: ' + errText(err), 'error');
   }
 }
 
@@ -7626,7 +7646,7 @@ async function confirmSave() {
     }
     setDoc(doc(fbDb, 'records', rec.id), data, { merge: true }).catch((err) => {
       console.error('Record write failed', err);
-      toast('A saved record failed to sync: ' + ((err && err.message) || 'error'), 'error');
+      toast('A saved record failed to sync: ' + errText(err), 'error');
     });
 
     pendingRecord = null;
@@ -7676,7 +7696,7 @@ async function confirmSave() {
     refreshAll();
   } catch (err) {
     console.error('confirmSave failed', err);
-    toast('Save failed: ' + ((err && err.message) || 'error'), 'error');
+    toast('Save failed: ' + errText(err), 'error');
   } finally {
     isSaving = false;
     setSaveButtonBusy(false);
@@ -8998,7 +9018,7 @@ async function handleSaveBusiness() {
     await saveOrgConfig(newBiz);
     toast('Business info saved');
   } catch (err) {
-    toast(`Save failed: ${err.message || err}`, 'error');
+    toast(`Save failed: ${errText(err)}`, 'error');
   }
 }
 
@@ -9019,7 +9039,7 @@ async function handleSavePermit() {
     await saveOrgConfig(newPermit);
     toast('Permit info saved');
   } catch (err) {
-    toast(`Save failed: ${err.message || err}`, 'error');
+    toast(`Save failed: ${errText(err)}`, 'error');
   }
 }
 
@@ -9056,7 +9076,7 @@ async function handleSaveCerts() {
     await saveOrgConfig({ applicatorCerts: newCerts });
     toast('Certifications saved');
   } catch (err) {
-    toast(`Save failed: ${err.message || err}`, 'error');
+    toast(`Save failed: ${errText(err)}`, 'error');
   }
 }
 
@@ -9169,7 +9189,7 @@ async function savePesticide() {
         data.sdsUrl = await withUploadTimeout(getDownloadURL(sref));
         data.sdsPath = path;
       } catch (err) {
-        toast('SDS upload failed: ' + ((err && err.message) || 'error') + ' — nothing was saved.', 'error');
+        toast('SDS upload failed: ' + errText(err) + ' — nothing was saved.', 'error');
         return;
       }
     }
@@ -9181,7 +9201,7 @@ async function savePesticide() {
         data.labelUrl = await withUploadTimeout(getDownloadURL(sref));
         data.labelPath = path;
       } catch (err) {
-        toast('Label upload failed: ' + ((err && err.message) || 'error') + ' — nothing was saved.', 'error');
+        toast('Label upload failed: ' + errText(err) + ' — nothing was saved.', 'error');
         return;
       }
     }
@@ -9191,7 +9211,7 @@ async function savePesticide() {
     closePesticideEditor();
     toast(isEdit ? `Updated ${name}` : `Added ${name}`);
   } catch (err) {
-    toast(`Save failed: ${err.message || err}`, 'error');
+    toast(`Save failed: ${errText(err)}`, 'error');
   } finally {
     $('#pestSaveBtn').disabled = false;
     $('#pestSaveBtn').textContent = 'Save Pesticide';
@@ -9783,7 +9803,7 @@ async function confirmSavePesticide() {
     }
     writeWithRetry(() => setDoc(doc(fbDb, 'pesticide_records', rec.id), data, { merge: true })).catch((err) => {
       console.error('Pesticide record write failed', err);
-      toast('A saved application failed to sync: ' + ((err && err.message) || 'error'), 'error');
+      toast('A saved application failed to sync: ' + errText(err), 'error');
     });
 
     pendingPesticideRecord = null;
@@ -9825,7 +9845,7 @@ async function confirmSavePesticide() {
     setView('records');
     refreshAll();
   } catch (err) {
-    toast(`Save failed: ${err.message || err}`, 'error');
+    toast(`Save failed: ${errText(err)}`, 'error');
   } finally {
     isSaving = false;
     setSaveButtonBusy(false);
@@ -9843,7 +9863,7 @@ async function deletePesticideRecord(id) {
     setView('records');
     toast('Application deleted');
   } catch (err) {
-    toast('Delete failed: ' + ((err && err.message) || 'error'), 'error');
+    toast('Delete failed: ' + errText(err), 'error');
   }
 }
 
@@ -10111,7 +10131,7 @@ async function fetchPesticideWeather() {
     status.textContent = `✓ Filled from current location · ${new Date().toLocaleTimeString()}`;
     status.className = 'hint success';
   } catch (err) {
-    status.textContent = `Could not fetch weather: ${err.message || err}. Enter manually.`;
+    status.textContent = `Could not fetch weather: ${errText(err)}. Enter manually.`;
     status.className = 'hint error';
   }
 }
@@ -10219,7 +10239,7 @@ async function deletePesticide(id) {
     if (editingPesticideId === target) closePesticideEditor();
     toast(`Deleted ${p.name}`);
   } catch (err) {
-    toast(`Delete failed: ${err.message || err}`, 'error');
+    toast(`Delete failed: ${errText(err)}`, 'error');
   }
 }
 
@@ -10720,7 +10740,7 @@ async function handleSaveJob(e) {
     resetJobForm();
     setView('dashboard');
   } catch (err) {
-    toast((err && err.message) || 'Save failed', 'error');
+    toast('Save failed: ' + errText(err), 'error');
   } finally {
     btn.disabled = false;
   }
@@ -10869,7 +10889,7 @@ async function setJobStatus(id, status) {
     await writeWithRetry(() => setDoc(doc(fbDb, 'jobs', id), { status, updatedAt: new Date().toISOString() }, { merge: true }));
     toast(`Job ${status.toLowerCase()}`);
   } catch (err) {
-    toast('Update failed: ' + ((err && err.message) || 'error'), 'error');
+    toast('Update failed: ' + errText(err), 'error');
   }
 }
 async function deleteJob(id) {
@@ -10880,7 +10900,7 @@ async function deleteJob(id) {
     currentJobId = null;
     setView('dashboard');
   } catch (err) {
-    toast('Delete failed: ' + ((err && err.message) || 'error'), 'error');
+    toast('Delete failed: ' + errText(err), 'error');
   }
 }
 
@@ -11018,7 +11038,10 @@ function renderNotificationsPage() {
 
 function dismissNotification(id) {
   setDoc(doc(fbDb, 'notifications', id), { read: true, readAt: new Date().toISOString() }, { merge: true })
-    .catch((err) => console.error('notification dismiss failed', err));
+    .catch((err) => {
+      console.error('notification dismiss failed', err);
+      toast('Dismiss failed: ' + errText(err), 'error');
+    });
 }
 
 async function clearAllNotifications() {
@@ -11035,7 +11058,7 @@ async function clearAllNotifications() {
     if (ops) await batch.commit();
     toast('Notifications cleared');
   } catch (err) {
-    toast('Clear failed: ' + ((err && err.message) || 'error'), 'error');
+    toast('Clear failed: ' + errText(err), 'error');
   }
 }
 
@@ -11062,7 +11085,7 @@ async function clearReadNotifications() {
     toast(`Deleted ${read.length} read notification${read.length === 1 ? '' : 's'}`);
     renderNotificationsPage();
   } catch (err) {
-    toast('Clear failed: ' + ((err && err.message) || 'error'), 'error');
+    toast('Clear failed: ' + errText(err), 'error');
   }
 }
 
@@ -11248,7 +11271,7 @@ async function setJobLifecycleStatus(id, status, extra = {}) {
   writeWithRetry(() => setDoc(doc(fbDb, 'jobs', id), { status, ...extra, updatedAt: new Date().toISOString() }, { merge: true }))
     .catch((err) => {
       console.error('Job status write failed', err);
-      toast('Status update failed to sync: ' + ((err && err.message) || 'error'), 'error');
+      toast('Status update failed to sync: ' + errText(err), 'error');
     });
   toast(`Job ${j.jobNumber || ''} → ${status}`);
   /* In-app notification to the job's other operators (Item 12). */
@@ -11568,7 +11591,7 @@ async function handleSaveLifecycleJob(e) {
       writeWithRetry(() => setDoc(doc(fbDb, 'jobs', editingLifecycleJobId), data, { merge: true }))
         .catch((err) => {
           console.error('Job update failed', err);
-          toast('Job update failed to sync: ' + ((err && err.message) || 'error'), 'error');
+          toast('Job update failed to sync: ' + errText(err), 'error');
         });
       /* Keep the local cache current so the detail view renders the edit
          immediately (the snapshot confirms it moments later). */
@@ -11619,7 +11642,7 @@ async function handleSaveLifecycleJob(e) {
       writeWithRetry(() => setDoc(ref, data))
         .catch((err) => {
           console.error('Job create failed', err);
-          toast('Job failed to sync: ' + ((err && err.message) || 'error'), 'error');
+          toast('Job failed to sync: ' + errText(err), 'error');
         });
       if (!cachedJobs.some((x) => x.id === ref.id)) cachedJobs.push({ id: ref.id, ...data });
       toast(`Job opened · ${data.jobNumber}`);
@@ -11627,7 +11650,7 @@ async function handleSaveLifecycleJob(e) {
       openLifecycleJob(ref.id);
     }
   } catch (err) {
-    toast('Save failed: ' + ((err && err.message) || 'error'), 'error');
+    toast('Save failed: ' + errText(err), 'error');
   } finally {
     btn.disabled = false;
   }
@@ -11981,7 +12004,7 @@ function assignJobCamera(jobId, cameraId) {
   writeWithRetry(() => setDoc(doc(fbDb, 'jobs', jobId), { cameraId: K, updatedAt: now }, { merge: true }))
     .catch((err) => {
       console.error('camera assign failed', err);
-      toast('Camera assignment failed to sync: ' + ((err && err.message) || 'error'), 'error');
+      toast('Camera assignment failed to sync: ' + errText(err), 'error');
     });
   const jdx = cachedJobs.findIndex((x) => x.id === jobId);
   if (jdx >= 0) cachedJobs[jdx] = { ...cachedJobs[jdx], cameraId: K };
@@ -12002,7 +12025,7 @@ function removeJobCamera(jobId) {
   writeWithRetry(() => setDoc(doc(fbDb, 'jobs', jobId), { cameraId: null, updatedAt: new Date().toISOString() }, { merge: true }))
     .catch((err) => {
       console.error('camera remove failed', err);
-      toast('Camera removal failed to sync: ' + ((err && err.message) || 'error'), 'error');
+      toast('Camera removal failed to sync: ' + errText(err), 'error');
     });
   const jdx = cachedJobs.findIndex((x) => x.id === jobId);
   if (jdx >= 0) cachedJobs[jdx] = { ...cachedJobs[jdx], cameraId: null };
@@ -12112,7 +12135,7 @@ async function handleSaveTask(e) {
     if (editingTaskId) {
       /* Optimistic (H1 pattern): fire without awaiting so it works offline. */
       writeWithRetry(() => setDoc(doc(fbDb, 'tasks', editingTaskId), data, { merge: true }))
-        .catch((err) => { console.error('Task update failed', err); toast('Task failed to sync: ' + ((err && err.message) || 'error'), 'error'); });
+        .catch((err) => { console.error('Task update failed', err); toast('Task failed to sync: ' + errText(err), 'error'); });
       toast('Task updated');
       savedTask = null;   /* edits never trigger the rebait prompt */
     } else {
@@ -12126,7 +12149,7 @@ async function handleSaveTask(e) {
       data.createdByEmail = currentUser ? currentUser.email : null;
       data.createdAt = now;
       writeWithRetry(() => setDoc(ref, data))
-        .catch((err) => { console.error('Task create failed', err); toast('Task failed to sync: ' + ((err && err.message) || 'error'), 'error'); });
+        .catch((err) => { console.error('Task create failed', err); toast('Task failed to sync: ' + errText(err), 'error'); });
       /* Seed the cache so the job detail shows it immediately. */
       if (!cachedTasks.some((t) => t.id === ref.id)) cachedTasks.push({ id: ref.id, ...data });
       toast('Task saved');
@@ -12145,7 +12168,7 @@ async function handleSaveTask(e) {
       promptRebaitSetup(jobId, savedTask);
     }
   } catch (err) {
-    toast('Save failed: ' + ((err && err.message) || 'error'), 'error');
+    toast('Save failed: ' + errText(err), 'error');
   } finally {
     btn.disabled = false;
   }
@@ -12220,7 +12243,7 @@ function completeTask(id) {
     updatedAt: new Date().toISOString()
   }, { merge: true })).catch((err) => {
     console.error('Task complete failed', err);
-    toast('Completion failed to sync: ' + ((err && err.message) || 'error'), 'error');
+    toast('Completion failed to sync: ' + errText(err), 'error');
   });
   /* Keep the cache current for the immediate re-render + rebait logic. */
   const idx = cachedTasks.findIndex((x) => x.id === id);
@@ -12254,7 +12277,7 @@ function cancelTask(id) {
     status: 'Cancelled', updatedAt: new Date().toISOString()
   }, { merge: true })).catch((err) => {
     console.error('Task cancel failed', err);
-    toast('Cancellation failed to sync: ' + ((err && err.message) || 'error'), 'error');
+    toast('Cancellation failed to sync: ' + errText(err), 'error');
   });
   const idx = cachedTasks.findIndex((x) => x.id === id);
   if (idx >= 0) cachedTasks[idx] = { ...cachedTasks[idx], status: 'Cancelled' };
@@ -12307,7 +12330,7 @@ function addContractorToJob(id) {
     updatedAt: new Date().toISOString()
   }, { merge: true })).catch((err) => {
     console.error('Add contractor failed', err);
-    toast('Change failed to sync: ' + ((err && err.message) || 'error'), 'error');
+    toast('Change failed to sync: ' + errText(err), 'error');
   });
   const jdx = cachedJobs.findIndex((x) => x.id === id);
   if (jdx >= 0) cachedJobs[jdx] = { ...cachedJobs[jdx], assignedOperators: operators, assigneeNames: operators.map((em) => nameByEmail[em] || em) };
@@ -12493,7 +12516,7 @@ async function confirmCloseOutJob(id) {
           .then(() => toast(`${cust.name || 'Customer'} set to inactive — no other active jobs`))
           .catch((err) => {
             console.error('customer auto-deactivate failed', err);
-            toast('Customer deactivation failed to sync: ' + ((err && err.message) || 'error'), 'error');
+            toast('Customer deactivation failed to sync: ' + errText(err), 'error');
           });
       }
     }
@@ -12560,7 +12583,7 @@ function createRebaitTaskDoc(jobId, template, date) {
   /* Optimistic write — offline-safe like every other task write. */
   writeWithRetry(() => setDoc(ref, data)).catch((err) => {
     console.error('Rebait task create failed', err);
-    toast('Rebait task failed to sync: ' + ((err && err.message) || 'error'), 'error');
+    toast('Rebait task failed to sync: ' + errText(err), 'error');
   });
   cachedTasks.push({ id: ref.id, ...data });
   cachedTasks.sort((a, b) =>
@@ -12619,7 +12642,7 @@ function confirmRebaitTaskSetup() {
     updatedAt: new Date().toISOString()
   }, { merge: true })).catch((err) => {
     console.error('Rebait config write failed', err);
-    toast('Rebait schedule failed to sync: ' + ((err && err.message) || 'error'), 'error');
+    toast('Rebait schedule failed to sync: ' + errText(err), 'error');
   });
   const jdx = cachedJobs.findIndex((x) => x.id === ctx.jobId);
   if (jdx >= 0) cachedJobs[jdx] = { ...cachedJobs[jdx], rebaitInterval: interval, rebaitEndDate: endDate, rebaitActive: true };
@@ -12664,13 +12687,16 @@ function handleRebaitTaskCompleted(t) {
     if (ok) {
       const newEnd = addDaysISO(live.rebaitEndDate || j.rebaitEndDate || anchor, 30);
       writeWithRetry(() => setDoc(doc(fbDb, 'jobs', j.id), { rebaitEndDate: newEnd, updatedAt: now }, { merge: true }))
-        .catch((err) => { console.error('Rebait extension failed', err); toast('Extension failed to sync: ' + ((err && err.message) || 'error'), 'error'); });
+        .catch((err) => { console.error('Rebait extension failed', err); toast('Extension failed to sync: ' + errText(err), 'error'); });
       if (jdx >= 0) cachedJobs[jdx] = { ...cachedJobs[jdx], rebaitEndDate: newEnd };
       createRebaitTaskDoc(j.id, t, next);
       toast(`Extended through ${fmtShortDate(newEnd)} — next rebait ${fmtShortDate(next)}`);
     } else {
       writeWithRetry(() => setDoc(doc(fbDb, 'jobs', j.id), { rebaitActive: false, updatedAt: now }, { merge: true }))
-        .catch((err) => console.error('Rebait deactivate failed', err));
+        .catch((err) => {
+          console.error('Rebait deactivate failed', err);
+          toast('Rebait deactivation failed to sync: ' + errText(err), 'error');
+        });
       if (jdx >= 0) cachedJobs[jdx] = { ...cachedJobs[jdx], rebaitActive: false };
       toast('Rebait schedule ended');
     }
@@ -12794,7 +12820,7 @@ async function handleSaveAppointment(e) {
             .catch((err) => console.warn('appointment update notify failed', err)))
         .catch((err) => {
           console.error('Appointment update failed', err);
-          toast('Appointment failed to sync: ' + ((err && err.message) || 'error'), 'error');
+          toast('Appointment failed to sync: ' + errText(err), 'error');
         });
       toast('Appointment updated');
     } else {
@@ -12817,7 +12843,7 @@ async function handleSaveAppointment(e) {
             .catch((err) => console.warn('appointment notify failed', err)))
         .catch((err) => {
           console.error('Appointment create failed', err);
-          toast('Appointment failed to sync: ' + ((err && err.message) || 'error'), 'error');
+          toast('Appointment failed to sync: ' + errText(err), 'error');
         });
       toast('Appointment scheduled');
       advanceJobStatusAuto(jobId, 'Scheduled');
@@ -12837,7 +12863,7 @@ async function handleSaveAppointment(e) {
       promptRebaitSequence(jobId, savedData);
     }
   } catch (err) {
-    toast('Save failed: ' + ((err && err.message) || 'error'), 'error');
+    toast('Save failed: ' + errText(err), 'error');
   } finally {
     btn.disabled = false;
   }
@@ -12957,7 +12983,7 @@ function createRebaitAppointments(jobId, template, intervalDays, endDate, dates)
         .catch((err) => console.warn('rebait series notify failed', err)))
     .catch((err) => {
       console.error('Rebait series write failed', err);
-      toast('Rebait check visits failed to sync: ' + ((err && err.message) || 'error'), 'error');
+      toast('Rebait check visits failed to sync: ' + errText(err), 'error');
     });
   return dates.length;
 }
@@ -12991,7 +13017,7 @@ function confirmRebaitSequence() {
     toast(`${dates.length} check visit${dates.length === 1 ? '' : 's'} scheduled through ${fmtShortDate(endDate)}`);
     closeRebaitSheet();
   } catch (err) {
-    toast('Could not create the sequence: ' + ((err && err.message) || 'error'), 'error');
+    toast('Could not create the sequence: ' + errText(err), 'error');
   } finally {
     rebaitCreateInFlight = false;
   }
@@ -13020,12 +13046,12 @@ async function promptRebaitExtension(jobId, appt) {
     setDoc(doc(fbDb, 'jobs', jobId, 'appointments', appt.id), { isLastRebait: false, updatedAt: new Date().toISOString() }, { merge: true })
       .catch((err) => {
         console.error('Rebait flag clear failed', err);
-        toast('Rebait update failed to sync: ' + ((err && err.message) || 'error'), 'error');
+        toast('Rebait update failed to sync: ' + errText(err), 'error');
       });
     createRebaitAppointments(jobId, appt, interval, newEnd, dates);
     toast(`${dates.length} more check visit${dates.length === 1 ? '' : 's'} scheduled through ${fmtShortDate(newEnd)}`);
   } catch (err) {
-    toast('Extension failed: ' + ((err && err.message) || 'error'), 'error');
+    toast('Extension failed: ' + errText(err), 'error');
   }
 }
 
@@ -13096,7 +13122,7 @@ async function completeAppointment(jobId, apptId) {
     updatedAt: new Date().toISOString()
   }, { merge: true })).catch((err) => {
     console.error('Appointment complete failed', err);
-    toast('Completion failed to sync: ' + ((err && err.message) || 'error'), 'error');
+    toast('Completion failed to sync: ' + errText(err), 'error');
   });
   toast('Appointment completed');
   advanceJobStatusAuto(jobId, 'Active');
@@ -13112,7 +13138,7 @@ async function cancelAppointment(jobId, apptId) {
     status: 'Cancelled', updatedAt: new Date().toISOString()
   }, { merge: true })).catch((err) => {
     console.error('Appointment cancel failed', err);
-    toast('Cancellation failed to sync: ' + ((err && err.message) || 'error'), 'error');
+    toast('Cancellation failed to sync: ' + errText(err), 'error');
   });
   toast('Appointment cancelled');
   /* M11: cancelling the flagged last rebait check would silently kill the
@@ -13129,7 +13155,10 @@ async function cancelAppointment(jobId, apptId) {
         rebaitIntervalDays: heir.rebaitIntervalDays || a.rebaitIntervalDays || null,
         rebaitEndDate: heir.rebaitEndDate || a.rebaitEndDate || null,
         updatedAt: new Date().toISOString()
-      }, { merge: true }).catch((err) => console.error('rebait flag hand-off failed', err));
+      }, { merge: true }).catch((err) => {
+        console.error('rebait flag hand-off failed', err);
+        toast('Cancelled, but moving the rebait schedule to the next visit failed: ' + errText(err), 'error');
+      });
     }
   }
 }
@@ -13313,7 +13342,7 @@ async function assignLegacyGroup(index, jobId, btn) {
         console.error('Legacy assign failed', err);
         patchLocalCaches(false);   /* revert so the group shows as unassigned again */
         if (!$('#view-assign-legacy').classList.contains('hidden')) renderAssignLegacyView();
-        toast('Assign failed to sync: ' + ((err && err.message) || 'error'), 'error');
+        toast('Assign failed to sync: ' + errText(err), 'error');
       });
     }
     toast(`Linked ${g.items.length} record${g.items.length === 1 ? '' : 's'} to ${j.jobNumber}`);
@@ -13322,7 +13351,7 @@ async function assignLegacyGroup(index, jobId, btn) {
     console.error('Legacy assign failed', err);
     patchLocalCaches(false);
     if (!$('#view-assign-legacy').classList.contains('hidden')) renderAssignLegacyView();
-    toast('Assign failed: ' + ((err && err.message) || 'error'), 'error');
+    toast('Assign failed: ' + errText(err), 'error');
     if (btn) { btn.disabled = false; btn.textContent = 'Assign'; }
   } finally {
     legacyAssignBusy = false;
@@ -13399,7 +13428,7 @@ async function createJobForLegacyGroup(index) {
       console.error('Legacy link failed', err);
       patchLocalCaches(false);   /* revert so the group shows as unassigned again */
       if (!$('#view-assign-legacy').classList.contains('hidden')) renderAssignLegacyView();
-      toast('Record links failed to sync: ' + ((err && err.message) || 'error'), 'error');
+      toast('Record links failed to sync: ' + errText(err), 'error');
       return false;
     });
     /* Item 15 / L4: if the job create ultimately FAILS while the links
@@ -13407,7 +13436,7 @@ async function createJobForLegacyGroup(index) {
        link batch settles, restore each record's prior link fields. */
     writeWithRetry(() => setDoc(ref, jobData)).catch((err) => {
       console.error('Legacy job create failed', err);
-      toast('Job failed to sync: ' + ((err && err.message) || 'error'), 'error');
+      toast('Job failed to sync: ' + errText(err), 'error');
       linkSettled.then((linked) => {
         if (linked) {
           const unlink = writeBatch(fbDb);
@@ -13427,7 +13456,7 @@ async function createJobForLegacyGroup(index) {
     toast(`Job created and ${g.items.length} record${g.items.length === 1 ? '' : 's'} linked`);
     renderAssignLegacyView();
   } catch (err) {
-    toast('Create failed: ' + ((err && err.message) || 'error'), 'error');
+    toast('Create failed: ' + errText(err), 'error');
   }
 }
 
@@ -13868,7 +13897,7 @@ async function handleSaveNote(e) {
     resetNoteForm();
     setView('dashboard');
   } catch (err) {
-    toast('Save failed: ' + ((err && err.message) || 'error'), 'error');
+    toast('Save failed: ' + errText(err), 'error');
   }
 }
 
@@ -13882,7 +13911,7 @@ async function handleDeleteNote() {
     resetNoteForm();
     setView('dashboard');
   } catch (err) {
-    toast('Delete failed: ' + ((err && err.message) || 'error'), 'error');
+    toast('Delete failed: ' + errText(err), 'error');
   }
 }
 
@@ -14041,7 +14070,7 @@ async function saveProperty() {
     toast(editingPropertyId ? 'Property updated' : 'Property added');
     closePropertyEditor();
   } catch (err) {
-    toast('Save failed: ' + ((err && err.message) || 'error'), 'error');
+    toast('Save failed: ' + errText(err), 'error');
   }
 }
 
@@ -14054,7 +14083,7 @@ async function deleteProperty() {
     toast('Property deleted');
     closePropertyEditor();
   } catch (err) {
-    toast('Delete failed: ' + ((err && err.message) || 'error'), 'error');
+    toast('Delete failed: ' + errText(err), 'error');
   }
 }
 
@@ -14150,7 +14179,10 @@ function maintainPrimaryProperty(customerId, c) {
   if (!props.length) {
     const data = primaryPropertyData({ id: customerId, ...c });
     writeWithRetry(() => setDoc(doc(collection(fbDb, 'customers', customerId, 'properties')), data))
-      .catch((err) => console.error('primary property create failed', err));
+      .catch((err) => {
+        console.error('primary property create failed', err);
+        toast('Customer saved, but creating its primary property failed: ' + errText(err), 'error');
+      });
     return;
   }
   const primary = props.find((p) => p.isPrimary && p.autoCreated && !p.manuallyEdited);
@@ -14159,7 +14191,10 @@ function maintainPrimaryProperty(customerId, c) {
   if (primary.address === next.address && primary.city === next.city && primary.county === next.county) return;
   writeWithRetry(() => setDoc(doc(fbDb, 'customers', customerId, 'properties', primary.id),
     { ...next, updatedAt: new Date().toISOString() }, { merge: true }))
-    .catch((err) => console.error('primary property sync failed', err));
+    .catch((err) => {
+      console.error('primary property sync failed', err);
+      toast('Customer saved, but updating its primary property failed: ' + errText(err), 'error');
+    });
   const idx = cachedProperties.findIndex((p) => p.id === primary.id);
   if (idx >= 0) cachedProperties[idx] = { ...cachedProperties[idx], ...next };
 }
@@ -14200,11 +14235,11 @@ async function handleSaveCustomer(e) {
         .catch((err) => {
           const code = (err && err.code) || '';
           if (code === 'functions/failed-precondition') toast('Saved. Connect QuickBooks to sync new customers.');
-          else toast('Saved, but QuickBooks add failed: ' + ((err && err.message) || 'error'), 'error');
+          else toast('Saved, but QuickBooks add failed: ' + errText(err), 'error');
         });
     }
   } catch (err) {
-    toast(`Save failed: ${err.code || err.message || err}`, 'error');
+    toast(`Save failed: ${errText(err)}`, 'error');
   } finally {
     btn.disabled = false;
     isSaving = false;
@@ -14236,7 +14271,7 @@ async function handleRetryQbPush() {
     const code = (err && err.code) || '';
     const msg = code === 'functions/failed-precondition'
       ? 'QuickBooks isn’t connected — connect it in Settings, then retry.'
-      : ((err && err.message) || 'error');
+      : errText(err);
     toast('QuickBooks push failed: ' + msg, 'error');
   } finally {
     btn.disabled = false;
@@ -14257,7 +14292,7 @@ async function handleDeleteCustomer() {
     await refreshAll();
     toast('Customer deleted');
   } catch (err) {
-    toast(`Delete failed: ${err.code || err.message || err}`, 'error');
+    toast(`Delete failed: ${errText(err)}`, 'error');
   }
 }
 
@@ -14529,7 +14564,7 @@ async function init() {
       setView('records');
       refreshAll();
     } catch (err) {
-      toast('Delete failed: ' + ((err && err.message) || 'error'), 'error');
+      toast('Delete failed: ' + errText(err), 'error');
     }
   });
 
@@ -14990,7 +15025,7 @@ async function init() {
     const days = parseInt(e.target.value, 10);
     if (!Number.isFinite(days)) return;
     try { await saveOrgConfig({ photoRetentionDays: days }); toast(`Keeping camera photos ${days} day${days === 1 ? '' : 's'}`); }
-    catch (err) { toast('Could not save: ' + ((err && err.message) || 'error'), 'error'); }
+    catch (err) { toast('Could not save: ' + errText(err), 'error'); }
   });
 
   /* ---- Customer autocomplete on trapping + pesticide forms ---- */
