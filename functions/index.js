@@ -1209,12 +1209,49 @@ async function graphGetBytes(path, context = {}) {
   if (!res.ok) throw new Error(`Graph bytes GET ${res.status}: ${await res.text()}`);
   return Buffer.from(await res.arrayBuffer());
 }
+/* Courtesy only (v2-patch-10 Item 3): the read flag is no longer the
+ * processed marker — "unprocessed" means "still in the Inbox". A human (or
+ * mail client) reading the mailbox can no longer starve the pipeline.
+ * Failures here are deliberately ignored; nothing may depend on isRead. */
 async function graphMarkRead(id, context = {}) {
   await graphFetch(`/users/${PHOTOS_MAILBOX}/messages/${id}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ isRead: true })
   }, context);
+}
+
+/* v2-patch-10 Item 3: processed messages move to a "Processed" subfolder of
+ * the photos mailbox — Inbox membership is the sole "unprocessed" marker.
+ * The folder id is cached per instance; the folder is created via Graph if
+ * absent (Mail.ReadWrite already permits both move and folder creation). */
+const PROCESSED_FOLDER_NAME = 'Processed';
+let _processedFolderId = null;
+async function processedFolderId(context = {}) {
+  if (_processedFolderId) return _processedFolderId;
+  const found = await graphGet(
+    `/users/${PHOTOS_MAILBOX}/mailFolders?$filter=displayName eq '${PROCESSED_FOLDER_NAME}'&$select=id,displayName`,
+    context);
+  const existing = (found.value || [])[0];
+  if (existing) { _processedFolderId = existing.id; return _processedFolderId; }
+  const res = await graphFetch(`/users/${PHOTOS_MAILBOX}/mailFolders`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: JSON.stringify({ displayName: PROCESSED_FOLDER_NAME })
+  }, context);
+  const text = await res.text();
+  if (!res.ok) throw new Error(`Graph create Processed folder ${res.status}: ${text}`);
+  _processedFolderId = JSON.parse(text).id;
+  return _processedFolderId;
+}
+async function graphMoveToProcessed(id, context = {}) {
+  const destinationId = await processedFolderId(context);
+  const res = await graphFetch(`/users/${PHOTOS_MAILBOX}/messages/${id}/move`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: JSON.stringify({ destinationId })
+  }, context);
+  if (!res.ok) throw new Error(`Graph move ${res.status}: ${await res.text()}`);
 }
 
 /* Build a camera-key → customer lookup. Item 1 (v2-patch-6): PROPERTY
@@ -1262,6 +1299,12 @@ async function handlePhotoMessage(m, keyMap) {
       resumable: false,
       metadata: { contentType: a.contentType || 'image/jpeg', metadata: { firebaseStorageDownloadTokens: dlToken } }
     });
+    /* Idempotency (v2-patch-10 Item 3): the storage path is deterministic
+       per message+attachment, so a message reprocessed after a failed
+       Processed-folder move (or straddling the isRead→Inbox cutover) must
+       not duplicate its photo docs. */
+    const dup = await db.collection('cameraPhotos').where('storagePath', '==', path).limit(1).get();
+    if (!dup.empty) continue;
     const url = `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/${encodeURIComponent(path)}?alt=media&token=${dlToken}`;
     await db.collection('cameraPhotos').add({
       customerKey: key || null,
@@ -1284,7 +1327,7 @@ async function handlePhotoMessage(m, keyMap) {
 }
 
 /* Item 10 (v2-patch-5): a status report that can't be parsed or matched must
- * never vanish silently (or loop unread forever). Log the raw subject, the
+ * never vanish silently (or loop in the Inbox forever). Log the raw subject, the
  * camera-key extraction attempt, and the failure reason to graphErrors, and
  * drop a pending-queue row into cameraHealth — the same manual-assignment
  * pattern unmatched photos use: it surfaces in the Monitoring module as an
@@ -1333,7 +1376,8 @@ async function handleReportMessage(m, keyMap) {
   const atts = await graphGet(`/users/${PHOTOS_MAILBOX}/messages/${m.id}/attachments?$select=id,name,contentType,isInline`, ctx);
   const htmlAtt = (atts.value || []).find((a) => /html/i.test(a.contentType || '') || /\.html?$/i.test(a.name || ''));
   if (!htmlAtt) {
-    /* Not retryable — queue it and mark the message read (Item 10). */
+    /* Not retryable — queue it; the caller still moves the message to
+       Processed (Item 10 / v2-patch-10 Item 3). */
     await queueUnmatchedReport(m, keyAttempt, 'report message has no HTML attachment');
     return { devices: 0, pending: true };
   }
@@ -1708,10 +1752,10 @@ exports.cameraWatchdog = functions
   });
 
 /* M16: only one mailbox ingest at a time. The scheduled poll and a manual
- * Sync Now both fetch "unread" messages and mark them read only afterwards,
- * so overlapping runs process the same emails twice (duplicate photos and a
- * second pass at the alert dedup). Short transactional lease; a crashed
- * run's lease expires after 10 minutes. */
+ * Sync Now both fetch the Inbox and move messages to Processed only after
+ * handling them, so overlapping runs would process the same emails twice
+ * (a second pass at the alert dedup; photo docs are storagePath-idempotent).
+ * Short transactional lease; a crashed run's lease expires after 10 min. */
 const INGEST_LEASE_MS = 10 * 60 * 1000;
 async function acquireIngestLease() {
   const ref = db.doc('org/ingestLock');
@@ -1741,14 +1785,27 @@ async function ingestMailbox() {
   }
 }
 
-/* Poll the mailbox: process unread photo + report messages, mark them read.
- * Every successful run stamps org/graphStatus.lastPollAt so the app's
- * Monitoring module can show a Graph connection indicator (Item 7). */
+/* Poll the mailbox (v2-patch-10 Item 3): process every message still in the
+ * Inbox — photo emails AND daily status reports — then move it to the
+ * Processed folder. Inbox membership is the sole "unprocessed" marker;
+ * isRead is set only as a courtesy, so humans can read the mailbox freely
+ * without starving the pipeline. A message whose handler fails stays in the
+ * Inbox and is retried next run. Every successful run stamps
+ * org/graphStatus.lastPollAt so the app's Monitoring module can show a
+ * Graph connection indicator (Item 7). */
 async function ingestMailboxUnlocked() {
   let data;
+  /* 72-hour ingest horizon: the Inbox still holds every historically
+     processed (read) message from the isRead era — without a horizon the
+     cutover would re-drain that whole backlog through the pipeline and
+     resurrect retention-purged photos. Messages older than the horizon are
+     never touched; a failing message gets ~3 days of 15-minute retries
+     before aging out (its graphErrors/console trail marks it). */
+  const INGEST_HORIZON_MS = 72 * 60 * 60 * 1000;
+  const since = new Date(Date.now() - INGEST_HORIZON_MS).toISOString();
   try {
     data = await graphGet(
-      `/users/${PHOTOS_MAILBOX}/messages?$filter=isRead eq false&$top=25` +
+      `/users/${PHOTOS_MAILBOX}/mailFolders/Inbox/messages?$filter=receivedDateTime ge ${since}&$top=25` +
       `&$select=id,subject,from,receivedDateTime,hasAttachments&$orderby=receivedDateTime desc`,
       { subject: '(mailbox poll)' });
   } catch (err) {
@@ -1759,7 +1816,7 @@ async function ingestMailboxUnlocked() {
     throw err;
   }
   const msgs = data.value || [];
-  let photos = 0, reports = 0, unassigned = 0, skipped = 0;
+  let photos = 0, reports = 0, unassigned = 0, skipped = 0, processed = 0, moved = 0, failed = 0;
   const keyMap = msgs.length ? await customerKeyMap() : { get: () => null };
   const lastSeenByKey = new Map();   /* Item 14: newest photo time per camera key */
   for (const m of msgs) {
@@ -1777,16 +1834,30 @@ async function ingestMailboxUnlocked() {
         await handleReportMessage(m, keyMap);
         reports++;
       } else {
+        /* Unrecognized senders also leave the Inbox: the query has no sender
+           filter, so anything left behind would be refetched every run and
+           could crowd real messages out of the $top=25 page. */
         skipped++;
       }
-      await graphMarkRead(m.id, { subject: m.subject || '' });
+      processed++;
+      await graphMarkRead(m.id, { subject: m.subject || '' });   /* courtesy only */
+      await graphMoveToProcessed(m.id, { subject: m.subject || '' });
+      moved++;
     } catch (err) {
-      console.error('Ingest failed for message', m.id, err.message); // leave unread → retried next run
+      failed++;
+      console.error('Ingest failed for message', m.id, err.message); // stays in Inbox → retried next run
     }
   }
   /* Item 14 (event-driven): stamp lastSeen on the camera record at write
-     time — no polling. One write per camera key per run. */
+     time — no polling. One write per camera key per run. Forward-only
+     (Item 3): a reprocessed older message must never pull lastSeen backward
+     and trip the watchdog. */
   for (const [key, r] of lastSeenByKey) {
+    try {
+      const prevSnap = await db.doc(`cameraStatus/${key}`).get();
+      const prevSeen = prevSnap.exists ? (prevSnap.get('lastSeen') || '') : '';
+      if (prevSeen && (r.receivedAt || '') <= prevSeen) continue;
+    } catch (e) { console.error('cameraStatus lastSeen read failed', key, e); }
     await db.doc(`cameraStatus/${key}`).set({
       customerKey: key,
       customerId: r.match ? r.match.id : null,
@@ -1796,7 +1867,7 @@ async function ingestMailboxUnlocked() {
       updatedAt: new Date().toISOString()
     }, { merge: true }).catch((e) => console.error('cameraStatus lastSeen write failed', key, e));
   }
-  const result = { processed: msgs.length, photos, reports, unassigned, skipped, at: new Date().toISOString() };
+  const result = { seen: msgs.length, processed, moved, failed, photos, reports, unassigned, skipped, at: new Date().toISOString() };
   await db.doc('org/graphStatus').set({
     lastPollAt: result.at,
     lastResult: result,
