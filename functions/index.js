@@ -71,6 +71,10 @@ const SERVICE_ITEM_NAME = 'Wildlife Services';
 const cb = require('./cuddeback-parse');
 /* ---- v2-patch-8: server-side admin migrations (backfill + re-link) ---- */
 const adminMigrations = require('./admin-migrations');
+/* v2-patch-12: cameraHealth pipeline write cores (merge-only, operator-set
+ * fields protected) + permanent camera deletion — separate module so the
+ * emulator regression test exercises the exact shipped logic. */
+const camHealth = require('./camera-health');
 const MS_SECRETS = ['MS_TENANT_ID', 'MS_CLIENT_ID', 'MS_CLIENT_SECRET'];
 const PHOTOS_MAILBOX = 'photos@NETORGFT3707352.onmicrosoft.com';
 const REPORT_TZ = 'America/New_York';
@@ -1342,31 +1346,15 @@ async function queueUnmatchedReport(m, keyAttempt, reason) {
   });
   try {
     const key = keyAttempt || 'UNKNOWN';
-    await db.doc(`cameraHealth/${key}__pending`).set({
-      customerKey: key,
-      customerId: null,
-      customerName: null,
-      propertyId: null,
-      cameraNumber: '—',
-      cameraName: 'Status report (needs manual review)',
-      mode: null,
-      reportDate: null,
-      battery: null,
-      batteryOk: null,
-      sdFreeSpace: null,
-      sdFreeGB: null,
-      photoQueue: null,
-      fwVersion: null,
-      clVersion: null,
-      deficiencies: [],
-      status: 'red',
-      dateCurrent: false,
-      pending: true,
-      pendingReason: String(reason).slice(0, 300),
+    /* v2-patch-12 Item 1: merge-only core that never touches operator-set
+       fields (internal etc.) — see camera-health.js. */
+    await camHealth.queueUnmatchedHealthCore(db, {
+      key,
+      reason,
       subject: m.subject || '',
       receivedAt: m.receivedDateTime || new Date().toISOString(),
-      updatedAt: new Date().toISOString()
-    }, { merge: true });
+      nowIso: new Date().toISOString()
+    });
   } catch (e) {
     console.error('pending report queue write failed', e);
   }
@@ -1406,32 +1394,10 @@ async function handleReportMessage(m, keyMap) {
     });
   }
   const nowIso = new Date().toISOString();
-  const batch = db.batch();
-  for (const d of parsed.devices) {
-    const status = cb.deviceStatus(d, parsed.reportDate, today);
-    batch.set(db.doc(`cameraHealth/${parsed.network}__${d.cameraNumber}`), {
-      customerKey: parsed.network,
-      customerId: match ? match.id : null,
-      customerName: match ? match.name : null,
-      propertyId: (match && match.propertyId) || null,
-      cameraNumber: d.cameraNumber,
-      cameraName: d.cameraName,
-      mode: d.mode,
-      reportDate: parsed.reportDate,
-      battery: d.battery,
-      batteryOk: !/low/i.test(d.battery || ''),
-      sdFreeSpace: d.sdFreeSpace,
-      sdFreeGB: d.sdFreeGB,
-      photoQueue: d.photoQueue,
-      fwVersion: d.fwVersion,
-      clVersion: d.clVersion,
-      deficiencies: cb.deviceDeficiencies(d),
-      status,
-      dateCurrent: parsed.reportDate === today,
-      updatedAt: nowIso
-    }, { merge: true });
-  }
-  await batch.commit();
+  /* v2-patch-12 Item 1: merge-only upsert core that never touches
+     operator-set fields and keeps the internal flag sticky across device
+     renumbering / new rows — see camera-health.js. */
+  await camHealth.upsertReportHealthCore(db, { parsed, match, today, nowIso });
 
   /* v2-patch-10 Item 4d: one self-explaining line per report so a future
      "No Report" state is diagnosable from the ingest log alone — which
