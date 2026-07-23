@@ -6028,6 +6028,8 @@ function fieldGroups() {
     if (!g.name && h.customerName) g.name = h.customerName;
     if (!g.customerId && h.customerId) g.customerId = h.customerId;
     if (!g.propertyId && h.propertyId) g.propertyId = h.propertyId;   /* M25 */
+    /* v2-patch-9 Item 4: internal (non-customer) camera — SWR equipment. */
+    if (h.internal === true) g.internal = true;
   }
   const myEmail = currentUser ? currentUser.email.toLowerCase() : '';
   for (const p of cachedCameraPhotos) {
@@ -6120,9 +6122,13 @@ function renderFieldDashboard() {
        rows — surface the property nickname so the operator can tell them
        apart. */
     const gProp = g.propertyId ? cachedProperties.find((p) => p.id === g.propertyId) : null;
+    /* v2-patch-9 Item 4: an internal (SWR) camera is not an unlinked
+       problem — tag it as internal instead. */
     const label = g.name
       ? escapeHtml([g.name, gProp && gProp.siteNickname].filter(Boolean).join(' · '))
-      : `${escapeHtml(g.key)}<span class="unlinked">unlinked</span>`;
+      : g.internal
+        ? `${escapeHtml(g.key)}<span class="unlinked">SWR internal</span>`
+        : `${escapeHtml(g.key)}<span class="unlinked">unlinked</span>`;
     /* Item 21: flagged for removal but awaiting Jon's confirmation. */
     const pending = g.pendingRemoval ? '<span class="unlinked">pending removal</span>' : '';
     const nCam = g.devices.length, nPh = g.photos.length;
@@ -6171,7 +6177,9 @@ function renderFieldDetail(key) {
     <div class="cam-photo-cap">${escapeHtml((p.receivedAt || '').slice(5, 16).replace('T', ' '))}</div></div>`).join('')}</div>`
     : '<div class="muted">No photos yet.</div>';
 
-  const assign = g.customerId ? '' :
+  /* v2-patch-9 Item 4: internal cameras never offer customer assignment;
+     unlinked non-internal groups additionally offer the internal toggle. */
+  const assign = (g.customerId || g.internal) ? '' :
     `<div class="btn-row" style="margin-top:10px;"><button class="btn btn-amber" id="fieldAssignBtn">Assign these photos to a customer</button></div>
      <div class="autocomplete-wrap" style="margin-top:8px;"><input type="text" id="field-assign-cust" class="hidden" autocomplete="off" placeholder="Search customer…"><div class="autocomplete-list hidden" id="field-assign-ac"></div></div>`;
 
@@ -6179,10 +6187,18 @@ function renderFieldDetail(key) {
   const removal = g.pendingRemoval
     ? `<div class="hint" style="color:var(--amber);margin-top:8px;font-weight:600;">⚠ Pending Removal — no photo or status report in 14+ days and the job is closed. ${isAdmin() ? 'Confirm below to remove it from active monitoring.' : 'An admin must confirm the removal; until then the camera stays visible.'}</div>`
     : '';
+  const unlinkedNote = g.customerId ? ''
+    : g.internal
+      ? '<div class="muted" style="margin-top:6px;">SWR internal camera — linked to no customer; health is still tracked and it never counts as unmatched.</div>'
+      : '<div class="muted" style="margin-top:6px;">Not linked to a customer — the camera key didn’t match an active customer.</div>';
+  const internalToggle = g.customerId ? ''
+    : g.internal
+      ? '<button class="btn btn-ghost" id="fieldInternalBtn" data-internal-flag="0">Unmark SWR Internal Camera</button>'
+      : '<button class="btn btn-ghost" id="fieldInternalBtn" data-internal-flag="1">Mark as SWR Internal Camera</button>';
   box.innerHTML = `
     <div class="card">
       <div style="display:flex;align-items:center;gap:10px;"><span class="cam-dot ${g.status}"></span><h3 style="margin:0;">${title}</h3></div>
-      ${g.customerId ? '' : '<div class="muted" style="margin-top:6px;">Not linked to a customer — the camera key didn’t match an active customer.</div>'}
+      ${unlinkedNote}
       ${removal}
       ${assign}
     </div>
@@ -6190,6 +6206,7 @@ function renderFieldDetail(key) {
     <div class="card"><h3 style="margin-top:0;">Photos (${g.photos.length})</h3>${photos}</div>
     <div class="form-actions">
       ${g.pendingRemoval && isAdmin() ? '<button class="btn btn-danger" id="fieldConfirmRemovalBtn">Confirm Camera Removal</button>' : ''}
+      ${internalToggle}
       <button class="btn btn-danger" id="fieldClearBtn">Delete Photos</button>
       <button class="btn btn-cancel btn-ghost" id="fieldBackBtn">Back to Monitoring</button>
     </div>`;
@@ -6205,6 +6222,34 @@ function renderFieldDetail(key) {
       .then((u) => { photoUrlCache.set(path, u); apply(u); })
       .catch(() => { const tile = img.closest('div'); if (tile) tile.style.opacity = '0.35'; img.alt = 'unavailable'; });
   });
+}
+
+/* v2-patch-9 Item 4: mark/unmark a non-customer camera (e.g. the SWR
+   master unit) as INTERNAL — stamps the boolean onto every cameraHealth
+   doc in the group (rules allow exactly this one field client-side). An
+   internal camera links to no customer, never counts as unmatched in the
+   re-link report, and its health keeps ingesting normally. */
+async function setFieldGroupInternal(key, flag) {
+  if (!key) return;
+  const g = fieldGroups().find((x) => x.key === key);
+  if (!g || !g.devices.length) { toast('No health records for this camera yet — nothing to mark.', 'error'); return; }
+  const ok = await confirmDialog(flag ? 'Mark as SWR internal camera?' : 'Unmark SWR internal camera?',
+    flag
+      ? 'Internal cameras (SWR equipment) link to no customer and are excluded from unmatched reporting. Health monitoring continues as usual.'
+      : 'The camera returns to the pending queue and will count as unmatched until it is assigned or re-marked.');
+  if (!ok) return;
+  try {
+    for (const d of g.devices) {
+      await writeWithRetry(() => setDoc(doc(fbDb, 'cameraHealth', d.id), { internal: flag }, { merge: true }));
+      const idx = cachedCameraHealth.findIndex((x) => x.id === d.id);
+      if (idx >= 0) cachedCameraHealth[idx] = { ...cachedCameraHealth[idx], internal: flag };
+    }
+    toast(flag ? `${key} marked as SWR internal` : `${key} unmarked — back in the pending queue`);
+    renderFieldDetail(key);
+    renderFieldDashboard();
+  } catch (err) {
+    toast('Update failed: ' + ((err && err.message) || 'error'), 'error');
+  }
 }
 
 /* Item 3 (v2-patch-7): Monitoring's unlinked-group flow routes through the
@@ -6508,7 +6553,7 @@ async function runCameraRelink() {
        null); linkedViaFallback counts cameras healed from the deprecated
        customer-level cameraId field. */
     const unmatched = Array.isArray(r.unmatched) ? r.unmatched : [];
-    toast(`Re-link done — ${r.linked ?? 0} linked, linked via customer fallback: ${r.linkedViaFallback ?? 0}, ${unmatched.length} unmatched.`);
+    toast(`Re-link done — ${r.linked ?? 0} linked, linked via customer fallback: ${r.linkedViaFallback ?? 0}, ${unmatched.length} unmatched${r.internalIgnored ? `, ${r.internalIgnored} internal ignored` : ''}.`);
     if (unmatched.length) {
       const nowIso = new Date().toISOString();
       const report = `Camera re-link — ${nowIso}\n` +
@@ -15294,6 +15339,8 @@ async function init() {
     if (e.target.closest('#fieldBackBtn')) { currentFieldKey = null; setView('dashboard'); return; }
     if (e.target.closest('#fieldClearBtn')) { clearFieldGroup(currentFieldKey); return; }
     if (e.target.closest('#fieldConfirmRemovalBtn')) { confirmCameraRemoval(currentFieldKey); return; }   /* Item 21 */
+    const internalBtn = e.target.closest('#fieldInternalBtn');   /* v2-patch-9 Item 4 */
+    if (internalBtn) { setFieldGroupInternal(currentFieldKey, internalBtn.dataset.internalFlag === '1'); return; }
     if (e.target.closest('#fieldAssignBtn')) {
       const i = $('#field-assign-cust');
       if (i) {

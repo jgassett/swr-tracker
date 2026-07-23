@@ -272,7 +272,14 @@ service cloud.firestore {
        reports again. */
     match /cameraHealth/{deviceId} {
       allow read:   if request.auth != null;
-      allow create, update: if false;
+      allow create: if false;
+      /* v2-patch-9 Item 4: the ONLY client-writable field is the boolean
+         `internal` flag (marks a non-customer camera — e.g. the SWR master
+         unit — so it is excluded from unmatched reporting while its health
+         stays tracked). Everything else remains server-written. */
+      allow update: if request.auth != null
+                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['internal'])
+                    && request.resource.data.internal is bool;
       allow delete: if request.auth != null;
     }
 

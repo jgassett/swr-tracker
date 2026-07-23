@@ -137,9 +137,15 @@ async function relinkCamerasCore(db) {
   const flush = async () => { if (ops) { await batch.commit(); batch = db.batch(); ops = 0; } };
   let linked = 0;
   let linkedViaFallback = 0;
+  let internalIgnored = 0;
   const unmatched = [];
 
   for (const [key, docs] of [...docsByKey.entries()].sort((a, b) => a[0].localeCompare(b[0]))) {
+    /* Item 4: internal (non-customer) cameras — e.g. the SWR master unit —
+       are flagged from the Monitoring pending queue. They link to no
+       customer and never count as unmatched; their health rows keep
+       ingesting normally. */
+    if (docs.some((d) => d.get('internal') === true)) { internalIgnored++; continue; }
     let match = byCam.get(key) || null;
 
     if (!match) {
@@ -218,7 +224,7 @@ async function relinkCamerasCore(db) {
     }
   }
   await flush();
-  return { linked, linkedViaFallback, unmatched };
+  return { linked, linkedViaFallback, internalIgnored, unmatched };
 }
 
 /* Pure admin-gate decision (the callable wrappers in index.js throw the
