@@ -1279,7 +1279,9 @@ async function customerKeyMap() {
     if (!customerId) return;
     byCam.set(cam, { id: customerId, name: nameById.get(customerId) || '', propertyId: d.id });
   });
-  return { get: (k) => byCam.get(k) || null };
+  /* v2-patch-10 Item 4b: the lookup itself normalizes — no caller can miss
+     a camera by handing in a raw (mixed-case / untrimmed) key. */
+  return { get: (k) => byCam.get(adminMigrations.normKey(k)) || null };
 }
 
 async function handlePhotoMessage(m, keyMap) {
@@ -1430,6 +1432,17 @@ async function handleReportMessage(m, keyMap) {
     }, { merge: true });
   }
   await batch.commit();
+
+  /* v2-patch-10 Item 4d: one self-explaining line per report so a future
+     "No Report" state is diagnosable from the ingest log alone — which
+     network key the report carried, whether it matched a property, whether
+     the report date counts as current, and every device row it updated. */
+  console.log(
+    `Report ingested: network=${parsed.network}`,
+    `match=${match ? `${match.name || match.id} (property ${match.propertyId})` : 'NONE — health rows written unassigned'}`,
+    `reportDate=${parsed.reportDate} today(${REPORT_TZ})=${today} dateCurrent=${parsed.reportDate === today}`,
+    `devices=[${parsed.devices.map((d) => `#${d.cameraNumber} ${d.cameraName}`).join(', ')}]`
+  );
 
   /* A daily status report proves the camera network is alive — refresh
      lastSeen so the 6.5-hour watchdog doesn't flag a healthy network that
