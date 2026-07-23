@@ -3602,7 +3602,7 @@ import {
   sendPasswordResetEmail
 } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
 import {
-  initializeFirestore, persistentLocalCache, persistentMultipleTabManager,
+  initializeFirestore, persistentLocalCache, persistentSingleTabManager,
   collection, doc, getDoc, getDocs, addDoc, setDoc, deleteDoc,
   query, orderBy, onSnapshot, writeBatch, arrayUnion, arrayRemove, updateDoc, collectionGroup, where, runTransaction
 } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
@@ -3669,8 +3669,13 @@ let fbApp, fbAuth, fbDb, fbStorage, fbFunctions;
 try {
   fbApp = initializeApp(firebaseConfig);
   fbAuth = getAuth(fbApp);
+  /* Single-tab persistence: keeps the offline cache (operators work with
+     intermittent signal) but drops the multi-tab IndexedDB lease coordination
+     that permanently terminated the client when the lease was lost (iOS PWA
+     suspension, Safari + installed PWA open together). If another tab already
+     holds the lease, this tab falls back to memory cache instead of dying. */
   fbDb = initializeFirestore(fbApp, {
-    localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() })
+    localCache: persistentLocalCache({ tabManager: persistentSingleTabManager() })
   });
   fbStorage = getStorage(fbApp);
   /* Default region (us-central1) matches the gen-1 QuickBooks functions. */
@@ -3681,6 +3686,57 @@ try {
   showBootFatalError();
   throw e;   /* stop the rest of the module — services are unusable */
 }
+
+/* =====================================================================
+ * Terminated-client recovery. If the Firestore client dies mid-session
+ * (lost IndexedDB lease, persistence failed-precondition), every later
+ * operation fails until a full reload — so reload once, automatically.
+ * A sessionStorage timestamp guards against reload loops: a second
+ * detection within a minute shows the persistent error screen instead.
+ * ===================================================================== */
+const TERMINATED_RELOAD_KEY = 'swrTerminatedReloadAt';
+function isTerminatedClientError(e) {
+  if (!e) return false;
+  const msg = String(e.message || e).toLowerCase();
+  if (msg.includes('client has already been terminated') ||
+      msg.includes('client has been terminated') ||
+      msg.includes('firestore has already been terminated')) return true;
+  /* Persistence lease/IndexedDB failures surface as failed-precondition. */
+  return e.code === 'failed-precondition' &&
+         (msg.includes('persistence') || msg.includes('indexeddb'));
+}
+let terminatedHandled = false;
+function handleTerminatedClient(e) {
+  if (!isTerminatedClientError(e)) return false;
+  if (terminatedHandled) return true;      /* reload already under way */
+  terminatedHandled = true;
+  let lastReload = 0;
+  try { lastReload = Number(sessionStorage.getItem(TERMINATED_RELOAD_KEY) || 0); } catch (_) {}
+  const now = Date.now();
+  if (lastReload && (now - lastReload) < 60000) {
+    /* Second termination within a minute — don't loop. */
+    try {
+      const fatal = document.getElementById('fatalError');
+      if (fatal) {
+        const h = fatal.querySelector('h1');
+        const p = fatal.querySelector('p');
+        if (h) h.textContent = 'Connection problem';
+        if (p) p.textContent = 'The database connection keeps resetting. Close the app fully and reopen it. If this persists, check for another open tab of the app.';
+        fatal.classList.remove('hidden');
+      }
+    } catch (_) {}
+    return true;
+  }
+  try { sessionStorage.setItem(TERMINATED_RELOAD_KEY, String(now)); } catch (_) {}
+  try { toast('Connection reset — reloading', 'error'); } catch (_) {}
+  setTimeout(() => window.location.reload(), 1200);
+  return true;
+}
+/* Catch terminations that escape local try/catch (listeners, unawaited ops). */
+window.addEventListener('unhandledrejection', (e) => {
+  if (handleTerminatedClient(e && e.reason)) e.preventDefault();
+});
+window.addEventListener('error', (e) => { handleTerminatedClient(e && e.error); });
 
 /* ---- Web push (Firebase Cloud Messaging) ----
    VAPID_KEY = the public "Web Push certificate" key pair from the Firebase
@@ -5080,6 +5136,7 @@ function subscribeToRecords() {
     /* Items 8 & 9: keep the unified records view live. */
     if (appMode === 'allrecords' && !$('#view-records-all').classList.contains('hidden')) renderAllRecords();
   }, (err) => {
+    if (handleTerminatedClient(err)) return;
     lastSyncError = err;
     updateSyncIndicator('error');
     console.error('Firestore subscription error', err);
@@ -5231,6 +5288,7 @@ function subscribeToCustomers() {
     }
     if (!$('#view-settings').classList.contains('hidden')) renderSettingsStatus();
   }, (err) => {
+    if (handleTerminatedClient(err)) return;
     console.error('Customers subscription error', err);
     showStreamError('customerList', 'Customer');
     customersUnsub = null;
@@ -5341,6 +5399,7 @@ function subscribeToEstimates() {
       }
     }
   }, (err) => {
+    if (handleTerminatedClient(err)) return;
     console.error('Estimates subscription error', err);
     showStreamError('estimatesList', 'Estimate');
     estimatesUnsub = null;
@@ -10318,6 +10377,7 @@ function subscribeToJobs() {
       if (appMode === 'closeout' && !$('#view-closeout').classList.contains('hidden')) renderCloseoutList();   /* Item 7 */
     }
   }, (err) => {
+    if (handleTerminatedClient(err)) return;
     console.error('Jobs subscription error', err);
     showStreamError('calendarWrap', 'Schedule');
     showStreamError('agendaWrap', 'Schedule');
@@ -10848,6 +10908,7 @@ function subscribeToNotifications() {
     updateBellBadge();
     if (!$('#view-notifications').classList.contains('hidden')) renderNotificationsPage();
   }, (err) => {
+    if (handleTerminatedClient(err)) return;
     console.error('Notifications subscription error', err);
     notificationsUnsub = null;
     if (notificationsRetryTimer) clearTimeout(notificationsRetryTimer);
@@ -11243,6 +11304,7 @@ function subscribeToAppointments() {
       if (currentAppointment && !$('#view-appointment-detail').classList.contains('hidden')) renderAppointmentDetail(currentAppointment.jobId, currentAppointment.id);
     }
   }, (err) => {
+    if (handleTerminatedClient(err)) return;
     console.error('Appointments subscription error', err);
     appointmentsUnsub = null;
     if (appointmentsRetryTimer) clearTimeout(appointmentsRetryTimer);
