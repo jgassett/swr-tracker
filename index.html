@@ -5078,7 +5078,12 @@ function unsubscribeFromOrg() {
   if (orgUnsub) { orgUnsub(); orgUnsub = null; }
 }
 async function saveOrgConfig(updates) {
-  await setDoc(doc(fbDb, 'org', 'swr'), { ...orgSettings, ...updates }, { merge: true });
+  /* Item 15 / L8 (v2-patch-6): write ONLY the changed fields. Spreading the
+     whole cached orgSettings meant a save made before the org snapshot
+     arrived (or concurrently with another admin device) stamped stale
+     local defaults over every server value. merge:true keeps untouched
+     fields intact. */
+  await setDoc(doc(fbDb, 'org', 'swr'), updates, { merge: true });
 }
 
 /* ---------- Pesticide master database (admin-managed) ---------- */
