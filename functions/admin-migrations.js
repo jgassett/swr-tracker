@@ -132,4 +132,13 @@ async function relinkCamerasCore(db) {
   return { linked: linkedKeys.size, unmatched: [...unmatchedKeys].sort() };
 }
 
-module.exports = { backfillPrimaryPropertiesCore, relinkCamerasCore };
+/* Pure admin-gate decision (the callable wrappers in index.js throw the
+ * matching HttpsError). Pure so the security test exercises the exact
+ * shipped logic: 'ok' | 'unauthenticated' | 'permission-denied'. */
+function adminGateDecision(auth, adminEmails) {
+  if (!auth) return 'unauthenticated';
+  const email = ((auth.token && auth.token.email) || '').toLowerCase();
+  return adminEmails.includes(email) ? 'ok' : 'permission-denied';
+}
+
+module.exports = { backfillPrimaryPropertiesCore, relinkCamerasCore, adminGateDecision };

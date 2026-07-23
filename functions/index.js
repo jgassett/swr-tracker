@@ -1827,14 +1827,14 @@ exports.cuddebackIngest = functions
  * admin check pattern; there are no custom claims in this project).
  * ===================================================================== */
 function assertAdminCallable(context) {
-  if (!context.auth) {
+  const decision = adminMigrations.adminGateDecision(context.auth, ADMIN_EMAILS);
+  if (decision === 'unauthenticated') {
     throw new functions.https.HttpsError('unauthenticated', 'Sign in required.');
   }
-  const email = ((context.auth.token && context.auth.token.email) || '').toLowerCase();
-  if (!ADMIN_EMAILS.includes(email)) {
+  if (decision === 'permission-denied') {
     throw new functions.https.HttpsError('permission-denied', 'Only an administrator can run this tool.');
   }
-  return email;
+  return context.auth.token.email.toLowerCase();
 }
 
 exports.backfillPrimaryProperties = functions
