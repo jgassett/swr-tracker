@@ -6484,7 +6484,7 @@ async function runPrimaryPropertyBackfill() {
 async function runCameraMigrationAudit() {
   if (!isAdmin()) { toast('Only an administrator can run the camera migration.', 'error'); return; }
   const ok = await confirmDialog('Run camera migration & audit?',
-    'Copies deprecated customer-level Camera IDs onto property records and downloads a reconciliation report. Conflicts are reported, never auto-resolved. Safe to run more than once.');
+    'Copies deprecated customer-level Camera IDs onto property records, re-links unlinked camera data to primary properties (unique name matches only), and downloads a reconciliation report. Conflicts are reported, never auto-resolved. Run Backfill Primary Properties first. Safe to run more than once.');
   if (!ok) return;
   const btn = $('#cameraMigrationBtn');
   if (btn) btn.disabled = true;
@@ -6572,7 +6572,63 @@ async function runCameraMigrationAudit() {
     }
     if (lines.length === 1) lines.push('(no customer-level Camera IDs found)');
 
-    /* -------- Reconciliation audit (post-migration state) -------- */
+    /* -------- Item 4 (v2-patch-7): re-link unlinked camera data --------
+       Every cameraHealth key that no property routes gets one more chance:
+       a UNIQUE customer name-key match (the pre-patch-6 fuzzy link, with
+       an optional trailing property number stripped) is auto-linked by
+       stamping the key onto that customer's PRIMARY (or sole) property —
+       which exists now that the backfill has run. Ambiguous or unmatched
+       keys stay in the pending queue; a target already routing a different
+       camera is never overwritten. */
+    const healthKeys = new Set();
+    healthSnap.docs.forEach((d) => {
+      const k = norm(d.get('customerKey') || (d.id.includes('__') ? d.id.split('__')[0] : d.id));
+      if (k) healthKeys.add(k);
+    });
+    lines.push('', '== RE-LINK (v2-patch-7): unlinked camera keys → primary properties ==');
+    let relinked = 0, stillUnmatched = 0;
+    for (const K of [...healthKeys].sort()) {
+      if (holders.has(K)) continue;   /* already routed by a property */
+      const base = K.replace(/\d+$/, '');
+      const candidates = customers.filter((c) => {
+        const nk = custCameraKey(c.name);
+        return nk && (nk === K || nk === base);
+      });
+      if (candidates.length !== 1) {
+        stillUnmatched++;
+        lines.push(candidates.length > 1
+          ? `AMBIGUOUS ${K} — name-key matches ${candidates.length} customers (${candidates.map((c) => c.name || c.id).join(', ')}); stays in the pending queue`
+          : `UNMATCHED ${K} — no customer name-key match; stays in the pending queue`);
+        continue;
+      }
+      const c = candidates[0];
+      const custProps = properties.filter((p) => p.customerId === c.id);
+      const target = custProps.find((p) => p.isPrimary) || (custProps.length === 1 ? custProps[0] : null);
+      if (!target || !target.id) {
+        stillUnmatched++;
+        lines.push(`UNMATCHED ${K} — matched ${c.name || c.id} but no primary/sole property target (run Backfill Primary Properties first)`);
+        continue;
+      }
+      if (norm(target.cameraId)) {
+        stillUnmatched++;
+        lines.push(`SKIPPED   ${K} — ${c.name || c.id}'s ${target.siteNickname || 'property'} already routes camera ${target.cameraId}; assign manually`);
+        continue;
+      }
+      try {
+        await writeWithRetry(() => setDoc(doc(fbDb, 'customers', c.id, 'properties', target.id),
+          { cameraId: K, updatedAt: nowIso }, { merge: true }));
+        target.cameraId = K;
+        holders.set(K, [target]);
+        relinked++;
+        lines.push(`LINKED    ${K} → ${propLabel(target)} (unique customer name-key match)`);
+      } catch (err) {
+        stillUnmatched++;
+        lines.push(`ERROR     ${K} — link write failed: ${(err && err.message) || err}`);
+      }
+    }
+    if (!relinked && !stillUnmatched) lines.push('(no unlinked camera keys)');
+
+    /* -------- Reconciliation audit (post-migration, post-re-link) -------- */
     lines.push('', '== AUDIT (i): Camera IDs appearing on multiple records ==');
     const allRecords = new Map();   /* K → labels (properties + deprecated customer fields) */
     for (const p of properties) {
@@ -6599,11 +6655,7 @@ async function runCameraMigrationAudit() {
     if (!dupCount) lines.push('(none)');
 
     lines.push('', '== AUDIT (ii): cameraHealth records with no matching property ==');
-    const healthKeys = new Set();
-    healthSnap.docs.forEach((d) => {
-      const k = norm(d.get('customerKey') || (d.id.includes('__') ? d.id.split('__')[0] : d.id));
-      if (k) healthKeys.add(k);
-    });
+    /* healthKeys computed above; holders reflects the re-link writes. */
     let orphanHealth = 0;
     for (const k of [...healthKeys].sort()) {
       if (!holders.has(k)) { orphanHealth++; lines.push(`UNMATCHED ${k} — health data exists but no property holds this Camera ID (stays in the pending queue)`); }
@@ -6619,11 +6671,12 @@ async function runCameraMigrationAudit() {
 
     const summary = `Camera migration & reconciliation — ${nowIso}\n` +
       `Migrated: ${migrated} (new properties created: ${createdProps}) · Conflicts: ${conflicts} · ` +
+      `Re-linked: ${relinked} · Still unmatched: ${stillUnmatched} · ` +
       `Duplicate IDs: ${dupCount} · Unmatched health records: ${orphanHealth} · Assigned-but-silent: ${silent}\n\n`;
     const report = summary + lines.join('\n') + '\n';
     console.log(report);
     downloadFile(`camera-reconciliation-${nowIso.slice(0, 10)}.txt`, report, 'text/plain;charset=utf-8');
-    toast(`Migration done — ${migrated} migrated, ${conflicts} conflict${conflicts === 1 ? '' : 's'}. Report downloaded.`);
+    toast(`Reconciliation done — ${relinked} re-linked, ${stillUnmatched} still unmatched, ${conflicts} conflict${conflicts === 1 ? '' : 's'}. Report downloaded.`);
   } catch (err) {
     console.error('camera migration failed', err);
     toast('Migration failed: ' + ((err && err.message) || 'error'), 'error');
