@@ -3363,7 +3363,9 @@
         </div>
         <div class="form-group">
           <label for="n-body">Note</label>
-          <textarea id="n-body" rows="10" placeholder="Write your note…"></textarea>
+          <!-- maxlength mirrors the Firestore rules bound (20000) so the
+               limit fails visibly here, not as an opaque rules rejection. -->
+          <textarea id="n-body" rows="10" maxlength="20000" placeholder="Write your note…"></textarea>
         </div>
         <div class="hint" id="noteTimestamps"></div>
         <div class="form-actions">
@@ -4795,13 +4797,16 @@ function initTaxReports() {
 function renderTaxReports() {
   const start = $('#taxRptStart').value || '0000-01-01';
   const end = $('#taxRptEnd').value || '9999-12-31';
+  /* Functional audit LOW-5: legacy job containers carry no startDate —
+     fall back to createdAt so real billed work can't silently vanish from
+     a tax filing report. */
   const rows = lifecycleJobs()
     .filter((j) => {
-      const d = (j.startDate || '').slice(0, 10);
+      const d = (j.startDate || j.createdAt || '').slice(0, 10);
       return d && d >= start && d <= end;
     })
     .map((j) => ({ j, locus: jobTaxLocus(j) }))
-    .sort((a, b) => (a.j.startDate || '').localeCompare(b.j.startDate || ''));
+    .sort((a, b) => (a.j.startDate || a.j.createdAt || '').localeCompare(b.j.startDate || b.j.createdAt || ''));
   taxRptRows = {
     scott: rows.filter((r) => (r.locus.county || '').trim().toLowerCase() === 'scott'),
     georgetown: rows.filter((r) => r.locus.insideCityLimits !== false &&
@@ -8535,7 +8540,9 @@ function csvCell(v) {
      export, so hostile input like "=HYPERLINK(...)" must land as text.
      A leading apostrophe makes spreadsheets render the raw string;
      legitimate negative numbers (lat/lng) are exempt. */
-  if (/^[=+@]/.test(s) || (s.startsWith('-') && !/^-?\d+(\.\d+)?$/.test(s))) s = "'" + s;
+  if (/^[=@]/.test(s)
+      || (s.startsWith('+') && !/^\+\d/.test(s))       /* "+1 502…" phone values stay intact */
+      || (s.startsWith('-') && !/^-?\d+(\.\d+)?$/.test(s))) s = "'" + s;
   if (/[",\n\r]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
   return s;
 }
@@ -12061,20 +12068,25 @@ function cancelOpenTasksForJob(jobId) {
     if (idx >= 0) cachedTasks[idx] = { ...cachedTasks[idx], status: 'Cancelled' };
   }
   /* Item 15 / M5 (v2-patch-6): the job's Complete write retries
-     (writeWithRetry) but this cancellation batch didn't — one transient
+     (writeWithRetry) but the old cancellation batch didn't — one transient
      failure stranded Open tasks on a Complete job with no recovery path.
-     Rebuild the batch inside the retry closure (a WriteBatch commits only
-     once) so the cancellations get the same 3-attempt resilience. */
-  const commitCancellations = () => {
-    const batch = writeBatch(fbDb);
-    for (const t of open) {
-      batch.set(doc(fbDb, 'tasks', t.id), { status: 'Cancelled', updatedAt: now }, { merge: true });
-    }
-    return batch.commit();
-  };
-  writeWithRetry(commitCancellations).catch((err) => {
-    console.error('Open-task cancellation failed', err);
-    toast('Task cancellations failed to sync: ' + ((err && err.message) || 'error'), 'error');
+     Functional-audit MEDIUM-1: PER-TASK writes instead of one atomic
+     batch. Under the new terminal-status rule, a task another operator
+     completed moments ago (stale local cache) would poison the whole
+     batch and cancel NOTHING; individually, that one write is rejected
+     (harmless — the task is already terminal server-side) while every
+     genuinely-open task still gets cancelled. Each write keeps the
+     3-attempt retry. */
+  const cancelOne = (t) => writeWithRetry(() =>
+    setDoc(doc(fbDb, 'tasks', t.id), { status: 'Cancelled', updatedAt: now }, { merge: true }));
+  Promise.allSettled(open.map(cancelOne)).then((results) => {
+    const rejected = results.filter((r) => r.status === 'rejected');
+    if (!rejected.length) return;
+    /* permission-denied = the task was already Completed/Cancelled on the
+       server (terminal-status rule) — the invariant holds; stay quiet. */
+    const real = rejected.filter((r) => !/permission/i.test(String((r.reason && r.reason.code) || r.reason || '')));
+    console.error('Open-task cancellation failures', rejected.map((r) => r.reason));
+    if (real.length) toast(`${real.length} task cancellation${real.length === 1 ? '' : 's'} failed to sync — check the job's tasks.`, 'error');
   });
   return open.length;
 }
@@ -13083,24 +13095,15 @@ async function createJobForLegacyGroup(index) {
       createdAt: now, updatedAt: now,
       notes: `Created from legacy records (${g.date || 'no date'}).`
     };
-    /* Optimistic writes (H1): fire the job create and the record links
-       without awaiting so the flow works offline.
-       Item 15 / L4 (v2-patch-6): if the job create ultimately FAILS while
-       the link batch succeeded, the records would point at a nonexistent
-       job — issue a compensating batch that clears the links again. */
-    writeWithRetry(() => setDoc(ref, jobData)).catch((err) => {
-      console.error('Legacy job create failed', err);
-      toast('Job failed to sync: ' + ((err && err.message) || 'error'), 'error');
-      const unlink = writeBatch(fbDb);
-      for (const it of g.items) {
-        unlink.set(doc(fbDb, it.col, it.id), { jobId: null, updatedAt: new Date().toISOString() }, { merge: true });
-      }
-      unlink.commit().catch((e2) => console.error('Legacy link rollback failed', e2));
-      patchLocalCaches(null);
-      const jix = cachedJobs.findIndex((x) => x.id === ref.id);
-      if (jix >= 0) cachedJobs.splice(jix, 1);
-      if (!$('#view-assign-legacy').classList.contains('hidden')) renderAssignLegacyView();
-    });
+    /* Item 15 / L4 (v2-patch-6, revised per functional audit): snapshot the
+       fields the link batch touches so a rollback restores ALL of them
+       (customerId/customerName too, not just jobId). */
+    const priorById = new Map();
+    for (const it of g.items) {
+      const cache = it.col === 'records' ? cachedRecords : cachedPesticideRecords;
+      const r = cache.find((x) => x.id === it.id);
+      if (r) priorById.set(it.id, { jobId: r.jobId ?? null, customerId: r.customerId ?? null, customerName: r.customerName ?? '' });
+    }
     /* cachedJobs may not include the new job yet — link directly. */
     const batch = writeBatch(fbDb);
     for (const it of g.items) {
@@ -13113,19 +13116,51 @@ async function createJobForLegacyGroup(index) {
        before re-rendering so the group leaves the list on the FIRST tap
        (the re-render reads these caches, not the not-yet-arrived snapshot). */
     if (!cachedJobs.some((x) => x.id === ref.id)) cachedJobs.push({ id: ref.id, ...jobData });
-    const patchLocalCaches = (jobIdVal) => {
+    const patchLocalCaches = (apply) => {
       for (const it of g.items) {
         const cache = it.col === 'records' ? cachedRecords : cachedPesticideRecords;
         const idx = cache.findIndex((r) => r.id === it.id);
-        if (idx >= 0) cache[idx] = { ...cache[idx], jobId: jobIdVal };
+        if (idx >= 0) {
+          cache[idx] = apply
+            ? { ...cache[idx], jobId: ref.id, customerId: match ? match.id : null, customerName: match ? match.name : g.name }
+            : { ...cache[idx], ...(priorById.get(it.id) || { jobId: null, customerId: null, customerName: '' }) };
+        }
       }
     };
-    patchLocalCaches(ref.id);
-    batch.commit().catch((err) => {
+    patchLocalCaches(true);
+    /* Optimistic writes (H1): fire the job create and the record links
+       without awaiting so the flow works offline. Keep the SETTLED link
+       promise so the rollback below can sequence after it — otherwise a
+       fast job-create failure could roll back BEFORE the link batch lands,
+       recreating the dangling links it is meant to prevent. */
+    const linkSettled = batch.commit().then(() => true, (err) => {
       console.error('Legacy link failed', err);
-      patchLocalCaches(null);   /* revert so the group shows as unassigned again */
+      patchLocalCaches(false);   /* revert so the group shows as unassigned again */
       if (!$('#view-assign-legacy').classList.contains('hidden')) renderAssignLegacyView();
       toast('Record links failed to sync: ' + ((err && err.message) || 'error'), 'error');
+      return false;
+    });
+    /* Item 15 / L4: if the job create ultimately FAILS while the links
+       committed, the records would point at a nonexistent job — after the
+       link batch settles, restore each record's prior link fields. */
+    writeWithRetry(() => setDoc(ref, jobData)).catch((err) => {
+      console.error('Legacy job create failed', err);
+      toast('Job failed to sync: ' + ((err && err.message) || 'error'), 'error');
+      linkSettled.then((linked) => {
+        if (linked) {
+          const unlink = writeBatch(fbDb);
+          for (const it of g.items) {
+            unlink.set(doc(fbDb, it.col, it.id),
+              { ...(priorById.get(it.id) || { jobId: null, customerId: null, customerName: '' }), updatedAt: new Date().toISOString() },
+              { merge: true });
+          }
+          unlink.commit().catch((e2) => console.error('Legacy link rollback failed', e2));
+        }
+        patchLocalCaches(false);
+        const jix = cachedJobs.findIndex((x) => x.id === ref.id);
+        if (jix >= 0) cachedJobs.splice(jix, 1);
+        if (!$('#view-assign-legacy').classList.contains('hidden')) renderAssignLegacyView();
+      });
     });
     toast(`Job created and ${g.items.length} record${g.items.length === 1 ? '' : 's'} linked`);
     renderAssignLegacyView();
@@ -13555,6 +13590,10 @@ async function handleSaveNote(e) {
   const body = $('#n-body').value.trim();
   const title = $('#n-title').value.trim();
   if (!body && !title) { toast('Write something first', 'error'); $('#n-body').focus(); return; }
+  /* Functional audit LOW-6: mirror the rules bounds with a clear message
+     instead of an opaque "insufficient permissions" rejection. */
+  if (body.length > 20000) { toast('Notes are capped at 20,000 characters — trim this one or split it.', 'error'); $('#n-body').focus(); return; }
+  if (title.length > 200) { toast('Titles are capped at 200 characters.', 'error'); $('#n-title').focus(); return; }
   const now = new Date().toISOString();
   try {
     if (editingNoteId) {
@@ -14157,6 +14196,7 @@ async function init() {
       if (appMode === 'jobs') editingLifecycleJobId = null;
       if (appMode === 'customer') editingCustomerId = null;
       if (appMode === 'pricing') editingEstimateId = null;
+      if (appMode === 'notes') editingNoteId = null;   /* functional audit HIGH-1 */
     }
     setView(v);
   });
