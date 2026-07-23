@@ -7012,7 +7012,13 @@ function recordNavArrival(page) {
 }
 function goBackNav() {
   const prev = navHistory.pop();
-  if (!prev || prev.landing) { backToLanding(); return; }
+  if (!prev || prev.landing) {
+    /* Suppressed like any other Back restore — landing arrival must not
+       re-push the page being left (it would slowly pollute the stack). */
+    navSuppressPush = true;
+    try { backToLanding(); } finally { navSuppressPush = false; }
+    return;
+  }
   navSuppressPush = true;
   try {
     if (appMode !== prev.mode) setAppModeQuiet(prev.mode);
@@ -14380,7 +14386,9 @@ async function handleSyncNow() {
       msg = 'Sync failed: ' + ((err && err.message) || 'unknown error');
     }
     if (status) { status.style.color = 'var(--amber)'; status.textContent = msg; }
-    toast('QuickBooks sync failed', 'error');
+    /* Item 2 (v2-patch-10): the toast carries the same specific message as
+       the status line — never a bare "failed". */
+    toast(msg, 'error');
   } finally {
     if (btn) { btn.disabled = false; btn.textContent = 'Sync Now'; }
   }
