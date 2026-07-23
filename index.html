@@ -3212,6 +3212,9 @@
       <div class="card settings-nav">
         <button type="button" class="snav-btn" id="assignLegacyBtn">Assign Legacy Records<span class="chev">›</span></button>
         <!-- Item 1 (v2-patch-6): one-time camera migration + reconciliation audit (admin only) -->
+        <!-- Item 1 (v2-patch-7): one-time backfill — a "Primary" property for
+             every customer that has none, built from the home address. -->
+        <button type="button" class="snav-btn" id="backfillPrimaryBtn" style="display:none;">Backfill Primary Properties<span class="chev">›</span></button>
         <button type="button" class="snav-btn" id="cameraMigrationBtn" style="display:none;">Camera Migration &amp; Audit<span class="chev">›</span></button>
         <button type="button" class="snav-btn" id="restoreBtn">Restore from JSON Backup<span class="chev">›</span></button>
         <input type="file" id="restoreFile" accept="application/json" style="display:none">
@@ -6223,6 +6226,88 @@ async function assignFieldPhotos(key, customer) {
  * cameraHealth record. Console log + downloadable report. Conflicts are
  * surfaced, never auto-resolved.
  * ===================================================================== */
+/* =====================================================================
+ * Item 1 (v2-patch-7): Backfill Primary Properties (admin, one-time).
+ * ---------------------------------------------------------------------
+ * v2-patch-6 made the property record the single source of truth for
+ * camera assignment, but most customers have no property records — their
+ * only address lives on the customer doc, so camera linking dead-ends.
+ * This tool creates ONE property per zero-property customer from the home
+ * address fields (isPrimary + autoCreated, nickname "Primary"). Customers
+ * that already have any property are skipped. Safe to re-run.
+ * ===================================================================== */
+
+/* Shared shape for an auto-created primary property (also used by the
+   Item 2 create-time hook). */
+function primaryPropertyData(c, byEmail) {
+  const nowIso = new Date().toISOString();
+  return {
+    customerId: c.id,
+    siteNickname: 'Primary',
+    address: c.address || '',
+    city: c.city || '',
+    county: c.county || '',
+    insideCityLimits: null,
+    cameraId: '',
+    isPrimary: true,
+    autoCreated: true,
+    manuallyEdited: false,
+    createdAt: nowIso,
+    createdByUid: currentUser ? currentUser.uid : null,
+    createdByEmail: byEmail || (currentUser ? currentUser.email : null),
+    updatedAt: nowIso
+  };
+}
+
+async function runPrimaryPropertyBackfill() {
+  if (!isAdmin()) { toast('Only an administrator can run the backfill.', 'error'); return; }
+  const ok = await confirmDialog('Backfill primary properties?',
+    'Creates a "Primary" property from the home address for every customer that has no property records. Customers with existing properties are skipped. Safe to run more than once.');
+  if (!ok) return;
+  const btn = $('#backfillPrimaryBtn');
+  if (btn) btn.disabled = true;
+  const lines = [];
+  let created = 0, skipped = 0, failed = 0, noAddress = 0;
+  try {
+    const [custSnap, propSnap] = await Promise.all([
+      getDocs(collection(fbDb, 'customers')),
+      getDocs(collectionGroup(fbDb, 'properties'))
+    ]);
+    const hasProps = new Set();
+    propSnap.forEach((d) => {
+      const cid = d.get('customerId') || (d.ref.parent.parent ? d.ref.parent.parent.id : null);
+      if (cid) hasProps.add(cid);
+    });
+    for (const d of custSnap.docs) {
+      const c = { id: d.id, ...d.data() };
+      if (hasProps.has(c.id)) { skipped++; continue; }
+      const data = primaryPropertyData(c);
+      if (!data.address && !data.city) noAddress++;
+      try {
+        await writeWithRetry(() => setDoc(doc(collection(fbDb, 'customers', c.id, 'properties')), data));
+        created++;
+        lines.push(`CREATED  ${c.name || c.id} → "Primary" (${[data.address, data.city].filter(Boolean).join(', ') || 'no address on file'})`);
+      } catch (err) {
+        failed++;
+        lines.push(`ERROR    ${c.name || c.id}: ${(err && err.message) || err}`);
+      }
+    }
+    const nowIso = new Date().toISOString();
+    const summary = `Primary property backfill — ${nowIso}\n` +
+      `Backfilled: ${created} (${noAddress} with no address on file) · ` +
+      `Skipped (properties already exist): ${skipped} · Errors: ${failed}\n\n`;
+    const report = summary + (lines.length ? lines.join('\n') : '(nothing to do)') + '\n';
+    console.log(report);
+    downloadFile(`primary-property-backfill-${nowIso.slice(0, 10)}.txt`, report, 'text/plain;charset=utf-8');
+    toast(`Backfill done — ${created} created, ${skipped} skipped. Report downloaded.`);
+  } catch (err) {
+    console.error('primary property backfill failed', err);
+    toast('Backfill failed: ' + ((err && err.message) || 'error'), 'error');
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
 async function runCameraMigrationAudit() {
   if (!isAdmin()) { toast('Only an administrator can run the camera migration.', 'error'); return; }
   const ok = await confirmDialog('Run camera migration & audit?',
@@ -15063,6 +15148,7 @@ async function init() {
   });
   /* Item 1 (v2-patch-6): camera migration + reconciliation audit */
   $('#cameraMigrationBtn').addEventListener('click', runCameraMigrationAudit);
+  $('#backfillPrimaryBtn').addEventListener('click', runPrimaryPropertyBackfill);   /* Item 1 (v2-patch-7) */
   $('#assignLegacyView').addEventListener('click', (e) => {
     if (e.target.closest('#assignLegacyBackBtn')) { setView('dashboard'); return; }
     const assign = e.target.closest('[data-lg-assign]');
@@ -15191,6 +15277,7 @@ async function init() {
         `<br><span class="muted" style="font-size:12px;">App version: ${escapeHtml(APP_VERSION)}</span>`;
       $('#wipeBtn').style.display = isAdmin() ? 'flex' : 'none';   /* Item 5: snav row */
       $('#cameraMigrationBtn').style.display = isAdmin() ? 'flex' : 'none';   /* Item 1 (v2-patch-6) */
+      $('#backfillPrimaryBtn').style.display = isAdmin() ? 'flex' : 'none';   /* Item 1 (v2-patch-7) */
       $('#pesticideDbCard').classList.toggle('hidden', !isAdmin());
       try { await maybeMigrateLocalRecords(); } catch (e) { console.error('Migration error', e); }
       subscribeToRecords();
