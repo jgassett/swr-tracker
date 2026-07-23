@@ -69,6 +69,8 @@ const SERVICE_ITEM_NAME = 'Wildlife Services';
 
 /* ---- Monitoring module (Cuddeback CuddeLink) ingestion — Item 17 rename ---- */
 const cb = require('./cuddeback-parse');
+/* ---- v2-patch-8: server-side admin migrations (backfill + re-link) ---- */
+const adminMigrations = require('./admin-migrations');
 const MS_SECRETS = ['MS_TENANT_ID', 'MS_CLIENT_ID', 'MS_CLIENT_SECRET'];
 const PHOTOS_MAILBOX = 'photos@NETORGFT3707352.onmicrosoft.com';
 const REPORT_TZ = 'America/New_York';
@@ -1813,6 +1815,56 @@ exports.cuddebackIngest = functions
       console.error('Cuddeback ingest failed', err);
     }
     return null;
+  });
+
+/* =====================================================================
+ * v2-patch-8 Item 2: admin data-management callables.
+ * ---------------------------------------------------------------------
+ * The v2-patch-7 client-side implementations died mid-run when the Web
+ * SDK's persistent multi-tab cache terminated (see the Item 1 diagnosis
+ * commit). Both migrations now run here on the Admin SDK. Admin-only:
+ * same email gate as qbPushEstimate (ADMIN_EMAILS — the app's existing
+ * admin check pattern; there are no custom claims in this project).
+ * ===================================================================== */
+function assertAdminCallable(context) {
+  const decision = adminMigrations.adminGateDecision(context.auth, ADMIN_EMAILS);
+  if (decision === 'unauthenticated') {
+    throw new functions.https.HttpsError('unauthenticated', 'Sign in required.');
+  }
+  if (decision === 'permission-denied') {
+    throw new functions.https.HttpsError('permission-denied', 'Only an administrator can run this tool.');
+  }
+  return context.auth.token.email.toLowerCase();
+}
+
+exports.backfillPrimaryProperties = functions
+  .region(REGION)
+  .runWith({ timeoutSeconds: 540, memory: '512MB' })
+  .https.onCall(async (data, context) => {
+    const by = assertAdminCallable(context);
+    try {
+      const result = await adminMigrations.backfillPrimaryPropertiesCore(db);
+      console.log(`backfillPrimaryProperties by ${by}:`, result);
+      return result;
+    } catch (err) {
+      console.error('backfillPrimaryProperties failed', err);
+      throw new functions.https.HttpsError('internal', err.message || 'Backfill failed');
+    }
+  });
+
+exports.relinkCameras = functions
+  .region(REGION)
+  .runWith({ timeoutSeconds: 540, memory: '512MB' })
+  .https.onCall(async (data, context) => {
+    const by = assertAdminCallable(context);
+    try {
+      const result = await adminMigrations.relinkCamerasCore(db);
+      console.log(`relinkCameras by ${by}: linked=${result.linked} unmatched=${result.unmatched.length}`);
+      return result;
+    } catch (err) {
+      console.error('relinkCameras failed', err);
+      throw new functions.https.HttpsError('internal', err.message || 'Re-link failed');
+    }
   });
 
 /* Manual "Sync Now" for the Monitoring module (authenticated). */
