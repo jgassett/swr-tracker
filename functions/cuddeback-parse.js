@@ -1,7 +1,13 @@
 /* =====================================================================
- * Cuddeback CuddeLink parsing + health logic (pure, dependency-free).
- * Kept separate from index.js so it can be unit-tested standalone.
+ * Cuddeback CuddeLink parsing + health logic (pure — no Firebase/network
+ * dependencies). Kept separate from index.js so it can be unit-tested
+ * standalone. Camera keys extracted here go through the shared normKey()
+ * (v2-patch-9's single normalizer), so photo subject keys and report
+ * network keys are guaranteed to normalize identically to property
+ * cameraIds — one function, one invariant (v2-patch-10 Item 4b).
  * ===================================================================== */
+
+const { normKey } = require('./admin-migrations');
 
 /* Health thresholds (tune here). */
 const SD_FREE_MIN_GB = 4;    // free space BELOW this = deficiency (card nearly full)
@@ -21,8 +27,8 @@ function subjectKey(subject) {
   let s = subject.trim();
   s = s.replace(/^[^-]*\breport\s*-\s*/i, ''); // strip "…Report - " prefixes
   const idx = s.indexOf(' - ');
-  const key = (idx === -1 ? s : s.slice(0, idx)).trim();
-  return key ? key.toUpperCase() : null;
+  const key = normKey(idx === -1 ? s : s.slice(0, idx));
+  return key || null;
 }
 
 /* Normalize a customer display name to LASTNAME+FIRSTINITIAL (uppercase),
@@ -69,7 +75,7 @@ function parseReportHtml(html) {
   const dateMatch = first.match(/Date:\s*([\d/]+)/i);
   const netMatch = first.match(/Network:\s*([^<&\-]+?)\s*(?:&nbsp;|<|\s-\s)/i);
   const reportDate = dateMatch ? dateMatch[1].trim() : null;
-  const network = netMatch ? netMatch[1].trim().toUpperCase() : null;
+  const network = netMatch ? (normKey(netMatch[1]) || null) : null;
 
   let rows = first.match(/<tr class="cl-entry">[\s\S]*?<\/tr>/gi) || [];
   if (!rows.length) {

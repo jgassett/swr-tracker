@@ -1456,7 +1456,7 @@
 
     /* Wider screens — center the form, two-up rows */
     @media (min-width: 600px) {
-      #view-add, #view-dashboard, #view-records, #view-export, #view-settings,
+      #view-add, #view-dashboard, #view-records, #view-settings,
       #view-customers, #view-add-customer, #view-records-pesticide, #view-add-pesticide,
       #view-notifications, #view-records-all {
         max-width: 760px; margin: 0 auto;
@@ -1601,13 +1601,11 @@
       /* Forms: 640px, centered in the content area. */
       #view-add form, #view-add-pesticide form, #view-add-customer form,
       #view-add-schedule form, #view-add-job form, #view-add-appointment form,
-      #view-estimate-builder, #view-add-customer .card, #view-export .card,
+      #view-estimate-builder, #view-add-customer .card,
       #view-settings .card, #view-settings .settings-group, #view-settings .signout-btn,
       #view-settings-contractors .card, #view-settings-business .card,
       #view-settings-licensing .card, #view-settings-pesticide-db .card
       { max-width: 640px; margin-left: auto; margin-right: auto; }
-      #view-export .card { margin-bottom: 14px; }
-
       /* Landing page scales up for big screens. */
       .mode-picker-wrap { max-width: 760px; }
       .action-hub { grid-template-columns: repeat(3, 1fr); }
@@ -2447,9 +2445,8 @@
         <h2 id="custGreetingTitle">Customer Directory</h2>
         <p class="muted" id="custGreetingSub">Shared across trapping and pesticide records.</p>
       </div>
-      <!-- Item 5 (v2-patch-5): Add Customer is the first interactive element
-           in the module — the search box and filters moved below it. -->
-      <button class="btn btn-amber" id="addCustomerBtn" style="margin-bottom:14px;">+ Add Customer</button>
+      <!-- Item 6 (v2-patch-10): adding a customer is the ribbon circle-plus,
+           the same pattern as every other module. -->
       <div class="search-bar">
         <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
         <input type="text" id="custSearch" placeholder="Search name, address, city, phone…" autocomplete="off">
@@ -2663,7 +2660,7 @@
           <option value="Rejected">Rejected</option>
         </select>
       </div>
-      <button class="btn btn-amber" id="newEstimateBtn" style="margin-bottom:14px;">+ New Estimate</button>
+      <!-- Item 6 (v2-patch-10): new estimate = the ribbon circle-plus. -->
       <div class="card" id="estimatesList"></div>
     </section>
 
@@ -2757,7 +2754,7 @@
         <!-- Item 16 (v2-patch-1): the calendar shows tasks from the Jobs module. -->
         <p class="muted">The crew's tasks by date — tap one to open and complete it.</p>
       </div>
-      <button class="btn btn-amber" id="newJobBtn" style="margin-bottom:12px;">+ New Task</button>
+      <!-- Item 6 (v2-patch-10): new task = the ribbon circle-plus. -->
       <div style="display:flex;justify-content:center;margin-bottom:8px;">
         <div class="sched-toggle" id="schedViewToggle">
           <button type="button" data-sched-view="month" class="active">Month</button>
@@ -2879,7 +2876,7 @@
         <!-- Item 2 (v2-patch-2): filter by job type. -->
         <select id="jobsFilterType"><option value="">All job types</option></select>
       </div>
-      <button class="btn btn-amber" id="newLifecycleJobBtn" style="margin-bottom:14px;">+ Start New Job</button>
+      <!-- Item 6 (v2-patch-10): new job = the ribbon circle-plus. -->
       <div class="card" id="jobsList"></div>
     </section>
 
@@ -3117,43 +3114,6 @@
     </section>
 
     <!-- EXPORT -->
-    <section id="view-export" class="view hidden">
-      <div class="card">
-        <h3 style="margin-bottom:6px;">KDFWR Annual Activity Report</h3>
-        <p class="muted" style="font-size:14px;">Exports all records in the current reporting period (Feb 1 – Jan 31) in the column order KDFWR expects.</p>
-        <hr class="div">
-        <div class="form-group">
-          <label for="exportPeriod">Reporting Period</label>
-          <select id="exportPeriod"></select>
-        </div>
-        <button class="btn btn-primary" id="exportKdfwr">Download KDFWR CSV</button>
-      </div>
-
-      <div class="card">
-        <h3 style="margin-bottom:6px;">Full Data Export</h3>
-        <p class="muted" style="font-size:14px;">All fields including client contact, notes, and timestamps.</p>
-        <div class="btn-row" style="margin-top:12px;">
-          <button class="btn btn-ghost" id="exportFullCsv">Full CSV</button>
-          <button class="btn btn-ghost" id="exportJson">JSON Backup</button>
-        </div>
-      </div>
-
-      <div class="card">
-        <h3 style="margin-bottom:6px;">Custom Date Range</h3>
-        <div class="field-row two" style="margin-top:8px;">
-          <div class="form-group">
-            <label for="rangeStart">From</label>
-            <input type="date" id="rangeStart">
-          </div>
-          <div class="form-group">
-            <label for="rangeEnd">To</label>
-            <input type="date" id="rangeEnd">
-          </div>
-        </div>
-        <button class="btn btn-amber" id="exportRange">Download Range CSV</button>
-      </div>
-    </section>
-
     <!-- SETTINGS (Item 5, v2-patch-2): compact admin panel — small uppercase
          section headers, no large icons, no verbose copy. -->
     <section id="view-settings" class="view hidden">
@@ -3196,6 +3156,44 @@
              automatically each year (server-side rollover on Feb 1). -->
       </div>
 
+      <!-- Item 7 (v2-patch-10): Export Records relocated here from the Field
+           Work ribbon (used ~once per year for the KDFWR annual report) —
+           adjacent to the reporting-period configuration it pairs with. The
+           period selector offers Current/Prior (plus two older cycles). -->
+      <div class="settings-group">Export Records</div>
+      <div class="card">
+        <h3 style="margin-bottom:6px;">KDFWR Annual Activity Report</h3>
+        <p class="muted" style="font-size:14px;">Exports all records in the selected reporting period (Feb 1 – Jan 31) in the column order KDFWR expects.</p>
+        <hr class="div">
+        <div class="form-group">
+          <label for="exportPeriod">Reporting Period</label>
+          <select id="exportPeriod"></select>
+        </div>
+        <button class="btn btn-primary" id="exportKdfwr">Download KDFWR CSV</button>
+      </div>
+      <div class="card">
+        <h3 style="margin-bottom:6px;">Full Data Export</h3>
+        <p class="muted" style="font-size:14px;">All fields including client contact, notes, and timestamps.</p>
+        <div class="btn-row" style="margin-top:12px;">
+          <button class="btn btn-ghost" id="exportFullCsv">Full CSV</button>
+          <button class="btn btn-ghost" id="exportJson">JSON Backup</button>
+        </div>
+      </div>
+      <div class="card">
+        <h3 style="margin-bottom:6px;">Custom Date Range</h3>
+        <div class="field-row two" style="margin-top:8px;">
+          <div class="form-group">
+            <label for="rangeStart">From</label>
+            <input type="date" id="rangeStart">
+          </div>
+          <div class="form-group">
+            <label for="rangeEnd">To</label>
+            <input type="date" id="rangeEnd">
+          </div>
+        </div>
+        <button class="btn btn-amber" id="exportRange">Download Range CSV</button>
+      </div>
+
       <!-- Section 3: Management -->
       <div class="settings-group">Management</div>
       <div class="card settings-nav">
@@ -3229,7 +3227,7 @@
       </button>
       <div class="center muted" style="font-size:11.5px; line-height:1.5; margin:10px 0 4px;">
         <span id="accountInfo">Not signed in</span><br>
-        Southern Wildlife Tracker · <span id="footerVersion">v2.7</span> · KDFWR Commercial NWCO compliance
+        Southern Wildlife Tracker · <span id="footerVersion">v2.8</span> · KDFWR Commercial NWCO compliance
       </div>
     </section>
 
@@ -3419,19 +3417,13 @@
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg>
       <span>Home</span>
     </button>
-    <button class="nav-btn" data-view="records">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5h18M3 12h18M3 19h18"/></svg>
-      <span>Records</span>
-    </button>
     <button class="nav-fab" data-view="add" aria-label="Add record">
       <svg viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
     </button>
-    <button class="nav-btn" data-view="export">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>
-      <span>Export</span>
-    </button>
     <!-- Settings removed from the bottom nav (Item 16) — reachable via the
-         gear icon on the landing page. Four items, freed slot not replaced. -->
+         gear icon on the landing page. Export moved to Settings
+         (Item 7, v2-patch-10). This static nav is replaced at runtime by
+         renderBottomNav(). -->
   </nav>
 </div>
 
@@ -3602,7 +3594,7 @@ import {
   sendPasswordResetEmail
 } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
 import {
-  initializeFirestore, persistentLocalCache, persistentMultipleTabManager,
+  initializeFirestore, persistentLocalCache, persistentSingleTabManager,
   collection, doc, getDoc, getDocs, addDoc, setDoc, deleteDoc,
   query, orderBy, onSnapshot, writeBatch, arrayUnion, arrayRemove, updateDoc, collectionGroup, where, runTransaction
 } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
@@ -3669,8 +3661,13 @@ let fbApp, fbAuth, fbDb, fbStorage, fbFunctions;
 try {
   fbApp = initializeApp(firebaseConfig);
   fbAuth = getAuth(fbApp);
+  /* Single-tab persistence: keeps the offline cache (operators work with
+     intermittent signal) but drops the multi-tab IndexedDB lease coordination
+     that permanently terminated the client when the lease was lost (iOS PWA
+     suspension, Safari + installed PWA open together). If another tab already
+     holds the lease, this tab falls back to memory cache instead of dying. */
   fbDb = initializeFirestore(fbApp, {
-    localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() })
+    localCache: persistentLocalCache({ tabManager: persistentSingleTabManager() })
   });
   fbStorage = getStorage(fbApp);
   /* Default region (us-central1) matches the gen-1 QuickBooks functions. */
@@ -3681,6 +3678,57 @@ try {
   showBootFatalError();
   throw e;   /* stop the rest of the module — services are unusable */
 }
+
+/* =====================================================================
+ * Terminated-client recovery. If the Firestore client dies mid-session
+ * (lost IndexedDB lease, persistence failed-precondition), every later
+ * operation fails until a full reload — so reload once, automatically.
+ * A sessionStorage timestamp guards against reload loops: a second
+ * detection within a minute shows the persistent error screen instead.
+ * ===================================================================== */
+const TERMINATED_RELOAD_KEY = 'swrTerminatedReloadAt';
+function isTerminatedClientError(e) {
+  if (!e) return false;
+  const msg = String(e.message || e).toLowerCase();
+  if (msg.includes('client has already been terminated') ||
+      msg.includes('client has been terminated') ||
+      msg.includes('firestore has already been terminated')) return true;
+  /* Persistence lease/IndexedDB failures surface as failed-precondition. */
+  return e.code === 'failed-precondition' &&
+         (msg.includes('persistence') || msg.includes('indexeddb'));
+}
+let terminatedHandled = false;
+function handleTerminatedClient(e) {
+  if (!isTerminatedClientError(e)) return false;
+  if (terminatedHandled) return true;      /* reload already under way */
+  terminatedHandled = true;
+  let lastReload = 0;
+  try { lastReload = Number(sessionStorage.getItem(TERMINATED_RELOAD_KEY) || 0); } catch (_) {}
+  const now = Date.now();
+  if (lastReload && (now - lastReload) < 60000) {
+    /* Second termination within a minute — don't loop. */
+    try {
+      const fatal = document.getElementById('fatalError');
+      if (fatal) {
+        const h = fatal.querySelector('h1');
+        const p = fatal.querySelector('p');
+        if (h) h.textContent = 'Connection problem';
+        if (p) p.textContent = 'The database connection keeps resetting. Close the app fully and reopen it. If this persists, check for another open tab of the app.';
+        fatal.classList.remove('hidden');
+      }
+    } catch (_) {}
+    return true;
+  }
+  try { sessionStorage.setItem(TERMINATED_RELOAD_KEY, String(now)); } catch (_) {}
+  try { toast('Connection reset — reloading', 'error'); } catch (_) {}
+  setTimeout(() => window.location.reload(), 1200);
+  return true;
+}
+/* Catch terminations that escape local try/catch (listeners, unawaited ops). */
+window.addEventListener('unhandledrejection', (e) => {
+  if (handleTerminatedClient(e && e.reason)) e.preventDefault();
+});
+window.addEventListener('error', (e) => { handleTerminatedClient(e && e.error); });
 
 /* ---- Web push (Firebase Cloud Messaging) ----
    VAPID_KEY = the public "Web Push certificate" key pair from the Firebase
@@ -3922,8 +3970,8 @@ const PESTICIDE_EMAILJS_TEMPLATE_ID = 'template_4aa3u5a';
    with the SW cache version and version.txt. Every version display (home
    header row, Settings footer, account info) reads from these two values;
    nothing else may hard-code a version string. */
-const APP_VERSION = 'v2.7';
-const APP_VERSION_DATE = 'Jul 22, 2026';
+const APP_VERSION = 'v2.8';
+const APP_VERSION_DATE = 'Jul 23, 2026';
 /* Single source of truth: paint both displays from the constant so they
    can't drift apart again. */
 {
@@ -4428,7 +4476,21 @@ async function backfillRecordNumbers() {
   }
 }
 
+/* Error text for user-facing failure toasts: always include the Firestore
+   error code when present so a screenshot is diagnosable ([permission-denied],
+   [unavailable], …), falling back to the message. */
+function errText(err) {
+  if (!err) return 'unknown error';
+  const code = err.code ? String(err.code) : '';
+  const msg = (err.message ? String(err.message) : String(err)).trim();
+  if (code && msg && msg !== code) return `[${code}] ${msg}`;
+  return msg || code || 'unknown error';
+}
+
 function toast(msg, type = '') {
+  /* While the terminated-client reload is pending, per-path failure toasts
+     would overwrite "Connection reset — reloading" — keep that one visible. */
+  if (terminatedHandled && type === 'error' && !/reloading/i.test(msg)) return;
   const el = $('#toast');
   el.textContent = msg;
   el.className = type ? `show ${type}` : 'show';
@@ -4496,6 +4558,7 @@ function showSignInScreen() {
   hideSplash();
   $('#signInScreen').classList.remove('hidden');
   $('#app').classList.add('hidden');
+  navHistory = []; navLastPage = null;   /* Item 5: history never spans sessions */
   setTimeout(() => { try { $('#signInId').focus(); } catch (e) {} }, 120);
 }
 let modeSelected = false;
@@ -4516,15 +4579,13 @@ const MODULE_LABELS = { trap: 'Field Work', pesticide: 'Field Work', customer: '
 const NAV_CONFIGS = {
   trap: [
     { view: 'menu', label: 'Home', icon: 'home' },
-    { view: 'records', label: 'Records', icon: 'list' },
-    { view: 'add', label: 'Add', icon: 'plus', fab: true },
-    { view: 'export', label: 'Export', icon: 'export' }
+    { view: 'back', label: 'Back', icon: 'back' },
+    { view: 'add', label: 'Add', icon: 'plus', fab: true }
   ],
   pesticide: [
     { view: 'menu', label: 'Home', icon: 'home' },
-    { view: 'records', label: 'Records', icon: 'list' },
-    { view: 'add', label: 'Add', icon: 'plus', fab: true },
-    { view: 'export', label: 'Export', icon: 'export' }
+    { view: 'back', label: 'Back', icon: 'back' },
+    { view: 'add', label: 'Add', icon: 'plus', fab: true }
   ],
   /* Item 10 (v2-patch-6): the per-page label icons (a bottom-nav button
      naming the current page — "Customers" on Customers, "Monitoring" on
@@ -4534,43 +4595,53 @@ const NAV_CONFIGS = {
      screens keep/regain explicit Back buttons. */
   customer: [
     { view: 'menu', label: 'Home', icon: 'home' },
+    { view: 'back', label: 'Back', icon: 'back' },
     { view: 'add', label: 'Add', icon: 'plus', fab: true }
   ],
   pricing: [
     { view: 'menu', label: 'Home', icon: 'home' },
+    { view: 'back', label: 'Back', icon: 'back' },
     { view: 'add', label: 'New', icon: 'plus', fab: true }
   ],
   jobs: [
     { view: 'menu', label: 'Home', icon: 'home' },
+    { view: 'back', label: 'Back', icon: 'back' },
     { view: 'add', label: 'New', icon: 'plus', fab: true }
   ],
   field: [
-    { view: 'menu', label: 'Home', icon: 'home' }
+    { view: 'menu', label: 'Home', icon: 'home' },
+    { view: 'back', label: 'Back', icon: 'back' }
   ],
   schedule: [
     { view: 'menu', label: 'Home', icon: 'home' },
+    { view: 'back', label: 'Back', icon: 'back' },
     { view: 'add', label: 'New', icon: 'plus', fab: true }
   ],
   settings: [
-    { view: 'menu', label: 'Home', icon: 'home' }
+    { view: 'menu', label: 'Home', icon: 'home' },
+    { view: 'back', label: 'Back', icon: 'back' }
   ],
   /* Items 8 & 9: unified records view opened from the landing banner. */
   allrecords: [
-    { view: 'menu', label: 'Home', icon: 'home' }
+    { view: 'menu', label: 'Home', icon: 'home' },
+    { view: 'back', label: 'Back', icon: 'back' }
   ],
   /* Item 7 (v2-patch-2): Close Out workflow step. */
   closeout: [
-    { view: 'menu', label: 'Home', icon: 'home' }
+    { view: 'menu', label: 'Home', icon: 'home' },
+    { view: 'back', label: 'Back', icon: 'back' }
   ],
   /* Item 7 (v2-patch-6): private per-operator notes. */
   notes: [
     { view: 'menu', label: 'Home', icon: 'home' },
+    { view: 'back', label: 'Back', icon: 'back' },
     { view: 'add', label: 'New', icon: 'plus', fab: true }
   ]
 };
 
 const NAV_ICONS = {
   menu: '<path d="m15 18-6-6 6-6"/><path d="M3 12h12"/>',
+  back: '<path d="M19 12H5"/><path d="m12 19-7-7 7-7"/>',
   home: '<rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/>',
   list: '<path d="M3 5h18M3 12h18M3 19h18"/>',
   plus: '<path d="M12 5v14M5 12h14"/>',
@@ -4605,6 +4676,7 @@ function showLanding() {
   $('#app').classList.add('hidden');
   $('#modePicker').classList.remove('hidden');
   renderLandingCounts();
+  recordNavArrival({ landing: true });   /* Item 5: Back history */
 }
 /* Back-compat alias — some call sites still reference the old name. */
 function showModePicker() { showLanding(); }
@@ -4761,7 +4833,7 @@ function lastFieldWorkTab() {
    records / export exist in both tabs); data is untouched, UI only. */
 function switchFieldWorkTab(mode) {
   if (appMode === mode || (mode !== 'trap' && mode !== 'pesticide')) return;
-  const keep = ['dashboard', 'records', 'export'].includes(currentView) ? currentView : 'dashboard';
+  const keep = 'dashboard';   /* Item 8 (v2-patch-10): records/export left the module */
   setAppModeQuiet(mode);
   setView(keep);
   refreshAll();
@@ -4972,7 +5044,7 @@ async function enablePushNotifications() {
     const testBtn = $('#pushTestBtn'); if (testBtn) testBtn.style.display = '';
   } catch (err) {
     console.error('enable push failed', err);
-    setStatus('Enable failed: ' + ((err && err.message) || 'error'));
+    setStatus('Enable failed: ' + errText(err));
   }
 }
 async function sendTestNotification() {
@@ -4981,7 +5053,7 @@ async function sendTestNotification() {
     const r = (res && res.data) || {};
     toast(r.sent ? 'Test sent — check for the notification' : 'No devices registered yet');
   } catch (err) {
-    toast('Test failed: ' + ((err && err.message) || 'error'), 'error');
+    toast('Test failed: ' + errText(err), 'error');
   }
 }
 
@@ -5080,6 +5152,7 @@ function subscribeToRecords() {
     /* Items 8 & 9: keep the unified records view live. */
     if (appMode === 'allrecords' && !$('#view-records-all').classList.contains('hidden')) renderAllRecords();
   }, (err) => {
+    if (handleTerminatedClient(err)) return;
     lastSyncError = err;
     updateSyncIndicator('error');
     console.error('Firestore subscription error', err);
@@ -5231,6 +5304,7 @@ function subscribeToCustomers() {
     }
     if (!$('#view-settings').classList.contains('hidden')) renderSettingsStatus();
   }, (err) => {
+    if (handleTerminatedClient(err)) return;
     console.error('Customers subscription error', err);
     showStreamError('customerList', 'Customer');
     customersUnsub = null;
@@ -5341,6 +5415,7 @@ function subscribeToEstimates() {
       }
     }
   }, (err) => {
+    if (handleTerminatedClient(err)) return;
     console.error('Estimates subscription error', err);
     showStreamError('estimatesList', 'Estimate');
     estimatesUnsub = null;
@@ -5542,7 +5617,7 @@ function saveEstimate(status) {
   const notes = ($('#est-notes').value || '').trim();
   const onWriteError = (err) => {
     console.error('Estimate write failed', err);
-    toast('An estimate change failed to sync: ' + ((err && err.message) || 'error'), 'error');
+    toast('An estimate change failed to sync: ' + errText(err), 'error');
   };
   /* Optimistic (M3): fire the write and don't await the server ack. Returns
      { id, estimateNumber } so a job-linked save can stamp the job (Item 5). */
@@ -5587,7 +5662,10 @@ async function handleSaveEstimate(status) {
           estimateNumber: saved.estimateNumber || '',
           updatedAt: new Date().toISOString()
         }, { merge: true }).then(() => advanceJobStatusAuto(jobId, 'Estimated'))
-          .catch((err) => console.error('job estimate link failed', err));
+          .catch((err) => {
+            console.error('job estimate link failed', err);
+            toast('Estimate saved, but linking it to the job failed: ' + errText(err), 'error');
+          });
       }
     }
     toast(offline ? 'Saved offline — will sync when connected' : (status === 'Draft' ? 'Draft saved' : 'Submitted for approval'));
@@ -5595,7 +5673,7 @@ async function handleSaveEstimate(status) {
     if (jobId) { openLifecycleJob(jobId); return; }
     setView('dashboard');
   } catch (err) {
-    toast((err && err.message) || 'Save failed', 'error');
+    toast('Save failed: ' + errText(err), 'error');
   } finally {
     btns.forEach((b) => { const el = $('#' + b); if (el) el.disabled = false; });
   }
@@ -5630,7 +5708,7 @@ function renderEstimatesList() {
   let list = cachedEstimates.slice();
   if (filter !== 'all') list = list.filter((e) => e.status === filter);
   if (!list.length) {
-    el.innerHTML = '<div style="padding:16px;color:var(--ink-soft);">No estimates yet. Tap <strong>+ New Estimate</strong> to build one.</div>';
+    el.innerHTML = '<div style="padding:16px;color:var(--ink-soft);">No estimates yet. Tap the <strong>+</strong> button below to build one.</div>';
     return;
   }
   el.innerHTML = list.map((e) => `
@@ -5741,7 +5819,7 @@ async function submitEstimateForApproval(id) {
     await writeWithRetry(() => setDoc(doc(fbDb, 'estimates', id), { status: 'Pending Approval', updatedAt: new Date().toISOString() }, { merge: true }));
     toast('Submitted for approval');
   } catch (err) {
-    toast('Submit failed: ' + ((err && err.message) || 'error'), 'error');
+    toast('Submit failed: ' + errText(err), 'error');
   }
 }
 
@@ -5756,7 +5834,7 @@ async function deleteEstimateDraft(id) {
     currentEstimateId = null;
     setView('dashboard');
   } catch (err) {
-    toast('Delete failed: ' + ((err && err.message) || 'error'), 'error');
+    toast('Delete failed: ' + errText(err), 'error');
   }
 }
 
@@ -5767,7 +5845,7 @@ async function rejectEstimate(id) {
     await writeWithRetry(() => setDoc(doc(fbDb, 'estimates', id), { status: 'Rejected', rejectionNote: note.trim(), updatedAt: new Date().toISOString() }, { merge: true }));
     toast('Estimate rejected');
   } catch (err) {
-    toast('Reject failed: ' + ((err && err.message) || 'error'), 'error');
+    toast('Reject failed: ' + errText(err), 'error');
   }
 }
 
@@ -6248,7 +6326,7 @@ async function setFieldGroupInternal(key, flag) {
     renderFieldDetail(key);
     renderFieldDashboard();
   } catch (err) {
-    toast('Update failed: ' + ((err && err.message) || 'error'), 'error');
+    toast('Update failed: ' + errText(err), 'error');
   }
 }
 
@@ -6277,7 +6355,7 @@ function assignFieldPhotos(key, customer) {
             { customerId: customer.id, customerName: customer.name || '', propertyId: propId || null, assigned: true, updatedAt: new Date().toISOString() }, { merge: true }));
         }
       } catch (err) {
-        toast('Photo re-stamp failed: ' + ((err && err.message) || 'error'), 'error');
+        toast('Photo re-stamp failed: ' + errText(err), 'error');
       }
       if (currentFieldKey) renderFieldDetail(currentFieldKey);
       renderFieldDashboard();
@@ -6458,7 +6536,7 @@ async function handleCamAssignSave() {
     closeCamAssignSheet();
     if (done) done(K, propId);
   } catch (err) {
-    toast('Assign failed: ' + ((err && err.message) || 'error'), 'error');
+    toast('Assign failed: ' + errText(err), 'error');
   } finally {
     btn.disabled = false;
   }
@@ -6532,7 +6610,7 @@ async function runPrimaryPropertyBackfill() {
   } catch (err) {
     const code = (err && err.code) || '';
     const msg = code === 'functions/permission-denied' ? 'Only an administrator can run this tool.'
-      : ((err && err.message) || 'error');
+      : errText(err);
     toast('Backfill failed: ' + msg, 'error');
   } finally {
     if (btn) btn.disabled = false;
@@ -6566,7 +6644,7 @@ async function runCameraRelink() {
   } catch (err) {
     const code = (err && err.code) || '';
     const msg = code === 'functions/permission-denied' ? 'Only an administrator can run this tool.'
-      : ((err && err.message) || 'error');
+      : errText(err);
     toast('Re-link failed: ' + msg, 'error');
   } finally {
     if (btn) btn.disabled = false;
@@ -6623,7 +6701,7 @@ async function clearFieldGroup(key) {
     renderFieldDetail(key);
     renderFieldDashboard();
   } catch (err) {
-    toast('Delete failed: ' + ((err && err.message) || 'error'), 'error');
+    toast('Delete failed: ' + errText(err), 'error');
   }
 }
 
@@ -6651,7 +6729,7 @@ async function confirmCameraRemoval(key) {
     currentFieldKey = null;
     setView('dashboard');
   } catch (err) {
-    toast('Removal failed: ' + ((err && err.message) || 'error'), 'error');
+    toast('Removal failed: ' + errText(err), 'error');
   }
 }
 
@@ -6687,7 +6765,7 @@ async function maybeAutoFieldSync() {
     if (status) status.textContent = '';
   } catch (err) {
     const code = (err && err.code) || '';
-    const msg = code === 'functions/unauthenticated' ? 'Please sign in again.' : ('Auto-sync failed: ' + ((err && err.message) || 'error'));
+    const msg = code === 'functions/unauthenticated' ? 'Please sign in again.' : ('Auto-sync failed: ' + errText(err));
     if (status) { status.style.color = 'var(--amber)'; status.textContent = msg; }
   } finally {
     fieldAutoSyncInFlight = false;
@@ -6704,6 +6782,9 @@ async function writeWithRetry(fn, attempts = 3) {
     try { return await fn(); }
     catch (err) {
       lastErr = err;
+      /* A terminated client never recovers — trigger the reload path now
+         instead of burning retries against a dead SDK. */
+      if (isTerminatedClientError(err)) { handleTerminatedClient(err); throw err; }
       /* Permission / not-found errors won't fix themselves — fail fast. */
       const code = err && err.code || '';
       if (code === 'permission-denied' || code === 'not-found' || code === 'unauthenticated') throw err;
@@ -6734,7 +6815,7 @@ function saveCustomer(customer) {
      surface via a toast. */
   setDoc(ref, data, { merge: true }).catch((err) => {
     console.error('Customer write failed', err);
-    toast('A saved customer failed to sync: ' + ((err && err.message) || 'error'), 'error');
+    toast('A saved customer failed to sync: ' + errText(err), 'error');
   });
   return ref.id;
 }
@@ -6751,7 +6832,7 @@ async function toggleCustomerActive(c) {
     await writeWithRetry(() => setDoc(doc(fbDb, 'customers', c.id), { active: next, updatedAt: new Date().toISOString() }, { merge: true }));
     toast(`${c.name || 'Customer'} marked ${next ? 'active' : 'inactive'}`);
   } catch (err) {
-    toast('Could not update: ' + ((err && err.message) || 'error'), 'error');
+    toast('Could not update: ' + errText(err), 'error');
   }
 }
 
@@ -6881,15 +6962,15 @@ async function handleSignOut() {
     await fbSignOut(fbAuth);
   } catch (err) {
     console.error('Sign out failed', err);
-    toast('Sign out failed: ' + ((err && err.message) || 'error'), 'error');
+    toast('Sign out failed: ' + errText(err), 'error');
   }
 }
 
 /* ---------- Navigation ---------- */
 let currentView = 'dashboard';
 const VIEW_TITLES = {
-  trap:      { dashboard: 'Dashboard', records: 'Records', add: 'Add Record', export: 'Export', settings: 'Settings' },
-  pesticide: { dashboard: 'Dashboard', records: 'Records', add: 'Add Application', export: 'Export', settings: 'Settings' },
+  trap:      { dashboard: 'Dashboard', add: 'Add Record', settings: 'Settings' },
+  pesticide: { dashboard: 'Dashboard', add: 'Add Application', settings: 'Settings' },
   customer:  { dashboard: 'Customers', add: 'Add Customer', settings: 'Settings' },
   pricing:   { dashboard: 'Estimates', add: 'New Estimate', 'estimate-detail': 'Estimate', settings: 'Settings' },
   jobs:      { dashboard: 'Jobs', add: 'New Job', 'job-detail': 'Job', 'add-appointment': 'New Appointment', 'appointment-detail': 'Appointment', 'add-task': 'New Task', 'task-detail': 'Task' },
@@ -6909,6 +6990,47 @@ function backToLanding() {
   showLanding();
 }
 
+/* =====================================================================
+ * Item 5 (v2-patch-10): ribbon Back button — a simple in-app history
+ * stack. Every distinct page arrival (module view or the landing page)
+ * pushes the page being LEFT; Back pops one entry and restores it.
+ * Detail sections keep their last-rendered DOM while hidden, so
+ * restoring a view shows the page as most recently viewed; live
+ * snapshots re-render it moments later. Empty history → Back = Home.
+ * ===================================================================== */
+const NAV_HISTORY_MAX = 50;
+let navHistory = [];
+let navLastPage = null;     /* the page currently on screen */
+let navSuppressPush = false; /* true while Back itself navigates */
+function navPageKey(p) { return p ? (p.landing ? 'landing' : `${p.mode}:${p.view}`) : ''; }
+function recordNavArrival(page) {
+  if (!navSuppressPush && navLastPage && navPageKey(navLastPage) !== navPageKey(page)) {
+    navHistory.push(navLastPage);
+    if (navHistory.length > NAV_HISTORY_MAX) navHistory.shift();
+  }
+  navLastPage = page;
+}
+function goBackNav() {
+  const prev = navHistory.pop();
+  if (!prev || prev.landing) {
+    /* Suppressed like any other Back restore — landing arrival must not
+       re-push the page being left (it would slowly pollute the stack). */
+    navSuppressPush = true;
+    try { backToLanding(); } finally { navSuppressPush = false; }
+    return;
+  }
+  navSuppressPush = true;
+  try {
+    if (appMode !== prev.mode) setAppModeQuiet(prev.mode);
+    /* preserveForm: returning to a half-filled add/edit form must not
+       wipe it — Back restores the page as the operator left it. */
+    setView(prev.view, { preserveForm: true });
+    refreshAll();
+  } finally {
+    navSuppressPush = false;
+  }
+}
+
 function setView(name, opts) {
   /* The Menu button returns to the main landing page (no bottom nav). */
   if (name === 'menu') { backToLanding(); return; }
@@ -6922,7 +7044,7 @@ function setView(name, opts) {
    'add-task','task-detail','closeout','closeout-confirm',
    'settings-contractors','settings-business','settings-licensing','settings-pesticide-db',
    'settings-taxreports','notes','add-note',
-   'notifications','records-all','export','settings'].forEach((v) => {
+   'notifications','records-all','settings'].forEach((v) => {
     const el = document.getElementById(`view-${v}`);
     if (el) el.classList.add('hidden');
   });
@@ -6957,6 +7079,7 @@ function setView(name, opts) {
   }
   const showEl = document.getElementById(`view-${actualId}`);
   if (showEl) showEl.classList.remove('hidden');
+  recordNavArrival({ mode: appMode, view: name });   /* Item 5: Back history */
 
   /* Detail views highlight their parent list tab in the bottom nav. */
   const navView = name === 'estimate-detail' ? 'dashboard' : name;
@@ -7567,7 +7690,7 @@ async function confirmSave() {
     }
     setDoc(doc(fbDb, 'records', rec.id), data, { merge: true }).catch((err) => {
       console.error('Record write failed', err);
-      toast('A saved record failed to sync: ' + ((err && err.message) || 'error'), 'error');
+      toast('A saved record failed to sync: ' + errText(err), 'error');
     });
 
     pendingRecord = null;
@@ -7611,13 +7734,10 @@ async function confirmSave() {
       populatePropertySelect('f-property', 'f-property-group', carry.customerId || null, carry.propertyId || '');
       return;
     }
-    recordsViewMode = 'list';
-    updateRecordsViewToggleUI();
-    setView('records');
-    refreshAll();
+    openAllRecords();   /* Item 8: View Records is the single records view */
   } catch (err) {
     console.error('confirmSave failed', err);
-    toast('Save failed: ' + ((err && err.message) || 'error'), 'error');
+    toast('Save failed: ' + errText(err), 'error');
   } finally {
     isSaving = false;
     setSaveButtonBusy(false);
@@ -8939,7 +9059,7 @@ async function handleSaveBusiness() {
     await saveOrgConfig(newBiz);
     toast('Business info saved');
   } catch (err) {
-    toast(`Save failed: ${err.message || err}`, 'error');
+    toast(`Save failed: ${errText(err)}`, 'error');
   }
 }
 
@@ -8960,7 +9080,7 @@ async function handleSavePermit() {
     await saveOrgConfig(newPermit);
     toast('Permit info saved');
   } catch (err) {
-    toast(`Save failed: ${err.message || err}`, 'error');
+    toast(`Save failed: ${errText(err)}`, 'error');
   }
 }
 
@@ -8997,7 +9117,7 @@ async function handleSaveCerts() {
     await saveOrgConfig({ applicatorCerts: newCerts });
     toast('Certifications saved');
   } catch (err) {
-    toast(`Save failed: ${err.message || err}`, 'error');
+    toast(`Save failed: ${errText(err)}`, 'error');
   }
 }
 
@@ -9110,7 +9230,7 @@ async function savePesticide() {
         data.sdsUrl = await withUploadTimeout(getDownloadURL(sref));
         data.sdsPath = path;
       } catch (err) {
-        toast('SDS upload failed: ' + ((err && err.message) || 'error') + ' — nothing was saved.', 'error');
+        toast('SDS upload failed: ' + errText(err) + ' — nothing was saved.', 'error');
         return;
       }
     }
@@ -9122,7 +9242,7 @@ async function savePesticide() {
         data.labelUrl = await withUploadTimeout(getDownloadURL(sref));
         data.labelPath = path;
       } catch (err) {
-        toast('Label upload failed: ' + ((err && err.message) || 'error') + ' — nothing was saved.', 'error');
+        toast('Label upload failed: ' + errText(err) + ' — nothing was saved.', 'error');
         return;
       }
     }
@@ -9132,7 +9252,7 @@ async function savePesticide() {
     closePesticideEditor();
     toast(isEdit ? `Updated ${name}` : `Added ${name}`);
   } catch (err) {
-    toast(`Save failed: ${err.message || err}`, 'error');
+    toast(`Save failed: ${errText(err)}`, 'error');
   } finally {
     $('#pestSaveBtn').disabled = false;
     $('#pestSaveBtn').textContent = 'Save Pesticide';
@@ -9724,7 +9844,7 @@ async function confirmSavePesticide() {
     }
     writeWithRetry(() => setDoc(doc(fbDb, 'pesticide_records', rec.id), data, { merge: true })).catch((err) => {
       console.error('Pesticide record write failed', err);
-      toast('A saved application failed to sync: ' + ((err && err.message) || 'error'), 'error');
+      toast('A saved application failed to sync: ' + errText(err), 'error');
     });
 
     pendingPesticideRecord = null;
@@ -9763,10 +9883,9 @@ async function confirmSavePesticide() {
       populatePropertySelect('pa-property', 'pa-property-group', carry.customerId || null, carry.propertyId || '');
       return;
     }
-    setView('records');
-    refreshAll();
+    openAllRecords();   /* Item 8: View Records is the single records view */
   } catch (err) {
-    toast(`Save failed: ${err.message || err}`, 'error');
+    toast(`Save failed: ${errText(err)}`, 'error');
   } finally {
     isSaving = false;
     setSaveButtonBusy(false);
@@ -9781,10 +9900,10 @@ async function deletePesticideRecord(id) {
   try {
     await deleteDoc(doc(fbDb, 'pesticide_records', target));
     resetPesticideRecordForm();
-    setView('records');
+    openAllRecords();   /* Item 8 */
     toast('Application deleted');
   } catch (err) {
-    toast('Delete failed: ' + ((err && err.message) || 'error'), 'error');
+    toast('Delete failed: ' + errText(err), 'error');
   }
 }
 
@@ -9971,6 +10090,17 @@ function fillAllRecordsFilters() {
   fillSelect('allRecContractor', TRAPPERS, true, 'All contractors');
 }
 
+/* Item 8 (v2-patch-10): programmatic job filter — Job Detail's "view
+   records" deep link lands here (the Field Work internal records view is
+   retired; View Records is the single records view). Cleared when View
+   Records opens from the landing banner, or via the chip's Show-all. */
+let allRecJobFilter = null;
+
+function openAllRecords() {
+  allRecJobFilter = null;
+  setAppMode('allrecords');
+}
+
 function renderAllRecords() {
   const root = $('#allRecordsList');
   if (!root) return;
@@ -9982,6 +10112,7 @@ function renderAllRecords() {
   const who = $('#allRecContractor').value;
   const type = $('#allRecType').value;
   let list = allRecordsEntries().filter((e) => {
+    if (allRecJobFilter && e.jobId !== allRecJobFilter.jobId) return false;
     if (type && e.kind !== type) return false;
     if (from && e.date < from) return false;
     if (to && e.date > to) return false;
@@ -9995,8 +10126,19 @@ function renderAllRecords() {
   const sortMode = ($('#allRecSort') && $('#allRecSort').value) || 'date';
   list = sortFieldWorkRecords(list, sortMode,
     (e) => e.contractor, (e) => e.customer, (e) => e.date);
+  /* Job-filter chip: always visible while the filter is active so the
+     operator can see why the list is narrowed — and clear it. */
+  let chip = '';
+  if (allRecJobFilter) {
+    const j = cachedJobs.find((x) => x.id === allRecJobFilter.jobId);
+    const label = j ? `${j.jobNumber || 'job'}${j.customerName ? ' · ' + j.customerName : ''}` : 'this job';
+    chip = `<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 10px;margin-bottom:8px;border:1px solid rgba(196,119,42,0.35);border-radius:10px;background:rgba(196,119,42,0.10);font-size:13px;">
+      <span>Showing records for <strong>${escapeHtml(label)}</strong></span>
+      <button type="button" class="btn btn-ghost" data-allrec-clearjob style="padding:4px 10px;font-size:12.5px;">Show all</button>
+    </div>`;
+  }
   if (!list.length) {
-    root.innerHTML = '<div class="empty"><div class="em-title">No matching records</div><div>Adjust the search or filters above.</div></div>';
+    root.innerHTML = chip + '<div class="empty"><div class="em-title">No matching records</div><div>Adjust the search or filters above.</div></div>';
     return;
   }
   const row = (e) => `
@@ -10019,9 +10161,9 @@ function renderAllRecords() {
       }
       html += row(e);
     }
-    root.innerHTML = html;
+    root.innerHTML = chip + html;
   } else {
-    root.innerHTML = list.map(row).join('');
+    root.innerHTML = chip + list.map(row).join('');
   }
 }
 
@@ -10052,7 +10194,7 @@ async function fetchPesticideWeather() {
     status.textContent = `✓ Filled from current location · ${new Date().toLocaleTimeString()}`;
     status.className = 'hint success';
   } catch (err) {
-    status.textContent = `Could not fetch weather: ${err.message || err}. Enter manually.`;
+    status.textContent = `Could not fetch weather: ${errText(err)}. Enter manually.`;
     status.className = 'hint error';
   }
 }
@@ -10160,7 +10302,7 @@ async function deletePesticide(id) {
     if (editingPesticideId === target) closePesticideEditor();
     toast(`Deleted ${p.name}`);
   } catch (err) {
-    toast(`Delete failed: ${err.message || err}`, 'error');
+    toast(`Delete failed: ${errText(err)}`, 'error');
   }
 }
 
@@ -10318,6 +10460,7 @@ function subscribeToJobs() {
       if (appMode === 'closeout' && !$('#view-closeout').classList.contains('hidden')) renderCloseoutList();   /* Item 7 */
     }
   }, (err) => {
+    if (handleTerminatedClient(err)) return;
     console.error('Jobs subscription error', err);
     showStreamError('calendarWrap', 'Schedule');
     showStreamError('agendaWrap', 'Schedule');
@@ -10475,7 +10618,7 @@ function renderAgenda() {
   const upcoming = scheduleEntries()
     .filter((e) => e.status === 'Open' && (e.date || '') >= todayKey)
     .sort((a, b) => ((a.date || '') + (a.startTime || '')).localeCompare((b.date || '') + (b.startTime || '')));
-  if (!upcoming.length) { wrap.innerHTML = '<div class="muted" style="padding:16px;">No upcoming open tasks. Tap <strong>+ New Task</strong> to schedule one.</div>'; return; }
+  if (!upcoming.length) { wrap.innerHTML = '<div class="muted" style="padding:16px;">No upcoming open tasks. Tap the <strong>+</strong> button below to schedule one.</div>'; return; }
   const byDay = new Map();
   for (const e of upcoming) { if (!byDay.has(e.date)) byDay.set(e.date, []); byDay.get(e.date).push(e); }
   let html = '';
@@ -10660,7 +10803,7 @@ async function handleSaveJob(e) {
     resetJobForm();
     setView('dashboard');
   } catch (err) {
-    toast((err && err.message) || 'Save failed', 'error');
+    toast('Save failed: ' + errText(err), 'error');
   } finally {
     btn.disabled = false;
   }
@@ -10809,7 +10952,7 @@ async function setJobStatus(id, status) {
     await writeWithRetry(() => setDoc(doc(fbDb, 'jobs', id), { status, updatedAt: new Date().toISOString() }, { merge: true }));
     toast(`Job ${status.toLowerCase()}`);
   } catch (err) {
-    toast('Update failed: ' + ((err && err.message) || 'error'), 'error');
+    toast('Update failed: ' + errText(err), 'error');
   }
 }
 async function deleteJob(id) {
@@ -10820,7 +10963,7 @@ async function deleteJob(id) {
     currentJobId = null;
     setView('dashboard');
   } catch (err) {
-    toast('Delete failed: ' + ((err && err.message) || 'error'), 'error');
+    toast('Delete failed: ' + errText(err), 'error');
   }
 }
 
@@ -10848,6 +10991,7 @@ function subscribeToNotifications() {
     updateBellBadge();
     if (!$('#view-notifications').classList.contains('hidden')) renderNotificationsPage();
   }, (err) => {
+    if (handleTerminatedClient(err)) return;
     console.error('Notifications subscription error', err);
     notificationsUnsub = null;
     if (notificationsRetryTimer) clearTimeout(notificationsRetryTimer);
@@ -10957,7 +11101,10 @@ function renderNotificationsPage() {
 
 function dismissNotification(id) {
   setDoc(doc(fbDb, 'notifications', id), { read: true, readAt: new Date().toISOString() }, { merge: true })
-    .catch((err) => console.error('notification dismiss failed', err));
+    .catch((err) => {
+      console.error('notification dismiss failed', err);
+      toast('Dismiss failed: ' + errText(err), 'error');
+    });
 }
 
 async function clearAllNotifications() {
@@ -10974,7 +11121,7 @@ async function clearAllNotifications() {
     if (ops) await batch.commit();
     toast('Notifications cleared');
   } catch (err) {
-    toast('Clear failed: ' + ((err && err.message) || 'error'), 'error');
+    toast('Clear failed: ' + errText(err), 'error');
   }
 }
 
@@ -11001,7 +11148,7 @@ async function clearReadNotifications() {
     toast(`Deleted ${read.length} read notification${read.length === 1 ? '' : 's'}`);
     renderNotificationsPage();
   } catch (err) {
-    toast('Clear failed: ' + ((err && err.message) || 'error'), 'error');
+    toast('Clear failed: ' + errText(err), 'error');
   }
 }
 
@@ -11187,7 +11334,7 @@ async function setJobLifecycleStatus(id, status, extra = {}) {
   writeWithRetry(() => setDoc(doc(fbDb, 'jobs', id), { status, ...extra, updatedAt: new Date().toISOString() }, { merge: true }))
     .catch((err) => {
       console.error('Job status write failed', err);
-      toast('Status update failed to sync: ' + ((err && err.message) || 'error'), 'error');
+      toast('Status update failed to sync: ' + errText(err), 'error');
     });
   toast(`Job ${j.jobNumber || ''} → ${status}`);
   /* In-app notification to the job's other operators (Item 12). */
@@ -11243,6 +11390,7 @@ function subscribeToAppointments() {
       if (currentAppointment && !$('#view-appointment-detail').classList.contains('hidden')) renderAppointmentDetail(currentAppointment.jobId, currentAppointment.id);
     }
   }, (err) => {
+    if (handleTerminatedClient(err)) return;
     console.error('Appointments subscription error', err);
     appointmentsUnsub = null;
     if (appointmentsRetryTimer) clearTimeout(appointmentsRetryTimer);
@@ -11331,7 +11479,7 @@ function renderJobsList() {
   if (typeFilter) list = list.filter((j) => (j.jobType || '') === typeFilter);
   list = list.slice().sort((a, b) => (b.startDate || b.createdAt || '').localeCompare(a.startDate || a.createdAt || ''));
   if (!list.length) {
-    el.innerHTML = '<div style="padding:16px;color:var(--ink-soft);">No jobs here yet. Tap <strong>+ Start New Job</strong> to open a container for a customer engagement.</div>';
+    el.innerHTML = '<div style="padding:16px;color:var(--ink-soft);">No jobs here yet. Tap the <strong>+</strong> button below to open a container for a customer engagement.</div>';
     return;
   }
   el.innerHTML = list.map((j) => {
@@ -11506,7 +11654,7 @@ async function handleSaveLifecycleJob(e) {
       writeWithRetry(() => setDoc(doc(fbDb, 'jobs', editingLifecycleJobId), data, { merge: true }))
         .catch((err) => {
           console.error('Job update failed', err);
-          toast('Job update failed to sync: ' + ((err && err.message) || 'error'), 'error');
+          toast('Job update failed to sync: ' + errText(err), 'error');
         });
       /* Keep the local cache current so the detail view renders the edit
          immediately (the snapshot confirms it moments later). */
@@ -11557,7 +11705,7 @@ async function handleSaveLifecycleJob(e) {
       writeWithRetry(() => setDoc(ref, data))
         .catch((err) => {
           console.error('Job create failed', err);
-          toast('Job failed to sync: ' + ((err && err.message) || 'error'), 'error');
+          toast('Job failed to sync: ' + errText(err), 'error');
         });
       if (!cachedJobs.some((x) => x.id === ref.id)) cachedJobs.push({ id: ref.id, ...data });
       toast(`Job opened · ${data.jobNumber}`);
@@ -11565,7 +11713,7 @@ async function handleSaveLifecycleJob(e) {
       openLifecycleJob(ref.id);
     }
   } catch (err) {
-    toast('Save failed: ' + ((err && err.message) || 'error'), 'error');
+    toast('Save failed: ' + errText(err), 'error');
   } finally {
     btn.disabled = false;
   }
@@ -11919,7 +12067,7 @@ function assignJobCamera(jobId, cameraId) {
   writeWithRetry(() => setDoc(doc(fbDb, 'jobs', jobId), { cameraId: K, updatedAt: now }, { merge: true }))
     .catch((err) => {
       console.error('camera assign failed', err);
-      toast('Camera assignment failed to sync: ' + ((err && err.message) || 'error'), 'error');
+      toast('Camera assignment failed to sync: ' + errText(err), 'error');
     });
   const jdx = cachedJobs.findIndex((x) => x.id === jobId);
   if (jdx >= 0) cachedJobs[jdx] = { ...cachedJobs[jdx], cameraId: K };
@@ -11940,7 +12088,7 @@ function removeJobCamera(jobId) {
   writeWithRetry(() => setDoc(doc(fbDb, 'jobs', jobId), { cameraId: null, updatedAt: new Date().toISOString() }, { merge: true }))
     .catch((err) => {
       console.error('camera remove failed', err);
-      toast('Camera removal failed to sync: ' + ((err && err.message) || 'error'), 'error');
+      toast('Camera removal failed to sync: ' + errText(err), 'error');
     });
   const jdx = cachedJobs.findIndex((x) => x.id === jobId);
   if (jdx >= 0) cachedJobs[jdx] = { ...cachedJobs[jdx], cameraId: null };
@@ -12050,7 +12198,7 @@ async function handleSaveTask(e) {
     if (editingTaskId) {
       /* Optimistic (H1 pattern): fire without awaiting so it works offline. */
       writeWithRetry(() => setDoc(doc(fbDb, 'tasks', editingTaskId), data, { merge: true }))
-        .catch((err) => { console.error('Task update failed', err); toast('Task failed to sync: ' + ((err && err.message) || 'error'), 'error'); });
+        .catch((err) => { console.error('Task update failed', err); toast('Task failed to sync: ' + errText(err), 'error'); });
       toast('Task updated');
       savedTask = null;   /* edits never trigger the rebait prompt */
     } else {
@@ -12064,7 +12212,7 @@ async function handleSaveTask(e) {
       data.createdByEmail = currentUser ? currentUser.email : null;
       data.createdAt = now;
       writeWithRetry(() => setDoc(ref, data))
-        .catch((err) => { console.error('Task create failed', err); toast('Task failed to sync: ' + ((err && err.message) || 'error'), 'error'); });
+        .catch((err) => { console.error('Task create failed', err); toast('Task failed to sync: ' + errText(err), 'error'); });
       /* Seed the cache so the job detail shows it immediately. */
       if (!cachedTasks.some((t) => t.id === ref.id)) cachedTasks.push({ id: ref.id, ...data });
       toast('Task saved');
@@ -12083,7 +12231,7 @@ async function handleSaveTask(e) {
       promptRebaitSetup(jobId, savedTask);
     }
   } catch (err) {
-    toast('Save failed: ' + ((err && err.message) || 'error'), 'error');
+    toast('Save failed: ' + errText(err), 'error');
   } finally {
     btn.disabled = false;
   }
@@ -12158,7 +12306,7 @@ function completeTask(id) {
     updatedAt: new Date().toISOString()
   }, { merge: true })).catch((err) => {
     console.error('Task complete failed', err);
-    toast('Completion failed to sync: ' + ((err && err.message) || 'error'), 'error');
+    toast('Completion failed to sync: ' + errText(err), 'error');
   });
   /* Keep the cache current for the immediate re-render + rebait logic. */
   const idx = cachedTasks.findIndex((x) => x.id === id);
@@ -12192,7 +12340,7 @@ function cancelTask(id) {
     status: 'Cancelled', updatedAt: new Date().toISOString()
   }, { merge: true })).catch((err) => {
     console.error('Task cancel failed', err);
-    toast('Cancellation failed to sync: ' + ((err && err.message) || 'error'), 'error');
+    toast('Cancellation failed to sync: ' + errText(err), 'error');
   });
   const idx = cachedTasks.findIndex((x) => x.id === id);
   if (idx >= 0) cachedTasks[idx] = { ...cachedTasks[idx], status: 'Cancelled' };
@@ -12245,7 +12393,7 @@ function addContractorToJob(id) {
     updatedAt: new Date().toISOString()
   }, { merge: true })).catch((err) => {
     console.error('Add contractor failed', err);
-    toast('Change failed to sync: ' + ((err && err.message) || 'error'), 'error');
+    toast('Change failed to sync: ' + errText(err), 'error');
   });
   const jdx = cachedJobs.findIndex((x) => x.id === id);
   if (jdx >= 0) cachedJobs[jdx] = { ...cachedJobs[jdx], assignedOperators: operators, assigneeNames: operators.map((em) => nameByEmail[em] || em) };
@@ -12431,7 +12579,7 @@ async function confirmCloseOutJob(id) {
           .then(() => toast(`${cust.name || 'Customer'} set to inactive — no other active jobs`))
           .catch((err) => {
             console.error('customer auto-deactivate failed', err);
-            toast('Customer deactivation failed to sync: ' + ((err && err.message) || 'error'), 'error');
+            toast('Customer deactivation failed to sync: ' + errText(err), 'error');
           });
       }
     }
@@ -12498,7 +12646,7 @@ function createRebaitTaskDoc(jobId, template, date) {
   /* Optimistic write — offline-safe like every other task write. */
   writeWithRetry(() => setDoc(ref, data)).catch((err) => {
     console.error('Rebait task create failed', err);
-    toast('Rebait task failed to sync: ' + ((err && err.message) || 'error'), 'error');
+    toast('Rebait task failed to sync: ' + errText(err), 'error');
   });
   cachedTasks.push({ id: ref.id, ...data });
   cachedTasks.sort((a, b) =>
@@ -12557,7 +12705,7 @@ function confirmRebaitTaskSetup() {
     updatedAt: new Date().toISOString()
   }, { merge: true })).catch((err) => {
     console.error('Rebait config write failed', err);
-    toast('Rebait schedule failed to sync: ' + ((err && err.message) || 'error'), 'error');
+    toast('Rebait schedule failed to sync: ' + errText(err), 'error');
   });
   const jdx = cachedJobs.findIndex((x) => x.id === ctx.jobId);
   if (jdx >= 0) cachedJobs[jdx] = { ...cachedJobs[jdx], rebaitInterval: interval, rebaitEndDate: endDate, rebaitActive: true };
@@ -12602,13 +12750,16 @@ function handleRebaitTaskCompleted(t) {
     if (ok) {
       const newEnd = addDaysISO(live.rebaitEndDate || j.rebaitEndDate || anchor, 30);
       writeWithRetry(() => setDoc(doc(fbDb, 'jobs', j.id), { rebaitEndDate: newEnd, updatedAt: now }, { merge: true }))
-        .catch((err) => { console.error('Rebait extension failed', err); toast('Extension failed to sync: ' + ((err && err.message) || 'error'), 'error'); });
+        .catch((err) => { console.error('Rebait extension failed', err); toast('Extension failed to sync: ' + errText(err), 'error'); });
       if (jdx >= 0) cachedJobs[jdx] = { ...cachedJobs[jdx], rebaitEndDate: newEnd };
       createRebaitTaskDoc(j.id, t, next);
       toast(`Extended through ${fmtShortDate(newEnd)} — next rebait ${fmtShortDate(next)}`);
     } else {
       writeWithRetry(() => setDoc(doc(fbDb, 'jobs', j.id), { rebaitActive: false, updatedAt: now }, { merge: true }))
-        .catch((err) => console.error('Rebait deactivate failed', err));
+        .catch((err) => {
+          console.error('Rebait deactivate failed', err);
+          toast('Rebait deactivation failed to sync: ' + errText(err), 'error');
+        });
       if (jdx >= 0) cachedJobs[jdx] = { ...cachedJobs[jdx], rebaitActive: false };
       toast('Rebait schedule ended');
     }
@@ -12732,7 +12883,7 @@ async function handleSaveAppointment(e) {
             .catch((err) => console.warn('appointment update notify failed', err)))
         .catch((err) => {
           console.error('Appointment update failed', err);
-          toast('Appointment failed to sync: ' + ((err && err.message) || 'error'), 'error');
+          toast('Appointment failed to sync: ' + errText(err), 'error');
         });
       toast('Appointment updated');
     } else {
@@ -12755,7 +12906,7 @@ async function handleSaveAppointment(e) {
             .catch((err) => console.warn('appointment notify failed', err)))
         .catch((err) => {
           console.error('Appointment create failed', err);
-          toast('Appointment failed to sync: ' + ((err && err.message) || 'error'), 'error');
+          toast('Appointment failed to sync: ' + errText(err), 'error');
         });
       toast('Appointment scheduled');
       advanceJobStatusAuto(jobId, 'Scheduled');
@@ -12775,7 +12926,7 @@ async function handleSaveAppointment(e) {
       promptRebaitSequence(jobId, savedData);
     }
   } catch (err) {
-    toast('Save failed: ' + ((err && err.message) || 'error'), 'error');
+    toast('Save failed: ' + errText(err), 'error');
   } finally {
     btn.disabled = false;
   }
@@ -12895,7 +13046,7 @@ function createRebaitAppointments(jobId, template, intervalDays, endDate, dates)
         .catch((err) => console.warn('rebait series notify failed', err)))
     .catch((err) => {
       console.error('Rebait series write failed', err);
-      toast('Rebait check visits failed to sync: ' + ((err && err.message) || 'error'), 'error');
+      toast('Rebait check visits failed to sync: ' + errText(err), 'error');
     });
   return dates.length;
 }
@@ -12929,7 +13080,7 @@ function confirmRebaitSequence() {
     toast(`${dates.length} check visit${dates.length === 1 ? '' : 's'} scheduled through ${fmtShortDate(endDate)}`);
     closeRebaitSheet();
   } catch (err) {
-    toast('Could not create the sequence: ' + ((err && err.message) || 'error'), 'error');
+    toast('Could not create the sequence: ' + errText(err), 'error');
   } finally {
     rebaitCreateInFlight = false;
   }
@@ -12958,12 +13109,12 @@ async function promptRebaitExtension(jobId, appt) {
     setDoc(doc(fbDb, 'jobs', jobId, 'appointments', appt.id), { isLastRebait: false, updatedAt: new Date().toISOString() }, { merge: true })
       .catch((err) => {
         console.error('Rebait flag clear failed', err);
-        toast('Rebait update failed to sync: ' + ((err && err.message) || 'error'), 'error');
+        toast('Rebait update failed to sync: ' + errText(err), 'error');
       });
     createRebaitAppointments(jobId, appt, interval, newEnd, dates);
     toast(`${dates.length} more check visit${dates.length === 1 ? '' : 's'} scheduled through ${fmtShortDate(newEnd)}`);
   } catch (err) {
-    toast('Extension failed: ' + ((err && err.message) || 'error'), 'error');
+    toast('Extension failed: ' + errText(err), 'error');
   }
 }
 
@@ -13034,7 +13185,7 @@ async function completeAppointment(jobId, apptId) {
     updatedAt: new Date().toISOString()
   }, { merge: true })).catch((err) => {
     console.error('Appointment complete failed', err);
-    toast('Completion failed to sync: ' + ((err && err.message) || 'error'), 'error');
+    toast('Completion failed to sync: ' + errText(err), 'error');
   });
   toast('Appointment completed');
   advanceJobStatusAuto(jobId, 'Active');
@@ -13050,7 +13201,7 @@ async function cancelAppointment(jobId, apptId) {
     status: 'Cancelled', updatedAt: new Date().toISOString()
   }, { merge: true })).catch((err) => {
     console.error('Appointment cancel failed', err);
-    toast('Cancellation failed to sync: ' + ((err && err.message) || 'error'), 'error');
+    toast('Cancellation failed to sync: ' + errText(err), 'error');
   });
   toast('Appointment cancelled');
   /* M11: cancelling the flagged last rebait check would silently kill the
@@ -13067,7 +13218,10 @@ async function cancelAppointment(jobId, apptId) {
         rebaitIntervalDays: heir.rebaitIntervalDays || a.rebaitIntervalDays || null,
         rebaitEndDate: heir.rebaitEndDate || a.rebaitEndDate || null,
         updatedAt: new Date().toISOString()
-      }, { merge: true }).catch((err) => console.error('rebait flag hand-off failed', err));
+      }, { merge: true }).catch((err) => {
+        console.error('rebait flag hand-off failed', err);
+        toast('Cancelled, but moving the rebait schedule to the next visit failed: ' + errText(err), 'error');
+      });
     }
   }
 }
@@ -13121,16 +13275,13 @@ function toggleRecFilter(filter, renderFn) {
   else filter.unlinkedOnly = true;
   renderFn();
 }
+/* Item 8 (v2-patch-10): job record deep links land in the unified View
+   Records with the job filter chip + the matching type pre-selected. */
 function viewJobRecords(jobId, kind) {
-  if (kind === 'trap') {
-    trapRecFilter.jobId = jobId; trapRecFilter.unlinkedOnly = false;
-    setAppModeQuiet('trap'); setView('records');
-    renderRecords();   /* apply the new filter now, not on the next snapshot */
-  } else {
-    pestRecFilter.jobId = jobId; pestRecFilter.unlinkedOnly = false;
-    setAppModeQuiet('pesticide'); setView('records');
-    renderPesticideRecordsList();
-  }
+  allRecJobFilter = { jobId };
+  const typeSel = $('#allRecType');
+  if (typeSel) typeSel.value = kind === 'trap' ? 'trap' : 'pest';
+  setAppMode('allrecords');
 }
 
 /* ---- Assign Legacy Records (Settings → Data Management) ---- */
@@ -13251,7 +13402,7 @@ async function assignLegacyGroup(index, jobId, btn) {
         console.error('Legacy assign failed', err);
         patchLocalCaches(false);   /* revert so the group shows as unassigned again */
         if (!$('#view-assign-legacy').classList.contains('hidden')) renderAssignLegacyView();
-        toast('Assign failed to sync: ' + ((err && err.message) || 'error'), 'error');
+        toast('Assign failed to sync: ' + errText(err), 'error');
       });
     }
     toast(`Linked ${g.items.length} record${g.items.length === 1 ? '' : 's'} to ${j.jobNumber}`);
@@ -13260,7 +13411,7 @@ async function assignLegacyGroup(index, jobId, btn) {
     console.error('Legacy assign failed', err);
     patchLocalCaches(false);
     if (!$('#view-assign-legacy').classList.contains('hidden')) renderAssignLegacyView();
-    toast('Assign failed: ' + ((err && err.message) || 'error'), 'error');
+    toast('Assign failed: ' + errText(err), 'error');
     if (btn) { btn.disabled = false; btn.textContent = 'Assign'; }
   } finally {
     legacyAssignBusy = false;
@@ -13337,7 +13488,7 @@ async function createJobForLegacyGroup(index) {
       console.error('Legacy link failed', err);
       patchLocalCaches(false);   /* revert so the group shows as unassigned again */
       if (!$('#view-assign-legacy').classList.contains('hidden')) renderAssignLegacyView();
-      toast('Record links failed to sync: ' + ((err && err.message) || 'error'), 'error');
+      toast('Record links failed to sync: ' + errText(err), 'error');
       return false;
     });
     /* Item 15 / L4: if the job create ultimately FAILS while the links
@@ -13345,7 +13496,7 @@ async function createJobForLegacyGroup(index) {
        link batch settles, restore each record's prior link fields. */
     writeWithRetry(() => setDoc(ref, jobData)).catch((err) => {
       console.error('Legacy job create failed', err);
-      toast('Job failed to sync: ' + ((err && err.message) || 'error'), 'error');
+      toast('Job failed to sync: ' + errText(err), 'error');
       linkSettled.then((linked) => {
         if (linked) {
           const unlink = writeBatch(fbDb);
@@ -13365,7 +13516,7 @@ async function createJobForLegacyGroup(index) {
     toast(`Job created and ${g.items.length} record${g.items.length === 1 ? '' : 's'} linked`);
     renderAssignLegacyView();
   } catch (err) {
-    toast('Create failed: ' + ((err && err.message) || 'error'), 'error');
+    toast('Create failed: ' + errText(err), 'error');
   }
 }
 
@@ -13444,7 +13595,7 @@ function renderCustomerList() {
   if (!root) return;
   if (!cachedCustomers.length) {
     root.innerHTML = `<div class="empty"><div class="em-title">No customers yet</div>
-      <div>Tap <strong style="color:var(--amber);">+ Add Customer</strong> to create one, or use Sync Now in Settings once QuickBooks is connected.</div></div>`;
+      <div>Tap the <strong style="color:var(--amber);">+</strong> button below to create one, or use Sync Now in Settings once QuickBooks is connected.</div></div>`;
     return;
   }
   if (!list.length) {
@@ -13806,7 +13957,7 @@ async function handleSaveNote(e) {
     resetNoteForm();
     setView('dashboard');
   } catch (err) {
-    toast('Save failed: ' + ((err && err.message) || 'error'), 'error');
+    toast('Save failed: ' + errText(err), 'error');
   }
 }
 
@@ -13820,7 +13971,7 @@ async function handleDeleteNote() {
     resetNoteForm();
     setView('dashboard');
   } catch (err) {
-    toast('Delete failed: ' + ((err && err.message) || 'error'), 'error');
+    toast('Delete failed: ' + errText(err), 'error');
   }
 }
 
@@ -13979,7 +14130,7 @@ async function saveProperty() {
     toast(editingPropertyId ? 'Property updated' : 'Property added');
     closePropertyEditor();
   } catch (err) {
-    toast('Save failed: ' + ((err && err.message) || 'error'), 'error');
+    toast('Save failed: ' + errText(err), 'error');
   }
 }
 
@@ -13992,7 +14143,7 @@ async function deleteProperty() {
     toast('Property deleted');
     closePropertyEditor();
   } catch (err) {
-    toast('Delete failed: ' + ((err && err.message) || 'error'), 'error');
+    toast('Delete failed: ' + errText(err), 'error');
   }
 }
 
@@ -14088,7 +14239,10 @@ function maintainPrimaryProperty(customerId, c) {
   if (!props.length) {
     const data = primaryPropertyData({ id: customerId, ...c });
     writeWithRetry(() => setDoc(doc(collection(fbDb, 'customers', customerId, 'properties')), data))
-      .catch((err) => console.error('primary property create failed', err));
+      .catch((err) => {
+        console.error('primary property create failed', err);
+        toast('Customer saved, but creating its primary property failed: ' + errText(err), 'error');
+      });
     return;
   }
   const primary = props.find((p) => p.isPrimary && p.autoCreated && !p.manuallyEdited);
@@ -14097,7 +14251,10 @@ function maintainPrimaryProperty(customerId, c) {
   if (primary.address === next.address && primary.city === next.city && primary.county === next.county) return;
   writeWithRetry(() => setDoc(doc(fbDb, 'customers', customerId, 'properties', primary.id),
     { ...next, updatedAt: new Date().toISOString() }, { merge: true }))
-    .catch((err) => console.error('primary property sync failed', err));
+    .catch((err) => {
+      console.error('primary property sync failed', err);
+      toast('Customer saved, but updating its primary property failed: ' + errText(err), 'error');
+    });
   const idx = cachedProperties.findIndex((p) => p.id === primary.id);
   if (idx >= 0) cachedProperties[idx] = { ...cachedProperties[idx], ...next };
 }
@@ -14138,11 +14295,11 @@ async function handleSaveCustomer(e) {
         .catch((err) => {
           const code = (err && err.code) || '';
           if (code === 'functions/failed-precondition') toast('Saved. Connect QuickBooks to sync new customers.');
-          else toast('Saved, but QuickBooks add failed: ' + ((err && err.message) || 'error'), 'error');
+          else toast('Saved, but QuickBooks add failed: ' + errText(err), 'error');
         });
     }
   } catch (err) {
-    toast(`Save failed: ${err.code || err.message || err}`, 'error');
+    toast(`Save failed: ${errText(err)}`, 'error');
   } finally {
     btn.disabled = false;
     isSaving = false;
@@ -14174,7 +14331,7 @@ async function handleRetryQbPush() {
     const code = (err && err.code) || '';
     const msg = code === 'functions/failed-precondition'
       ? 'QuickBooks isn’t connected — connect it in Settings, then retry.'
-      : ((err && err.message) || 'error');
+      : errText(err);
     toast('QuickBooks push failed: ' + msg, 'error');
   } finally {
     btn.disabled = false;
@@ -14195,7 +14352,7 @@ async function handleDeleteCustomer() {
     await refreshAll();
     toast('Customer deleted');
   } catch (err) {
-    toast(`Delete failed: ${err.code || err.message || err}`, 'error');
+    toast(`Delete failed: ${errText(err)}`, 'error');
   }
 }
 
@@ -14229,7 +14386,9 @@ async function handleSyncNow() {
       msg = 'Sync failed: ' + ((err && err.message) || 'unknown error');
     }
     if (status) { status.style.color = 'var(--amber)'; status.textContent = msg; }
-    toast('QuickBooks sync failed', 'error');
+    /* Item 2 (v2-patch-10): the toast carries the same specific message as
+       the status line — never a bare "failed". */
+    toast(msg, 'error');
   } finally {
     if (btn) { btn.disabled = false; btn.textContent = 'Sync Now'; }
   }
@@ -14428,6 +14587,7 @@ async function init() {
     const btn = e.target.closest('button[data-view]');
     if (!btn) return;
     const v = btn.dataset.view;
+    if (v === 'back') { goBackNav(); return; }   /* Item 5 (v2-patch-10) */
     if (v === 'add' && currentView !== 'add') {
       if (appMode === 'trap' && !pendingRecord) resetForm();
       if (appMode === 'pesticide' && !pendingPesticideRecord) resetPesticideRecordForm();
@@ -14464,10 +14624,9 @@ async function init() {
       await dbDelete(editingId);
       toast('Record deleted');
       resetForm();
-      setView('records');
-      refreshAll();
+      openAllRecords();   /* Item 8 */
     } catch (err) {
-      toast('Delete failed: ' + ((err && err.message) || 'error'), 'error');
+      toast('Delete failed: ' + errText(err), 'error');
     }
   });
 
@@ -14690,7 +14849,7 @@ async function init() {
     const lb = e.target.closest('[data-banner]');
     if (lb) {
       const which = lb.dataset.banner;
-      if (which === 'records') setAppMode('allrecords');
+      if (which === 'records') openAllRecords();   /* Item 8: clears any job filter */
       else if (which === 'estimates') setAppMode('pricing');
       else if (which === 'notes') setAppMode('notes');   /* Item 7 (v2-patch-6) */
       else if (which === 'notifications') {
@@ -14833,7 +14992,6 @@ async function init() {
 
   /* ---- Customer directory wiring ---- */
   fillCustomerCountyFilter();
-  $('#addCustomerBtn').addEventListener('click', () => { resetCustomerForm(); setView('add'); });
   $('#customerForm').addEventListener('submit', handleSaveCustomer);
   $('#cancelCustomerBtn').addEventListener('click', () => { resetCustomerForm(); setView('dashboard'); });
   $('#deleteCustomerBtn').addEventListener('click', handleDeleteCustomer);
@@ -14928,7 +15086,7 @@ async function init() {
     const days = parseInt(e.target.value, 10);
     if (!Number.isFinite(days)) return;
     try { await saveOrgConfig({ photoRetentionDays: days }); toast(`Keeping camera photos ${days} day${days === 1 ? '' : 's'}`); }
-    catch (err) { toast('Could not save: ' + ((err && err.message) || 'error'), 'error'); }
+    catch (err) { toast('Could not save: ' + errText(err), 'error'); }
   });
 
   /* ---- Customer autocomplete on trapping + pesticide forms ---- */
@@ -15028,7 +15186,6 @@ async function init() {
       hideAutocomplete(listEl);
     });
   })();
-  $('#newEstimateBtn').addEventListener('click', () => { resetEstimateBuilder(); setView('add'); });
   $('#estFilterStatus').addEventListener('change', renderEstimatesList);
   $('#li-category').addEventListener('change', renderCategoryFields);
   $('#li-dynamic-fields').addEventListener('input', recalcPendingLine);
@@ -15061,7 +15218,6 @@ async function init() {
 
   /* ---- Job Scheduling wiring ---- */
   /* Item 16: the Schedule module creates tasks now. */
-  $('#newJobBtn').addEventListener('click', () => { editingTaskId = null; resetTaskForm(); setView('add'); });
   $('#cancelJobBtn').addEventListener('click', () => { resetJobForm(); setView('dashboard'); });
   $('#jobForm').addEventListener('submit', handleSaveJob);
   ['j-date', 'j-start', 'j-duration'].forEach((id) => {
@@ -15119,7 +15275,6 @@ async function init() {
   });
 
   /* ---- Job Lifecycle wiring (v2, Item 3) ---- */
-  $('#newLifecycleJobBtn').addEventListener('click', () => { editingLifecycleJobId = null; resetLifecycleJobForm(); setView('add'); });
   $('#jobsFilterStatus').addEventListener('change', renderJobsList);
   /* Item 2 (v2-patch-2): job-type filter on the Jobs list. */
   fillSelect('jobsFilterType', JOB_TYPES, true, 'All job types');
@@ -15289,6 +15444,11 @@ async function init() {
     el.addEventListener('change', renderAllRecords);
   });
   $('#allRecordsList').addEventListener('click', (e) => {
+    if (e.target.closest('[data-allrec-clearjob]')) {   /* Item 8: job chip */
+      allRecJobFilter = null;
+      renderAllRecords();
+      return;
+    }
     const row = e.target.closest('[data-allrec-id]');
     if (!row) return;
     if (row.dataset.allrecKind === 'pest') openPesticideDetail(row.dataset.allrecId);
