@@ -4814,15 +4814,18 @@ function jobTaxLocus(j) {
      the customer's PRIMARY property (or sole property) is the work locus. */
   let p = j.propertyId ? cachedProperties.find((x) => x.id === j.propertyId) : null;
   if (!p && j.customerId) p = primaryPropertyFor(j.customerId);
+  const c = j.customerId ? cachedCustomers.find((x) => x.id === j.customerId) : null;
   if (p) {
+    /* Functional audit MEDIUM-2: a sync-created primary can lack county
+       (QBO has none) — empty property fields fall back to the customer
+       doc so tax filings don't silently drop those jobs. */
     return {
-      county: p.county || '',
-      city: p.city || '',
+      county: p.county || (c && c.county) || '',
+      city: p.city || (c && c.city) || '',
       insideCityLimits: p.insideCityLimits === true ? true : p.insideCityLimits === false ? false : null,
-      address: [p.address, p.city].filter(Boolean).join(', ')
+      address: [p.address || (c && c.address), p.city || (c && c.city)].filter(Boolean).join(', ')
     };
   }
-  const c = j.customerId ? cachedCustomers.find((x) => x.id === j.customerId) : null;
   return {
     county: (c && c.county) || '',
     city: (c && c.city) || '',
@@ -6208,6 +6211,14 @@ function renderFieldDetail(key) {
    to the group's key, photos stamped after the assignment lands. */
 function assignFieldPhotos(key, customer) {
   if (!customer || !customer.id) return;   /* M6: nothing to link to */
+  /* Functional audit LOW-3: the "(unknown)" group (photos with no
+     parseable subject key) must never stamp "(UNKNOWN)" — or any other
+     non-alphanumeric junk — as a routable property Camera ID. */
+  const cleanKey = (key || '').trim().toUpperCase();
+  if (!/^[A-Z0-9]+$/.test(cleanKey)) {
+    toast('These photos have no usable camera key — they can’t be routed to a Camera ID. Assign the camera from the customer instead.', 'error');
+    return;
+  }
   openCamAssignSheet({
     customerId: customer.id,
     lockCameraId: key,
@@ -6338,7 +6349,11 @@ async function handleCamAssignSave() {
   const cust = cachedCustomers.find((x) => x.id === ctx.customerId);
   const K = $('#camAssignId').value.trim().toUpperCase().replace(/\s+/g, '');
   if (!K) { toast('Enter a Camera ID', 'error'); $('#camAssignId').focus(); return; }
-  if (K.length > 10) { toast('Camera ID can’t exceed 10 characters', 'error'); $('#camAssignId').focus(); return; }
+  /* Functional audit MEDIUM-1: a LOCKED key came from the camera itself
+     (ingest passes subjects through verbatim, e.g. HIGGINBOTHAMT = 13
+     chars) — the 10-char convention applies only to operator-typed IDs,
+     otherwise long-named customers' cameras could never be linked. */
+  if (!ctx.lockCameraId && K.length > 10) { toast('Camera ID can’t exceed 10 characters', 'error'); $('#camAssignId').focus(); return; }
   const selVal = $('#camAssignProp').value;
   const isNew = selVal === '__new';
   /* Item 3c: v2-patch-6 uniqueness — no duplicate cameraId across properties. */
@@ -6377,6 +6392,15 @@ async function handleCamAssignSave() {
       propLabel = siteNickname;
     } else {
       const p = cachedProperties.find((x) => x.id === propId);
+      /* Functional audit LOW-2: replacing a camera a property already
+         routes silently orphans the old camera's future photos — confirm. */
+      const cur = ((p && p.cameraId) || '').trim().toUpperCase();
+      if (cur && cur !== K) {
+        const ok = await confirmDialog('Replace this property’s camera?',
+          `${(p && p.siteNickname) || 'This property'} currently routes camera ${cur}. Replacing it with ${K} sends ${cur}'s future photos to the pending queue.`,
+          { okText: 'Replace' });
+        if (!ok) return;
+      }
       await writeWithRetry(() => setDoc(doc(fbDb, 'customers', ctx.customerId, 'properties', propId),
         { cameraId: K, updatedAt: now }, { merge: true }));
       const idx = cachedProperties.findIndex((x) => x.id === propId);

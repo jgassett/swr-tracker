@@ -297,9 +297,11 @@ async function syncCustomers(meta = {}) {
    * never collide with a QBO id. */
   const existingSnap = await db.collection('customers').get();
   const byQbId = new Map();
+  const countyById = new Map();   /* app-maintained county — QBO has none */
   existingSnap.forEach((d) => {
     const qbId = d.get('qbId');
     if (qbId) byQbId.set(String(qbId), d.id);
+    countyById.set(d.id, d.get('county') || '');
   });
 
   /* Item 2 (v2-patch-7): the primary-property invariant is maintained here
@@ -317,12 +319,16 @@ async function syncCustomers(meta = {}) {
       syncablePrimary.set(cid, { ref: d.ref, address: d.get('address') || '', city: d.get('city') || '' });
     }
   });
-  const primaryPropertyDoc = (customerId, contact) => ({
+  /* v2-patch-7 functional audit MEDIUM-2: carry the customer doc's county
+     into a sync-created primary — QBO has no county, but the app-side
+     customer record often does, and the tax/KDFWR resolution reads the
+     property. */
+  const primaryPropertyDoc = (customerId, contact, county) => ({
     customerId,
     siteNickname: 'Primary',
     address: contact.address || '',
     city: contact.city || '',
-    county: '',
+    county: county || '',
     insideCityLimits: null,
     cameraId: '',
     isPrimary: true,
@@ -356,7 +362,7 @@ async function syncCustomers(meta = {}) {
       /* Primary-property maintenance for the synced address. */
       if (!propCountByCustomer.get(existingId)) {
         batch.set(db.doc(`customers/${existingId}`).collection('properties').doc(),
-          primaryPropertyDoc(existingId, contact));
+          primaryPropertyDoc(existingId, contact, countyById.get(existingId)));
         propCountByCustomer.set(existingId, 1);
         ops++;
       } else {
@@ -385,7 +391,7 @@ async function syncCustomers(meta = {}) {
         lastSyncedAt: nowIso
       });
       /* Item 2 (v2-patch-7): every new customer is born with its primary. */
-      batch.set(custRef.collection('properties').doc(), primaryPropertyDoc(custRef.id, contact));
+      batch.set(custRef.collection('properties').doc(), primaryPropertyDoc(custRef.id, contact, ''));
       ops++;
       created++;
     }
