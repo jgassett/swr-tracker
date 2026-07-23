@@ -3417,10 +3417,6 @@
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg>
       <span>Home</span>
     </button>
-    <button class="nav-btn" data-view="records">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5h18M3 12h18M3 19h18"/></svg>
-      <span>Records</span>
-    </button>
     <button class="nav-fab" data-view="add" aria-label="Add record">
       <svg viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
     </button>
@@ -4584,13 +4580,11 @@ const NAV_CONFIGS = {
   trap: [
     { view: 'menu', label: 'Home', icon: 'home' },
     { view: 'back', label: 'Back', icon: 'back' },
-    { view: 'records', label: 'Records', icon: 'list' },
     { view: 'add', label: 'Add', icon: 'plus', fab: true }
   ],
   pesticide: [
     { view: 'menu', label: 'Home', icon: 'home' },
     { view: 'back', label: 'Back', icon: 'back' },
-    { view: 'records', label: 'Records', icon: 'list' },
     { view: 'add', label: 'Add', icon: 'plus', fab: true }
   ],
   /* Item 10 (v2-patch-6): the per-page label icons (a bottom-nav button
@@ -4839,7 +4833,7 @@ function lastFieldWorkTab() {
    records / export exist in both tabs); data is untouched, UI only. */
 function switchFieldWorkTab(mode) {
   if (appMode === mode || (mode !== 'trap' && mode !== 'pesticide')) return;
-  const keep = ['dashboard', 'records'].includes(currentView) ? currentView : 'dashboard';
+  const keep = 'dashboard';   /* Item 8 (v2-patch-10): records/export left the module */
   setAppModeQuiet(mode);
   setView(keep);
   refreshAll();
@@ -6975,8 +6969,8 @@ async function handleSignOut() {
 /* ---------- Navigation ---------- */
 let currentView = 'dashboard';
 const VIEW_TITLES = {
-  trap:      { dashboard: 'Dashboard', records: 'Records', add: 'Add Record', settings: 'Settings' },
-  pesticide: { dashboard: 'Dashboard', records: 'Records', add: 'Add Application', settings: 'Settings' },
+  trap:      { dashboard: 'Dashboard', add: 'Add Record', settings: 'Settings' },
+  pesticide: { dashboard: 'Dashboard', add: 'Add Application', settings: 'Settings' },
   customer:  { dashboard: 'Customers', add: 'Add Customer', settings: 'Settings' },
   pricing:   { dashboard: 'Estimates', add: 'New Estimate', 'estimate-detail': 'Estimate', settings: 'Settings' },
   jobs:      { dashboard: 'Jobs', add: 'New Job', 'job-detail': 'Job', 'add-appointment': 'New Appointment', 'appointment-detail': 'Appointment', 'add-task': 'New Task', 'task-detail': 'Task' },
@@ -7734,10 +7728,7 @@ async function confirmSave() {
       populatePropertySelect('f-property', 'f-property-group', carry.customerId || null, carry.propertyId || '');
       return;
     }
-    recordsViewMode = 'list';
-    updateRecordsViewToggleUI();
-    setView('records');
-    refreshAll();
+    openAllRecords();   /* Item 8: View Records is the single records view */
   } catch (err) {
     console.error('confirmSave failed', err);
     toast('Save failed: ' + errText(err), 'error');
@@ -9886,8 +9877,7 @@ async function confirmSavePesticide() {
       populatePropertySelect('pa-property', 'pa-property-group', carry.customerId || null, carry.propertyId || '');
       return;
     }
-    setView('records');
-    refreshAll();
+    openAllRecords();   /* Item 8: View Records is the single records view */
   } catch (err) {
     toast(`Save failed: ${errText(err)}`, 'error');
   } finally {
@@ -9904,7 +9894,7 @@ async function deletePesticideRecord(id) {
   try {
     await deleteDoc(doc(fbDb, 'pesticide_records', target));
     resetPesticideRecordForm();
-    setView('records');
+    openAllRecords();   /* Item 8 */
     toast('Application deleted');
   } catch (err) {
     toast('Delete failed: ' + errText(err), 'error');
@@ -10094,6 +10084,17 @@ function fillAllRecordsFilters() {
   fillSelect('allRecContractor', TRAPPERS, true, 'All contractors');
 }
 
+/* Item 8 (v2-patch-10): programmatic job filter — Job Detail's "view
+   records" deep link lands here (the Field Work internal records view is
+   retired; View Records is the single records view). Cleared when View
+   Records opens from the landing banner, or via the chip's Show-all. */
+let allRecJobFilter = null;
+
+function openAllRecords() {
+  allRecJobFilter = null;
+  setAppMode('allrecords');
+}
+
 function renderAllRecords() {
   const root = $('#allRecordsList');
   if (!root) return;
@@ -10105,6 +10106,7 @@ function renderAllRecords() {
   const who = $('#allRecContractor').value;
   const type = $('#allRecType').value;
   let list = allRecordsEntries().filter((e) => {
+    if (allRecJobFilter && e.jobId !== allRecJobFilter.jobId) return false;
     if (type && e.kind !== type) return false;
     if (from && e.date < from) return false;
     if (to && e.date > to) return false;
@@ -10118,8 +10120,19 @@ function renderAllRecords() {
   const sortMode = ($('#allRecSort') && $('#allRecSort').value) || 'date';
   list = sortFieldWorkRecords(list, sortMode,
     (e) => e.contractor, (e) => e.customer, (e) => e.date);
+  /* Job-filter chip: always visible while the filter is active so the
+     operator can see why the list is narrowed — and clear it. */
+  let chip = '';
+  if (allRecJobFilter) {
+    const j = cachedJobs.find((x) => x.id === allRecJobFilter.jobId);
+    const label = j ? `${j.jobNumber || 'job'}${j.customerName ? ' · ' + j.customerName : ''}` : 'this job';
+    chip = `<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 10px;margin-bottom:8px;border:1px solid rgba(196,119,42,0.35);border-radius:10px;background:rgba(196,119,42,0.10);font-size:13px;">
+      <span>Showing records for <strong>${escapeHtml(label)}</strong></span>
+      <button type="button" class="btn btn-ghost" data-allrec-clearjob style="padding:4px 10px;font-size:12.5px;">Show all</button>
+    </div>`;
+  }
   if (!list.length) {
-    root.innerHTML = '<div class="empty"><div class="em-title">No matching records</div><div>Adjust the search or filters above.</div></div>';
+    root.innerHTML = chip + '<div class="empty"><div class="em-title">No matching records</div><div>Adjust the search or filters above.</div></div>';
     return;
   }
   const row = (e) => `
@@ -10142,9 +10155,9 @@ function renderAllRecords() {
       }
       html += row(e);
     }
-    root.innerHTML = html;
+    root.innerHTML = chip + html;
   } else {
-    root.innerHTML = list.map(row).join('');
+    root.innerHTML = chip + list.map(row).join('');
   }
 }
 
@@ -13256,16 +13269,13 @@ function toggleRecFilter(filter, renderFn) {
   else filter.unlinkedOnly = true;
   renderFn();
 }
+/* Item 8 (v2-patch-10): job record deep links land in the unified View
+   Records with the job filter chip + the matching type pre-selected. */
 function viewJobRecords(jobId, kind) {
-  if (kind === 'trap') {
-    trapRecFilter.jobId = jobId; trapRecFilter.unlinkedOnly = false;
-    setAppModeQuiet('trap'); setView('records');
-    renderRecords();   /* apply the new filter now, not on the next snapshot */
-  } else {
-    pestRecFilter.jobId = jobId; pestRecFilter.unlinkedOnly = false;
-    setAppModeQuiet('pesticide'); setView('records');
-    renderPesticideRecordsList();
-  }
+  allRecJobFilter = { jobId };
+  const typeSel = $('#allRecType');
+  if (typeSel) typeSel.value = kind === 'trap' ? 'trap' : 'pest';
+  setAppMode('allrecords');
 }
 
 /* ---- Assign Legacy Records (Settings → Data Management) ---- */
@@ -14606,8 +14616,7 @@ async function init() {
       await dbDelete(editingId);
       toast('Record deleted');
       resetForm();
-      setView('records');
-      refreshAll();
+      openAllRecords();   /* Item 8 */
     } catch (err) {
       toast('Delete failed: ' + errText(err), 'error');
     }
@@ -14832,7 +14841,7 @@ async function init() {
     const lb = e.target.closest('[data-banner]');
     if (lb) {
       const which = lb.dataset.banner;
-      if (which === 'records') setAppMode('allrecords');
+      if (which === 'records') openAllRecords();   /* Item 8: clears any job filter */
       else if (which === 'estimates') setAppMode('pricing');
       else if (which === 'notes') setAppMode('notes');   /* Item 7 (v2-patch-6) */
       else if (which === 'notifications') {
@@ -15427,6 +15436,11 @@ async function init() {
     el.addEventListener('change', renderAllRecords);
   });
   $('#allRecordsList').addEventListener('click', (e) => {
+    if (e.target.closest('[data-allrec-clearjob]')) {   /* Item 8: job chip */
+      allRecJobFilter = null;
+      renderAllRecords();
+      return;
+    }
     const row = e.target.closest('[data-allrec-id]');
     if (!row) return;
     if (row.dataset.allrecKind === 'pest') openPesticideDetail(row.dataset.allrecId);
