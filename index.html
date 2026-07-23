@@ -7685,6 +7685,11 @@ function wireMapboxAutocomplete(inputId, listId, onPick) {
   input.addEventListener('input', () => {
     const q = input.value;
     clearTimeout(timer);
+    /* Item 15 / L3 (v2-patch-6): bump seq on EVERY keystroke, not just
+       inside the debounce timer — clearing the input below 3 chars used
+       to leave an in-flight fetch valid, so stale suggestions for the
+       deleted text re-rendered when it resolved. */
+    seq++;
     if (q.trim().length < 3) { hide(); return; }
     timer = setTimeout(async () => {
       const mySeq = ++seq;
