@@ -11020,6 +11020,10 @@ function appointmentsForJob(jobId) {
 
 /* ---- Tasks (Item 15, v2-patch-1): top-level `tasks` collection ---- */
 let cachedTasks = [];
+/* Item 15 / M4 (v2-patch-6): true once the first tasks snapshot has
+   arrived — Close Out must never judge readiness from an empty cold
+   cache (it would list every Active job as ready). */
+let cachedTasksLoaded = false;
 let tasksUnsub = null;
 let tasksRetryTimer = null;
 
@@ -11030,6 +11034,7 @@ function subscribeToTasks() {
   if (tasksUnsub) return;
   /* No orderBy — sorted client-side, so no composite index is needed. */
   tasksUnsub = onSnapshot(query(tasksCol()), (snap) => {
+    cachedTasksLoaded = true;   /* Item 15 / M4 (v2-patch-6) */
     cachedTasks = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
     cachedTasks.sort((a, b) =>
       ((a.scheduledDate || '') + (a.scheduledTime || '')).localeCompare((b.scheduledDate || '') + (b.scheduledTime || '')));
@@ -11051,6 +11056,7 @@ function subscribeToTasks() {
 function unsubscribeFromTasks() {
   if (tasksUnsub) { tasksUnsub(); tasksUnsub = null; }
   cachedTasks = [];
+  cachedTasksLoaded = false;   /* Item 15 / M4 (v2-patch-6) */
 }
 
 /* ---- Jobs list ---- */
@@ -12047,15 +12053,26 @@ let currentCloseoutJobId = null;
 /* Ready to close: Active, task-model, and no task still Open. Legacy
    lifecycle jobs keep their own Pending Close → Paid flow on Job Detail. */
 function jobsReadyToClose() {
-  return lifecycleJobs().filter((j) =>
-    isTaskModelJob(j)
-    && (j.status || 'Active') === 'Active'
-    && tasksForJob(j.id).every((t) => t.status !== 'Open'));
+  /* Item 15 / M4 (v2-patch-6): a job with NO tasks is not "ready to
+     close" — .every() on an empty array is vacuously true, which listed
+     every freshly created job (and, on a cold cache, ALL Active jobs) as
+     one tap away from an irreversible Complete. Require the tasks cache
+     to be loaded and at least one task on the job. */
+  if (!cachedTasksLoaded) return [];
+  return lifecycleJobs().filter((j) => {
+    if (!isTaskModelJob(j) || (j.status || 'Active') !== 'Active') return false;
+    const tasks = tasksForJob(j.id);
+    return tasks.length > 0 && tasks.every((t) => t.status !== 'Open');
+  });
 }
 
 function renderCloseoutList() {
   const el = $('#closeoutList');
   if (!el) return;
+  if (!cachedTasksLoaded) {
+    el.innerHTML = '<div style="padding:16px;color:var(--ink-soft);">Loading tasks…</div>';
+    return;
+  }
   const list = jobsReadyToClose().slice().sort((a, b) =>
     (b.startDate || b.createdAt || '').localeCompare(a.startDate || a.createdAt || ''));
   if (!list.length) {
@@ -12128,6 +12145,9 @@ function renderCloseoutConfirm(id) {
    off, and stamps the closeout date + operator. */
 async function confirmCloseOutJob(id) {
   if (!isAdmin()) { toast('Only an administrator can close out a job.', 'error'); return; }
+  /* Item 15 / M4 (v2-patch-6): never close out against an unloaded tasks
+     cache — open tasks would be invisible and escape cancellation. */
+  if (!cachedTasksLoaded) { toast('Tasks are still loading — try again in a moment.', 'error'); return; }
   const j = cachedJobs.find((x) => x.id === id);
   if (!j || (j.status || 'Active') !== 'Active') { toast('This job is no longer Active.', 'error'); setView('dashboard'); return; }
   const now = new Date().toISOString();
