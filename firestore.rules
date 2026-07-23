@@ -184,12 +184,21 @@ service cloud.firestore {
     }
 
     /* Tasks (v2-patch-1 Item 15) — top-level collection; each task belongs
-       to a job (jobId). Shared across the crew like the other collections. */
+       to a job (jobId). Shared across the crew like the other collections.
+       v2-patch-6 Item 15 (M3): minimum hardening — a task's job link and
+       creator are immutable, and a Completed/Cancelled task's status is
+       terminal (updates that leave the status untouched stay open, so
+       editing other fields still works). This protects the Close Out and
+       rebait invariants that depend on task state. */
     match /tasks/{taskId} {
       allow read:   if request.auth != null;
       allow create: if request.auth != null
                     && request.resource.data.createdByUid == request.auth.uid;
-      allow update: if request.auth != null;
+      allow update: if request.auth != null
+                    && request.resource.data.get('jobId', null) == resource.data.get('jobId', null)
+                    && request.resource.data.get('createdByUid', null) == resource.data.get('createdByUid', null)
+                    && (resource.data.get('status', 'Open') == 'Open'
+                        || request.resource.data.get('status', null) == resource.data.get('status', null));
       allow delete: if request.auth != null;
     }
 
