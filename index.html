@@ -1710,6 +1710,12 @@
   <!-- Items 8 & 9 (v2-patch-1): persistent bottom banner — the direct
        records/estimates/notifications/settings access from v1. -->
   <nav class="landing-banner" aria-label="Quick access">
+    <!-- Item 3 (v2-patch-11): Back after Home returns to the page you left.
+         Hidden while the history stack is empty (fresh launch). -->
+    <button type="button" class="lb-btn hidden" id="landingBackBtn" data-banner="back" aria-label="Back">
+      <svg viewBox="0 0 24 24"><path d="M19 12H5"/><path d="m12 19-7-7 7-7"/></svg>
+      <span>Back</span>
+    </button>
     <button type="button" class="lb-btn" data-banner="records" aria-label="View Records">
       <svg viewBox="0 0 24 24"><path d="M3 5h18M3 12h18M3 19h18"/></svg>
       <span>View Records</span>
@@ -4693,6 +4699,10 @@ function showLanding() {
   $('#modePicker').classList.remove('hidden');
   renderLandingCounts();
   recordNavArrival({ landing: true });   /* Item 5: Back history */
+  /* Item 3 (v2-patch-11): the landing Back button exists only when there
+     is something to go back to. */
+  const lbb = document.getElementById('landingBackBtn');
+  if (lbb) lbb.classList.toggle('hidden', !navHistory.length);
 }
 /* Back-compat alias — some call sites still reference the old name. */
 function showModePicker() { showLanding(); }
@@ -7022,6 +7032,14 @@ let navHistory = [];
 let navLastPage = null;     /* the page currently on screen */
 let navSuppressPush = false; /* true while Back itself navigates */
 function navPageKey(p) { return p ? (p.landing ? 'landing' : `${p.mode}:${p.view}`) : ''; }
+
+/* Item 3 (v2-patch-11): the stack deliberately lives in memory only, per
+   app lifetime. Persisting it across reloads was considered and rejected:
+   the app always boots to the landing page, and every module entry pushes
+   a landing entry above any restored history — since the landing page has
+   no Back button, restored entries would sit unreachable beneath it
+   forever. After a reload, Back = Home until you navigate; that is the
+   honest model. */
 function recordNavArrival(page) {
   if (!navSuppressPush && navLastPage && navPageKey(navLastPage) !== navPageKey(page)) {
     navHistory.push(navLastPage);
@@ -14919,6 +14937,7 @@ async function init() {
     const lb = e.target.closest('[data-banner]');
     if (lb) {
       const which = lb.dataset.banner;
+      if (which === 'back') { goBackNav(); return; }   /* Item 3 (v2-patch-11) */
       if (which === 'records') openAllRecords();   /* Item 8: clears any job filter */
       else if (which === 'estimates') setAppMode('pricing');
       else if (which === 'notes') setAppMode('notes');   /* Item 7 (v2-patch-6) */

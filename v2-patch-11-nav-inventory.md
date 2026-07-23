@@ -87,6 +87,11 @@ setView/backToLanding), settings + 5 sub-screens (each with
    `goBackNav()` closes the topmost open overlay first (one overlay per
    press), before popping history. Home closes all sheet overlays before
    leaving so nothing floats over the landing page.
-3. Stack survives reloads: persisted to `sessionStorage` (iOS PWA
-   relaunches and the v2.8 terminated-client recovery reload no longer
-   wipe Back's memory); still cleared at the sign-in screen.
+3. Back = exactly one step everywhere; Home is itself a recorded
+   navigation, and the landing page gains a Back button (hidden when the
+   stack is empty) so Back after Home returns to the page you left.
+   Persisting the stack across reloads was considered and REJECTED: the
+   app always boots to the landing page and every module entry pushes a
+   landing entry above any restored history — restored entries would sit
+   unreachable beneath it. History is per-app-lifetime by design; after a
+   reload, Back appears once you navigate.
