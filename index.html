@@ -1456,7 +1456,7 @@
 
     /* Wider screens — center the form, two-up rows */
     @media (min-width: 600px) {
-      #view-add, #view-dashboard, #view-records, #view-export, #view-settings,
+      #view-add, #view-dashboard, #view-records, #view-settings,
       #view-customers, #view-add-customer, #view-records-pesticide, #view-add-pesticide,
       #view-notifications, #view-records-all {
         max-width: 760px; margin: 0 auto;
@@ -1601,13 +1601,11 @@
       /* Forms: 640px, centered in the content area. */
       #view-add form, #view-add-pesticide form, #view-add-customer form,
       #view-add-schedule form, #view-add-job form, #view-add-appointment form,
-      #view-estimate-builder, #view-add-customer .card, #view-export .card,
+      #view-estimate-builder, #view-add-customer .card,
       #view-settings .card, #view-settings .settings-group, #view-settings .signout-btn,
       #view-settings-contractors .card, #view-settings-business .card,
       #view-settings-licensing .card, #view-settings-pesticide-db .card
       { max-width: 640px; margin-left: auto; margin-right: auto; }
-      #view-export .card { margin-bottom: 14px; }
-
       /* Landing page scales up for big screens. */
       .mode-picker-wrap { max-width: 760px; }
       .action-hub { grid-template-columns: repeat(3, 1fr); }
@@ -3116,43 +3114,6 @@
     </section>
 
     <!-- EXPORT -->
-    <section id="view-export" class="view hidden">
-      <div class="card">
-        <h3 style="margin-bottom:6px;">KDFWR Annual Activity Report</h3>
-        <p class="muted" style="font-size:14px;">Exports all records in the current reporting period (Feb 1 – Jan 31) in the column order KDFWR expects.</p>
-        <hr class="div">
-        <div class="form-group">
-          <label for="exportPeriod">Reporting Period</label>
-          <select id="exportPeriod"></select>
-        </div>
-        <button class="btn btn-primary" id="exportKdfwr">Download KDFWR CSV</button>
-      </div>
-
-      <div class="card">
-        <h3 style="margin-bottom:6px;">Full Data Export</h3>
-        <p class="muted" style="font-size:14px;">All fields including client contact, notes, and timestamps.</p>
-        <div class="btn-row" style="margin-top:12px;">
-          <button class="btn btn-ghost" id="exportFullCsv">Full CSV</button>
-          <button class="btn btn-ghost" id="exportJson">JSON Backup</button>
-        </div>
-      </div>
-
-      <div class="card">
-        <h3 style="margin-bottom:6px;">Custom Date Range</h3>
-        <div class="field-row two" style="margin-top:8px;">
-          <div class="form-group">
-            <label for="rangeStart">From</label>
-            <input type="date" id="rangeStart">
-          </div>
-          <div class="form-group">
-            <label for="rangeEnd">To</label>
-            <input type="date" id="rangeEnd">
-          </div>
-        </div>
-        <button class="btn btn-amber" id="exportRange">Download Range CSV</button>
-      </div>
-    </section>
-
     <!-- SETTINGS (Item 5, v2-patch-2): compact admin panel — small uppercase
          section headers, no large icons, no verbose copy. -->
     <section id="view-settings" class="view hidden">
@@ -3193,6 +3154,44 @@
         <!-- Item 6 (v2-patch-6): the Reporting Period selectors are gone —
              the KDFWR cycle (Feb 1 – Jan 31) is hard-coded and rolls
              automatically each year (server-side rollover on Feb 1). -->
+      </div>
+
+      <!-- Item 7 (v2-patch-10): Export Records relocated here from the Field
+           Work ribbon (used ~once per year for the KDFWR annual report) —
+           adjacent to the reporting-period configuration it pairs with. The
+           period selector offers Current/Prior (plus two older cycles). -->
+      <div class="settings-group">Export Records</div>
+      <div class="card">
+        <h3 style="margin-bottom:6px;">KDFWR Annual Activity Report</h3>
+        <p class="muted" style="font-size:14px;">Exports all records in the selected reporting period (Feb 1 – Jan 31) in the column order KDFWR expects.</p>
+        <hr class="div">
+        <div class="form-group">
+          <label for="exportPeriod">Reporting Period</label>
+          <select id="exportPeriod"></select>
+        </div>
+        <button class="btn btn-primary" id="exportKdfwr">Download KDFWR CSV</button>
+      </div>
+      <div class="card">
+        <h3 style="margin-bottom:6px;">Full Data Export</h3>
+        <p class="muted" style="font-size:14px;">All fields including client contact, notes, and timestamps.</p>
+        <div class="btn-row" style="margin-top:12px;">
+          <button class="btn btn-ghost" id="exportFullCsv">Full CSV</button>
+          <button class="btn btn-ghost" id="exportJson">JSON Backup</button>
+        </div>
+      </div>
+      <div class="card">
+        <h3 style="margin-bottom:6px;">Custom Date Range</h3>
+        <div class="field-row two" style="margin-top:8px;">
+          <div class="form-group">
+            <label for="rangeStart">From</label>
+            <input type="date" id="rangeStart">
+          </div>
+          <div class="form-group">
+            <label for="rangeEnd">To</label>
+            <input type="date" id="rangeEnd">
+          </div>
+        </div>
+        <button class="btn btn-amber" id="exportRange">Download Range CSV</button>
       </div>
 
       <!-- Section 3: Management -->
@@ -3425,12 +3424,10 @@
     <button class="nav-fab" data-view="add" aria-label="Add record">
       <svg viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
     </button>
-    <button class="nav-btn" data-view="export">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>
-      <span>Export</span>
-    </button>
     <!-- Settings removed from the bottom nav (Item 16) — reachable via the
-         gear icon on the landing page. Four items, freed slot not replaced. -->
+         gear icon on the landing page. Export moved to Settings
+         (Item 7, v2-patch-10). This static nav is replaced at runtime by
+         renderBottomNav(). -->
   </nav>
 </div>
 
@@ -4588,15 +4585,13 @@ const NAV_CONFIGS = {
     { view: 'menu', label: 'Home', icon: 'home' },
     { view: 'back', label: 'Back', icon: 'back' },
     { view: 'records', label: 'Records', icon: 'list' },
-    { view: 'add', label: 'Add', icon: 'plus', fab: true },
-    { view: 'export', label: 'Export', icon: 'export' }
+    { view: 'add', label: 'Add', icon: 'plus', fab: true }
   ],
   pesticide: [
     { view: 'menu', label: 'Home', icon: 'home' },
     { view: 'back', label: 'Back', icon: 'back' },
     { view: 'records', label: 'Records', icon: 'list' },
-    { view: 'add', label: 'Add', icon: 'plus', fab: true },
-    { view: 'export', label: 'Export', icon: 'export' }
+    { view: 'add', label: 'Add', icon: 'plus', fab: true }
   ],
   /* Item 10 (v2-patch-6): the per-page label icons (a bottom-nav button
      naming the current page — "Customers" on Customers, "Monitoring" on
@@ -4844,7 +4839,7 @@ function lastFieldWorkTab() {
    records / export exist in both tabs); data is untouched, UI only. */
 function switchFieldWorkTab(mode) {
   if (appMode === mode || (mode !== 'trap' && mode !== 'pesticide')) return;
-  const keep = ['dashboard', 'records', 'export'].includes(currentView) ? currentView : 'dashboard';
+  const keep = ['dashboard', 'records'].includes(currentView) ? currentView : 'dashboard';
   setAppModeQuiet(mode);
   setView(keep);
   refreshAll();
@@ -6980,8 +6975,8 @@ async function handleSignOut() {
 /* ---------- Navigation ---------- */
 let currentView = 'dashboard';
 const VIEW_TITLES = {
-  trap:      { dashboard: 'Dashboard', records: 'Records', add: 'Add Record', export: 'Export', settings: 'Settings' },
-  pesticide: { dashboard: 'Dashboard', records: 'Records', add: 'Add Application', export: 'Export', settings: 'Settings' },
+  trap:      { dashboard: 'Dashboard', records: 'Records', add: 'Add Record', settings: 'Settings' },
+  pesticide: { dashboard: 'Dashboard', records: 'Records', add: 'Add Application', settings: 'Settings' },
   customer:  { dashboard: 'Customers', add: 'Add Customer', settings: 'Settings' },
   pricing:   { dashboard: 'Estimates', add: 'New Estimate', 'estimate-detail': 'Estimate', settings: 'Settings' },
   jobs:      { dashboard: 'Jobs', add: 'New Job', 'job-detail': 'Job', 'add-appointment': 'New Appointment', 'appointment-detail': 'Appointment', 'add-task': 'New Task', 'task-detail': 'Task' },
@@ -7049,7 +7044,7 @@ function setView(name, opts) {
    'add-task','task-detail','closeout','closeout-confirm',
    'settings-contractors','settings-business','settings-licensing','settings-pesticide-db',
    'settings-taxreports','notes','add-note',
-   'notifications','records-all','export','settings'].forEach((v) => {
+   'notifications','records-all','settings'].forEach((v) => {
     const el = document.getElementById(`view-${v}`);
     if (el) el.classList.add('hidden');
   });
