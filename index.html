@@ -6242,10 +6242,16 @@ function assignFieldPhotos(key, customer) {
 let camAssignCtx = null;   /* { customerId, lockCameraId, onDone } */
 
 /* Item 5 (v2-patch-7): the customer's primary property — explicit
-   isPrimary flag first, else their sole property. */
+   isPrimary flag first, else their sole property. Security audit: if two
+   docs ever carry isPrimary (race/mistake), pick the OLDEST deterministically
+   so tax locus, exports, and select defaults can't flap with cache order. */
 function primaryPropertyFor(customerId) {
   const props = propertiesForCustomer(customerId);
-  return props.find((p) => p.isPrimary) || (props.length === 1 ? props[0] : null);
+  const prims = props.filter((p) => p.isPrimary);
+  if (prims.length) {
+    return prims.slice().sort((a, b) => (a.createdAt || '').localeCompare(b.createdAt || ''))[0];
+  }
+  return props.length === 1 ? props[0] : null;
 }
 
 function camAssignSheetOpen() { return $('#camAssignSheet').classList.contains('open'); }
@@ -6607,7 +6613,28 @@ async function runCameraMigrationAudit() {
         continue;
       }
       const c = candidates[0];
+      /* Security audit (v2-patch-7): a deprecated customer-level cameraId
+         is an EXPLICIT claim — if a different customer's old field holds
+         this key (migration reported it as CONFLICT), never re-link it by
+         name similarity. Manual resolution only. */
+      const claimedBy = customers.find((c2) => norm(c2.cameraId) === K);
+      if (claimedBy && claimedBy.id !== c.id) {
+        stillUnmatched++;
+        lines.push(`CONFLICT  ${K} — name-key matches ${c.name || c.id}, but ${claimedBy.name || claimedBy.id}'s deprecated customer-level Camera ID claims this key. Resolve manually.`);
+        continue;
+      }
       const custProps = properties.filter((p) => p.customerId === c.id);
+      /* Security audit (v2-patch-7): a trailing property number (HAYDENT2)
+         names a SPECIFIC site — collapsing it onto the primary of a
+         multi-property customer would mislabel the location. Only accept
+         the digit-stripped match when the customer has exactly one
+         property. */
+      const viaBase = custCameraKey(c.name) !== K;
+      if (viaBase && custProps.length > 1) {
+        stillUnmatched++;
+        lines.push(`SKIPPED   ${K} — numbered key matches ${c.name || c.id}, but they have ${custProps.length} properties and the number names a specific site. Assign manually.`);
+        continue;
+      }
       const target = custProps.find((p) => p.isPrimary) || (custProps.length === 1 ? custProps[0] : null);
       if (!target || !target.id) {
         stillUnmatched++;
@@ -13949,12 +13976,17 @@ async function handleDeleteNote() {
  * single-property customer keeps their existing un-numbered Camera ID.
  * ===================================================================== */
 let propertiesUnsub = null;
+/* v2-patch-7 security audit: primary-property maintenance must never judge
+   "customer has no properties" from a cold cache — it would create a
+   duplicate Primary before the first snapshot arrives. */
+let cachedPropertiesLoaded = false;
 let propertiesRetryTimer = null;
 let editingPropertyId = null;
 
 function subscribeToProperties() {
   if (propertiesUnsub) return;
   propertiesUnsub = onSnapshot(collectionGroup(fbDb, 'properties'), (snap) => {
+    cachedPropertiesLoaded = true;   /* v2-patch-7 security audit: dup-primary guard */
     cachedProperties = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
     cachedProperties.sort((a, b) => (a.siteNickname || '').localeCompare(b.siteNickname || ''));
     if (editingCustomerId && !$('#view-add-customer').classList.contains('hidden')) renderPropertiesCard();
@@ -13968,6 +14000,7 @@ function subscribeToProperties() {
 function unsubscribeFromProperties() {
   if (propertiesUnsub) { propertiesUnsub(); propertiesUnsub = null; }
   cachedProperties = [];
+  cachedPropertiesLoaded = false;
 }
 
 /* Suggested Camera ID: LastnameFirstInitial + N, truncated so the total
@@ -14190,6 +14223,10 @@ function readCustomerForm() {
      property-editor save) is left strictly alone. */
 function maintainPrimaryProperty(customerId, c) {
   if (!customerId) return;
+  /* Cold cache → skip entirely. The Item 1 backfill / next save / QBO sync
+     all self-heal a missed create, and a duplicate Primary is worse than a
+     briefly missing one. */
+  if (!cachedPropertiesLoaded) return;
   const props = propertiesForCustomer(customerId);
   if (!props.length) {
     const data = primaryPropertyData({ id: customerId, ...c });

@@ -62,7 +62,14 @@ service cloud.firestore {
       allow read:   if signedIn();
       allow create: if signedIn()
                     && request.resource.data.createdByUid == request.auth.uid;
-      allow update: if signedIn();
+      /* v2-patch-7 security audit: a property's origin fields are immutable
+         — the QBO address sync decides what it may overwrite partly from
+         doc provenance, so a client must not be able to re-badge a doc as
+         someone else's (or as server-created). Mirrors the qbId pattern on
+         customers. All app update paths write only content fields. */
+      allow update: if signedIn()
+                    && request.resource.data.get('createdByUid', null) == resource.data.get('createdByUid', null)
+                    && request.resource.data.get('createdByEmail', null) == resource.data.get('createdByEmail', null);
       allow delete: if signedIn();
     }
 
