@@ -166,7 +166,23 @@ async function relinkCamerasCore(db) {
         unmatched.push({ key, hint: `customer-level Camera ID claimed by ${claims.length} customers (${claims.map((c) => c.name || c.id).join(', ')}) — resolve manually` });
         continue;
       } else {
-        unmatched.push({ key, hint: null });
+        /* Item 3: numbered keys (PULLIAMR1, PULLIAMR2) — a trailing number
+           names a SPECIFIC site, so linking is never guessed. If the
+           digit-stripped base matches a customer-level cameraId (or a
+           property), report unmatched WITH a hint naming that customer so
+           the numbered property can be created and assigned manually. */
+        const base = key.replace(/\d+$/, '');
+        let hint = null;
+        if (base && base !== key) {
+          const baseClaims = custByCam.get(base) || [];
+          const baseProp = byCam.get(base) || null;
+          if (baseClaims.length) {
+            hint = `numbered key — customer-level Camera ID ${baseClaims[0].raw} suggests ${baseClaims.map((c) => c.name || c.id).join(', ')}; create/assign property #${key.slice(base.length)} manually, do not guess`;
+          } else if (baseProp) {
+            hint = `numbered key — base ${base} routes to ${baseProp.customerName || baseProp.customerId}; create/assign property #${key.slice(base.length)} manually, do not guess`;
+          }
+        }
+        unmatched.push({ key, hint });
         continue;
       }
     }
