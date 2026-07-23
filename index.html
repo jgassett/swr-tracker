@@ -3345,7 +3345,10 @@
     <section id="view-notes" class="view hidden">
       <div class="greeting">
         <h2>Notes</h2>
-        <p class="muted">Your private notes — no other operator (or admin) can see them.</p>
+        <!-- v2-patch-6 security audit L-4: rules block every in-app reader
+             (admin included), but the project owner can always reach raw
+             data via the Firebase console — the copy must not overclaim. -->
+        <p class="muted">Your private notes — not visible to anyone else in the app.</p>
       </div>
       <div class="card" id="notesList"></div>
     </section>

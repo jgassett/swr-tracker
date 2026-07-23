@@ -166,7 +166,12 @@ service cloud.firestore {
          status. Closes the delete-and-recreate bypass path. */
       allow create: if request.auth != null
                     && request.resource.data.createdByUid == request.auth.uid
-                    && (request.resource.data.get('status', 'Lead') != 'Complete' || isAdmin())
+                    /* v2-patch-6 security audit I-1: non-admin creates are
+                       limited to the statuses the app actually starts jobs
+                       at — no births into Pending Close/Invoiced/Paid (or
+                       Complete) that would pollute reporting. */
+                    && (isAdmin() || request.resource.data.get('status', 'Lead') in
+                         ['Lead', 'Estimated', 'Scheduled', 'Active'])
                     && rebaitActiveOk();
       /* v2-patch-6 Item 15 (M1): jobNumber is immutable — deleting it from
          a doc used to strip every lifecycle guard from later writes. */
@@ -192,14 +197,20 @@ service cloud.firestore {
        rebait invariants that depend on task state. */
     match /tasks/{taskId} {
       allow read:   if request.auth != null;
+      /* v2-patch-6 security audit M-1: tasks are born Open (every app
+         create path does this) and only Open tasks are crew-deletable —
+         closing the delete-and-recreate bypass of the terminal-status
+         guard, mirroring the jobs fix. */
       allow create: if request.auth != null
-                    && request.resource.data.createdByUid == request.auth.uid;
+                    && request.resource.data.createdByUid == request.auth.uid
+                    && request.resource.data.get('status', null) == 'Open';
       allow update: if request.auth != null
                     && request.resource.data.get('jobId', null) == resource.data.get('jobId', null)
                     && request.resource.data.get('createdByUid', null) == resource.data.get('createdByUid', null)
                     && (resource.data.get('status', 'Open') == 'Open'
                         || request.resource.data.get('status', null) == resource.data.get('status', null));
-      allow delete: if request.auth != null;
+      allow delete: if request.auth != null
+                    && (isAdmin() || resource.data.get('status', 'Open') == 'Open');
     }
 
     /* Appointments subcollection under jobs (v2). Matched as a collection
@@ -280,8 +291,12 @@ service cloud.firestore {
                     && request.resource.data.body.size() <= 500
                     && request.resource.data.read == false
                     && request.resource.data.createdAt is string;
+      /* v2-patch-6 security audit L-1: `pinned` is server-assigned (Admin
+         SDK bypasses rules) — a recipient must not be able to pin their own
+         notifications and exempt them from the age-based cleanups. */
       allow update: if signedIn()
-                    && resource.data.recipientEmail == request.auth.token.email.lower();
+                    && resource.data.recipientEmail == request.auth.token.email.lower()
+                    && request.resource.data.get('pinned', false) == resource.data.get('pinned', false);
       allow delete: if signedIn()
                     && resource.data.recipientEmail == request.auth.token.email.lower();
     }
@@ -294,17 +309,30 @@ service cloud.firestore {
     match /notes/{noteId} {
       allow read:   if signedIn()
                     && resource.data.ownerUid == request.auth.uid;
+      /* v2-patch-6 security audit L-3: ownerEmail must be the caller's own
+         (it's an identity field — never spoofable). */
       allow create: if signedIn()
                     && request.resource.data.ownerUid == request.auth.uid
+                    && request.resource.data.ownerEmail == request.auth.token.email.lower()
                     && request.resource.data.keys().hasOnly(
                          ['ownerUid', 'ownerEmail', 'title', 'body', 'createdAt', 'updatedAt'])
                     && request.resource.data.title is string
                     && request.resource.data.title.size() <= 200
                     && request.resource.data.body is string
                     && request.resource.data.body.size() <= 20000;
+      /* v2-patch-6 security audit L-2: updates re-validate the same shape
+         and size bounds as create (request.resource.data is the merged
+         result, so the checks hold for merge writes too). */
       allow update: if signedIn()
                     && resource.data.ownerUid == request.auth.uid
-                    && request.resource.data.ownerUid == resource.data.ownerUid;
+                    && request.resource.data.ownerUid == resource.data.ownerUid
+                    && request.resource.data.ownerEmail == resource.data.ownerEmail
+                    && request.resource.data.keys().hasOnly(
+                         ['ownerUid', 'ownerEmail', 'title', 'body', 'createdAt', 'updatedAt'])
+                    && request.resource.data.title is string
+                    && request.resource.data.title.size() <= 200
+                    && request.resource.data.body is string
+                    && request.resource.data.body.size() <= 20000;
       allow delete: if signedIn()
                     && resource.data.ownerUid == request.auth.uid;
     }
