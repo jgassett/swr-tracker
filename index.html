@@ -3466,6 +3466,43 @@
   <button type="button" class="btn btn-cancel btn-ghost" id="cameraSheetCancel" style="margin-top:12px;width:100%;">Cancel</button>
 </div>
 
+<!-- Item 3 (v2-patch-7): camera → property assignment sheet. Property
+     selector defaults to the customer's primary property (one tap for
+     single-property customers); "Add new property" creates an alternate
+     trapping address inline without leaving the flow. -->
+<div class="sheet" id="camAssignSheet">
+  <div class="sheet-handle"></div>
+  <h2>Assign Camera</h2>
+  <p class="muted" id="camAssignCustLabel" style="font-size:13px;"></p>
+  <div class="form-group">
+    <label for="camAssignProp">Property</label>
+    <select id="camAssignProp"></select>
+  </div>
+  <div id="camAssignNewProp" class="hidden">
+    <div class="form-group">
+      <label for="camAssignNewNickname">Site Nickname<span class="req">*</span></label>
+      <input type="text" id="camAssignNewNickname" autocomplete="off" placeholder="e.g. Barn lot, Rental on Main St">
+    </div>
+    <div class="form-group">
+      <label for="camAssignNewAddress">Address<span class="opt">(optional)</span></label>
+      <input type="text" id="camAssignNewAddress" autocomplete="off">
+    </div>
+    <div class="form-group">
+      <label for="camAssignNewCity">City<span class="opt">(optional)</span></label>
+      <input type="text" id="camAssignNewCity" autocomplete="off">
+    </div>
+  </div>
+  <div class="form-group">
+    <label for="camAssignId">Camera ID</label>
+    <input type="text" id="camAssignId" autocomplete="off" maxlength="10" placeholder="e.g. HAYDENT1">
+    <div class="hint" id="camAssignHint"></div>
+  </div>
+  <div class="btn-row" style="margin-top:6px;">
+    <button type="button" class="btn btn-cancel btn-ghost" id="camAssignCancel">Cancel</button>
+    <button type="button" class="btn btn-primary" id="camAssignSave">Save</button>
+  </div>
+</div>
+
 <!-- 'How it works' — plain-language workflow explainer opened from the
      landing-page flow strip. Own backdrop: the landing page stacks above
      the shared sheet layers. -->
@@ -6161,52 +6198,188 @@ function renderFieldDetail(key) {
   });
 }
 
-async function assignFieldPhotos(key, customer) {
+/* Item 3 (v2-patch-7): Monitoring's unlinked-group flow routes through the
+   camera assignment sheet — primary property preselected, cameraId locked
+   to the group's key, photos stamped after the assignment lands. */
+function assignFieldPhotos(key, customer) {
   if (!customer || !customer.id) return;   /* M6: nothing to link to */
-  /* Item 1 (v2-patch-6): assignment lands on a PROPERTY record only — the
-     single source of truth for camera routing. Sole property → auto-target;
-     several → numbered pick; none → the operator must add a property first
-     (there is no customer-level link any more). */
-  const props = propertiesForCustomer(customer.id);
-  let targetProp = null;
-  if (!props.length) {
-    toast(`${customer.name || 'This customer'} has no property on file — add one in the Customers module, then assign the camera to it.`, 'error');
+  openCamAssignSheet({
+    customerId: customer.id,
+    lockCameraId: key,
+    onDone: async (K, propId) => {
+      try {
+        /* Stamp any already-ingested unassigned photos for this key. */
+        const photos = cachedCameraPhotos.filter((p) => (p.customerKey || '(unknown)') === key && !p.customerId);
+        for (const p of photos) {
+          await writeWithRetry(() => setDoc(doc(fbDb, 'cameraPhotos', p.id),
+            { customerId: customer.id, customerName: customer.name || '', propertyId: propId || null, assigned: true, updatedAt: new Date().toISOString() }, { merge: true }));
+        }
+      } catch (err) {
+        toast('Photo re-stamp failed: ' + ((err && err.message) || 'error'), 'error');
+      }
+      if (currentFieldKey) renderFieldDetail(currentFieldKey);
+      renderFieldDashboard();
+    }
+  });
+}
+
+/* =====================================================================
+ * Item 3 (v2-patch-7): camera → property assignment sheet.
+ * ---------------------------------------------------------------------
+ * One flow for every assignment door: pick the property (the customer's
+ * PRIMARY is preselected, so single-property customers are one tap),
+ * enter/confirm the Camera ID, save. The selector lists every property
+ * (nickname + address — property managers may have many) plus an inline
+ * "Add new property" option so an alternate trapping address can be
+ * created without leaving the flow. Uniqueness (v2-patch-6 Item 1d) is
+ * enforced on save.
+ * ===================================================================== */
+let camAssignCtx = null;   /* { customerId, lockCameraId, onDone } */
+
+/* Item 5 (v2-patch-7): the customer's primary property — explicit
+   isPrimary flag first, else their sole property. */
+function primaryPropertyFor(customerId) {
+  const props = propertiesForCustomer(customerId);
+  return props.find((p) => p.isPrimary) || (props.length === 1 ? props[0] : null);
+}
+
+function camAssignSheetOpen() { return $('#camAssignSheet').classList.contains('open'); }
+function closeCamAssignSheet() {
+  $('#camAssignSheet').classList.remove('open');
+  $('#sheetBackdrop').classList.remove('open');
+  camAssignCtx = null;
+}
+
+function camAssignPropLabel(p) {
+  const addr = [p.address, p.city].filter(Boolean).join(', ');
+  const cam = (p.cameraId || '').trim();
+  return `${p.siteNickname || '(unnamed site)'}${addr ? ' · ' + addr : ''}${cam ? ` — camera ${cam}` : ''}`;
+}
+
+function camAssignSyncUi() {
+  const sel = $('#camAssignProp');
+  const isNew = sel.value === '__new';
+  $('#camAssignNewProp').classList.toggle('hidden', !isNew);
+  if (!camAssignCtx) return;
+  const cust = cachedCustomers.find((x) => x.id === camAssignCtx.customerId);
+  const idInput = $('#camAssignId');
+  if (camAssignCtx.lockCameraId) {
+    idInput.value = camAssignCtx.lockCameraId;
     return;
   }
-  if (props.length === 1) {
-    targetProp = props[0];
-  } else {
-    const menu = props.map((p, i) => `${i + 1}. ${p.siteNickname || p.address || p.id}`).join('\n');
-    const pick = prompt(`${customer.name || 'This customer'} has ${props.length} properties — which site is camera ${key} at?\n${menu}\n\nEnter a number:`, '1');
-    if (pick === null) return;
-    const idx = parseInt(pick, 10) - 1;
-    if (!Number.isFinite(idx) || idx < 0 || idx >= props.length) {
-      toast('Not a valid property number — camera not linked', 'error');
-      return;
-    }
-    targetProp = props[idx];
+  /* Prefill: the selected property's existing camera (confirm/replace), or
+     a suggested ID — un-numbered for a sole property, numbered otherwise. */
+  const props = propertiesForCustomer(camAssignCtx.customerId);
+  const p = isNew ? null : cachedProperties.find((x) => x.id === sel.value);
+  if (p && (p.cameraId || '').trim()) {
+    idInput.value = p.cameraId.trim().toUpperCase();
+  } else if (cust) {
+    const n = isNew ? props.length + 1 : Math.max(1, props.findIndex((x) => p && x.id === p.id) + 1);
+    idInput.value = props.length <= 1 && !isNew
+      ? (custCameraKey(cust.name) || '')
+      : suggestPropertyCameraId(cust.name, n);
   }
-  /* Item 1d: no two properties may hold the same cameraId. */
-  const dup = cameraIdOwner(key, { excludePropertyId: targetProp.id });
-  if (dup) { toast(`Camera ID ${key} is already assigned to ${dup.label} — remove it there first.`, 'error'); return; }
-  const whereLabel = `${customer.name || 'customer'} · ${targetProp.siteNickname || targetProp.address || 'property'}`;
-  const ok = await confirmDialog('Link camera?',
-    `Link camera ID ${key} to ${whereLabel}? This will reassign all matching photos.`);
-  if (!ok) return;
+}
+
+function openCamAssignSheet(opts) {
+  const cust = cachedCustomers.find((x) => x.id === opts.customerId);
+  if (!cust) { toast('Customer not found', 'error'); return; }
+  camAssignCtx = { customerId: opts.customerId, lockCameraId: (opts.lockCameraId || '').trim().toUpperCase() || null, onDone: opts.onDone || null };
+  $('#camAssignCustLabel').textContent = cust.name || '';
+  const props = propertiesForCustomer(opts.customerId);
+  const primary = primaryPropertyFor(opts.customerId);
+  /* Primary first, then the rest alphabetically. */
+  const sorted = [...props].sort((a, b) =>
+    ((b.isPrimary ? 1 : 0) - (a.isPrimary ? 1 : 0)) ||
+    (a.siteNickname || '').localeCompare(b.siteNickname || ''));
+  const sel = $('#camAssignProp');
+  sel.innerHTML = '';
+  for (const p of sorted) {
+    const o = document.createElement('option');
+    o.value = p.id;
+    o.textContent = camAssignPropLabel(p);
+    sel.appendChild(o);
+  }
+  const addNew = document.createElement('option');
+  addNew.value = '__new';
+  addNew.textContent = '+ Add new property…';
+  sel.appendChild(addNew);
+  sel.value = primary ? primary.id : (sorted[0] ? sorted[0].id : '__new');
+  $('#camAssignNewNickname').value = '';
+  $('#camAssignNewAddress').value = '';
+  $('#camAssignNewCity').value = '';
+  const idInput = $('#camAssignId');
+  idInput.readOnly = !!camAssignCtx.lockCameraId;
+  const hint = $('#camAssignHint');
+  if (hint) {
+    hint.textContent = camAssignCtx.lockCameraId
+      ? 'This camera key came from the camera itself and can’t be changed here.'
+      : 'The camera’s email subject key. Suggested from the customer name; keep or adjust it.';
+  }
+  camAssignSyncUi();
+  $('#sheetBackdrop').classList.add('open');
+  $('#camAssignSheet').classList.add('open');
+}
+
+async function handleCamAssignSave() {
+  if (!camAssignCtx) return;
+  const ctx = camAssignCtx;
+  const cust = cachedCustomers.find((x) => x.id === ctx.customerId);
+  const K = $('#camAssignId').value.trim().toUpperCase().replace(/\s+/g, '');
+  if (!K) { toast('Enter a Camera ID', 'error'); $('#camAssignId').focus(); return; }
+  if (K.length > 10) { toast('Camera ID can’t exceed 10 characters', 'error'); $('#camAssignId').focus(); return; }
+  const selVal = $('#camAssignProp').value;
+  const isNew = selVal === '__new';
+  /* Item 3c: v2-patch-6 uniqueness — no duplicate cameraId across properties. */
+  const dup = cameraIdOwner(K, { excludePropertyId: isNew ? null : selVal });
+  if (dup) { toast(`Camera ID ${K} is already assigned to ${dup.label} — remove it there first.`, 'error'); return; }
+  const btn = $('#camAssignSave');
+  btn.disabled = true;
   try {
-    /* Persist the link on the property so this camera's current AND future
-       photos + health resolve automatically. */
-    await writeWithRetry(() => setDoc(doc(fbDb, 'customers', customer.id, 'properties', targetProp.id),
-      { cameraId: key, updatedAt: new Date().toISOString() }, { merge: true }));
-    /* Also stamp any already-ingested unassigned photos for this key. */
-    const photos = cachedCameraPhotos.filter((p) => (p.customerKey || '(unknown)') === key && !p.customerId);
-    for (const p of photos) {
-      await writeWithRetry(() => setDoc(doc(fbDb, 'cameraPhotos', p.id),
-        { customerId: customer.id, customerName: customer.name || '', propertyId: targetProp ? targetProp.id : null, assigned: true, updatedAt: new Date().toISOString() }, { merge: true }));
+    const now = new Date().toISOString();
+    let propId = selVal;
+    let propLabel = '';
+    if (isNew) {
+      const siteNickname = $('#camAssignNewNickname').value.trim();
+      if (!siteNickname) { toast('Give the new property a site nickname', 'error'); $('#camAssignNewNickname').focus(); return; }
+      const data = {
+        customerId: ctx.customerId,
+        siteNickname,
+        address: $('#camAssignNewAddress').value.trim(),
+        city: $('#camAssignNewCity').value.trim(),
+        county: '',
+        insideCityLimits: null,
+        cameraId: K,
+        isPrimary: false,
+        autoCreated: false,
+        manuallyEdited: true,
+        createdAt: now,
+        createdByUid: currentUser ? currentUser.uid : null,
+        createdByEmail: currentUser ? currentUser.email : null,
+        updatedAt: now
+      };
+      const ref = doc(collection(fbDb, 'customers', ctx.customerId, 'properties'));
+      await writeWithRetry(() => setDoc(ref, data));
+      /* Optimistic: the snapshot confirms moments later. */
+      if (!cachedProperties.some((p) => p.id === ref.id)) cachedProperties.push({ id: ref.id, ...data });
+      propId = ref.id;
+      propLabel = siteNickname;
+    } else {
+      const p = cachedProperties.find((x) => x.id === propId);
+      await writeWithRetry(() => setDoc(doc(fbDb, 'customers', ctx.customerId, 'properties', propId),
+        { cameraId: K, updatedAt: now }, { merge: true }));
+      const idx = cachedProperties.findIndex((x) => x.id === propId);
+      if (idx >= 0) cachedProperties[idx] = { ...cachedProperties[idx], cameraId: K };
+      propLabel = p ? (p.siteNickname || p.address || '') : '';
     }
-    toast(`Linked ${key} → ${whereLabel}`);
+    toast(`Camera ${K} → ${(cust && cust.name) || 'customer'}${propLabel ? ' · ' + propLabel : ''}`);
+    const done = ctx.onDone;
+    closeCamAssignSheet();
+    if (done) done(K, propId);
   } catch (err) {
     toast('Assign failed: ' + ((err && err.message) || 'error'), 'error');
+  } finally {
+    btn.disabled = false;
   }
 }
 
@@ -13574,17 +13747,9 @@ function hubProceed(action, jobId, c) {
     setView('add');
     applyCustomerToPesticideForm(c);
   } else if (action === 'assign-camera') {
-    /* Item 1 (v2-patch-6): the property editor is the ONE assignment door.
-       No properties yet → open the editor to create the first one. */
-    const props = propertiesForCustomer(editingCustomerId);
-    const card = $('#customerPropertiesCard');
-    if (card) card.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    if (props.length) {
-      toast('Cameras are assigned per property — edit a property below.');
-    } else {
-      openPropertyEditor(null);
-      toast('Cameras are assigned per property — add this customer’s property first.');
-    }
+    /* Item 3 (v2-patch-7): the assignment sheet — primary property
+       preselected, so single-address customers are one tap. */
+    openCamAssignSheet({ customerId: editingCustomerId });
   }
 }
 
@@ -14385,6 +14550,7 @@ async function init() {
   });
 
   $('#sheetBackdrop').addEventListener('click', () => {
+    if (camAssignSheetOpen()) { closeCamAssignSheet(); return; }   /* Item 3 (v2-patch-7) */
     if (cameraSheetOpen()) { closeCameraSheet(); return; }   /* Item 18 */
     if (rebaitSheetOpen()) { closeRebaitSheet(); return; }   /* Item 13 */
     if (sheetMode === 'review') {
@@ -15184,6 +15350,11 @@ async function init() {
   /* Item 1 (v2-patch-6): camera migration + reconciliation audit */
   $('#cameraMigrationBtn').addEventListener('click', runCameraMigrationAudit);
   $('#backfillPrimaryBtn').addEventListener('click', runPrimaryPropertyBackfill);   /* Item 1 (v2-patch-7) */
+
+  /* Item 3 (v2-patch-7): camera assignment sheet */
+  $('#camAssignProp').addEventListener('change', camAssignSyncUi);
+  $('#camAssignCancel').addEventListener('click', closeCamAssignSheet);
+  $('#camAssignSave').addEventListener('click', handleCamAssignSave);
   $('#assignLegacyView').addEventListener('click', (e) => {
     if (e.target.closest('#assignLegacyBackBtn')) { setView('dashboard'); return; }
     const assign = e.target.closest('[data-lg-assign]');
