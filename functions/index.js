@@ -1231,7 +1231,12 @@ async function customerKeyMap() {
   const byCam = new Map();
   const propSnap = await db.collectionGroup('properties').get();
   propSnap.forEach((d) => {
-    const cam = (d.get('cameraId') || '').trim().toUpperCase();
+    /* v2-patch-9 Item 1 invariant: camera-key matching is CASE-INSENSITIVE.
+       Pipeline keys arrive uppercase (cb.subjectKey uppercases); property
+       cameraIds may be stored mixed case (HaydenT) — normalize here at
+       comparison time only, never rewrite the stored value. Lookups use
+       keyMap.get(subjectKey) where subjectKey is already uppercase. */
+    const cam = adminMigrations.normKey(d.get('cameraId'));
     if (!cam) return;
     const customerId = d.get('customerId') || (d.ref.parent.parent ? d.ref.parent.parent.id : null);
     if (!customerId) return;

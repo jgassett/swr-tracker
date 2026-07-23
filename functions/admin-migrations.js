@@ -16,6 +16,15 @@
 
 'use strict';
 
+/* v2-patch-9 Item 1: THE camera-key normalizer — every camera-key
+ * comparison in this module goes through it. Email-pipeline keys arrive
+ * uppercase (HAYDENT); property/customer cameraIds may be stored mixed
+ * case (HaydenT). Normalization happens ONLY at comparison time; stored
+ * values keep their original casing for display. */
+function normKey(v) {
+  return (v == null ? '' : String(v)).trim().toUpperCase();
+}
+
 /* Backfill: one "Primary" property per customer with an EMPTY properties
  * subcollection, built from the customer's home address fields. Idempotent
  * — customers with any property are skipped, so running twice is safe. */
@@ -78,7 +87,7 @@ async function relinkCamerasCore(db) {
   custSnap.forEach((d) => nameById.set(d.id, d.get('name') || ''));
   const byCam = new Map();
   propSnap.forEach((d) => {
-    const cam = (d.get('cameraId') || '').trim().toUpperCase();
+    const cam = normKey(d.get('cameraId'));
     if (!cam) return;
     const customerId = d.get('customerId') || (d.ref.parent.parent ? d.ref.parent.parent.id : null);
     if (!customerId) return;
@@ -93,8 +102,7 @@ async function relinkCamerasCore(db) {
   const unmatchedKeys = new Set();
 
   const keyOf = (d) =>
-    ((d.get('customerKey') || (d.id.includes('__') ? d.id.split('__')[0] : d.id)) || '')
-      .trim().toUpperCase();
+    normKey(d.get('customerKey') || (d.id.includes('__') ? d.id.split('__')[0] : d.id));
 
   for (const d of healthSnap.docs) {
     const key = keyOf(d);
@@ -114,7 +122,7 @@ async function relinkCamerasCore(db) {
     }
   }
   for (const d of statusSnap.docs) {
-    const key = ((d.get('customerKey') || d.id) || '').trim().toUpperCase();
+    const key = normKey(d.get('customerKey') || d.id);
     const match = byCam.get(key);
     if (!match) continue;
     if (d.get('customerId') !== match.customerId || d.get('propertyId') !== match.propertyId
@@ -141,4 +149,4 @@ function adminGateDecision(auth, adminEmails) {
   return adminEmails.includes(email) ? 'ok' : 'permission-denied';
 }
 
-module.exports = { backfillPrimaryPropertiesCore, relinkCamerasCore, adminGateDecision };
+module.exports = { backfillPrimaryPropertiesCore, relinkCamerasCore, adminGateDecision, normKey };
