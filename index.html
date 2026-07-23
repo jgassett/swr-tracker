@@ -2447,9 +2447,8 @@
         <h2 id="custGreetingTitle">Customer Directory</h2>
         <p class="muted" id="custGreetingSub">Shared across trapping and pesticide records.</p>
       </div>
-      <!-- Item 5 (v2-patch-5): Add Customer is the first interactive element
-           in the module — the search box and filters moved below it. -->
-      <button class="btn btn-amber" id="addCustomerBtn" style="margin-bottom:14px;">+ Add Customer</button>
+      <!-- Item 6 (v2-patch-10): adding a customer is the ribbon circle-plus,
+           the same pattern as every other module. -->
       <div class="search-bar">
         <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
         <input type="text" id="custSearch" placeholder="Search name, address, city, phone…" autocomplete="off">
@@ -2663,7 +2662,7 @@
           <option value="Rejected">Rejected</option>
         </select>
       </div>
-      <button class="btn btn-amber" id="newEstimateBtn" style="margin-bottom:14px;">+ New Estimate</button>
+      <!-- Item 6 (v2-patch-10): new estimate = the ribbon circle-plus. -->
       <div class="card" id="estimatesList"></div>
     </section>
 
@@ -2757,7 +2756,7 @@
         <!-- Item 16 (v2-patch-1): the calendar shows tasks from the Jobs module. -->
         <p class="muted">The crew's tasks by date — tap one to open and complete it.</p>
       </div>
-      <button class="btn btn-amber" id="newJobBtn" style="margin-bottom:12px;">+ New Task</button>
+      <!-- Item 6 (v2-patch-10): new task = the ribbon circle-plus. -->
       <div style="display:flex;justify-content:center;margin-bottom:8px;">
         <div class="sched-toggle" id="schedViewToggle">
           <button type="button" data-sched-view="month" class="active">Month</button>
@@ -2879,7 +2878,7 @@
         <!-- Item 2 (v2-patch-2): filter by job type. -->
         <select id="jobsFilterType"><option value="">All job types</option></select>
       </div>
-      <button class="btn btn-amber" id="newLifecycleJobBtn" style="margin-bottom:14px;">+ Start New Job</button>
+      <!-- Item 6 (v2-patch-10): new job = the ribbon circle-plus. -->
       <div class="card" id="jobsList"></div>
     </section>
 
@@ -5720,7 +5719,7 @@ function renderEstimatesList() {
   let list = cachedEstimates.slice();
   if (filter !== 'all') list = list.filter((e) => e.status === filter);
   if (!list.length) {
-    el.innerHTML = '<div style="padding:16px;color:var(--ink-soft);">No estimates yet. Tap <strong>+ New Estimate</strong> to build one.</div>';
+    el.innerHTML = '<div style="padding:16px;color:var(--ink-soft);">No estimates yet. Tap the <strong>+</strong> button below to build one.</div>';
     return;
   }
   el.innerHTML = list.map((e) => `
@@ -10605,7 +10604,7 @@ function renderAgenda() {
   const upcoming = scheduleEntries()
     .filter((e) => e.status === 'Open' && (e.date || '') >= todayKey)
     .sort((a, b) => ((a.date || '') + (a.startTime || '')).localeCompare((b.date || '') + (b.startTime || '')));
-  if (!upcoming.length) { wrap.innerHTML = '<div class="muted" style="padding:16px;">No upcoming open tasks. Tap <strong>+ New Task</strong> to schedule one.</div>'; return; }
+  if (!upcoming.length) { wrap.innerHTML = '<div class="muted" style="padding:16px;">No upcoming open tasks. Tap the <strong>+</strong> button below to schedule one.</div>'; return; }
   const byDay = new Map();
   for (const e of upcoming) { if (!byDay.has(e.date)) byDay.set(e.date, []); byDay.get(e.date).push(e); }
   let html = '';
@@ -11466,7 +11465,7 @@ function renderJobsList() {
   if (typeFilter) list = list.filter((j) => (j.jobType || '') === typeFilter);
   list = list.slice().sort((a, b) => (b.startDate || b.createdAt || '').localeCompare(a.startDate || a.createdAt || ''));
   if (!list.length) {
-    el.innerHTML = '<div style="padding:16px;color:var(--ink-soft);">No jobs here yet. Tap <strong>+ Start New Job</strong> to open a container for a customer engagement.</div>';
+    el.innerHTML = '<div style="padding:16px;color:var(--ink-soft);">No jobs here yet. Tap the <strong>+</strong> button below to open a container for a customer engagement.</div>';
     return;
   }
   el.innerHTML = list.map((j) => {
@@ -13585,7 +13584,7 @@ function renderCustomerList() {
   if (!root) return;
   if (!cachedCustomers.length) {
     root.innerHTML = `<div class="empty"><div class="em-title">No customers yet</div>
-      <div>Tap <strong style="color:var(--amber);">+ Add Customer</strong> to create one, or use Sync Now in Settings once QuickBooks is connected.</div></div>`;
+      <div>Tap the <strong style="color:var(--amber);">+</strong> button below to create one, or use Sync Now in Settings once QuickBooks is connected.</div></div>`;
     return;
   }
   if (!list.length) {
@@ -14981,7 +14980,6 @@ async function init() {
 
   /* ---- Customer directory wiring ---- */
   fillCustomerCountyFilter();
-  $('#addCustomerBtn').addEventListener('click', () => { resetCustomerForm(); setView('add'); });
   $('#customerForm').addEventListener('submit', handleSaveCustomer);
   $('#cancelCustomerBtn').addEventListener('click', () => { resetCustomerForm(); setView('dashboard'); });
   $('#deleteCustomerBtn').addEventListener('click', handleDeleteCustomer);
@@ -15176,7 +15174,6 @@ async function init() {
       hideAutocomplete(listEl);
     });
   })();
-  $('#newEstimateBtn').addEventListener('click', () => { resetEstimateBuilder(); setView('add'); });
   $('#estFilterStatus').addEventListener('change', renderEstimatesList);
   $('#li-category').addEventListener('change', renderCategoryFields);
   $('#li-dynamic-fields').addEventListener('input', recalcPendingLine);
@@ -15209,7 +15206,6 @@ async function init() {
 
   /* ---- Job Scheduling wiring ---- */
   /* Item 16: the Schedule module creates tasks now. */
-  $('#newJobBtn').addEventListener('click', () => { editingTaskId = null; resetTaskForm(); setView('add'); });
   $('#cancelJobBtn').addEventListener('click', () => { resetJobForm(); setView('dashboard'); });
   $('#jobForm').addEventListener('submit', handleSaveJob);
   ['j-date', 'j-start', 'j-duration'].forEach((id) => {
@@ -15267,7 +15263,6 @@ async function init() {
   });
 
   /* ---- Job Lifecycle wiring (v2, Item 3) ---- */
-  $('#newLifecycleJobBtn').addEventListener('click', () => { editingLifecycleJobId = null; resetLifecycleJobForm(); setView('add'); });
   $('#jobsFilterStatus').addEventListener('change', renderJobsList);
   /* Item 2 (v2-patch-2): job-type filter on the Jobs list. */
   fillSelect('jobsFilterType', JOB_TYPES, true, 'All job types');
