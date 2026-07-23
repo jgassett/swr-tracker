@@ -3212,6 +3212,9 @@
       <div class="card settings-nav">
         <button type="button" class="snav-btn" id="assignLegacyBtn">Assign Legacy Records<span class="chev">›</span></button>
         <!-- Item 1 (v2-patch-6): one-time camera migration + reconciliation audit (admin only) -->
+        <!-- Item 1 (v2-patch-7): one-time backfill — a "Primary" property for
+             every customer that has none, built from the home address. -->
+        <button type="button" class="snav-btn" id="backfillPrimaryBtn" style="display:none;">Backfill Primary Properties<span class="chev">›</span></button>
         <button type="button" class="snav-btn" id="cameraMigrationBtn" style="display:none;">Camera Migration &amp; Audit<span class="chev">›</span></button>
         <button type="button" class="snav-btn" id="restoreBtn">Restore from JSON Backup<span class="chev">›</span></button>
         <input type="file" id="restoreFile" accept="application/json" style="display:none">
@@ -3225,7 +3228,7 @@
       </button>
       <div class="center muted" style="font-size:11.5px; line-height:1.5; margin:10px 0 4px;">
         <span id="accountInfo">Not signed in</span><br>
-        Southern Wildlife Tracker · <span id="footerVersion">v2.4</span> · KDFWR Commercial NWCO compliance
+        Southern Wildlife Tracker · <span id="footerVersion">v2.5</span> · KDFWR Commercial NWCO compliance
       </div>
     </section>
 
@@ -3461,6 +3464,43 @@
   <p class="muted" style="font-size:13px;">Camera IDs from the properties on file that aren't assigned to another active job.</p>
   <div id="cameraSheetBody"></div>
   <button type="button" class="btn btn-cancel btn-ghost" id="cameraSheetCancel" style="margin-top:12px;width:100%;">Cancel</button>
+</div>
+
+<!-- Item 3 (v2-patch-7): camera → property assignment sheet. Property
+     selector defaults to the customer's primary property (one tap for
+     single-property customers); "Add new property" creates an alternate
+     trapping address inline without leaving the flow. -->
+<div class="sheet" id="camAssignSheet">
+  <div class="sheet-handle"></div>
+  <h2>Assign Camera</h2>
+  <p class="muted" id="camAssignCustLabel" style="font-size:13px;"></p>
+  <div class="form-group">
+    <label for="camAssignProp">Property</label>
+    <select id="camAssignProp"></select>
+  </div>
+  <div id="camAssignNewProp" class="hidden">
+    <div class="form-group">
+      <label for="camAssignNewNickname">Site Nickname<span class="req">*</span></label>
+      <input type="text" id="camAssignNewNickname" autocomplete="off" placeholder="e.g. Barn lot, Rental on Main St">
+    </div>
+    <div class="form-group">
+      <label for="camAssignNewAddress">Address<span class="opt">(optional)</span></label>
+      <input type="text" id="camAssignNewAddress" autocomplete="off">
+    </div>
+    <div class="form-group">
+      <label for="camAssignNewCity">City<span class="opt">(optional)</span></label>
+      <input type="text" id="camAssignNewCity" autocomplete="off">
+    </div>
+  </div>
+  <div class="form-group">
+    <label for="camAssignId">Camera ID</label>
+    <input type="text" id="camAssignId" autocomplete="off" maxlength="10" placeholder="e.g. HAYDENT1">
+    <div class="hint" id="camAssignHint"></div>
+  </div>
+  <div class="btn-row" style="margin-top:6px;">
+    <button type="button" class="btn btn-cancel btn-ghost" id="camAssignCancel">Cancel</button>
+    <button type="button" class="btn btn-primary" id="camAssignSave">Save</button>
+  </div>
 </div>
 
 <!-- 'How it works' — plain-language workflow explainer opened from the
@@ -3881,7 +3921,7 @@ const PESTICIDE_EMAILJS_TEMPLATE_ID = 'template_4aa3u5a';
    with the SW cache version and version.txt. Every version display (home
    header row, Settings footer, account info) reads from these two values;
    nothing else may hard-code a version string. */
-const APP_VERSION = 'v2.4';
+const APP_VERSION = 'v2.5';
 const APP_VERSION_DATE = 'Jul 22, 2026';
 /* Single source of truth: paint both displays from the constant so they
    can't drift apart again. */
@@ -4325,9 +4365,15 @@ function countyDisplay(rec) {
   const stored = rec.county || rec.countyOfCollection || '';
   if (stored) return stored;
   /* Item 4c (v2-patch-6): County of Collection resolves from the linked
-     PROPERTY when the record itself stored none — never from the customer. */
+     PROPERTY when the record itself stored none — never from the customer.
+     Item 5 (v2-patch-7): records with no property link fall back to the
+     customer's PRIMARY property (the home address's property twin). */
   if (rec.propertyId) {
     const p = cachedProperties.find((x) => x.id === rec.propertyId);
+    if (p && p.county) return p.county;
+  }
+  if (rec.customerId) {
+    const p = primaryPropertyFor(rec.customerId);
     if (p && p.county) return p.county;
   }
   return '';
@@ -4764,20 +4810,22 @@ function renderSettingsStatus() {
 let taxRptRows = { scott: [], georgetown: [] };
 
 function jobTaxLocus(j) {
+  /* Item 5 (v2-patch-7): the job's explicit propertyId governs; otherwise
+     the customer's PRIMARY property (or sole property) is the work locus. */
   let p = j.propertyId ? cachedProperties.find((x) => x.id === j.propertyId) : null;
-  if (!p && j.customerId) {
-    const props = propertiesForCustomer(j.customerId);
-    if (props.length === 1) p = props[0];
-  }
+  if (!p && j.customerId) p = primaryPropertyFor(j.customerId);
+  const c = j.customerId ? cachedCustomers.find((x) => x.id === j.customerId) : null;
   if (p) {
+    /* Functional audit MEDIUM-2: a sync-created primary can lack county
+       (QBO has none) — empty property fields fall back to the customer
+       doc so tax filings don't silently drop those jobs. */
     return {
-      county: p.county || '',
-      city: p.city || '',
+      county: p.county || (c && c.county) || '',
+      city: p.city || (c && c.city) || '',
       insideCityLimits: p.insideCityLimits === true ? true : p.insideCityLimits === false ? false : null,
-      address: [p.address, p.city].filter(Boolean).join(', ')
+      address: [p.address || (c && c.address), p.city || (c && c.city)].filter(Boolean).join(', ')
     };
   }
-  const c = j.customerId ? cachedCustomers.find((x) => x.id === j.customerId) : null;
   return {
     county: (c && c.county) || '',
     city: (c && c.city) || '',
@@ -6158,52 +6206,215 @@ function renderFieldDetail(key) {
   });
 }
 
-async function assignFieldPhotos(key, customer) {
+/* Item 3 (v2-patch-7): Monitoring's unlinked-group flow routes through the
+   camera assignment sheet — primary property preselected, cameraId locked
+   to the group's key, photos stamped after the assignment lands. */
+function assignFieldPhotos(key, customer) {
   if (!customer || !customer.id) return;   /* M6: nothing to link to */
-  /* Item 1 (v2-patch-6): assignment lands on a PROPERTY record only — the
-     single source of truth for camera routing. Sole property → auto-target;
-     several → numbered pick; none → the operator must add a property first
-     (there is no customer-level link any more). */
-  const props = propertiesForCustomer(customer.id);
-  let targetProp = null;
-  if (!props.length) {
-    toast(`${customer.name || 'This customer'} has no property on file — add one in the Customers module, then assign the camera to it.`, 'error');
+  /* Functional audit LOW-3: the "(unknown)" group (photos with no
+     parseable subject key) must never stamp "(UNKNOWN)" — or any other
+     non-alphanumeric junk — as a routable property Camera ID. */
+  const cleanKey = (key || '').trim().toUpperCase();
+  if (!/^[A-Z0-9]+$/.test(cleanKey)) {
+    toast('These photos have no usable camera key — they can’t be routed to a Camera ID. Assign the camera from the customer instead.', 'error');
     return;
   }
-  if (props.length === 1) {
-    targetProp = props[0];
-  } else {
-    const menu = props.map((p, i) => `${i + 1}. ${p.siteNickname || p.address || p.id}`).join('\n');
-    const pick = prompt(`${customer.name || 'This customer'} has ${props.length} properties — which site is camera ${key} at?\n${menu}\n\nEnter a number:`, '1');
-    if (pick === null) return;
-    const idx = parseInt(pick, 10) - 1;
-    if (!Number.isFinite(idx) || idx < 0 || idx >= props.length) {
-      toast('Not a valid property number — camera not linked', 'error');
-      return;
+  openCamAssignSheet({
+    customerId: customer.id,
+    lockCameraId: key,
+    onDone: async (K, propId) => {
+      try {
+        /* Stamp any already-ingested unassigned photos for this key. */
+        const photos = cachedCameraPhotos.filter((p) => (p.customerKey || '(unknown)') === key && !p.customerId);
+        for (const p of photos) {
+          await writeWithRetry(() => setDoc(doc(fbDb, 'cameraPhotos', p.id),
+            { customerId: customer.id, customerName: customer.name || '', propertyId: propId || null, assigned: true, updatedAt: new Date().toISOString() }, { merge: true }));
+        }
+      } catch (err) {
+        toast('Photo re-stamp failed: ' + ((err && err.message) || 'error'), 'error');
+      }
+      if (currentFieldKey) renderFieldDetail(currentFieldKey);
+      renderFieldDashboard();
     }
-    targetProp = props[idx];
+  });
+}
+
+/* =====================================================================
+ * Item 3 (v2-patch-7): camera → property assignment sheet.
+ * ---------------------------------------------------------------------
+ * One flow for every assignment door: pick the property (the customer's
+ * PRIMARY is preselected, so single-property customers are one tap),
+ * enter/confirm the Camera ID, save. The selector lists every property
+ * (nickname + address — property managers may have many) plus an inline
+ * "Add new property" option so an alternate trapping address can be
+ * created without leaving the flow. Uniqueness (v2-patch-6 Item 1d) is
+ * enforced on save.
+ * ===================================================================== */
+let camAssignCtx = null;   /* { customerId, lockCameraId, onDone } */
+
+/* Item 5 (v2-patch-7): the customer's primary property — explicit
+   isPrimary flag first, else their sole property. Security audit: if two
+   docs ever carry isPrimary (race/mistake), pick the OLDEST deterministically
+   so tax locus, exports, and select defaults can't flap with cache order. */
+function primaryPropertyFor(customerId) {
+  const props = propertiesForCustomer(customerId);
+  const prims = props.filter((p) => p.isPrimary);
+  if (prims.length) {
+    return prims.slice().sort((a, b) => (a.createdAt || '').localeCompare(b.createdAt || ''))[0];
   }
-  /* Item 1d: no two properties may hold the same cameraId. */
-  const dup = cameraIdOwner(key, { excludePropertyId: targetProp.id });
-  if (dup) { toast(`Camera ID ${key} is already assigned to ${dup.label} — remove it there first.`, 'error'); return; }
-  const whereLabel = `${customer.name || 'customer'} · ${targetProp.siteNickname || targetProp.address || 'property'}`;
-  const ok = await confirmDialog('Link camera?',
-    `Link camera ID ${key} to ${whereLabel}? This will reassign all matching photos.`);
-  if (!ok) return;
+  return props.length === 1 ? props[0] : null;
+}
+
+function camAssignSheetOpen() { return $('#camAssignSheet').classList.contains('open'); }
+function closeCamAssignSheet() {
+  $('#camAssignSheet').classList.remove('open');
+  $('#sheetBackdrop').classList.remove('open');
+  camAssignCtx = null;
+}
+
+function camAssignPropLabel(p) {
+  const addr = [p.address, p.city].filter(Boolean).join(', ');
+  const cam = (p.cameraId || '').trim();
+  return `${p.siteNickname || '(unnamed site)'}${addr ? ' · ' + addr : ''}${cam ? ` — camera ${cam}` : ''}`;
+}
+
+function camAssignSyncUi() {
+  const sel = $('#camAssignProp');
+  const isNew = sel.value === '__new';
+  $('#camAssignNewProp').classList.toggle('hidden', !isNew);
+  if (!camAssignCtx) return;
+  const cust = cachedCustomers.find((x) => x.id === camAssignCtx.customerId);
+  const idInput = $('#camAssignId');
+  if (camAssignCtx.lockCameraId) {
+    idInput.value = camAssignCtx.lockCameraId;
+    return;
+  }
+  /* Prefill: the selected property's existing camera (confirm/replace), or
+     a suggested ID — un-numbered for a sole property, numbered otherwise. */
+  const props = propertiesForCustomer(camAssignCtx.customerId);
+  const p = isNew ? null : cachedProperties.find((x) => x.id === sel.value);
+  if (p && (p.cameraId || '').trim()) {
+    idInput.value = p.cameraId.trim().toUpperCase();
+  } else if (cust) {
+    const n = isNew ? props.length + 1 : Math.max(1, props.findIndex((x) => p && x.id === p.id) + 1);
+    idInput.value = props.length <= 1 && !isNew
+      ? (custCameraKey(cust.name) || '')
+      : suggestPropertyCameraId(cust.name, n);
+  }
+}
+
+function openCamAssignSheet(opts) {
+  const cust = cachedCustomers.find((x) => x.id === opts.customerId);
+  if (!cust) { toast('Customer not found', 'error'); return; }
+  camAssignCtx = { customerId: opts.customerId, lockCameraId: (opts.lockCameraId || '').trim().toUpperCase() || null, onDone: opts.onDone || null };
+  $('#camAssignCustLabel').textContent = cust.name || '';
+  const props = propertiesForCustomer(opts.customerId);
+  const primary = primaryPropertyFor(opts.customerId);
+  /* Primary first, then the rest alphabetically. */
+  const sorted = [...props].sort((a, b) =>
+    ((b.isPrimary ? 1 : 0) - (a.isPrimary ? 1 : 0)) ||
+    (a.siteNickname || '').localeCompare(b.siteNickname || ''));
+  const sel = $('#camAssignProp');
+  sel.innerHTML = '';
+  for (const p of sorted) {
+    const o = document.createElement('option');
+    o.value = p.id;
+    o.textContent = camAssignPropLabel(p);
+    sel.appendChild(o);
+  }
+  const addNew = document.createElement('option');
+  addNew.value = '__new';
+  addNew.textContent = '+ Add new property…';
+  sel.appendChild(addNew);
+  sel.value = primary ? primary.id : (sorted[0] ? sorted[0].id : '__new');
+  $('#camAssignNewNickname').value = '';
+  $('#camAssignNewAddress').value = '';
+  $('#camAssignNewCity').value = '';
+  const idInput = $('#camAssignId');
+  idInput.readOnly = !!camAssignCtx.lockCameraId;
+  const hint = $('#camAssignHint');
+  if (hint) {
+    hint.textContent = camAssignCtx.lockCameraId
+      ? 'This camera key came from the camera itself and can’t be changed here.'
+      : 'The camera’s email subject key. Suggested from the customer name; keep or adjust it.';
+  }
+  camAssignSyncUi();
+  $('#sheetBackdrop').classList.add('open');
+  $('#camAssignSheet').classList.add('open');
+}
+
+async function handleCamAssignSave() {
+  if (!camAssignCtx) return;
+  const ctx = camAssignCtx;
+  const cust = cachedCustomers.find((x) => x.id === ctx.customerId);
+  const K = $('#camAssignId').value.trim().toUpperCase().replace(/\s+/g, '');
+  if (!K) { toast('Enter a Camera ID', 'error'); $('#camAssignId').focus(); return; }
+  /* Functional audit MEDIUM-1: a LOCKED key came from the camera itself
+     (ingest passes subjects through verbatim, e.g. HIGGINBOTHAMT = 13
+     chars) — the 10-char convention applies only to operator-typed IDs,
+     otherwise long-named customers' cameras could never be linked. */
+  if (!ctx.lockCameraId && K.length > 10) { toast('Camera ID can’t exceed 10 characters', 'error'); $('#camAssignId').focus(); return; }
+  const selVal = $('#camAssignProp').value;
+  const isNew = selVal === '__new';
+  /* Item 3c: v2-patch-6 uniqueness — no duplicate cameraId across properties. */
+  const dup = cameraIdOwner(K, { excludePropertyId: isNew ? null : selVal });
+  if (dup) { toast(`Camera ID ${K} is already assigned to ${dup.label} — remove it there first.`, 'error'); return; }
+  const btn = $('#camAssignSave');
+  btn.disabled = true;
   try {
-    /* Persist the link on the property so this camera's current AND future
-       photos + health resolve automatically. */
-    await writeWithRetry(() => setDoc(doc(fbDb, 'customers', customer.id, 'properties', targetProp.id),
-      { cameraId: key, updatedAt: new Date().toISOString() }, { merge: true }));
-    /* Also stamp any already-ingested unassigned photos for this key. */
-    const photos = cachedCameraPhotos.filter((p) => (p.customerKey || '(unknown)') === key && !p.customerId);
-    for (const p of photos) {
-      await writeWithRetry(() => setDoc(doc(fbDb, 'cameraPhotos', p.id),
-        { customerId: customer.id, customerName: customer.name || '', propertyId: targetProp ? targetProp.id : null, assigned: true, updatedAt: new Date().toISOString() }, { merge: true }));
+    const now = new Date().toISOString();
+    let propId = selVal;
+    let propLabel = '';
+    if (isNew) {
+      const siteNickname = $('#camAssignNewNickname').value.trim();
+      if (!siteNickname) { toast('Give the new property a site nickname', 'error'); $('#camAssignNewNickname').focus(); return; }
+      const data = {
+        customerId: ctx.customerId,
+        siteNickname,
+        address: $('#camAssignNewAddress').value.trim(),
+        city: $('#camAssignNewCity').value.trim(),
+        county: '',
+        insideCityLimits: null,
+        cameraId: K,
+        isPrimary: false,
+        autoCreated: false,
+        manuallyEdited: true,
+        createdAt: now,
+        createdByUid: currentUser ? currentUser.uid : null,
+        createdByEmail: currentUser ? currentUser.email : null,
+        updatedAt: now
+      };
+      const ref = doc(collection(fbDb, 'customers', ctx.customerId, 'properties'));
+      await writeWithRetry(() => setDoc(ref, data));
+      /* Optimistic: the snapshot confirms moments later. */
+      if (!cachedProperties.some((p) => p.id === ref.id)) cachedProperties.push({ id: ref.id, ...data });
+      propId = ref.id;
+      propLabel = siteNickname;
+    } else {
+      const p = cachedProperties.find((x) => x.id === propId);
+      /* Functional audit LOW-2: replacing a camera a property already
+         routes silently orphans the old camera's future photos — confirm. */
+      const cur = ((p && p.cameraId) || '').trim().toUpperCase();
+      if (cur && cur !== K) {
+        const ok = await confirmDialog('Replace this property’s camera?',
+          `${(p && p.siteNickname) || 'This property'} currently routes camera ${cur}. Replacing it with ${K} sends ${cur}'s future photos to the pending queue.`,
+          { okText: 'Replace' });
+        if (!ok) return;
+      }
+      await writeWithRetry(() => setDoc(doc(fbDb, 'customers', ctx.customerId, 'properties', propId),
+        { cameraId: K, updatedAt: now }, { merge: true }));
+      const idx = cachedProperties.findIndex((x) => x.id === propId);
+      if (idx >= 0) cachedProperties[idx] = { ...cachedProperties[idx], cameraId: K };
+      propLabel = p ? (p.siteNickname || p.address || '') : '';
     }
-    toast(`Linked ${key} → ${whereLabel}`);
+    toast(`Camera ${K} → ${(cust && cust.name) || 'customer'}${propLabel ? ' · ' + propLabel : ''}`);
+    const done = ctx.onDone;
+    closeCamAssignSheet();
+    if (done) done(K, propId);
   } catch (err) {
     toast('Assign failed: ' + ((err && err.message) || 'error'), 'error');
+  } finally {
+    btn.disabled = false;
   }
 }
 
@@ -6223,10 +6434,92 @@ async function assignFieldPhotos(key, customer) {
  * cameraHealth record. Console log + downloadable report. Conflicts are
  * surfaced, never auto-resolved.
  * ===================================================================== */
+/* =====================================================================
+ * Item 1 (v2-patch-7): Backfill Primary Properties (admin, one-time).
+ * ---------------------------------------------------------------------
+ * v2-patch-6 made the property record the single source of truth for
+ * camera assignment, but most customers have no property records — their
+ * only address lives on the customer doc, so camera linking dead-ends.
+ * This tool creates ONE property per zero-property customer from the home
+ * address fields (isPrimary + autoCreated, nickname "Primary"). Customers
+ * that already have any property are skipped. Safe to re-run.
+ * ===================================================================== */
+
+/* Shared shape for an auto-created primary property (also used by the
+   Item 2 create-time hook). */
+function primaryPropertyData(c, byEmail) {
+  const nowIso = new Date().toISOString();
+  return {
+    customerId: c.id,
+    siteNickname: 'Primary',
+    address: c.address || '',
+    city: c.city || '',
+    county: c.county || '',
+    insideCityLimits: null,
+    cameraId: '',
+    isPrimary: true,
+    autoCreated: true,
+    manuallyEdited: false,
+    createdAt: nowIso,
+    createdByUid: currentUser ? currentUser.uid : null,
+    createdByEmail: byEmail || (currentUser ? currentUser.email : null),
+    updatedAt: nowIso
+  };
+}
+
+async function runPrimaryPropertyBackfill() {
+  if (!isAdmin()) { toast('Only an administrator can run the backfill.', 'error'); return; }
+  const ok = await confirmDialog('Backfill primary properties?',
+    'Creates a "Primary" property from the home address for every customer that has no property records. Customers with existing properties are skipped. Safe to run more than once.');
+  if (!ok) return;
+  const btn = $('#backfillPrimaryBtn');
+  if (btn) btn.disabled = true;
+  const lines = [];
+  let created = 0, skipped = 0, failed = 0, noAddress = 0;
+  try {
+    const [custSnap, propSnap] = await Promise.all([
+      getDocs(collection(fbDb, 'customers')),
+      getDocs(collectionGroup(fbDb, 'properties'))
+    ]);
+    const hasProps = new Set();
+    propSnap.forEach((d) => {
+      const cid = d.get('customerId') || (d.ref.parent.parent ? d.ref.parent.parent.id : null);
+      if (cid) hasProps.add(cid);
+    });
+    for (const d of custSnap.docs) {
+      const c = { id: d.id, ...d.data() };
+      if (hasProps.has(c.id)) { skipped++; continue; }
+      const data = primaryPropertyData(c);
+      if (!data.address && !data.city) noAddress++;
+      try {
+        await writeWithRetry(() => setDoc(doc(collection(fbDb, 'customers', c.id, 'properties')), data));
+        created++;
+        lines.push(`CREATED  ${c.name || c.id} → "Primary" (${[data.address, data.city].filter(Boolean).join(', ') || 'no address on file'})`);
+      } catch (err) {
+        failed++;
+        lines.push(`ERROR    ${c.name || c.id}: ${(err && err.message) || err}`);
+      }
+    }
+    const nowIso = new Date().toISOString();
+    const summary = `Primary property backfill — ${nowIso}\n` +
+      `Backfilled: ${created} (${noAddress} with no address on file) · ` +
+      `Skipped (properties already exist): ${skipped} · Errors: ${failed}\n\n`;
+    const report = summary + (lines.length ? lines.join('\n') : '(nothing to do)') + '\n';
+    console.log(report);
+    downloadFile(`primary-property-backfill-${nowIso.slice(0, 10)}.txt`, report, 'text/plain;charset=utf-8');
+    toast(`Backfill done — ${created} created, ${skipped} skipped. Report downloaded.`);
+  } catch (err) {
+    console.error('primary property backfill failed', err);
+    toast('Backfill failed: ' + ((err && err.message) || 'error'), 'error');
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
 async function runCameraMigrationAudit() {
   if (!isAdmin()) { toast('Only an administrator can run the camera migration.', 'error'); return; }
   const ok = await confirmDialog('Run camera migration & audit?',
-    'Copies deprecated customer-level Camera IDs onto property records and downloads a reconciliation report. Conflicts are reported, never auto-resolved. Safe to run more than once.');
+    'Copies deprecated customer-level Camera IDs onto property records, re-links unlinked camera data to primary properties (unique name matches only), and downloads a reconciliation report. Conflicts are reported, never auto-resolved. Run Backfill Primary Properties first. Safe to run more than once.');
   if (!ok) return;
   const btn = $('#cameraMigrationBtn');
   if (btn) btn.disabled = true;
@@ -6314,7 +6607,84 @@ async function runCameraMigrationAudit() {
     }
     if (lines.length === 1) lines.push('(no customer-level Camera IDs found)');
 
-    /* -------- Reconciliation audit (post-migration state) -------- */
+    /* -------- Item 4 (v2-patch-7): re-link unlinked camera data --------
+       Every cameraHealth key that no property routes gets one more chance:
+       a UNIQUE customer name-key match (the pre-patch-6 fuzzy link, with
+       an optional trailing property number stripped) is auto-linked by
+       stamping the key onto that customer's PRIMARY (or sole) property —
+       which exists now that the backfill has run. Ambiguous or unmatched
+       keys stay in the pending queue; a target already routing a different
+       camera is never overwritten. */
+    const healthKeys = new Set();
+    healthSnap.docs.forEach((d) => {
+      const k = norm(d.get('customerKey') || (d.id.includes('__') ? d.id.split('__')[0] : d.id));
+      if (k) healthKeys.add(k);
+    });
+    lines.push('', '== RE-LINK (v2-patch-7): unlinked camera keys → primary properties ==');
+    let relinked = 0, stillUnmatched = 0;
+    for (const K of [...healthKeys].sort()) {
+      if (holders.has(K)) continue;   /* already routed by a property */
+      const base = K.replace(/\d+$/, '');
+      const candidates = customers.filter((c) => {
+        const nk = custCameraKey(c.name);
+        return nk && (nk === K || nk === base);
+      });
+      if (candidates.length !== 1) {
+        stillUnmatched++;
+        lines.push(candidates.length > 1
+          ? `AMBIGUOUS ${K} — name-key matches ${candidates.length} customers (${candidates.map((c) => c.name || c.id).join(', ')}); stays in the pending queue`
+          : `UNMATCHED ${K} — no customer name-key match; stays in the pending queue`);
+        continue;
+      }
+      const c = candidates[0];
+      /* Security audit (v2-patch-7): a deprecated customer-level cameraId
+         is an EXPLICIT claim — if a different customer's old field holds
+         this key (migration reported it as CONFLICT), never re-link it by
+         name similarity. Manual resolution only. */
+      const claimedBy = customers.find((c2) => norm(c2.cameraId) === K);
+      if (claimedBy && claimedBy.id !== c.id) {
+        stillUnmatched++;
+        lines.push(`CONFLICT  ${K} — name-key matches ${c.name || c.id}, but ${claimedBy.name || claimedBy.id}'s deprecated customer-level Camera ID claims this key. Resolve manually.`);
+        continue;
+      }
+      const custProps = properties.filter((p) => p.customerId === c.id);
+      /* Security audit (v2-patch-7): a trailing property number (HAYDENT2)
+         names a SPECIFIC site — collapsing it onto the primary of a
+         multi-property customer would mislabel the location. Only accept
+         the digit-stripped match when the customer has exactly one
+         property. */
+      const viaBase = custCameraKey(c.name) !== K;
+      if (viaBase && custProps.length > 1) {
+        stillUnmatched++;
+        lines.push(`SKIPPED   ${K} — numbered key matches ${c.name || c.id}, but they have ${custProps.length} properties and the number names a specific site. Assign manually.`);
+        continue;
+      }
+      const target = custProps.find((p) => p.isPrimary) || (custProps.length === 1 ? custProps[0] : null);
+      if (!target || !target.id) {
+        stillUnmatched++;
+        lines.push(`UNMATCHED ${K} — matched ${c.name || c.id} but no primary/sole property target (run Backfill Primary Properties first)`);
+        continue;
+      }
+      if (norm(target.cameraId)) {
+        stillUnmatched++;
+        lines.push(`SKIPPED   ${K} — ${c.name || c.id}'s ${target.siteNickname || 'property'} already routes camera ${target.cameraId}; assign manually`);
+        continue;
+      }
+      try {
+        await writeWithRetry(() => setDoc(doc(fbDb, 'customers', c.id, 'properties', target.id),
+          { cameraId: K, updatedAt: nowIso }, { merge: true }));
+        target.cameraId = K;
+        holders.set(K, [target]);
+        relinked++;
+        lines.push(`LINKED    ${K} → ${propLabel(target)} (unique customer name-key match)`);
+      } catch (err) {
+        stillUnmatched++;
+        lines.push(`ERROR     ${K} — link write failed: ${(err && err.message) || err}`);
+      }
+    }
+    if (!relinked && !stillUnmatched) lines.push('(no unlinked camera keys)');
+
+    /* -------- Reconciliation audit (post-migration, post-re-link) -------- */
     lines.push('', '== AUDIT (i): Camera IDs appearing on multiple records ==');
     const allRecords = new Map();   /* K → labels (properties + deprecated customer fields) */
     for (const p of properties) {
@@ -6341,11 +6711,7 @@ async function runCameraMigrationAudit() {
     if (!dupCount) lines.push('(none)');
 
     lines.push('', '== AUDIT (ii): cameraHealth records with no matching property ==');
-    const healthKeys = new Set();
-    healthSnap.docs.forEach((d) => {
-      const k = norm(d.get('customerKey') || (d.id.includes('__') ? d.id.split('__')[0] : d.id));
-      if (k) healthKeys.add(k);
-    });
+    /* healthKeys computed above; holders reflects the re-link writes. */
     let orphanHealth = 0;
     for (const k of [...healthKeys].sort()) {
       if (!holders.has(k)) { orphanHealth++; lines.push(`UNMATCHED ${k} — health data exists but no property holds this Camera ID (stays in the pending queue)`); }
@@ -6361,11 +6727,12 @@ async function runCameraMigrationAudit() {
 
     const summary = `Camera migration & reconciliation — ${nowIso}\n` +
       `Migrated: ${migrated} (new properties created: ${createdProps}) · Conflicts: ${conflicts} · ` +
+      `Re-linked: ${relinked} · Still unmatched: ${stillUnmatched} · ` +
       `Duplicate IDs: ${dupCount} · Unmatched health records: ${orphanHealth} · Assigned-but-silent: ${silent}\n\n`;
     const report = summary + lines.join('\n') + '\n';
     console.log(report);
     downloadFile(`camera-reconciliation-${nowIso.slice(0, 10)}.txt`, report, 'text/plain;charset=utf-8');
-    toast(`Migration done — ${migrated} migrated, ${conflicts} conflict${conflicts === 1 ? '' : 's'}. Report downloaded.`);
+    toast(`Reconciliation done — ${relinked} re-linked, ${stillUnmatched} still unmatched, ${conflicts} conflict${conflicts === 1 ? '' : 's'}. Report downloaded.`);
   } catch (err) {
     console.error('camera migration failed', err);
     toast('Migration failed: ' + ((err && err.message) || 'error'), 'error');
@@ -13489,17 +13856,9 @@ function hubProceed(action, jobId, c) {
     setView('add');
     applyCustomerToPesticideForm(c);
   } else if (action === 'assign-camera') {
-    /* Item 1 (v2-patch-6): the property editor is the ONE assignment door.
-       No properties yet → open the editor to create the first one. */
-    const props = propertiesForCustomer(editingCustomerId);
-    const card = $('#customerPropertiesCard');
-    if (card) card.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    if (props.length) {
-      toast('Cameras are assigned per property — edit a property below.');
-    } else {
-      openPropertyEditor(null);
-      toast('Cameras are assigned per property — add this customer’s property first.');
-    }
+    /* Item 3 (v2-patch-7): the assignment sheet — primary property
+       preselected, so single-address customers are one tap. */
+    openCamAssignSheet({ customerId: editingCustomerId });
   }
 }
 
@@ -13641,12 +14000,17 @@ async function handleDeleteNote() {
  * single-property customer keeps their existing un-numbered Camera ID.
  * ===================================================================== */
 let propertiesUnsub = null;
+/* v2-patch-7 security audit: primary-property maintenance must never judge
+   "customer has no properties" from a cold cache — it would create a
+   duplicate Primary before the first snapshot arrives. */
+let cachedPropertiesLoaded = false;
 let propertiesRetryTimer = null;
 let editingPropertyId = null;
 
 function subscribeToProperties() {
   if (propertiesUnsub) return;
   propertiesUnsub = onSnapshot(collectionGroup(fbDb, 'properties'), (snap) => {
+    cachedPropertiesLoaded = true;   /* v2-patch-7 security audit: dup-primary guard */
     cachedProperties = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
     cachedProperties.sort((a, b) => (a.siteNickname || '').localeCompare(b.siteNickname || ''));
     if (editingCustomerId && !$('#view-add-customer').classList.contains('hidden')) renderPropertiesCard();
@@ -13660,6 +14024,7 @@ function subscribeToProperties() {
 function unsubscribeFromProperties() {
   if (propertiesUnsub) { propertiesUnsub(); propertiesUnsub = null; }
   cachedProperties = [];
+  cachedPropertiesLoaded = false;
 }
 
 /* Suggested Camera ID: LastnameFirstInitial + N, truncated so the total
@@ -13763,6 +14128,10 @@ async function saveProperty() {
     county: $('#pr-county').value,
     insideCityLimits: limitsRaw === 'true' ? true : limitsRaw === 'false' ? false : null,
     cameraId,
+    /* Item 2b (v2-patch-7): any direct property-editor save marks the
+       property manually edited — the silent home-address sync then leaves
+       it alone forever. */
+    manuallyEdited: true,
     updatedAt: new Date().toISOString()
   };
   try {
@@ -13820,8 +14189,13 @@ function populatePropertySelect(selectId, groupId, customerId, selectedId) {
     sel.appendChild(o);
   }
   /* M21: a single-property customer's sole property is auto-linked —
-     server-side photo routing already stamps it, so records must agree. */
-  sel.value = selectedId || (props.length === 1 ? props[0].id : '');
+     server-side photo routing already stamps it, so records must agree.
+     Item 5 (v2-patch-7): with primary properties on every customer, the
+     PRIMARY is the default wherever a property wasn't explicitly chosen —
+     records, pesticide applications, estimates, and jobs all resolve
+     through it unless the operator picks an alternate site. */
+  const primary = props.find((p) => p.isPrimary);
+  sel.value = selectedId || (primary ? primary.id : (props.length === 1 ? props[0].id : ''));
 }
 
 /* Item 7 (v2-patch-5): job the Customer Detail screen was opened from, so
@@ -13863,6 +14237,38 @@ function readCustomerForm() {
   return c;
 }
 
+/* Item 2 (v2-patch-7): keep the primary property in lockstep with the
+   customer's home address — silently, with no prompts and no UI change.
+   - Customer with NO properties (new customer, or one that predates the
+     backfill): create the auto-primary from the home address.
+   - Customer whose primary is still autoCreated and never manually edited:
+     sync its address/city/county to the edited home address.
+   - A manually edited primary (manuallyEdited flag, stamped by any direct
+     property-editor save) is left strictly alone. */
+function maintainPrimaryProperty(customerId, c) {
+  if (!customerId) return;
+  /* Cold cache → skip entirely. The Item 1 backfill / next save / QBO sync
+     all self-heal a missed create, and a duplicate Primary is worse than a
+     briefly missing one. */
+  if (!cachedPropertiesLoaded) return;
+  const props = propertiesForCustomer(customerId);
+  if (!props.length) {
+    const data = primaryPropertyData({ id: customerId, ...c });
+    writeWithRetry(() => setDoc(doc(collection(fbDb, 'customers', customerId, 'properties')), data))
+      .catch((err) => console.error('primary property create failed', err));
+    return;
+  }
+  const primary = props.find((p) => p.isPrimary && p.autoCreated && !p.manuallyEdited);
+  if (!primary) return;
+  const next = { address: c.address || '', city: c.city || '', county: c.county || '' };
+  if (primary.address === next.address && primary.city === next.city && primary.county === next.county) return;
+  writeWithRetry(() => setDoc(doc(fbDb, 'customers', customerId, 'properties', primary.id),
+    { ...next, updatedAt: new Date().toISOString() }, { merge: true }))
+    .catch((err) => console.error('primary property sync failed', err));
+  const idx = cachedProperties.findIndex((p) => p.id === primary.id);
+  if (idx >= 0) cachedProperties[idx] = { ...cachedProperties[idx], ...next };
+}
+
 async function handleSaveCustomer(e) {
   e.preventDefault();
   if (isSaving) return;              /* double-submit guard — prevents duplicate customers */
@@ -13883,6 +14289,9 @@ async function handleSaveCustomer(e) {
     /* Optimistic (M3): saveCustomer commits locally and returns the id without
        awaiting the server ack, so the form never hangs offline. */
     const savedId = saveCustomer(c);
+    /* Item 2 (v2-patch-7): the primary property tracks the home address —
+       silently, never a prompt. */
+    maintainPrimaryProperty(savedId, c);
     resetCustomerForm();
     setView('dashboard');
     refreshAll();
@@ -14265,6 +14674,7 @@ async function init() {
   });
 
   $('#sheetBackdrop').addEventListener('click', () => {
+    if (camAssignSheetOpen()) { closeCamAssignSheet(); return; }   /* Item 3 (v2-patch-7) */
     if (cameraSheetOpen()) { closeCameraSheet(); return; }   /* Item 18 */
     if (rebaitSheetOpen()) { closeRebaitSheet(); return; }   /* Item 13 */
     if (sheetMode === 'review') {
@@ -15063,6 +15473,12 @@ async function init() {
   });
   /* Item 1 (v2-patch-6): camera migration + reconciliation audit */
   $('#cameraMigrationBtn').addEventListener('click', runCameraMigrationAudit);
+  $('#backfillPrimaryBtn').addEventListener('click', runPrimaryPropertyBackfill);   /* Item 1 (v2-patch-7) */
+
+  /* Item 3 (v2-patch-7): camera assignment sheet */
+  $('#camAssignProp').addEventListener('change', camAssignSyncUi);
+  $('#camAssignCancel').addEventListener('click', closeCamAssignSheet);
+  $('#camAssignSave').addEventListener('click', handleCamAssignSave);
   $('#assignLegacyView').addEventListener('click', (e) => {
     if (e.target.closest('#assignLegacyBackBtn')) { setView('dashboard'); return; }
     const assign = e.target.closest('[data-lg-assign]');
@@ -15191,6 +15607,7 @@ async function init() {
         `<br><span class="muted" style="font-size:12px;">App version: ${escapeHtml(APP_VERSION)}</span>`;
       $('#wipeBtn').style.display = isAdmin() ? 'flex' : 'none';   /* Item 5: snav row */
       $('#cameraMigrationBtn').style.display = isAdmin() ? 'flex' : 'none';   /* Item 1 (v2-patch-6) */
+      $('#backfillPrimaryBtn').style.display = isAdmin() ? 'flex' : 'none';   /* Item 1 (v2-patch-7) */
       $('#pesticideDbCard').classList.toggle('hidden', !isAdmin());
       try { await maybeMigrateLocalRecords(); } catch (e) { console.error('Migration error', e); }
       subscribeToRecords();

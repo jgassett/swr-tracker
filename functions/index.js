@@ -297,9 +297,47 @@ async function syncCustomers(meta = {}) {
    * never collide with a QBO id. */
   const existingSnap = await db.collection('customers').get();
   const byQbId = new Map();
+  const countyById = new Map();   /* app-maintained county — QBO has none */
   existingSnap.forEach((d) => {
     const qbId = d.get('qbId');
     if (qbId) byQbId.set(String(qbId), d.id);
+    countyById.set(d.id, d.get('county') || '');
+  });
+
+  /* Item 2 (v2-patch-7): the primary-property invariant is maintained here
+   * too — QBO-created customers get a "Primary" property from their QBO
+   * address, and QBO address changes flow into an auto-created primary
+   * that has never been manually edited in the app. */
+  const propSnap = await db.collectionGroup('properties').get();
+  const propCountByCustomer = new Map();
+  const syncablePrimary = new Map();   /* customerId -> {ref, address, city} */
+  propSnap.forEach((d) => {
+    const cid = d.get('customerId') || (d.ref.parent.parent ? d.ref.parent.parent.id : null);
+    if (!cid) return;
+    propCountByCustomer.set(cid, (propCountByCustomer.get(cid) || 0) + 1);
+    if (d.get('isPrimary') === true && d.get('autoCreated') === true && d.get('manuallyEdited') !== true) {
+      syncablePrimary.set(cid, { ref: d.ref, address: d.get('address') || '', city: d.get('city') || '' });
+    }
+  });
+  /* v2-patch-7 functional audit MEDIUM-2: carry the customer doc's county
+     into a sync-created primary — QBO has no county, but the app-side
+     customer record often does, and the tax/KDFWR resolution reads the
+     property. */
+  const primaryPropertyDoc = (customerId, contact, county) => ({
+    customerId,
+    siteNickname: 'Primary',
+    address: contact.address || '',
+    city: contact.city || '',
+    county: county || '',
+    insideCityLimits: null,
+    cameraId: '',
+    isPrimary: true,
+    autoCreated: true,
+    manuallyEdited: false,
+    createdAt: new Date().toISOString(),
+    createdByUid: null,
+    createdByEmail: 'quickbooks-sync',
+    updatedAt: new Date().toISOString()
   });
 
   const nowIso = new Date().toISOString();
@@ -321,8 +359,27 @@ async function syncCustomers(meta = {}) {
         { ...contact, lastSyncedAt: nowIso, updatedAt: nowIso },
         { merge: true });
       updated++;
+      /* Primary-property maintenance for the synced address. */
+      if (!propCountByCustomer.get(existingId)) {
+        batch.set(db.doc(`customers/${existingId}`).collection('properties').doc(),
+          primaryPropertyDoc(existingId, contact, countyById.get(existingId)));
+        propCountByCustomer.set(existingId, 1);
+        ops++;
+      } else {
+        const prim = syncablePrimary.get(existingId);
+        if (prim && (contact.address || contact.city)
+            && ((contact.address || prim.address) !== prim.address
+                || (contact.city || prim.city) !== prim.city)) {
+          const patch = { updatedAt: nowIso };
+          if (contact.address) patch.address = contact.address;
+          if (contact.city) patch.city = contact.city;
+          batch.set(prim.ref, patch, { merge: true });
+          ops++;
+        }
+      }
     } else {
-      batch.set(db.collection('customers').doc(), {
+      const custRef = db.collection('customers').doc();
+      batch.set(custRef, {
         ...contact,
         qbId,
         source: 'quickbooks',
@@ -333,6 +390,9 @@ async function syncCustomers(meta = {}) {
         updatedAt: nowIso,
         lastSyncedAt: nowIso
       });
+      /* Item 2 (v2-patch-7): every new customer is born with its primary. */
+      batch.set(custRef.collection('properties').doc(), primaryPropertyDoc(custRef.id, contact, ''));
+      ops++;
       created++;
     }
     if (++ops >= 450) await flush();
