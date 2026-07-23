@@ -11441,8 +11441,8 @@ function renderTaskModelJobDetail(j) {
   const isOpen = j.status === 'Active';
 
   const taskRows = tasks.length ? tasks.map((t) => {
-    const label = t.taskType === 'Exclusion – Other' && t.taskTypeOther
-      ? `Exclusion – Other: ${t.taskTypeOther}` : (t.taskType || 'Task');
+    /* Item 15 / L10 (v2-patch-6): single source for the label. */
+    const label = taskTypeLabel(t);
     const who = (t.assigneeNames || []).join(', ');
     const doneBtn = (t.status === 'Open' && isOpen)
       ? `<button type="button" class="pill-btn" data-task-complete="${escapeHtml(t.id)}" style="background:#DDEAD8;color:var(--released);flex-shrink:0;" aria-label="Mark complete">✓ Done</button>`
