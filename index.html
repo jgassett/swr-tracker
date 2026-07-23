@@ -561,6 +561,17 @@
     }
     .sheet.open { transform: translateY(0); }
     .sheet-handle { width: 42px; height: 4px; background: var(--line); border-radius: 4px; margin: 4px auto 14px; }
+    /* Item 2 (v2-patch-11): every sheet gets a close ✕ pinned (sticky) to
+       its top-right — visible without scrolling no matter how long the
+       sheet content is. The zero-height sticky row adds no layout shift. */
+    .sheet-x-row { position: sticky; top: 0; height: 0; display: flex; justify-content: flex-end; z-index: 5; }
+    .sheet-x {
+      width: 34px; height: 34px; border-radius: 50%; border: 1px solid var(--line);
+      background: var(--cream); color: var(--ink-soft); font-size: 19px; line-height: 1;
+      display: flex; align-items: center; justify-content: center; cursor: pointer;
+      box-shadow: 0 1px 5px rgba(21,41,30,0.18); padding: 0; margin-top: -6px;
+    }
+    .sheet-x:active { background: var(--line); }
     .sheet h2 { font-size: 22px; margin-bottom: 4px; }
     .review-banner {
       background: rgba(196,119,42,0.12);
@@ -1699,6 +1710,12 @@
   <!-- Items 8 & 9 (v2-patch-1): persistent bottom banner — the direct
        records/estimates/notifications/settings access from v1. -->
   <nav class="landing-banner" aria-label="Quick access">
+    <!-- Item 3 (v2-patch-11): Back after Home returns to the page you left.
+         Hidden while the history stack is empty (fresh launch). -->
+    <button type="button" class="lb-btn hidden" id="landingBackBtn" data-banner="back" aria-label="Back">
+      <svg viewBox="0 0 24 24"><path d="M19 12H5"/><path d="m12 19-7-7 7-7"/></svg>
+      <span>Back</span>
+    </button>
     <button type="button" class="lb-btn" data-banner="records" aria-label="View Records">
       <svg viewBox="0 0 24 24"><path d="M3 5h18M3 12h18M3 19h18"/></svg>
       <span>View Records</span>
@@ -3227,7 +3244,7 @@
       </button>
       <div class="center muted" style="font-size:11.5px; line-height:1.5; margin:10px 0 4px;">
         <span id="accountInfo">Not signed in</span><br>
-        Southern Wildlife Tracker · <span id="footerVersion">v2.8</span> · KDFWR Commercial NWCO compliance
+        Southern Wildlife Tracker · <span id="footerVersion">v2.9</span> · KDFWR Commercial NWCO compliance
       </div>
     </section>
 
@@ -3431,6 +3448,7 @@
 <div class="sheet-backdrop" id="sheetBackdrop"></div>
 <div class="sheet" id="detailSheet">
   <div class="sheet-handle"></div>
+  <div class="sheet-x-row"><button type="button" class="sheet-x" aria-label="Close">✕</button></div>
   <div class="review-banner" id="reviewBanner">Verify the details below before saving this record. Tap <strong>Back to Edit</strong> to make changes, or <strong>Confirm &amp; Save</strong> when ready.</div>
   <h2 id="detailTitle">Record</h2>
   <div class="muted" id="detailSub" style="font-size:13px;"></div>
@@ -3445,6 +3463,7 @@
 <!-- Rebait sequence prompt (Item 13) — bottom sheet, three questions in sequence -->
 <div class="sheet" id="rebaitSheet">
   <div class="sheet-handle"></div>
+  <div class="sheet-x-row"><button type="button" class="sheet-x" aria-label="Close">✕</button></div>
   <h2 id="rebaitTitle">Rebait schedule</h2>
   <div id="rebaitBody"></div>
 </div>
@@ -3453,6 +3472,7 @@
      screen — lists property camera IDs not already on another Active job. -->
 <div class="sheet" id="cameraSheet">
   <div class="sheet-handle"></div>
+  <div class="sheet-x-row"><button type="button" class="sheet-x" aria-label="Close">✕</button></div>
   <h2>Assign Camera</h2>
   <p class="muted" style="font-size:13px;">Camera IDs from the properties on file that aren't assigned to another active job.</p>
   <div id="cameraSheetBody"></div>
@@ -3465,6 +3485,7 @@
      trapping address inline without leaving the flow. -->
 <div class="sheet" id="camAssignSheet">
   <div class="sheet-handle"></div>
+  <div class="sheet-x-row"><button type="button" class="sheet-x" aria-label="Close">✕</button></div>
   <h2>Assign Camera</h2>
   <p class="muted" id="camAssignCustLabel" style="font-size:13px;"></p>
   <div class="form-group">
@@ -3502,6 +3523,7 @@
 <div class="sheet-backdrop" id="flowSheetBackdrop"></div>
 <div class="sheet" id="howItWorksSheet">
   <div class="sheet-handle"></div>
+  <div class="sheet-x-row"><button type="button" class="sheet-x" aria-label="Close">✕</button></div>
   <h2>How a job works</h2>
   <p class="muted">Every job moves through the same steps — follow the arrows through the grid.</p>
   <div class="flow-guide">
@@ -3970,7 +3992,7 @@ const PESTICIDE_EMAILJS_TEMPLATE_ID = 'template_4aa3u5a';
    with the SW cache version and version.txt. Every version display (home
    header row, Settings footer, account info) reads from these two values;
    nothing else may hard-code a version string. */
-const APP_VERSION = 'v2.8';
+const APP_VERSION = 'v2.9';
 const APP_VERSION_DATE = 'Jul 23, 2026';
 /* Single source of truth: paint both displays from the constant so they
    can't drift apart again. */
@@ -4677,6 +4699,10 @@ function showLanding() {
   $('#modePicker').classList.remove('hidden');
   renderLandingCounts();
   recordNavArrival({ landing: true });   /* Item 5: Back history */
+  /* Item 3 (v2-patch-11): the landing Back button exists only when there
+     is something to go back to. */
+  const lbb = document.getElementById('landingBackBtn');
+  if (lbb) lbb.classList.toggle('hidden', !navHistory.length);
 }
 /* Back-compat alias — some call sites still reference the old name. */
 function showModePicker() { showLanding(); }
@@ -6221,12 +6247,14 @@ function renderFieldDashboard() {
   }).join('');
 }
 
+/* Item 2 (v2-patch-11): routed through setView so the arrival is recorded
+   in the Back history and currentView stays truthful — the direct
+   classList reveal here was the root cause of "Back returns to landing"
+   from camera detail. */
 function showFieldDetail(key) {
   currentFieldKey = key;
-  $$('.view').forEach((el) => el.classList.add('hidden'));
-  const d = $('#view-field-detail'); if (d) d.classList.remove('hidden');
-  $('#viewTitle').textContent = 'Camera Detail';
-  const main = $('#appMain'); if (main) main.scrollTop = 0;
+  if (appMode !== 'field') setAppModeQuiet('field');
+  setView('field-detail');
   renderFieldDetail(key);
 }
 
@@ -6974,8 +7002,8 @@ const VIEW_TITLES = {
   customer:  { dashboard: 'Customers', add: 'Add Customer', settings: 'Settings' },
   pricing:   { dashboard: 'Estimates', add: 'New Estimate', 'estimate-detail': 'Estimate', settings: 'Settings' },
   jobs:      { dashboard: 'Jobs', add: 'New Job', 'job-detail': 'Job', 'add-appointment': 'New Appointment', 'appointment-detail': 'Appointment', 'add-task': 'New Task', 'task-detail': 'Task' },
-  field:     { dashboard: 'Monitoring' },
-  schedule:  { dashboard: 'Calendar', add: 'New Task', 'edit-legacy': 'Edit Job', 'add-appointment': 'New Appointment', 'appointment-detail': 'Appointment', 'job-detail': 'Job', 'add-task': 'New Task', 'task-detail': 'Task' },
+  field:     { dashboard: 'Monitoring', 'field-detail': 'Camera Detail' },
+  schedule:  { dashboard: 'Calendar', add: 'New Task', 'edit-legacy': 'Edit Job', 'add-appointment': 'New Appointment', 'appointment-detail': 'Appointment', 'job-detail': 'Job', 'schedule-detail': 'Job', 'add-task': 'New Task', 'task-detail': 'Task' },
   closeout:  { dashboard: 'Close Out', 'closeout-confirm': 'Confirm Close Out' },
   notes:     { dashboard: 'Notes', add: 'Note' },   /* Item 7 (v2-patch-6) */
   settings:  { dashboard: 'Settings', 'assign-legacy': 'Assign Legacy Records',
@@ -6986,6 +7014,7 @@ const VIEW_TITLES = {
 };
 
 function backToLanding() {
+  closeSheetOverlays();   /* Item 2 (v2-patch-11): nothing floats over landing */
   currentView = 'dashboard';
   showLanding();
 }
@@ -7003,6 +7032,14 @@ let navHistory = [];
 let navLastPage = null;     /* the page currently on screen */
 let navSuppressPush = false; /* true while Back itself navigates */
 function navPageKey(p) { return p ? (p.landing ? 'landing' : `${p.mode}:${p.view}`) : ''; }
+
+/* Item 3 (v2-patch-11): the stack deliberately lives in memory only, per
+   app lifetime. Persisting it across reloads was considered and rejected:
+   the app always boots to the landing page, and every module entry pushes
+   a landing entry above any restored history — since the landing page has
+   no Back button, restored entries would sit unreachable beneath it
+   forever. After a reload, Back = Home until you navigate; that is the
+   honest model. */
 function recordNavArrival(page) {
   if (!navSuppressPush && navLastPage && navPageKey(navLastPage) !== navPageKey(page)) {
     navHistory.push(navLastPage);
@@ -7010,7 +7047,44 @@ function recordNavArrival(page) {
   }
   navLastPage = page;
 }
+/* Item 2 (v2-patch-11): overlays are part of navigation. The global Back
+   dismisses the topmost open overlay first — exactly one per press — and
+   only navigates history when no overlay is open. Order mirrors stacking:
+   confirm dialog above sheets above the how-it-works sheet. Closing the
+   review-mode detail sheet equals its "Back to Edit" button (the form
+   keeps its data). */
+function closeTopOverlay() {
+  const isOpen = (id) => { const el = document.getElementById(id); return !!el && el.classList.contains('open'); };
+  const isShown = (id) => { const el = document.getElementById(id); return !!el && !el.classList.contains('hidden'); };
+  if (isOpen('confirm')) { const c = $('#confirmCancel'); if (c) c.click(); return true; }
+  if (camAssignSheetOpen()) { closeCamAssignSheet(); return true; }
+  if (cameraSheetOpen()) { closeCameraSheet(); return true; }
+  if (rebaitSheetOpen()) { closeRebaitSheet(); return true; }
+  if (isOpen('detailSheet')) { closeSheet(); return true; }
+  if (isOpen('howItWorksSheet')) { closeHowItWorksSheet(); return true; }
+  if (isShown('pesticideEditOverlay')) { closePesticideEditor(); return true; }
+  if (isShown('propertyForm')) { closePropertyEditor(); return true; }
+  return false;
+}
+/* Sheets live outside #app, so they'd float over the landing page if the
+   operator taps Home under an open one — close them all before leaving.
+   The confirm dialog is excluded: its pending promise must resolve via
+   its own buttons. pesticideEditOverlay/propertyForm live inside view
+   sections and hide with them. */
+function closeSheetOverlays() {
+  try {
+    if (camAssignSheetOpen()) closeCamAssignSheet();
+    if (cameraSheetOpen()) closeCameraSheet();
+    if (rebaitSheetOpen()) closeRebaitSheet();
+    const ds = document.getElementById('detailSheet');
+    if (ds && ds.classList.contains('open')) closeSheet();
+    const hw = document.getElementById('howItWorksSheet');
+    if (hw && hw.classList.contains('open')) closeHowItWorksSheet();
+  } catch (_) { /* an overlay close must never block navigation */ }
+}
+
 function goBackNav() {
+  if (closeTopOverlay()) return;   /* Back = one step: overlay first */
   const prev = navHistory.pop();
   if (!prev || prev.landing) {
     /* Suppressed like any other Back restore — landing arrival must not
@@ -10833,12 +10907,12 @@ function editJob(id) {
   checkJobConflicts();
 }
 
+/* Item 2 (v2-patch-11): routed through setView — same Back-history fix as
+   showFieldDetail. */
 function openJob(id) {
   currentJobId = id;
-  $$('.view').forEach((el) => el.classList.add('hidden'));
-  const d = $('#view-schedule-detail'); if (d) d.classList.remove('hidden');
-  $('#viewTitle').textContent = 'Job';
-  const main = $('#appMain'); if (main) main.scrollTop = 0;
+  if (appMode !== 'schedule') setAppModeQuiet('schedule');
+  setView('schedule-detail');
   renderJobDetail(id);
 }
 
@@ -14665,6 +14739,20 @@ async function init() {
     loadIntoForm(r);
   });
 
+  /* Item 2 (v2-patch-11): the sticky ✕ on every sheet. detailSheet's ✕ in
+     review mode behaves like "Back to Edit" (closeSheet keeps form data). */
+  document.addEventListener('click', (e) => {
+    const x = e.target.closest('.sheet-x');
+    if (!x) return;
+    const sheet = x.closest('.sheet');
+    if (!sheet) return;
+    if (sheet.id === 'detailSheet') closeSheet();
+    else if (sheet.id === 'camAssignSheet') closeCamAssignSheet();
+    else if (sheet.id === 'cameraSheet') closeCameraSheet();
+    else if (sheet.id === 'rebaitSheet') closeRebaitSheet();
+    else if (sheet.id === 'howItWorksSheet') closeHowItWorksSheet();
+  });
+
   $('#sheetBackdrop').addEventListener('click', () => {
     if (camAssignSheetOpen()) { closeCamAssignSheet(); return; }   /* Item 3 (v2-patch-7) */
     if (cameraSheetOpen()) { closeCameraSheet(); return; }   /* Item 18 */
@@ -14849,6 +14937,7 @@ async function init() {
     const lb = e.target.closest('[data-banner]');
     if (lb) {
       const which = lb.dataset.banner;
+      if (which === 'back') { goBackNav(); return; }   /* Item 3 (v2-patch-11) */
       if (which === 'records') openAllRecords();   /* Item 8: clears any job filter */
       else if (which === 'estimates') setAppMode('pricing');
       else if (which === 'notes') setAppMode('notes');   /* Item 7 (v2-patch-6) */
