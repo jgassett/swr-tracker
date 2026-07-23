@@ -4566,6 +4566,7 @@ function showSignInScreen() {
   hideSplash();
   $('#signInScreen').classList.remove('hidden');
   $('#app').classList.add('hidden');
+  navHistory = []; navLastPage = null;   /* Item 5: history never spans sessions */
   setTimeout(() => { try { $('#signInId').focus(); } catch (e) {} }, 120);
 }
 let modeSelected = false;
@@ -4586,12 +4587,14 @@ const MODULE_LABELS = { trap: 'Field Work', pesticide: 'Field Work', customer: '
 const NAV_CONFIGS = {
   trap: [
     { view: 'menu', label: 'Home', icon: 'home' },
+    { view: 'back', label: 'Back', icon: 'back' },
     { view: 'records', label: 'Records', icon: 'list' },
     { view: 'add', label: 'Add', icon: 'plus', fab: true },
     { view: 'export', label: 'Export', icon: 'export' }
   ],
   pesticide: [
     { view: 'menu', label: 'Home', icon: 'home' },
+    { view: 'back', label: 'Back', icon: 'back' },
     { view: 'records', label: 'Records', icon: 'list' },
     { view: 'add', label: 'Add', icon: 'plus', fab: true },
     { view: 'export', label: 'Export', icon: 'export' }
@@ -4604,43 +4607,53 @@ const NAV_CONFIGS = {
      screens keep/regain explicit Back buttons. */
   customer: [
     { view: 'menu', label: 'Home', icon: 'home' },
+    { view: 'back', label: 'Back', icon: 'back' },
     { view: 'add', label: 'Add', icon: 'plus', fab: true }
   ],
   pricing: [
     { view: 'menu', label: 'Home', icon: 'home' },
+    { view: 'back', label: 'Back', icon: 'back' },
     { view: 'add', label: 'New', icon: 'plus', fab: true }
   ],
   jobs: [
     { view: 'menu', label: 'Home', icon: 'home' },
+    { view: 'back', label: 'Back', icon: 'back' },
     { view: 'add', label: 'New', icon: 'plus', fab: true }
   ],
   field: [
-    { view: 'menu', label: 'Home', icon: 'home' }
+    { view: 'menu', label: 'Home', icon: 'home' },
+    { view: 'back', label: 'Back', icon: 'back' }
   ],
   schedule: [
     { view: 'menu', label: 'Home', icon: 'home' },
+    { view: 'back', label: 'Back', icon: 'back' },
     { view: 'add', label: 'New', icon: 'plus', fab: true }
   ],
   settings: [
-    { view: 'menu', label: 'Home', icon: 'home' }
+    { view: 'menu', label: 'Home', icon: 'home' },
+    { view: 'back', label: 'Back', icon: 'back' }
   ],
   /* Items 8 & 9: unified records view opened from the landing banner. */
   allrecords: [
-    { view: 'menu', label: 'Home', icon: 'home' }
+    { view: 'menu', label: 'Home', icon: 'home' },
+    { view: 'back', label: 'Back', icon: 'back' }
   ],
   /* Item 7 (v2-patch-2): Close Out workflow step. */
   closeout: [
-    { view: 'menu', label: 'Home', icon: 'home' }
+    { view: 'menu', label: 'Home', icon: 'home' },
+    { view: 'back', label: 'Back', icon: 'back' }
   ],
   /* Item 7 (v2-patch-6): private per-operator notes. */
   notes: [
     { view: 'menu', label: 'Home', icon: 'home' },
+    { view: 'back', label: 'Back', icon: 'back' },
     { view: 'add', label: 'New', icon: 'plus', fab: true }
   ]
 };
 
 const NAV_ICONS = {
   menu: '<path d="m15 18-6-6 6-6"/><path d="M3 12h12"/>',
+  back: '<path d="M19 12H5"/><path d="m12 19-7-7 7-7"/>',
   home: '<rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/>',
   list: '<path d="M3 5h18M3 12h18M3 19h18"/>',
   plus: '<path d="M12 5v14M5 12h14"/>',
@@ -4675,6 +4688,7 @@ function showLanding() {
   $('#app').classList.add('hidden');
   $('#modePicker').classList.remove('hidden');
   renderLandingCounts();
+  recordNavArrival({ landing: true });   /* Item 5: Back history */
 }
 /* Back-compat alias — some call sites still reference the old name. */
 function showModePicker() { showLanding(); }
@@ -6988,6 +7002,41 @@ function backToLanding() {
   showLanding();
 }
 
+/* =====================================================================
+ * Item 5 (v2-patch-10): ribbon Back button — a simple in-app history
+ * stack. Every distinct page arrival (module view or the landing page)
+ * pushes the page being LEFT; Back pops one entry and restores it.
+ * Detail sections keep their last-rendered DOM while hidden, so
+ * restoring a view shows the page as most recently viewed; live
+ * snapshots re-render it moments later. Empty history → Back = Home.
+ * ===================================================================== */
+const NAV_HISTORY_MAX = 50;
+let navHistory = [];
+let navLastPage = null;     /* the page currently on screen */
+let navSuppressPush = false; /* true while Back itself navigates */
+function navPageKey(p) { return p ? (p.landing ? 'landing' : `${p.mode}:${p.view}`) : ''; }
+function recordNavArrival(page) {
+  if (!navSuppressPush && navLastPage && navPageKey(navLastPage) !== navPageKey(page)) {
+    navHistory.push(navLastPage);
+    if (navHistory.length > NAV_HISTORY_MAX) navHistory.shift();
+  }
+  navLastPage = page;
+}
+function goBackNav() {
+  const prev = navHistory.pop();
+  if (!prev || prev.landing) { backToLanding(); return; }
+  navSuppressPush = true;
+  try {
+    if (appMode !== prev.mode) setAppModeQuiet(prev.mode);
+    /* preserveForm: returning to a half-filled add/edit form must not
+       wipe it — Back restores the page as the operator left it. */
+    setView(prev.view, { preserveForm: true });
+    refreshAll();
+  } finally {
+    navSuppressPush = false;
+  }
+}
+
 function setView(name, opts) {
   /* The Menu button returns to the main landing page (no bottom nav). */
   if (name === 'menu') { backToLanding(); return; }
@@ -7036,6 +7085,7 @@ function setView(name, opts) {
   }
   const showEl = document.getElementById(`view-${actualId}`);
   if (showEl) showEl.classList.remove('hidden');
+  recordNavArrival({ mode: appMode, view: name });   /* Item 5: Back history */
 
   /* Detail views highlight their parent list tab in the bottom nav. */
   const navView = name === 'estimate-detail' ? 'dashboard' : name;
@@ -14525,6 +14575,7 @@ async function init() {
     const btn = e.target.closest('button[data-view]');
     if (!btn) return;
     const v = btn.dataset.view;
+    if (v === 'back') { goBackNav(); return; }   /* Item 5 (v2-patch-10) */
     if (v === 'add' && currentView !== 'add') {
       if (appMode === 'trap' && !pendingRecord) resetForm();
       if (appMode === 'pesticide' && !pendingPesticideRecord) resetPesticideRecordForm();
