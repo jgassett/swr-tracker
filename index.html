@@ -12343,10 +12343,20 @@ function handleRebaitTaskCompleted(t) {
   confirmDialog('Extend rebait schedule?',
     `The rebait schedule ends on ${fmtDate(j.rebaitEndDate) || 'its end date'} — extend by 30 days?`,
     { okText: 'Extend 30 Days' }).then((ok) => {
+    /* Item 15 / L1 (v2-patch-6): re-check the job's LIVE state — the admin
+       may have closed or cancelled it while this dialog sat open, and
+       confirming then would re-arm the schedule and drop a new Open task
+       on a closed job (the rules would reject the job write but not the
+       task creation). */
+    const live = cachedJobs.find((x) => x.id === j.id);
+    if (!live || !live.rebaitActive || (live.status || 'Active') !== 'Active') {
+      if (ok) toast('This job is no longer active — the rebait schedule was not extended.', 'error');
+      return;
+    }
     const now = new Date().toISOString();
     const jdx = cachedJobs.findIndex((x) => x.id === j.id);
     if (ok) {
-      const newEnd = addDaysISO(j.rebaitEndDate || anchor, 30);
+      const newEnd = addDaysISO(live.rebaitEndDate || j.rebaitEndDate || anchor, 30);
       writeWithRetry(() => setDoc(doc(fbDb, 'jobs', j.id), { rebaitEndDate: newEnd, updatedAt: now }, { merge: true }))
         .catch((err) => { console.error('Rebait extension failed', err); toast('Extension failed to sync: ' + ((err && err.message) || 'error'), 'error'); });
       if (jdx >= 0) cachedJobs[jdx] = { ...cachedJobs[jdx], rebaitEndDate: newEnd };
