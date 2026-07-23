@@ -115,10 +115,108 @@ async function queueUnmatchedHealthCore(db, { key, reason, subject, receivedAt, 
   await db.doc(`cameraHealth/${key}__pending`).set(payload, { merge: true });
 }
 
+/* =====================================================================
+ * Item 2: permanent camera deletion (admin callable core).
+ * ---------------------------------------------------------------------
+ * Deletes the camera key's cameraHealth rows, its cameraPhotos metadata
+ * (+ Storage files, best-effort), and its cameraStatus row. Properties
+ * and customer records are deliberately untouched. A deletedCameras/{KEY}
+ * marker is left behind so the pipeline can LOG the reappearance if the
+ * key ever sends mail again — the fresh rows carry no internal flag and
+ * no assignment, so a truly stray key re-enters the pending queue as
+ * unmatched instead of resurrecting silently, which is correct.
+ * ===================================================================== */
+async function deleteCameraCore(db, bucket, rawKey, by) {
+  const key = normKey(rawKey);
+  if (!key) throw new Error('Camera key required.');
+  const nowIso = new Date().toISOString();
+
+  /* Health rows — full scan + normalized filter so legacy mixed-case keys
+     and rows whose customerKey field is missing (id-prefix only) all go. */
+  const healthSnap = await db.collection('cameraHealth').get();
+  const healthDocs = healthSnap.docs.filter((d) =>
+    normKey(d.get('customerKey') || (d.id.includes('__') ? d.id.split('__')[0] : d.id)) === key);
+
+  /* Photo metadata — pipeline keys are already normalized uppercase. */
+  const photoSnap = await db.collection('cameraPhotos').where('customerKey', '==', key).get();
+
+  /* Storage files first, cleanup-job semantics: a photo doc whose file
+     delete fails (non-404) is KEPT so the daily retention job retries the
+     file — docs deleted here would orphan the bytes forever. */
+  let filesDeleted = 0;
+  const fileErrors = [];
+  const deletablePhotoDocs = [];
+  for (const p of photoSnap.docs) {
+    const path = p.get('storagePath');
+    if (path && bucket) {
+      try {
+        await bucket.file(path).delete();
+        filesDeleted++;
+      } catch (err) {
+        const code = err && (err.code || (err.errors && err.errors[0] && err.errors[0].reason));
+        if (code !== 404 && code !== 'notFound') {
+          fileErrors.push(`${path}: ${String((err && err.message) || err).slice(0, 200)}`);
+          continue;
+        }
+      }
+    }
+    deletablePhotoDocs.push(p);
+  }
+
+  /* Status rows (lastSeen/removal flags) — without this the group would
+     stay alive in Monitoring and the watchdog would keep alerting. */
+  const statusSnap = await db.collection('cameraStatus').get();
+  const statusDocs = statusSnap.docs.filter((d) => normKey(d.get('customerKey') || d.id) === key);
+
+  let batch = db.batch();
+  let ops = 0;
+  const flush = async () => { if (ops) { await batch.commit(); batch = db.batch(); ops = 0; } };
+  for (const d of [...healthDocs, ...deletablePhotoDocs, ...statusDocs]) {
+    batch.delete(d.ref);
+    if (++ops >= 450) await flush();
+  }
+  await flush();
+
+  await db.doc(`deletedCameras/${key}`).set({
+    key,
+    deletedAt: nowIso,
+    deletedBy: by || null,
+    healthDeleted: healthDocs.length,
+    photosDeleted: deletablePhotoDocs.length,
+    filesDeleted
+  });
+
+  return {
+    key,
+    healthDeleted: healthDocs.length,
+    photosDeleted: deletablePhotoDocs.length,
+    filesDeleted,
+    statusDeleted: statusDocs.length,
+    fileErrors: fileErrors.slice(0, 10)
+  };
+}
+
+/* Pipeline guard: if this key was permanently deleted, consume the marker
+ * and return it so the caller can log the reappearance. One log per
+ * resurrection episode — the marker is deleted here, and the key is a live
+ * camera again from this moment. */
+async function consumeDeletedMarker(db, rawKey) {
+  const key = normKey(rawKey);
+  if (!key) return null;
+  const ref = db.doc(`deletedCameras/${key}`);
+  const snap = await ref.get();
+  if (!snap.exists) return null;
+  const marker = snap.data();
+  await ref.delete();
+  return marker;
+}
+
 module.exports = {
   OPERATOR_FIELDS,
   stripOperatorFields,
   keyMarkedInternal,
   upsertReportHealthCore,
-  queueUnmatchedHealthCore
+  queueUnmatchedHealthCore,
+  deleteCameraCore,
+  consumeDeletedMarker
 };

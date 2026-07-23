@@ -1329,6 +1329,7 @@ async function handlePhotoMessage(m, keyMap) {
     });
     photos++;
   }
+  if (key) await logDeletedCameraReappearance(key, !!match);   /* v2-patch-12 Item 2 */
   return { photos, unassigned: !match, key, match, receivedAt: m.receivedDateTime || new Date().toISOString() };
 }
 
@@ -1355,8 +1356,27 @@ async function queueUnmatchedReport(m, keyAttempt, reason) {
       receivedAt: m.receivedDateTime || new Date().toISOString(),
       nowIso: new Date().toISOString()
     });
+    await logDeletedCameraReappearance(key, false);
   } catch (e) {
     console.error('pending report queue write failed', e);
+  }
+}
+
+/* v2-patch-12 Item 2: a permanently deleted camera key that sends mail
+ * again re-enters the pipeline as a fresh unassigned camera (pending queue
+ * if unmatched) — correct for a truly stray key, but never silent: consume
+ * the deletion marker and log the reappearance once per episode. */
+async function logDeletedCameraReappearance(key, matched) {
+  try {
+    const marker = await camHealth.consumeDeletedMarker(db, key);
+    if (!marker) return;
+    const msg = matched
+      ? `camera key ${key} was permanently deleted ${marker.deletedAt || '(date unknown)'} but sent mail again — it matches a property and re-ingested as linked`
+      : `camera key ${key} was permanently deleted ${marker.deletedAt || '(date unknown)'} but sent mail again — re-entering the pending queue as unmatched`;
+    console.log('Deleted camera reappeared:', msg);
+    await logGraphError(null, 'deleted-camera-reappeared', { cameraKey: key, message: msg });
+  } catch (e) {
+    console.error('deleted-camera marker check failed', key, e);
   }
 }
 
@@ -1398,6 +1418,7 @@ async function handleReportMessage(m, keyMap) {
      operator-set fields and keeps the internal flag sticky across device
      renumbering / new rows — see camera-health.js. */
   await camHealth.upsertReportHealthCore(db, { parsed, match, today, nowIso });
+  await logDeletedCameraReappearance(parsed.network, !!match);
 
   /* v2-patch-10 Item 4d: one self-explaining line per report so a future
      "No Report" state is diagnosable from the ingest log alone — which
@@ -1919,6 +1940,29 @@ exports.relinkCameras = functions
     } catch (err) {
       console.error('relinkCameras failed', err);
       throw new functions.https.HttpsError('internal', err.message || 'Re-link failed');
+    }
+  });
+
+/* v2-patch-12 Item 2: permanent camera deletion — admin-only callable (the
+ * standing rule since v2-patch-8: batch jobs run server-side on the Admin
+ * SDK). Deletes the key's cameraHealth rows, cameraPhotos metadata +
+ * Storage files, and cameraStatus row; properties and customer records are
+ * untouched. Leaves a deletedCameras marker so the ingest logs the key if
+ * it ever sends mail again (it re-enters the pending queue as unmatched). */
+exports.deleteCameraRecord = functions
+  .region(REGION)
+  .runWith({ timeoutSeconds: 300, memory: '512MB' })
+  .https.onCall(async (data, context) => {
+    const by = assertAdminCallable(context);
+    const key = String((data && data.key) || '').trim();
+    if (!key) throw new functions.https.HttpsError('invalid-argument', 'Camera key required.');
+    try {
+      const result = await camHealth.deleteCameraCore(db, admin.storage().bucket(), key, by);
+      console.log(`deleteCameraRecord by ${by}:`, result);
+      return result;
+    } catch (err) {
+      console.error('deleteCameraRecord failed', key, err);
+      throw new functions.https.HttpsError('internal', err.message || 'Camera deletion failed');
     }
   });
 

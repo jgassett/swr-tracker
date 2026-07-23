@@ -15,6 +15,10 @@
  *  Item 1 — an operator's `internal` mark survives status-report ingest
  *           (device rows AND the __pending manual-review row), and stays
  *           sticky when a report adds/renumbers device rows.
+ *  Item 2 — permanent deletion removes health/photos/status rows and
+ *           leaves a marker; a key that mails again re-enters the pending
+ *           queue as unmatched with no internal flag, and the marker is
+ *           consumed exactly once (one reappearance log per episode).
  * ===================================================================== */
 
 'use strict';
@@ -94,6 +98,30 @@ async function run() {
      stripped before it can clobber anything. */
   const stripped = camHealth.stripOperatorFields({ battery: 'OK', internal: false, pendingRemoval: true });
   assert.deepStrictEqual(stripped, { battery: 'OK' }, 'operator-set fields are stripped from pipeline payloads');
+
+  /* ---- Item 2: permanent deletion + reappearance guard ---- */
+  await db.collection('cameraPhotos').add({ customerKey: KEY, storagePath: null, receivedAt: nowIso() });
+  await db.doc(`cameraStatus/${KEY}`).set({ customerKey: KEY, lastSeen: nowIso() });
+  const del = await camHealth.deleteCameraCore(db, null, KEY, 'test@swr');
+  assert.strictEqual(del.healthDeleted, 2, 'both health rows deleted');
+  assert.strictEqual(del.photosDeleted, 1, 'photo metadata deleted');
+  assert.strictEqual(del.statusDeleted, 1, 'status row deleted');
+  assert.ok(!(await db.doc(`cameraHealth/${KEY}__1`).get()).exists, 'health row is gone');
+  assert.ok((await db.doc(`deletedCameras/${KEY}`).get()).exists, 'deletion marker written');
+
+  /* The key sends mail again: marker is consumed exactly once (one log per
+     episode) and the re-ingested row is unmatched with no internal flag —
+     it re-enters the pending queue instead of resurrecting silently. */
+  const marker = await camHealth.consumeDeletedMarker(db, KEY);
+  assert.ok(marker && marker.deletedBy === 'test@swr', 'marker consumed with its metadata');
+  assert.strictEqual(await camHealth.consumeDeletedMarker(db, KEY), null, 'marker consumed exactly once');
+  await camHealth.upsertReportHealthCore(db, {
+    parsed: parsedReport(KEY, [1], '07/25/2026'), match: null, today: '07/25/2026', nowIso: nowIso()
+  });
+  const revived = await db.doc(`cameraHealth/${KEY}__1`).get();
+  assert.ok(revived.exists, 're-ingest recreates the row');
+  assert.strictEqual(revived.get('customerId'), null, 'revived row is unmatched (pending queue)');
+  assert.notStrictEqual(revived.get('internal'), true, 'revived row carries no internal flag');
 
   console.log('camera-health emulator regression test: ALL PASS');
 }
