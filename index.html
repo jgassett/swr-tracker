@@ -3215,7 +3215,8 @@
         <!-- Item 1 (v2-patch-7): one-time backfill — a "Primary" property for
              every customer that has none, built from the home address. -->
         <button type="button" class="snav-btn" id="backfillPrimaryBtn" style="display:none;">Backfill Primary Properties<span class="chev">›</span></button>
-        <button type="button" class="snav-btn" id="cameraMigrationBtn" style="display:none;">Camera Migration &amp; Audit<span class="chev">›</span></button>
+        <!-- v2-patch-8: runs server-side (relinkCameras callable). -->
+        <button type="button" class="snav-btn" id="cameraMigrationBtn" style="display:none;">Re-link Cameras<span class="chev">›</span></button>
         <button type="button" class="snav-btn" id="restoreBtn">Restore from JSON Backup<span class="chev">›</span></button>
         <input type="file" id="restoreFile" accept="application/json" style="display:none">
         <button type="button" class="snav-btn danger" id="wipeBtn">Clear All Records<span class="chev">›</span></button>
@@ -6467,279 +6468,62 @@ function primaryPropertyData(c, byEmail) {
   };
 }
 
+/* v2-patch-8 Item 2: both migrations moved SERVER-SIDE (Admin SDK
+   callables) — the client-side loops died when the Web SDK's persistent
+   multi-tab cache terminated mid-run (see the Item 1 diagnosis commit).
+   These handlers just invoke the callable and display the returned
+   summary. */
 async function runPrimaryPropertyBackfill() {
   if (!isAdmin()) { toast('Only an administrator can run the backfill.', 'error'); return; }
   const ok = await confirmDialog('Backfill primary properties?',
-    'Creates a "Primary" property from the home address for every customer that has no property records. Customers with existing properties are skipped. Safe to run more than once.');
+    'Runs on the server: creates a "Primary" property from the home address for every customer that has no property records. Customers with existing properties are skipped. Safe to run more than once.');
   if (!ok) return;
   const btn = $('#backfillPrimaryBtn');
   if (btn) btn.disabled = true;
-  const lines = [];
-  let created = 0, skipped = 0, failed = 0, noAddress = 0;
   try {
-    const [custSnap, propSnap] = await Promise.all([
-      getDocs(collection(fbDb, 'customers')),
-      getDocs(collectionGroup(fbDb, 'properties'))
-    ]);
-    const hasProps = new Set();
-    propSnap.forEach((d) => {
-      const cid = d.get('customerId') || (d.ref.parent.parent ? d.ref.parent.parent.id : null);
-      if (cid) hasProps.add(cid);
-    });
-    for (const d of custSnap.docs) {
-      const c = { id: d.id, ...d.data() };
-      if (hasProps.has(c.id)) { skipped++; continue; }
-      const data = primaryPropertyData(c);
-      if (!data.address && !data.city) noAddress++;
-      try {
-        await writeWithRetry(() => setDoc(doc(collection(fbDb, 'customers', c.id, 'properties')), data));
-        created++;
-        lines.push(`CREATED  ${c.name || c.id} → "Primary" (${[data.address, data.city].filter(Boolean).join(', ') || 'no address on file'})`);
-      } catch (err) {
-        failed++;
-        lines.push(`ERROR    ${c.name || c.id}: ${(err && err.message) || err}`);
-      }
-    }
-    const nowIso = new Date().toISOString();
-    const summary = `Primary property backfill — ${nowIso}\n` +
-      `Backfilled: ${created} (${noAddress} with no address on file) · ` +
-      `Skipped (properties already exist): ${skipped} · Errors: ${failed}\n\n`;
-    const report = summary + (lines.length ? lines.join('\n') : '(nothing to do)') + '\n';
-    console.log(report);
-    downloadFile(`primary-property-backfill-${nowIso.slice(0, 10)}.txt`, report, 'text/plain;charset=utf-8');
-    toast(`Backfill done — ${created} created, ${skipped} skipped. Report downloaded.`);
+    const res = await httpsCallable(fbFunctions, 'backfillPrimaryProperties', { timeout: 540000 })();
+    const r = (res && res.data) || {};
+    toast(`Backfill done — ${r.backfilled ?? 0} created, ${r.skipped ?? 0} skipped (already had properties).`);
   } catch (err) {
-    console.error('primary property backfill failed', err);
-    toast('Backfill failed: ' + ((err && err.message) || 'error'), 'error');
+    const code = (err && err.code) || '';
+    const msg = code === 'functions/permission-denied' ? 'Only an administrator can run this tool.'
+      : ((err && err.message) || 'error');
+    toast('Backfill failed: ' + msg, 'error');
   } finally {
     if (btn) btn.disabled = false;
   }
 }
 
-async function runCameraMigrationAudit() {
-  if (!isAdmin()) { toast('Only an administrator can run the camera migration.', 'error'); return; }
-  const ok = await confirmDialog('Run camera migration & audit?',
-    'Copies deprecated customer-level Camera IDs onto property records, re-links unlinked camera data to primary properties (unique name matches only), and downloads a reconciliation report. Conflicts are reported, never auto-resolved. Run Backfill Primary Properties first. Safe to run more than once.');
+async function runCameraRelink() {
+  if (!isAdmin()) { toast('Only an administrator can run the re-link.', 'error'); return; }
+  const ok = await confirmDialog('Re-link cameras?',
+    'Runs on the server: matches every camera health record against property Camera IDs (exact match) and refreshes the links. Unmatched cameras stay in the pending queue and are listed in a downloaded report.');
   if (!ok) return;
   const btn = $('#cameraMigrationBtn');
   if (btn) btn.disabled = true;
-  const norm = (v) => (v == null ? '' : String(v)).trim().toUpperCase();
-  const nowIso = new Date().toISOString();
-  const lines = [];
-  let migrated = 0, createdProps = 0, conflicts = 0;
   try {
-    const [custSnap, propSnap, healthSnap] = await Promise.all([
-      getDocs(collection(fbDb, 'customers')),
-      getDocs(collectionGroup(fbDb, 'properties')),
-      getDocs(collection(fbDb, 'cameraHealth'))
-    ]);
-    const customers = custSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
-    const properties = propSnap.docs.map((d) => {
-      const data = d.data();
-      return { id: d.id, ...data, customerId: data.customerId || (d.ref.parent.parent ? d.ref.parent.parent.id : null) };
-    });
-    const custName = (id) => { const c = customers.find((x) => x.id === id); return (c && c.name) || '(unknown customer)'; };
-    const propLabel = (p) => `${custName(p.customerId)} · ${p.siteNickname || p.address || p.id}`;
-    /* cameraId → property holders (kept current as the migration writes). */
-    const holders = new Map();
-    for (const p of properties) {
-      const K = norm(p.cameraId);
-      if (K) holders.set(K, [...(holders.get(K) || []), p]);
+    const res = await httpsCallable(fbFunctions, 'relinkCameras', { timeout: 540000 })();
+    const r = (res && res.data) || {};
+    const unmatched = Array.isArray(r.unmatched) ? r.unmatched : [];
+    toast(`Re-link done — ${r.linked ?? 0} camera${r.linked === 1 ? '' : 's'} linked, ${unmatched.length} unmatched.`);
+    if (unmatched.length) {
+      const nowIso = new Date().toISOString();
+      const report = `Camera re-link — ${nowIso}\nLinked: ${r.linked ?? 0} · Unmatched: ${unmatched.length}\n\n` +
+        'Unmatched camera keys (no property holds this Camera ID — assign from Monitoring or the customer):\n' +
+        unmatched.map((k) => `  ${k}`).join('\n') + '\n';
+      console.log(report);
+      downloadFile(`camera-relink-${nowIso.slice(0, 10)}.txt`, report, 'text/plain;charset=utf-8');
     }
-
-    lines.push('== MIGRATION (customer-level cameraId → property) ==');
-    for (const c of customers) {
-      const K = norm(c.cameraId);
-      if (!K) continue;
-      const custProps = properties.filter((p) => p.customerId === c.id);
-      if (custProps.some((p) => norm(p.cameraId) === K)) {
-        lines.push(`OK        ${K} — already on a property of ${c.name || c.id}; nothing to migrate`);
-        continue;
-      }
-      const taken = holders.get(K) || [];
-      if (taken.length) {
-        conflicts++;
-        lines.push(`CONFLICT  ${K} — customer ${c.name || c.id} holds it, but it is already assigned to ${taken.map(propLabel).join(' / ')}. Resolve manually.`);
-        continue;
-      }
-      if (custProps.length > 1) {
-        conflicts++;
-        lines.push(`CONFLICT  ${K} — ${c.name || c.id} has ${custProps.length} properties; ambiguous target. Assign manually in the property editor.`);
-        continue;
-      }
-      try {
-        if (custProps.length === 1) {
-          const p = custProps[0];
-          if (norm(p.cameraId)) {
-            conflicts++;
-            lines.push(`CONFLICT  ${K} — ${c.name || c.id}'s only property already holds Camera ID ${p.cameraId}. Resolve manually.`);
-            continue;
-          }
-          await writeWithRetry(() => setDoc(doc(fbDb, 'customers', c.id, 'properties', p.id),
-            { cameraId: K, updatedAt: nowIso }, { merge: true }));
-          p.cameraId = K;
-          holders.set(K, [p]);
-          migrated++;
-          lines.push(`MIGRATED  ${K} → ${propLabel(p)}`);
-        } else {
-          const data = {
-            customerId: c.id,
-            siteNickname: 'Main',
-            address: c.address || '',
-            city: c.city || '',
-            county: c.county || '',
-            cameraId: K,
-            migratedFromCustomerCameraId: true,
-            createdAt: nowIso,
-            createdByUid: currentUser ? currentUser.uid : null,
-            createdByEmail: currentUser ? currentUser.email : null,
-            updatedAt: nowIso
-          };
-          await writeWithRetry(() => setDoc(doc(collection(fbDb, 'customers', c.id, 'properties')), data));
-          properties.push(data);
-          holders.set(K, [data]);
-          migrated++; createdProps++;
-          lines.push(`MIGRATED  ${K} → new property "Main" created for ${c.name || c.id} (from the customer's main address)`);
-        }
-      } catch (err) {
-        lines.push(`ERROR     ${K} — write failed for ${c.name || c.id}: ${(err && err.message) || err}`);
-      }
-    }
-    if (lines.length === 1) lines.push('(no customer-level Camera IDs found)');
-
-    /* -------- Item 4 (v2-patch-7): re-link unlinked camera data --------
-       Every cameraHealth key that no property routes gets one more chance:
-       a UNIQUE customer name-key match (the pre-patch-6 fuzzy link, with
-       an optional trailing property number stripped) is auto-linked by
-       stamping the key onto that customer's PRIMARY (or sole) property —
-       which exists now that the backfill has run. Ambiguous or unmatched
-       keys stay in the pending queue; a target already routing a different
-       camera is never overwritten. */
-    const healthKeys = new Set();
-    healthSnap.docs.forEach((d) => {
-      const k = norm(d.get('customerKey') || (d.id.includes('__') ? d.id.split('__')[0] : d.id));
-      if (k) healthKeys.add(k);
-    });
-    lines.push('', '== RE-LINK (v2-patch-7): unlinked camera keys → primary properties ==');
-    let relinked = 0, stillUnmatched = 0;
-    for (const K of [...healthKeys].sort()) {
-      if (holders.has(K)) continue;   /* already routed by a property */
-      const base = K.replace(/\d+$/, '');
-      const candidates = customers.filter((c) => {
-        const nk = custCameraKey(c.name);
-        return nk && (nk === K || nk === base);
-      });
-      if (candidates.length !== 1) {
-        stillUnmatched++;
-        lines.push(candidates.length > 1
-          ? `AMBIGUOUS ${K} — name-key matches ${candidates.length} customers (${candidates.map((c) => c.name || c.id).join(', ')}); stays in the pending queue`
-          : `UNMATCHED ${K} — no customer name-key match; stays in the pending queue`);
-        continue;
-      }
-      const c = candidates[0];
-      /* Security audit (v2-patch-7): a deprecated customer-level cameraId
-         is an EXPLICIT claim — if a different customer's old field holds
-         this key (migration reported it as CONFLICT), never re-link it by
-         name similarity. Manual resolution only. */
-      const claimedBy = customers.find((c2) => norm(c2.cameraId) === K);
-      if (claimedBy && claimedBy.id !== c.id) {
-        stillUnmatched++;
-        lines.push(`CONFLICT  ${K} — name-key matches ${c.name || c.id}, but ${claimedBy.name || claimedBy.id}'s deprecated customer-level Camera ID claims this key. Resolve manually.`);
-        continue;
-      }
-      const custProps = properties.filter((p) => p.customerId === c.id);
-      /* Security audit (v2-patch-7): a trailing property number (HAYDENT2)
-         names a SPECIFIC site — collapsing it onto the primary of a
-         multi-property customer would mislabel the location. Only accept
-         the digit-stripped match when the customer has exactly one
-         property. */
-      const viaBase = custCameraKey(c.name) !== K;
-      if (viaBase && custProps.length > 1) {
-        stillUnmatched++;
-        lines.push(`SKIPPED   ${K} — numbered key matches ${c.name || c.id}, but they have ${custProps.length} properties and the number names a specific site. Assign manually.`);
-        continue;
-      }
-      const target = custProps.find((p) => p.isPrimary) || (custProps.length === 1 ? custProps[0] : null);
-      if (!target || !target.id) {
-        stillUnmatched++;
-        lines.push(`UNMATCHED ${K} — matched ${c.name || c.id} but no primary/sole property target (run Backfill Primary Properties first)`);
-        continue;
-      }
-      if (norm(target.cameraId)) {
-        stillUnmatched++;
-        lines.push(`SKIPPED   ${K} — ${c.name || c.id}'s ${target.siteNickname || 'property'} already routes camera ${target.cameraId}; assign manually`);
-        continue;
-      }
-      try {
-        await writeWithRetry(() => setDoc(doc(fbDb, 'customers', c.id, 'properties', target.id),
-          { cameraId: K, updatedAt: nowIso }, { merge: true }));
-        target.cameraId = K;
-        holders.set(K, [target]);
-        relinked++;
-        lines.push(`LINKED    ${K} → ${propLabel(target)} (unique customer name-key match)`);
-      } catch (err) {
-        stillUnmatched++;
-        lines.push(`ERROR     ${K} — link write failed: ${(err && err.message) || err}`);
-      }
-    }
-    if (!relinked && !stillUnmatched) lines.push('(no unlinked camera keys)');
-
-    /* -------- Reconciliation audit (post-migration, post-re-link) -------- */
-    lines.push('', '== AUDIT (i): Camera IDs appearing on multiple records ==');
-    const allRecords = new Map();   /* K → labels (properties + deprecated customer fields) */
-    for (const p of properties) {
-      const K = norm(p.cameraId);
-      if (K) allRecords.set(K, [...(allRecords.get(K) || []), `property: ${propLabel(p)}`]);
-    }
-    for (const c of customers) {
-      const K = norm(c.cameraId);
-      if (K) allRecords.set(K, [...(allRecords.get(K) || []), `customer (deprecated field): ${c.name || c.id}`]);
-    }
-    let dupCount = 0;
-    for (const [K, labels] of [...allRecords.entries()].sort((a, b) => a[0].localeCompare(b[0]))) {
-      /* A migrated ID legitimately sits on one property + the stale customer
-         field — only flag IDs on 2+ PROPERTIES, or on a customer whose
-         property set doesn't include it (routing conflict). */
-      const propHolders = holders.get(K) || [];
-      const staleOnly = propHolders.length === 1 && labels.length === 2 &&
-        customers.some((c) => norm(c.cameraId) === K && propHolders[0].customerId === c.id);
-      if (propHolders.length <= 1 && (labels.length <= 1 || staleOnly)) continue;
-      dupCount++;
-      lines.push(`DUPLICATE ${K}:`);
-      labels.forEach((l) => lines.push(`          - ${l}`));
-    }
-    if (!dupCount) lines.push('(none)');
-
-    lines.push('', '== AUDIT (ii): cameraHealth records with no matching property ==');
-    /* healthKeys computed above; holders reflects the re-link writes. */
-    let orphanHealth = 0;
-    for (const k of [...healthKeys].sort()) {
-      if (!holders.has(k)) { orphanHealth++; lines.push(`UNMATCHED ${k} — health data exists but no property holds this Camera ID (stays in the pending queue)`); }
-    }
-    if (!orphanHealth) lines.push('(none)');
-
-    lines.push('', '== AUDIT (iii): property Camera IDs with no cameraHealth record ==');
-    let silent = 0;
-    for (const [K, list] of [...holders.entries()].sort((a, b) => a[0].localeCompare(b[0]))) {
-      if (!healthKeys.has(K)) { silent++; lines.push(`NO-HEALTH ${K} — assigned to ${list.map(propLabel).join(' / ')} but no status report has ever been ingested (deployed-but-silent, or not yet installed)`); }
-    }
-    if (!silent) lines.push('(none)');
-
-    const summary = `Camera migration & reconciliation — ${nowIso}\n` +
-      `Migrated: ${migrated} (new properties created: ${createdProps}) · Conflicts: ${conflicts} · ` +
-      `Re-linked: ${relinked} · Still unmatched: ${stillUnmatched} · ` +
-      `Duplicate IDs: ${dupCount} · Unmatched health records: ${orphanHealth} · Assigned-but-silent: ${silent}\n\n`;
-    const report = summary + lines.join('\n') + '\n';
-    console.log(report);
-    downloadFile(`camera-reconciliation-${nowIso.slice(0, 10)}.txt`, report, 'text/plain;charset=utf-8');
-    toast(`Reconciliation done — ${relinked} re-linked, ${stillUnmatched} still unmatched, ${conflicts} conflict${conflicts === 1 ? '' : 's'}. Report downloaded.`);
   } catch (err) {
-    console.error('camera migration failed', err);
-    toast('Migration failed: ' + ((err && err.message) || 'error'), 'error');
+    const code = (err && err.code) || '';
+    const msg = code === 'functions/permission-denied' ? 'Only an administrator can run this tool.'
+      : ((err && err.message) || 'error');
+    toast('Re-link failed: ' + msg, 'error');
   } finally {
     if (btn) btn.disabled = false;
   }
 }
+
 
 /* "Delete Photos From App" — Item 4 (v2-patch-5): deletion is PER-OPERATOR.
    An operator's delete stamps their email into each photo's `deletedBy`
@@ -15472,8 +15256,8 @@ async function init() {
     setView('assign-legacy');
   });
   /* Item 1 (v2-patch-6): camera migration + reconciliation audit */
-  $('#cameraMigrationBtn').addEventListener('click', runCameraMigrationAudit);
-  $('#backfillPrimaryBtn').addEventListener('click', runPrimaryPropertyBackfill);   /* Item 1 (v2-patch-7) */
+  $('#cameraMigrationBtn').addEventListener('click', runCameraRelink);            /* v2-patch-8: server-side */
+  $('#backfillPrimaryBtn').addEventListener('click', runPrimaryPropertyBackfill);  /* v2-patch-8: server-side */
 
   /* Item 3 (v2-patch-7): camera assignment sheet */
   $('#camAssignProp').addEventListener('change', camAssignSyncUi);
