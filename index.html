@@ -12977,18 +12977,28 @@ async function assignLegacyGroup(index, jobId, btn) {
      group used to reappear as unassigned and invite a second tap. Patch
      the caches optimistically BEFORE re-rendering (H1 pattern used by the
      job/task writes); a failed commit reverts them and shows a toast. */
-  const patchLocalCaches = (jobIdVal) => {
+  /* Item 15 / L4 (v2-patch-6): snapshot the fields the optimistic patch
+     touches so a failed commit restores ALL of them — the old revert reset
+     only jobId and left stale jobTitle/customerId/customerName in the
+     cache until the rollback snapshot arrived. */
+  const priorById = new Map();
+  for (const it of g.items) {
+    const cache = it.col === 'records' ? cachedRecords : cachedPesticideRecords;
+    const r = cache.find((x) => x.id === it.id);
+    if (r) priorById.set(it.id, { jobId: r.jobId ?? null, jobTitle: r.jobTitle ?? '', customerId: r.customerId ?? null, customerName: r.customerName ?? '' });
+  }
+  const patchLocalCaches = (apply) => {
     for (const it of g.items) {
       const cache = it.col === 'records' ? cachedRecords : cachedPesticideRecords;
       const idx = cache.findIndex((r) => r.id === it.id);
       if (idx >= 0) {
-        cache[idx] = jobIdVal
-          ? { ...cache[idx], jobId: jobIdVal, jobTitle: j.jobNumber || '', customerId: j.customerId || null, customerName: j.customerName || '' }
-          : { ...cache[idx], jobId: null };
+        cache[idx] = apply
+          ? { ...cache[idx], jobId, jobTitle: j.jobNumber || '', customerId: j.customerId || null, customerName: j.customerName || '' }
+          : { ...cache[idx], ...(priorById.get(it.id) || { jobId: null }) };
       }
     }
   };
-  patchLocalCaches(jobId);
+  patchLocalCaches(true);
   try {
     /* Item 20: ONLINE, await the commit so the first confirmed tap is a
        committed write (a failure reverts + toasts instead of silently
@@ -13000,7 +13010,7 @@ async function assignLegacyGroup(index, jobId, btn) {
     } else {
       commit.catch((err) => {
         console.error('Legacy assign failed', err);
-        patchLocalCaches(null);   /* revert so the group shows as unassigned again */
+        patchLocalCaches(false);   /* revert so the group shows as unassigned again */
         if (!$('#view-assign-legacy').classList.contains('hidden')) renderAssignLegacyView();
         toast('Assign failed to sync: ' + ((err && err.message) || 'error'), 'error');
       });
@@ -13009,7 +13019,7 @@ async function assignLegacyGroup(index, jobId, btn) {
     renderAssignLegacyView();
   } catch (err) {
     console.error('Legacy assign failed', err);
-    patchLocalCaches(null);
+    patchLocalCaches(false);
     if (!$('#view-assign-legacy').classList.contains('hidden')) renderAssignLegacyView();
     toast('Assign failed: ' + ((err && err.message) || 'error'), 'error');
     if (btn) { btn.disabled = false; btn.textContent = 'Assign'; }
@@ -13047,10 +13057,22 @@ async function createJobForLegacyGroup(index) {
       notes: `Created from legacy records (${g.date || 'no date'}).`
     };
     /* Optimistic writes (H1): fire the job create and the record links
-       without awaiting so the flow works offline. */
+       without awaiting so the flow works offline.
+       Item 15 / L4 (v2-patch-6): if the job create ultimately FAILS while
+       the link batch succeeded, the records would point at a nonexistent
+       job — issue a compensating batch that clears the links again. */
     writeWithRetry(() => setDoc(ref, jobData)).catch((err) => {
       console.error('Legacy job create failed', err);
       toast('Job failed to sync: ' + ((err && err.message) || 'error'), 'error');
+      const unlink = writeBatch(fbDb);
+      for (const it of g.items) {
+        unlink.set(doc(fbDb, it.col, it.id), { jobId: null, updatedAt: new Date().toISOString() }, { merge: true });
+      }
+      unlink.commit().catch((e2) => console.error('Legacy link rollback failed', e2));
+      patchLocalCaches(null);
+      const jix = cachedJobs.findIndex((x) => x.id === ref.id);
+      if (jix >= 0) cachedJobs.splice(jix, 1);
+      if (!$('#view-assign-legacy').classList.contains('hidden')) renderAssignLegacyView();
     });
     /* cachedJobs may not include the new job yet — link directly. */
     const batch = writeBatch(fbDb);
