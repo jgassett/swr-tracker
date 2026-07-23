@@ -8513,7 +8513,14 @@ function closeSheet() {
 /* ---------- Export ---------- */
 function csvCell(v) {
   if (v == null) return '';
-  const s = String(v);
+  let s = String(v);
+  /* Item 15 (v2-patch-6, pre-existing finding): formula-injection guard —
+     Excel/Sheets execute cells beginning with = + @ (and - when it isn't a
+     number). Free-text fields (names, notes, addresses) flow into every
+     export, so hostile input like "=HYPERLINK(...)" must land as text.
+     A leading apostrophe makes spreadsheets render the raw string;
+     legitimate negative numbers (lat/lng) are exempt. */
+  if (/^[=+@]/.test(s) || (s.startsWith('-') && !/^-?\d+(\.\d+)?$/.test(s))) s = "'" + s;
   if (/[",\n\r]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
   return s;
 }
