@@ -13848,6 +13848,10 @@ async function saveProperty() {
     county: $('#pr-county').value,
     insideCityLimits: limitsRaw === 'true' ? true : limitsRaw === 'false' ? false : null,
     cameraId,
+    /* Item 2b (v2-patch-7): any direct property-editor save marks the
+       property manually edited — the silent home-address sync then leaves
+       it alone forever. */
+    manuallyEdited: true,
     updatedAt: new Date().toISOString()
   };
   try {
@@ -13948,6 +13952,34 @@ function readCustomerForm() {
   return c;
 }
 
+/* Item 2 (v2-patch-7): keep the primary property in lockstep with the
+   customer's home address — silently, with no prompts and no UI change.
+   - Customer with NO properties (new customer, or one that predates the
+     backfill): create the auto-primary from the home address.
+   - Customer whose primary is still autoCreated and never manually edited:
+     sync its address/city/county to the edited home address.
+   - A manually edited primary (manuallyEdited flag, stamped by any direct
+     property-editor save) is left strictly alone. */
+function maintainPrimaryProperty(customerId, c) {
+  if (!customerId) return;
+  const props = propertiesForCustomer(customerId);
+  if (!props.length) {
+    const data = primaryPropertyData({ id: customerId, ...c });
+    writeWithRetry(() => setDoc(doc(collection(fbDb, 'customers', customerId, 'properties')), data))
+      .catch((err) => console.error('primary property create failed', err));
+    return;
+  }
+  const primary = props.find((p) => p.isPrimary && p.autoCreated && !p.manuallyEdited);
+  if (!primary) return;
+  const next = { address: c.address || '', city: c.city || '', county: c.county || '' };
+  if (primary.address === next.address && primary.city === next.city && primary.county === next.county) return;
+  writeWithRetry(() => setDoc(doc(fbDb, 'customers', customerId, 'properties', primary.id),
+    { ...next, updatedAt: new Date().toISOString() }, { merge: true }))
+    .catch((err) => console.error('primary property sync failed', err));
+  const idx = cachedProperties.findIndex((p) => p.id === primary.id);
+  if (idx >= 0) cachedProperties[idx] = { ...cachedProperties[idx], ...next };
+}
+
 async function handleSaveCustomer(e) {
   e.preventDefault();
   if (isSaving) return;              /* double-submit guard — prevents duplicate customers */
@@ -13968,6 +14000,9 @@ async function handleSaveCustomer(e) {
     /* Optimistic (M3): saveCustomer commits locally and returns the id without
        awaiting the server ack, so the form never hangs offline. */
     const savedId = saveCustomer(c);
+    /* Item 2 (v2-patch-7): the primary property tracks the home address —
+       silently, never a prompt. */
+    maintainPrimaryProperty(savedId, c);
     resetCustomerForm();
     setView('dashboard');
     refreshAll();
