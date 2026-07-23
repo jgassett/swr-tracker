@@ -6504,13 +6504,17 @@ async function runCameraRelink() {
   try {
     const res = await httpsCallable(fbFunctions, 'relinkCameras', { timeout: 540000 })();
     const r = (res && res.data) || {};
+    /* v2-patch-9: unmatched entries are { key, hint } objects (hint may be
+       null); linkedViaFallback counts cameras healed from the deprecated
+       customer-level cameraId field. */
     const unmatched = Array.isArray(r.unmatched) ? r.unmatched : [];
-    toast(`Re-link done — ${r.linked ?? 0} camera${r.linked === 1 ? '' : 's'} linked, ${unmatched.length} unmatched.`);
+    toast(`Re-link done — ${r.linked ?? 0} linked, linked via customer fallback: ${r.linkedViaFallback ?? 0}, ${unmatched.length} unmatched.`);
     if (unmatched.length) {
       const nowIso = new Date().toISOString();
-      const report = `Camera re-link — ${nowIso}\nLinked: ${r.linked ?? 0} · Unmatched: ${unmatched.length}\n\n` +
-        'Unmatched camera keys (no property holds this Camera ID — assign from Monitoring or the customer):\n' +
-        unmatched.map((k) => `  ${k}`).join('\n') + '\n';
+      const report = `Camera re-link — ${nowIso}\n` +
+        `Linked: ${r.linked ?? 0} · Linked via customer fallback: ${r.linkedViaFallback ?? 0} · Unmatched: ${unmatched.length}\n\n` +
+        'Unmatched camera keys (no property or customer-level Camera ID resolves this key):\n' +
+        unmatched.map((u) => `  ${u.key || u}${u.hint ? ` — ${u.hint}` : ''}`).join('\n') + '\n';
       console.log(report);
       downloadFile(`camera-relink-${nowIso.slice(0, 10)}.txt`, report, 'text/plain;charset=utf-8');
     }
