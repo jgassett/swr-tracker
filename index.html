@@ -68,13 +68,25 @@
       position: fixed; inset: 0;
       background: var(--green);
       color: var(--cream);
+      /* Item 16 (v2-patch-6): env(safe-area-inset-top) (via --safe-top)
+         keeps the header row + logo clear of the Dynamic Island / notch on
+         every iPhone, and collapses to 0 on iPad. Requires
+         viewport-fit=cover in the viewport meta (present) — without it the
+         env() vars are 0 in standalone PWA mode. */
       padding: calc(var(--safe-top) + 24px) 20px calc(var(--safe-bot) + 24px);
       overflow-y: auto;
       z-index: 96;
-      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      display: flex; flex-direction: column; align-items: center;
     }
     .mode-picker-wrap {
-      max-width: 440px; width: 100%; margin: 0 auto;
+      max-width: 440px; width: 100%;
+      /* Item 16: vertical centering via auto margins, NOT
+         justify-content:center — centered flex overflow clips at the TOP,
+         which shoved the logo under the Dynamic Island whenever the
+         content ran taller than the viewport (small phones, standalone
+         PWA). Auto margins center when there's room and degrade to
+         top-aligned (below the safe-area padding) when there isn't. */
+      margin: auto;
       display: flex; flex-direction: column; align-items: center; gap: 16px;
     }
     .mode-picker-wrap .brand-logo {
@@ -131,7 +143,15 @@
     .flow-turn svg { width: 24px; height: 24px; stroke: var(--amber); fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
     .flow-help-row { text-align: center; }
     /* Item 6 (v2-patch-2): sync status centered just beneath the landing logo. */
-    .landing-sync { display: flex; justify-content: center; margin: -4px 0 8px; }
+    /* Item 12 (v2-patch-6): home header row — Sync left, version right. */
+    .landing-header-row {
+      width: 100%; display: flex; align-items: center;
+      justify-content: space-between; gap: 10px; margin-bottom: 6px;
+    }
+    .landing-version {
+      color: var(--amber-soft); font-size: 12px; font-weight: 600;
+      white-space: nowrap; flex-shrink: 0;
+    }
     .flow-help {
       background: none; border: none; color: var(--amber-soft);
       font-size: 11.5px; text-decoration: underline; white-space: nowrap;
@@ -157,7 +177,9 @@
       padding: 8px 10px calc(var(--safe-bot) + 8px);
       background: var(--green-deep);
       border-top: 1px solid rgba(196,119,42,0.35);
-      display: grid; grid-template-columns: repeat(4, 1fr);
+      /* Item 7 (v2-patch-6): five buttons — Records | Estimates | Notes |
+         Notifications | Settings. */
+      display: grid; grid-template-columns: repeat(5, 1fr);
       z-index: 98;
     }
     .lb-btn {
@@ -169,8 +191,13 @@
     .lb-btn svg { width: 24px; height: 24px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
     .lb-btn:active, .lb-btn:hover { color: var(--amber); }
     .lb-btn .bell-badge { top: 0; right: calc(50% - 24px); }
-    /* Keep the workflow grid clear of the fixed banner. */
-    #modePicker { padding-bottom: calc(var(--safe-bot) + 96px); }
+    /* Keep the workflow grid clear of the fixed banner. Item 11
+       (v2-patch-6): on iPhone 16 Pro the grid's bottom row sat flush
+       against the banner ribbon — the grid gets its own bottom margin
+       (both rows move together; snake layout untouched) and the page
+       padding grows to match. */
+    #modePicker { padding-bottom: calc(var(--safe-bot) + 112px); }
+    .flow-grid { margin-bottom: 16px; }
     .settings-group { font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-soft); margin: 16px 4px 6px; }
     .settings-group.first { margin-top: 4px; }
     .conn-status { font-size: 13px; font-weight: 600; margin-top: 4px; }
@@ -1316,6 +1343,11 @@
     .job-lc-row .jl-num { font-weight: 600; color: var(--green-deep); font-family: ui-monospace, 'SF Mono', monospace; font-size: 13px; }
     .job-lc-row .jl-name { font-weight: 600; color: var(--green-deep); }
     .job-lc-row .jl-meta { font-size: 12px; color: var(--ink-soft); margin-top: 2px; }
+    /* Item 9 (v2-patch-6): .btn defaults to width:100%, so the Close Out
+       card's action button stretched over the job/customer text on
+       iPhone-width viewports. Inside a job card row a button sizes to its
+       own label and never shrinks into the text column. */
+    .job-lc-row .btn { width: auto; flex-shrink: 0; white-space: nowrap; }
     /* Item 2 (v2-patch-2): job type label — amber tag on job cards + detail. */
     .job-type-tag {
       display: inline-block; background: rgba(196,119,42,0.14); color: var(--amber);
@@ -1648,13 +1680,15 @@
 <!-- Mode picker (after sign-in) -->
 <div id="modePicker" class="hidden">
   <div class="mode-picker-wrap">
-    <!-- Item 12 (v2-patch-1): the bell moved to the bottom banner.
-         Item 6 (v2-patch-2): sync status sits beneath the SWR logo. -->
+    <!-- Item 12 (v2-patch-6): home header row — Sync status on the LEFT,
+         app version + update date on the RIGHT (both from APP_VERSION /
+         APP_VERSION_DATE, the single version constant). -->
+    <div class="landing-header-row">
+      <button type="button" class="sync-indicator under-brand" id="syncIndicatorLanding" data-state="offline" title="Sync status"><span class="dot"></span><span class="label">Offline</span></button>
+      <span class="landing-version" id="landingVersion"></span>
+    </div>
     <img class="brand-logo" src="logo.png" alt="SWR"
          onload="this.classList.add('loaded');" onerror="this.remove();">
-    <div class="landing-sync">
-      <button type="button" class="sync-indicator under-brand" id="syncIndicatorLanding" data-state="offline" title="Sync status"><span class="dot"></span><span class="label">Offline</span></button>
-    </div>
     <h1>What are you doing today?</h1>
     <div class="mode-sub">Follow the job from first call to paid invoice — tap a step to open it. Return here any time with the ← button.</div>
     <!-- Item 4 (v2-patch-2): camera alert banner removed — camera health
@@ -1674,6 +1708,11 @@
     <button type="button" class="lb-btn" data-banner="estimates" aria-label="Estimates">
       <svg viewBox="0 0 24 24"><path d="M4 4h16v4H4z"/><path d="M4 12h10"/><path d="M4 16h10"/><path d="M4 20h7"/><path d="M18 13v7"/><path d="M15 16l3-3 3 3"/></svg>
       <span>Estimates</span>
+    </button>
+    <!-- Item 7 (v2-patch-6): per-operator private Notes module. -->
+    <button type="button" class="lb-btn" data-banner="notes" aria-label="Notes">
+      <svg viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+      <span>Notes</span>
     </button>
     <button type="button" class="lb-btn" data-banner="notifications" aria-label="Notifications">
       <svg viewBox="0 0 24 24"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
@@ -1744,17 +1783,16 @@
         <p id="greetingSub">Here's how your reporting period is shaping up.</p>
       </div>
 
-      <div class="stat-grid stats-2">
+      <!-- Item 8 (v2-patch-6): contractor panels are generated dynamically
+           from the operator list (TRAPPERS) — the SWR total plus one panel
+           per operator, never hard-coded names. -->
+      <div class="stat-grid stats-2" id="dashStatGrid">
         <div class="stat">
           <div class="label">SWR · This Period</div>
           <div class="value" id="statTotalSwr">0</div>
           <div class="sub" id="statTotalSwrSub">all trappers</div>
         </div>
-        <div class="stat">
-          <div class="label">You · This Period</div>
-          <div class="value" id="statTotalUser">0</div>
-          <div class="sub" id="statTotalUserSub">your records</div>
-        </div>
+        <div id="contractorStats" style="display:contents;"></div>
       </div>
 
 
@@ -2477,7 +2515,10 @@
           </div>
           <div class="form-group">
             <label for="pr-address">Address</label>
-            <input type="text" id="pr-address" autocomplete="off">
+            <div class="autocomplete-wrap">
+              <input type="text" id="pr-address" autocomplete="off">
+              <div class="autocomplete-list hidden" id="pr-address-ac"></div>
+            </div>
           </div>
           <div class="form-group">
             <label for="pr-city">City</label>
@@ -2488,6 +2529,18 @@
           <div class="form-group hidden" id="prCountyGroup" aria-hidden="true">
             <label for="pr-county">County</label>
             <select id="pr-county" tabindex="-1"><option value="">— select county —</option></select>
+          </div>
+          <!-- Item 4d (v2-patch-6): manual override for boundary cases where
+               the geocoded/mailing city doesn't match actual municipal limits.
+               Used by the tax jurisdiction reports. Default: unset (auto). -->
+          <div class="form-group">
+            <label for="pr-cityLimits">City Limits<span class="opt">(tax jurisdiction)</span></label>
+            <select id="pr-cityLimits">
+              <option value="">Auto — use the address city</option>
+              <option value="true">Inside city limits (override)</option>
+              <option value="false">Outside city limits (override)</option>
+            </select>
+            <div class="hint">Only set this when the mailing-address city doesn't match the actual municipal boundary.</div>
           </div>
           <div class="form-group">
             <label for="pr-cameraId">Camera ID</label>
@@ -2574,12 +2627,9 @@
           Get Directions
         </button>
 
-        <h3 class="form-section">Trap Camera</h3>
-        <div class="form-group">
-          <label for="c-cameraId">Camera ID<span class="opt">(optional)</span></label>
-          <input type="text" id="c-cameraId" autocomplete="off" placeholder="e.g. WILSONR" maxlength="10">
-          <div class="hint">The camera's email subject key (last name + first initial, no spaces). Set this to link that camera's photos &amp; health to this customer.</div>
-        </div>
+        <!-- Item 1 (v2-patch-6): customer-level Camera ID is deprecated —
+             cameras are assigned on property records only (property editor
+             below). Stale cameraId fields on old customer docs are ignored. -->
 
         <h3 class="form-section">Notes</h3>
         <div class="form-group">
@@ -2682,9 +2732,9 @@
         <p class="muted">Camera health &amp; photos by customer, pulled from the trap cameras.</p>
       </div>
       <div class="conn-status" id="graphConnStatus" style="margin-bottom:8px;"></div>
-      <div class="btn-row" style="margin-bottom:10px;">
-        <button class="btn btn-ghost" id="fieldSyncBtn">Sync Now</button>
-      </div>
+      <!-- Item 3 (v2-patch-6): Sync Now button removed — the module auto-syncs
+           on open when the last completed sync is over 5 minutes old. -->
+      <div class="muted" id="fieldLastSynced" style="font-size:12px;margin:0 2px 10px;"></div>
       <div class="sync-now-status" id="fieldSyncStatus"></div>
       <div class="filter-row">
         <select id="fieldFilter">
@@ -3141,29 +3191,9 @@
           <select id="photoRetentionDays" class="cfg-select"></select>
         </div>
         <div class="hint" id="photoRetentionHint"></div>
-        <hr class="div" style="margin:10px 0;">
-        <div class="cfg-row" style="align-items:flex-start;">
-          <label style="padding-top:6px;">Reporting Period</label>
-          <div class="rpt-selectors">
-            <div class="rpt-line">
-              <span class="rpt-k">Start</span>
-              <select id="rptStartMonth" aria-label="Start month"></select>
-              <select id="rptStartDay" aria-label="Start day"></select>
-              <select id="rptStartYear" aria-label="Start year"></select>
-            </div>
-            <div class="rpt-line">
-              <span class="rpt-k">End</span>
-              <select id="rptEndMonth" aria-label="End month"></select>
-              <select id="rptEndDay" aria-label="End day"></select>
-              <select id="rptEndYear" aria-label="End year"></select>
-            </div>
-          </div>
-        </div>
-        <div class="hint" id="rptHint"></div>
-        <div class="btn-row" id="rptActions" style="margin-top:8px;">
-          <button class="btn btn-primary btn-compact" id="saveRptBtn">Save Period</button>
-          <button class="btn btn-ghost btn-compact" id="resetRptBtn">KDFWR Default</button>
-        </div>
+        <!-- Item 6 (v2-patch-6): the Reporting Period selectors are gone —
+             the KDFWR cycle (Feb 1 – Jan 31) is hard-coded and rolls
+             automatically each year (server-side rollover on Feb 1). -->
       </div>
 
       <!-- Section 3: Management -->
@@ -3173,12 +3203,16 @@
         <button type="button" class="snav-btn" data-settings-nav="settings-business">Business Info<span class="chev">›</span></button>
         <button type="button" class="snav-btn" data-settings-nav="settings-licensing">Licensing &amp; Permit Info<span class="chev">›</span></button>
         <button type="button" class="snav-btn" id="pesticideDbNavBtn" data-settings-nav="settings-pesticide-db">Pesticide Database<span class="chev">›</span></button>
+        <!-- Item 5 (v2-patch-6): occupational tax filing reports (admin only) -->
+        <button type="button" class="snav-btn" id="taxReportsNavBtn" data-settings-nav="settings-taxreports" style="display:none;">Tax Jurisdiction Reports<span class="chev">›</span></button>
       </div>
 
       <!-- Section 4: Data Management -->
       <div class="settings-group">Data Management</div>
       <div class="card settings-nav">
         <button type="button" class="snav-btn" id="assignLegacyBtn">Assign Legacy Records<span class="chev">›</span></button>
+        <!-- Item 1 (v2-patch-6): one-time camera migration + reconciliation audit (admin only) -->
+        <button type="button" class="snav-btn" id="cameraMigrationBtn" style="display:none;">Camera Migration &amp; Audit<span class="chev">›</span></button>
         <button type="button" class="snav-btn" id="restoreBtn">Restore from JSON Backup<span class="chev">›</span></button>
         <input type="file" id="restoreFile" accept="application/json" style="display:none">
         <button type="button" class="snav-btn danger" id="wipeBtn">Clear All Records<span class="chev">›</span></button>
@@ -3191,7 +3225,7 @@
       </button>
       <div class="center muted" style="font-size:11.5px; line-height:1.5; margin:10px 0 4px;">
         <span id="accountInfo">Not signed in</span><br>
-        Southern Wildlife Tracker · <span id="footerVersion">v1.28</span> · KDFWR Commercial NWCO compliance
+        Southern Wildlife Tracker · <span id="footerVersion">v2.4</span> · KDFWR Commercial NWCO compliance
       </div>
     </section>
 
@@ -3301,6 +3335,77 @@
         <button class="btn btn-amber" id="addPesticideBtn">+ Add Pesticide</button>
       </div>
       <div class="hint" id="pesticideDbHint" style="margin:0 4px 12px;">Products, SDS and label PDFs offered in the Pesticide Application form. Admin only.</div>
+      <div class="form-actions"><button type="button" class="btn btn-cancel btn-ghost" data-settings-back>Back to Settings</button></div>
+    </section>
+
+    <!-- NOTES (Item 7, v2-patch-6): per-operator PRIVATE notes. Each
+         operator sees only their own; Firestore rules enforce owner-only
+         read/write (admin included — Jon cannot read other operators'
+         notes). -->
+    <section id="view-notes" class="view hidden">
+      <div class="greeting">
+        <h2>Notes</h2>
+        <!-- v2-patch-6 security audit L-4: rules block every in-app reader
+             (admin included), but the project owner can always reach raw
+             data via the Firebase console — the copy must not overclaim. -->
+        <p class="muted">Your private notes — not visible to anyone else in the app.</p>
+      </div>
+      <div class="card" id="notesList"></div>
+    </section>
+
+    <!-- NOTES: editor -->
+    <section id="view-add-note" class="view hidden">
+      <form id="noteForm" novalidate>
+        <input type="hidden" id="n-id">
+        <div class="form-group">
+          <label for="n-title">Title<span class="opt">(optional)</span></label>
+          <input type="text" id="n-title" autocomplete="off" maxlength="120">
+        </div>
+        <div class="form-group">
+          <label for="n-body">Note</label>
+          <!-- maxlength mirrors the Firestore rules bound (20000) so the
+               limit fails visibly here, not as an opaque rules rejection. -->
+          <textarea id="n-body" rows="10" maxlength="20000" placeholder="Write your note…"></textarea>
+        </div>
+        <div class="hint" id="noteTimestamps"></div>
+        <div class="form-actions">
+          <button type="submit" class="btn btn-primary" id="saveNoteBtn">Save Note</button>
+          <button type="button" class="btn btn-cancel btn-ghost" id="cancelNoteBtn">Cancel</button>
+        </div>
+        <button type="button" class="btn btn-danger" id="deleteNoteBtn" style="margin-top:10px; display:none;">Delete Note</button>
+      </form>
+    </section>
+
+    <!-- SETTINGS → Tax Jurisdiction Reports (Item 5, v2-patch-6) — jobs by
+         work-property jurisdiction for occupational tax filings. Admin only. -->
+    <section id="view-settings-taxreports" class="view hidden">
+      <div class="card">
+        <div class="field-row two">
+          <div class="form-group">
+            <label for="taxRptStart">Start Date</label>
+            <input type="date" id="taxRptStart">
+          </div>
+          <div class="form-group">
+            <label for="taxRptEnd">End Date</label>
+            <input type="date" id="taxRptEnd">
+          </div>
+        </div>
+        <div class="hint">Filters on job start date. Defaults to the current calendar year. Jurisdiction comes from the job's work property (county, city, and the property's city-limits override).</div>
+        <div class="btn-row" style="margin-top:8px;">
+          <button class="btn btn-primary btn-compact" id="taxRptRunBtn">Run Reports</button>
+        </div>
+      </div>
+      <div class="card">
+        <h3 style="margin-top:0;">Scott County Jobs <span class="muted" id="taxRptScottCount" style="font-weight:400;font-size:13px;"></span></h3>
+        <div id="taxRptScottList"></div>
+        <button class="btn btn-ghost" id="taxRptScottCsvBtn" style="margin-top:10px;">Download Scott County CSV</button>
+      </div>
+      <div class="card">
+        <h3 style="margin-top:0;">City of Georgetown Jobs <span class="muted" id="taxRptGtownCount" style="font-weight:400;font-size:13px;"></span></h3>
+        <div class="hint" style="margin-bottom:8px;">Property city “Georgetown”, plus any property flagged Inside city limits; properties flagged Outside city limits are excluded.</div>
+        <div id="taxRptGtownList"></div>
+        <button class="btn btn-ghost" id="taxRptGtownCsvBtn" style="margin-top:10px;">Download Georgetown CSV</button>
+      </div>
       <div class="form-actions"><button type="button" class="btn btn-cancel btn-ghost" data-settings-back>Back to Settings</button></div>
     </section>
   </main>
@@ -3772,10 +3877,20 @@ let orgSettings = {
 };
 
 const PESTICIDE_EMAILJS_TEMPLATE_ID = 'template_4aa3u5a';
-const APP_VERSION = 'v2.3';  /* bump in lockstep with the SW cache version */
-/* Single source of truth: keep the footer label in sync with APP_VERSION so
-   the two version displays can't drift apart again. */
-{ const _fv = document.getElementById('footerVersion'); if (_fv) _fv.textContent = APP_VERSION; }
+/* Item 12 (v2-patch-6): THE single version constant — bump in lockstep
+   with the SW cache version and version.txt. Every version display (home
+   header row, Settings footer, account info) reads from these two values;
+   nothing else may hard-code a version string. */
+const APP_VERSION = 'v2.4';
+const APP_VERSION_DATE = 'Jul 22, 2026';
+/* Single source of truth: paint both displays from the constant so they
+   can't drift apart again. */
+{
+  const _fv = document.getElementById('footerVersion');
+  if (_fv) _fv.textContent = APP_VERSION;
+  const _lv = document.getElementById('landingVersion');
+  if (_lv) _lv.textContent = `${APP_VERSION} · ${APP_VERSION_DATE}`;
+}
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -3931,13 +4046,10 @@ function fmtShortDate(iso) {
   return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 }
 function reportPeriod(refDate = new Date()) {
-  /* If admin has set an explicit period in the org config, honor it. */
-  if (orgSettings.reportingPeriodStart && orgSettings.reportingPeriodEnd) {
-    const start = orgSettings.reportingPeriodStart;
-    const end = orgSettings.reportingPeriodEnd;
-    return { start, end, startYear: parseInt(start.slice(0, 4), 10) };
-  }
-  /* Default: KDFWR Feb 1 – Jan 31. */
+  /* Item 6 (v2-patch-6): the KDFWR cycle is HARD-CODED — Feb 1 through
+     Jan 31, rolling automatically each year. The org/swr copy of the period
+     is server-maintained bookkeeping (Feb 1 rollover function) and is no
+     longer consulted or user-editable. */
   const y = refDate.getFullYear();
   const startYear = refDate.getMonth() >= 1 ? y : y - 1;
   const start = `${startYear}-02-01`;
@@ -4209,7 +4321,16 @@ function disposalDisplay(rec) {
 function countyDisplay(rec) {
   /* Legacy: old records may still hold the typed-county sentinel — fall back to countyOther.
      v2 (Item 15): the silently-captured countyOfCollection backs a blank dropdown value. */
-  return rec.county === COUNTY_OTHER_LEGACY && rec.countyOther ? rec.countyOther : (rec.county || rec.countyOfCollection || '');
+  if (rec.county === COUNTY_OTHER_LEGACY && rec.countyOther) return rec.countyOther;
+  const stored = rec.county || rec.countyOfCollection || '';
+  if (stored) return stored;
+  /* Item 4c (v2-patch-6): County of Collection resolves from the linked
+     PROPERTY when the record itself stored none — never from the customer. */
+  if (rec.propertyId) {
+    const p = cachedProperties.find((x) => x.id === rec.propertyId);
+    if (p && p.county) return p.county;
+  }
+  return '';
 }
 function releaseCountyDisplay(rec) {
   return rec.releaseCounty === COUNTY_OTHER_LEGACY && rec.releaseCountyOther ? rec.releaseCountyOther : (rec.releaseCounty || rec.countyOfRelease || '');
@@ -4336,7 +4457,7 @@ let modeSelected = false;
    Trapping and Pesticides as tabs inside it — both appModes ('trap' and
    'pesticide') present as the Field Work module in the header. Cameras ->
    Monitoring (Item 17, v2-patch-1). */
-const MODULE_LABELS = { trap: 'Field Work', pesticide: 'Field Work', customer: 'Customers', pricing: 'Pricing', jobs: 'Jobs', field: 'Monitoring', schedule: 'Schedule', settings: 'Settings', allrecords: 'All Records', closeout: 'Close Out' };
+const MODULE_LABELS = { trap: 'Field Work', pesticide: 'Field Work', customer: 'Customers', pricing: 'Pricing', jobs: 'Jobs', field: 'Monitoring', schedule: 'Schedule', settings: 'Settings', allrecords: 'All Records', closeout: 'Close Out', notes: 'Notes' };
 
 /* Bottom-nav layout per module. The main landing page has no bottom nav.
    `fab: true` renders the raised amber add button (kept from the original
@@ -4358,28 +4479,29 @@ const NAV_CONFIGS = {
     { view: 'add', label: 'Add', icon: 'plus', fab: true },
     { view: 'export', label: 'Export', icon: 'export' }
   ],
+  /* Item 10 (v2-patch-6): the per-page label icons (a bottom-nav button
+     naming the current page — "Customers" on Customers, "Monitoring" on
+     Monitoring, "Close Out" on Close Out, …) are removed app-wide. They
+     duplicated the page header and were mistaken for action buttons.
+     Functional navigation (Home, Records, Add/New, Export) stays; detail
+     screens keep/regain explicit Back buttons. */
   customer: [
     { view: 'menu', label: 'Home', icon: 'home' },
-    { view: 'dashboard', label: 'Customers', icon: 'users' },
     { view: 'add', label: 'Add', icon: 'plus', fab: true }
   ],
   pricing: [
     { view: 'menu', label: 'Home', icon: 'home' },
-    { view: 'dashboard', label: 'Estimates', icon: 'list' },
     { view: 'add', label: 'New', icon: 'plus', fab: true }
   ],
   jobs: [
     { view: 'menu', label: 'Home', icon: 'home' },
-    { view: 'dashboard', label: 'Jobs', icon: 'briefcase' },
     { view: 'add', label: 'New', icon: 'plus', fab: true }
   ],
   field: [
-    { view: 'menu', label: 'Home', icon: 'home' },
-    { view: 'dashboard', label: 'Monitoring', icon: 'camera' }
+    { view: 'menu', label: 'Home', icon: 'home' }
   ],
   schedule: [
     { view: 'menu', label: 'Home', icon: 'home' },
-    { view: 'dashboard', label: 'Calendar', icon: 'calendar' },
     { view: 'add', label: 'New', icon: 'plus', fab: true }
   ],
   settings: [
@@ -4391,8 +4513,12 @@ const NAV_CONFIGS = {
   ],
   /* Item 7 (v2-patch-2): Close Out workflow step. */
   closeout: [
+    { view: 'menu', label: 'Home', icon: 'home' }
+  ],
+  /* Item 7 (v2-patch-6): private per-operator notes. */
+  notes: [
     { view: 'menu', label: 'Home', icon: 'home' },
-    { view: 'dashboard', label: 'Close Out', icon: 'check' }
+    { view: 'add', label: 'New', icon: 'plus', fab: true }
   ]
 };
 
@@ -4407,7 +4533,8 @@ const NAV_ICONS = {
   camera: '<path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/>',
   calendar: '<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>',
   briefcase: '<rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/>',
-  check: '<path d="M20 6 9 17l-5-5"/>'
+  check: '<path d="M20 6 9 17l-5-5"/>',
+  note: '<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/>'
 };
 
 function renderBottomNav() {
@@ -4544,8 +4671,11 @@ function closeHowItWorksSheet() {
 }
 
 function setAppMode(mode, opts = {}) {
+  const prevMode = appMode;
   appMode = mode;
   modeSelected = true;
+  /* Item 3 (v2-patch-6): opening Monitoring auto-syncs (throttled, once). */
+  if (mode === 'field' && prevMode !== 'field') maybeAutoFieldSync();
   updateModuleUI();
   renderBottomNav();
   if (!opts.skipShowApp) {
@@ -4616,6 +4746,101 @@ function renderSettingsStatus() {
   /* Pesticide Database management is admin-only. */
   const dbBtn = $('#pesticideDbNavBtn');
   if (dbBtn) dbBtn.style.display = isAdmin() ? '' : 'none';
+  /* Item 5 (v2-patch-6): tax jurisdiction reports are admin-only. */
+  const taxBtn = $('#taxReportsNavBtn');
+  if (taxBtn) taxBtn.style.display = isAdmin() ? 'flex' : 'none';
+}
+
+/* =====================================================================
+ * Item 5 (v2-patch-6): Tax Jurisdiction Reports (Settings, admin-only).
+ * Two separate occupational-tax lists — Scott County (includes work
+ * outside Georgetown city limits) and the City of Georgetown. The
+ * jurisdiction is the job's WORK PROPERTY: the linked property when the
+ * job has one, else the customer's sole property, else the customer's
+ * main address as the de-facto property. Georgetown rule: property city
+ * == "Georgetown", plus any property overridden Inside city limits,
+ * minus any overridden Outside city limits (Item 4d flag).
+ * ===================================================================== */
+let taxRptRows = { scott: [], georgetown: [] };
+
+function jobTaxLocus(j) {
+  let p = j.propertyId ? cachedProperties.find((x) => x.id === j.propertyId) : null;
+  if (!p && j.customerId) {
+    const props = propertiesForCustomer(j.customerId);
+    if (props.length === 1) p = props[0];
+  }
+  if (p) {
+    return {
+      county: p.county || '',
+      city: p.city || '',
+      insideCityLimits: p.insideCityLimits === true ? true : p.insideCityLimits === false ? false : null,
+      address: [p.address, p.city].filter(Boolean).join(', ')
+    };
+  }
+  const c = j.customerId ? cachedCustomers.find((x) => x.id === j.customerId) : null;
+  return {
+    county: (c && c.county) || '',
+    city: (c && c.city) || '',
+    insideCityLimits: null,
+    address: c ? [c.address, c.city].filter(Boolean).join(', ') : ''
+  };
+}
+
+function initTaxReports() {
+  if (!isAdmin()) { setView('dashboard'); return; }
+  const y = new Date().getFullYear();
+  if (!$('#taxRptStart').value) $('#taxRptStart').value = `${y}-01-01`;
+  if (!$('#taxRptEnd').value) $('#taxRptEnd').value = `${y}-12-31`;
+  renderTaxReports();
+}
+
+function renderTaxReports() {
+  const start = $('#taxRptStart').value || '0000-01-01';
+  const end = $('#taxRptEnd').value || '9999-12-31';
+  /* Functional audit LOW-5: legacy job containers carry no startDate —
+     fall back to createdAt so real billed work can't silently vanish from
+     a tax filing report. */
+  const rows = lifecycleJobs()
+    .filter((j) => {
+      const d = (j.startDate || j.createdAt || '').slice(0, 10);
+      return d && d >= start && d <= end;
+    })
+    .map((j) => ({ j, locus: jobTaxLocus(j) }))
+    .sort((a, b) => (a.j.startDate || a.j.createdAt || '').localeCompare(b.j.startDate || b.j.createdAt || ''));
+  taxRptRows = {
+    scott: rows.filter((r) => (r.locus.county || '').trim().toLowerCase() === 'scott'),
+    georgetown: rows.filter((r) => r.locus.insideCityLimits !== false &&
+      (r.locus.insideCityLimits === true || (r.locus.city || '').trim().toLowerCase() === 'georgetown'))
+  };
+  const rowHtml = ({ j, locus }) => `
+    <div class="biz-row" style="align-items:flex-start;">
+      <span style="min-width:0;">
+        <span style="font-weight:600;color:var(--green-deep);font-family:ui-monospace,'SF Mono',monospace;">${escapeHtml(j.jobNumber || '—')}</span>
+        <span class="status-pill ${jobLifeStatusClass(j.status)}" style="margin-left:6px;">${escapeHtml(j.status || 'Active')}</span><br>
+        <span style="font-size:13px;">${escapeHtml(j.customerName || '—')}</span><br>
+        <span class="muted" style="font-size:12px;">${escapeHtml(locus.address || 'no address')} · started ${escapeHtml(fmtShortDate(j.startDate) || '—')} · QB Inv ${escapeHtml(String(j.qbInvoiceNumber || '—'))}</span>
+      </span>
+    </div>`;
+  const paint = (list, rootSel, countSel) => {
+    const root = $(rootSel);
+    if (root) root.innerHTML = list.length ? list.map(rowHtml).join('') : '<div class="muted" style="font-size:13px;padding:4px 0;">No jobs in this range.</div>';
+    const cnt = $(countSel);
+    if (cnt) cnt.textContent = `(${list.length} job${list.length === 1 ? '' : 's'})`;
+  };
+  paint(taxRptRows.scott, '#taxRptScottList', '#taxRptScottCount');
+  paint(taxRptRows.georgetown, '#taxRptGtownList', '#taxRptGtownCount');
+}
+
+function downloadTaxReportCsv(which) {
+  const rows = taxRptRows[which] || [];
+  if (!rows.length) { toast('No jobs in this range — nothing to download'); return; }
+  const lines = [csvLine(['Job Number', 'Customer Name', 'Property Address', 'Job Start Date', 'Job Status', 'QB Invoice Number'])];
+  for (const { j, locus } of rows) {
+    lines.push(csvLine([j.jobNumber || '', j.customerName || '', locus.address || '',
+      j.startDate || '', j.status || '', j.qbInvoiceNumber || '']));
+  }
+  const label = which === 'scott' ? 'scott-county' : 'georgetown';
+  downloadFile(`SWR_tax_${label}_${$('#taxRptStart').value}_to_${$('#taxRptEnd').value}.csv`, lines.join('\r\n') + '\r\n');
 }
 
 /* Live counts on the three landing-page module cards. */
@@ -4783,7 +5008,9 @@ async function autoSyncOnOpen(force) {
   if (!force && now - lastAutoSyncAt < 10 * 60 * 1000) return;   /* at most once / 10 min */
   lastAutoSyncAt = now;
   try { await handleSyncNow(); } catch (e) { /* inline status only */ }
-  try { await handleFieldSync(); } catch (e) { /* inline status only */ }
+  /* Item 3 (v2-patch-6): mailbox ingest goes through the throttled auto-sync
+     (skipped when the last completed sync is under 5 minutes old). */
+  try { await maybeAutoFieldSync(); } catch (e) { /* inline status only */ }
 }
 
 /* ---------- Firestore subscription ---------- */
@@ -4839,7 +5066,6 @@ function subscribeToOrg() {
       };
     }
     renderBusinessCard();
-    renderReportingCard();
     renderCertCard();
     renderPhotoRetentionCard();
     refreshApplicatorDropdown();
@@ -4872,7 +5098,12 @@ function unsubscribeFromOrg() {
   if (orgUnsub) { orgUnsub(); orgUnsub = null; }
 }
 async function saveOrgConfig(updates) {
-  await setDoc(doc(fbDb, 'org', 'swr'), { ...orgSettings, ...updates }, { merge: true });
+  /* Item 15 / L8 (v2-patch-6): write ONLY the changed fields. Spreading the
+     whole cached orgSettings meant a save made before the org snapshot
+     arrived (or concurrently with another admin device) stamped stale
+     local defaults over every server value. merge:true keeps untouched
+     fields intact. */
+  await setDoc(doc(fbDb, 'org', 'swr'), updates, { merge: true });
 }
 
 /* ---------- Pesticide master database (admin-managed) ---------- */
@@ -5604,21 +5835,19 @@ function custCameraKey(name) {
   return clean.toUpperCase().replace(/\s/g, '');
 }
 
-/* Resolve a camera key to a customer live from the current directory:
-   explicit cameraId match wins; otherwise a unique active name-key match. */
+/* Resolve a camera key to a customer live from the current directory.
+   Item 1 (v2-patch-6): PROPERTY records are the single source of truth for
+   camera assignment — the only join is an exact cameraId string match on a
+   property record. Customer-level cameraId and name-derived keys are no
+   longer consulted; an unmatched key stays in the pending/unmatched queue. */
 function resolveCustomerForKey(key) {
   if (!key) return null;
   const K = key.toUpperCase();
-  /* Property Camera IDs win (Item 9) — a match links customer AND property. */
   const byProp = cachedProperties.find((p) => (p.cameraId || '').trim().toUpperCase() === K);
   if (byProp) {
     const c = cachedCustomers.find((x) => x.id === byProp.customerId);
     return { id: byProp.customerId, name: c ? (c.name || '') : '', propertyId: byProp.id };
   }
-  const byId = cachedCustomers.find((c) => (c.cameraId || '').trim().toUpperCase() === K);
-  if (byId) return { id: byId.id, name: byId.name || '' };
-  const byName = cachedCustomers.filter((c) => c.active && custCameraKey(c.name) === K);
-  if (byName.length === 1) return { id: byName[0].id, name: byName[0].name || '' };
   return null;
 }
 
@@ -5672,6 +5901,23 @@ function renderGraphConnStatus() {
   }
   el.textContent = text;
   el.className = 'conn-status ' + (stale ? 'off' : 'ok');
+  renderFieldLastSynced();   /* Item 3 (v2-patch-6): keep the header line current */
+}
+
+/* Item 3 (v2-patch-6): "Last synced X min ago" header line — replaces the
+   Sync Now button's feedback role. Driven by org/graphStatus.lastPollAt,
+   which the server stamps after every completed ingest (scheduled or
+   auto-triggered). */
+function renderFieldLastSynced() {
+  const el = $('#fieldLastSynced');
+  if (!el) return;
+  if (fieldAutoSyncInFlight) { el.textContent = 'Syncing…'; return; }
+  const last = graphStatusData && graphStatusData.lastPollAt ? Date.parse(graphStatusData.lastPollAt) : 0;
+  if (!last) { el.textContent = 'Not synced yet — photos and reports appear as they arrive.'; return; }
+  const mins = Math.round((Date.now() - last) / 60000);
+  el.textContent = mins < 1 ? 'Last synced just now'
+    : mins < 60 ? `Last synced ${mins} min ago`
+    : `Last synced ${Math.round(mins / 60)} hr ago`;
 }
 
 function subscribeToFieldData() {
@@ -5756,37 +6002,39 @@ function fieldGroups() {
     if (!g.propertyId && s.propertyId) g.propertyId = s.propertyId;
     g.statusDoc = s;
   }
-  /* Item 21: a camera on file (property/customer Camera ID) whose customer
-     has an Active job is ALWAYS visible — even before its first ingest. */
+  /* Item 2 (v2-patch-6): every INSTALLED camera — a property record holds
+     its cameraId — is always visible, including deployed-but-silent cameras
+     that have never phoned home (intentional: a camera that never reports
+     must not be invisible). Cameras are never enumerated from customer or
+     job records. */
   const activeCustomerIds = new Set(lifecycleJobs()
     .filter((x) => (x.status || 'Active') === 'Active')
     .map((x) => x.customerId).filter(Boolean));
   for (const p of cachedProperties) {
     const cam = (p.cameraId || '').trim().toUpperCase();
-    if (!cam || !p.customerId || !activeCustomerIds.has(p.customerId)) continue;
-    const g = get(cam);
-    if (!g.customerId) {
-      g.customerId = p.customerId;
-      const c = cachedCustomers.find((x) => x.id === p.customerId);
-      if (!g.name && c) g.name = c.name || '';
-    }
-    if (!g.propertyId) g.propertyId = p.id;
-  }
-  for (const c of cachedCustomers) {
-    const cam = (c.cameraId || '').trim().toUpperCase();
-    if (!cam || !activeCustomerIds.has(c.id)) continue;
-    const g = get(cam);
-    if (!g.customerId) { g.customerId = c.id; if (!g.name) g.name = c.name || ''; }
+    if (!cam || !p.customerId) continue;
+    get(cam);   /* group identity only — the join below fills in the rest */
   }
   const arr = [...groups.values()];
   for (const g of arr) {
     g.status = worstOf(g.devices.map((d) => deviceStatusLive(d)));
     g.photos.sort((a, b) => (b.receivedAt || '').localeCompare(a.receivedAt || ''));
-    /* Live-link to the current directory even if this group was ingested before
-       the customer was activated / its Camera ID was set. */
-    if (!g.customerId) {
-      const r = resolveCustomerForKey(g.key);
-      if (r) { g.customerId = r.id; g.name = r.name; g.propertyId = r.propertyId || g.propertyId || null; }
+    /* Item 1 (v2-patch-6): the ONE join — the group's camera key against
+       property cameraId, exact string match. It is authoritative: stale
+       customerId/customerName stamped on old ingest docs is ignored, so a
+       reassigned or unassigned camera can't keep displaying its old owner.
+       No property match → the group is unlinked (pending/unmatched queue). */
+    const r = resolveCustomerForKey(g.key);
+    if (r) {
+      g.customerId = r.id;
+      g.name = r.name || g.name;
+      g.propertyId = r.propertyId || null;
+      g.installed = true;
+    } else {
+      g.customerId = null;
+      g.name = null;
+      g.propertyId = null;
+      g.installed = false;
     }
     /* Item 21: awaiting Jon's removal confirmation — visible with an
        indicator until confirmed. A customer back on an active job cancels
@@ -5794,8 +6042,15 @@ function fieldGroups() {
     g.pendingRemoval = !!(g.statusDoc && g.statusDoc.pendingRemoval && !g.statusDoc.removalConfirmed
       && !(g.customerId && activeCustomerIds.has(g.customerId)));
   }
-  /* Item 21: confirmed removals are hidden from active monitoring. */
-  const visible = arr.filter((g) => !(g.statusDoc && g.statusDoc.removalConfirmed));
+  /* Item 2 (v2-patch-6): the Monitoring feed shows only
+     (a) INSTALLED cameras — a property record holds the cameraId — and
+     (b) the pending/unmatched queue: ingested camera data (health rows or
+         photos) whose key matches no property.
+     Customers/jobs with no camera assigned never appear. Item 21:
+     confirmed removals stay hidden from active monitoring. */
+  const visible = arr.filter((g) =>
+    (g.installed || g.devices.length || g.photos.length) &&
+    !(g.statusDoc && g.statusDoc.removalConfirmed));
   visible.sort((a, b) => (STATUS_RANK[a.status] - STATUS_RANK[b.status]) || (a.name || a.key).localeCompare(b.name || b.key));
   return visible;
 }
@@ -5808,7 +6063,7 @@ function renderFieldDashboard() {
   let groups = fieldGroups();
   if (filter === 'alerts') groups = groups.filter((g) => g.status === 'red' || g.status === 'yellow');
   if (!groups.length) {
-    root.innerHTML = '<div style="padding:16px;color:var(--ink-soft);">No camera data yet. Photos and daily reports populate automatically as they arrive; tap <strong>Sync Now</strong> to pull the latest.</div>';
+    root.innerHTML = '<div style="padding:16px;color:var(--ink-soft);">No cameras installed yet. Assign a Camera ID to a customer’s property to see it here; photos and daily reports populate automatically as they arrive.</div>';
     return;
   }
   root.innerHTML = groups.map((g) => {
@@ -5905,42 +6160,41 @@ function renderFieldDetail(key) {
 
 async function assignFieldPhotos(key, customer) {
   if (!customer || !customer.id) return;   /* M6: nothing to link to */
-  /* M25: cameras are assigned per property when the customer has them —
-     the customer-level link contradicted the hub's own guidance and left
-     multi-site customers ambiguous. Sole property → auto-target; several →
-     numbered pick (Cancel keeps the customer-level link). */
+  /* Item 1 (v2-patch-6): assignment lands on a PROPERTY record only — the
+     single source of truth for camera routing. Sole property → auto-target;
+     several → numbered pick; none → the operator must add a property first
+     (there is no customer-level link any more). */
   const props = propertiesForCustomer(customer.id);
   let targetProp = null;
+  if (!props.length) {
+    toast(`${customer.name || 'This customer'} has no property on file — add one in the Customers module, then assign the camera to it.`, 'error');
+    return;
+  }
   if (props.length === 1) {
     targetProp = props[0];
-  } else if (props.length > 1) {
+  } else {
     const menu = props.map((p, i) => `${i + 1}. ${p.siteNickname || p.address || p.id}`).join('\n');
-    const pick = prompt(`${customer.name || 'This customer'} has ${props.length} properties — which site is camera ${key} at?\n${menu}\n\nEnter a number (Cancel links at the customer level):`, '1');
-    if (pick !== null) {
-      const idx = parseInt(pick, 10) - 1;
-      if (!Number.isFinite(idx) || idx < 0 || idx >= props.length) {
-        toast('Not a valid property number — camera not linked', 'error');
-        return;
-      }
-      targetProp = props[idx];
+    const pick = prompt(`${customer.name || 'This customer'} has ${props.length} properties — which site is camera ${key} at?\n${menu}\n\nEnter a number:`, '1');
+    if (pick === null) return;
+    const idx = parseInt(pick, 10) - 1;
+    if (!Number.isFinite(idx) || idx < 0 || idx >= props.length) {
+      toast('Not a valid property number — camera not linked', 'error');
+      return;
     }
+    targetProp = props[idx];
   }
-  const whereLabel = targetProp
-    ? `${customer.name || 'customer'} · ${targetProp.siteNickname || targetProp.address || 'property'}`
-    : (customer.name || 'this customer');
+  /* Item 1d: no two properties may hold the same cameraId. */
+  const dup = cameraIdOwner(key, { excludePropertyId: targetProp.id });
+  if (dup) { toast(`Camera ID ${key} is already assigned to ${dup.label} — remove it there first.`, 'error'); return; }
+  const whereLabel = `${customer.name || 'customer'} · ${targetProp.siteNickname || targetProp.address || 'property'}`;
   const ok = await confirmDialog('Link camera?',
     `Link camera ID ${key} to ${whereLabel}? This will reassign all matching photos.`);
   if (!ok) return;
   try {
-    /* Persist the link (property Camera IDs win at resolve time) so this
-       camera's current AND future photos + health resolve automatically. */
-    if (targetProp) {
-      await writeWithRetry(() => setDoc(doc(fbDb, 'customers', customer.id, 'properties', targetProp.id),
-        { cameraId: key, updatedAt: new Date().toISOString() }, { merge: true }));
-    } else {
-      await writeWithRetry(() => setDoc(doc(fbDb, 'customers', customer.id),
-        { cameraId: key, updatedAt: new Date().toISOString() }, { merge: true }));
-    }
+    /* Persist the link on the property so this camera's current AND future
+       photos + health resolve automatically. */
+    await writeWithRetry(() => setDoc(doc(fbDb, 'customers', customer.id, 'properties', targetProp.id),
+      { cameraId: key, updatedAt: new Date().toISOString() }, { merge: true }));
     /* Also stamp any already-ingested unassigned photos for this key. */
     const photos = cachedCameraPhotos.filter((p) => (p.customerKey || '(unknown)') === key && !p.customerId);
     for (const p of photos) {
@@ -5950,6 +6204,173 @@ async function assignFieldPhotos(key, customer) {
     toast(`Linked ${key} → ${whereLabel}`);
   } catch (err) {
     toast('Assign failed: ' + ((err && err.message) || 'error'), 'error');
+  }
+}
+
+/* =====================================================================
+ * Item 1 (v2-patch-6): one-time camera migration + reconciliation audit.
+ * Settings → Data Management, admin-only.
+ * ---------------------------------------------------------------------
+ * MIGRATE — any customer-level cameraId (deprecated) is copied onto that
+ * customer's only property; a customer with no properties gets one created
+ * from their main address. Several properties (ambiguous target), a
+ * property already holding a different Camera ID, or the Camera ID already
+ * living on another customer's property = CONFLICT: nothing is written and
+ * the case is listed for manual resolution. The stale customer-level field
+ * is left on the old document — it is never read again.
+ * AUDIT — (i) cameraIds appearing on multiple records, (ii) cameraHealth
+ * records with no matching property, (iii) property cameraIds with no
+ * cameraHealth record. Console log + downloadable report. Conflicts are
+ * surfaced, never auto-resolved.
+ * ===================================================================== */
+async function runCameraMigrationAudit() {
+  if (!isAdmin()) { toast('Only an administrator can run the camera migration.', 'error'); return; }
+  const ok = await confirmDialog('Run camera migration & audit?',
+    'Copies deprecated customer-level Camera IDs onto property records and downloads a reconciliation report. Conflicts are reported, never auto-resolved. Safe to run more than once.');
+  if (!ok) return;
+  const btn = $('#cameraMigrationBtn');
+  if (btn) btn.disabled = true;
+  const norm = (v) => (v == null ? '' : String(v)).trim().toUpperCase();
+  const nowIso = new Date().toISOString();
+  const lines = [];
+  let migrated = 0, createdProps = 0, conflicts = 0;
+  try {
+    const [custSnap, propSnap, healthSnap] = await Promise.all([
+      getDocs(collection(fbDb, 'customers')),
+      getDocs(collectionGroup(fbDb, 'properties')),
+      getDocs(collection(fbDb, 'cameraHealth'))
+    ]);
+    const customers = custSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    const properties = propSnap.docs.map((d) => {
+      const data = d.data();
+      return { id: d.id, ...data, customerId: data.customerId || (d.ref.parent.parent ? d.ref.parent.parent.id : null) };
+    });
+    const custName = (id) => { const c = customers.find((x) => x.id === id); return (c && c.name) || '(unknown customer)'; };
+    const propLabel = (p) => `${custName(p.customerId)} · ${p.siteNickname || p.address || p.id}`;
+    /* cameraId → property holders (kept current as the migration writes). */
+    const holders = new Map();
+    for (const p of properties) {
+      const K = norm(p.cameraId);
+      if (K) holders.set(K, [...(holders.get(K) || []), p]);
+    }
+
+    lines.push('== MIGRATION (customer-level cameraId → property) ==');
+    for (const c of customers) {
+      const K = norm(c.cameraId);
+      if (!K) continue;
+      const custProps = properties.filter((p) => p.customerId === c.id);
+      if (custProps.some((p) => norm(p.cameraId) === K)) {
+        lines.push(`OK        ${K} — already on a property of ${c.name || c.id}; nothing to migrate`);
+        continue;
+      }
+      const taken = holders.get(K) || [];
+      if (taken.length) {
+        conflicts++;
+        lines.push(`CONFLICT  ${K} — customer ${c.name || c.id} holds it, but it is already assigned to ${taken.map(propLabel).join(' / ')}. Resolve manually.`);
+        continue;
+      }
+      if (custProps.length > 1) {
+        conflicts++;
+        lines.push(`CONFLICT  ${K} — ${c.name || c.id} has ${custProps.length} properties; ambiguous target. Assign manually in the property editor.`);
+        continue;
+      }
+      try {
+        if (custProps.length === 1) {
+          const p = custProps[0];
+          if (norm(p.cameraId)) {
+            conflicts++;
+            lines.push(`CONFLICT  ${K} — ${c.name || c.id}'s only property already holds Camera ID ${p.cameraId}. Resolve manually.`);
+            continue;
+          }
+          await writeWithRetry(() => setDoc(doc(fbDb, 'customers', c.id, 'properties', p.id),
+            { cameraId: K, updatedAt: nowIso }, { merge: true }));
+          p.cameraId = K;
+          holders.set(K, [p]);
+          migrated++;
+          lines.push(`MIGRATED  ${K} → ${propLabel(p)}`);
+        } else {
+          const data = {
+            customerId: c.id,
+            siteNickname: 'Main',
+            address: c.address || '',
+            city: c.city || '',
+            county: c.county || '',
+            cameraId: K,
+            migratedFromCustomerCameraId: true,
+            createdAt: nowIso,
+            createdByUid: currentUser ? currentUser.uid : null,
+            createdByEmail: currentUser ? currentUser.email : null,
+            updatedAt: nowIso
+          };
+          await writeWithRetry(() => setDoc(doc(collection(fbDb, 'customers', c.id, 'properties')), data));
+          properties.push(data);
+          holders.set(K, [data]);
+          migrated++; createdProps++;
+          lines.push(`MIGRATED  ${K} → new property "Main" created for ${c.name || c.id} (from the customer's main address)`);
+        }
+      } catch (err) {
+        lines.push(`ERROR     ${K} — write failed for ${c.name || c.id}: ${(err && err.message) || err}`);
+      }
+    }
+    if (lines.length === 1) lines.push('(no customer-level Camera IDs found)');
+
+    /* -------- Reconciliation audit (post-migration state) -------- */
+    lines.push('', '== AUDIT (i): Camera IDs appearing on multiple records ==');
+    const allRecords = new Map();   /* K → labels (properties + deprecated customer fields) */
+    for (const p of properties) {
+      const K = norm(p.cameraId);
+      if (K) allRecords.set(K, [...(allRecords.get(K) || []), `property: ${propLabel(p)}`]);
+    }
+    for (const c of customers) {
+      const K = norm(c.cameraId);
+      if (K) allRecords.set(K, [...(allRecords.get(K) || []), `customer (deprecated field): ${c.name || c.id}`]);
+    }
+    let dupCount = 0;
+    for (const [K, labels] of [...allRecords.entries()].sort((a, b) => a[0].localeCompare(b[0]))) {
+      /* A migrated ID legitimately sits on one property + the stale customer
+         field — only flag IDs on 2+ PROPERTIES, or on a customer whose
+         property set doesn't include it (routing conflict). */
+      const propHolders = holders.get(K) || [];
+      const staleOnly = propHolders.length === 1 && labels.length === 2 &&
+        customers.some((c) => norm(c.cameraId) === K && propHolders[0].customerId === c.id);
+      if (propHolders.length <= 1 && (labels.length <= 1 || staleOnly)) continue;
+      dupCount++;
+      lines.push(`DUPLICATE ${K}:`);
+      labels.forEach((l) => lines.push(`          - ${l}`));
+    }
+    if (!dupCount) lines.push('(none)');
+
+    lines.push('', '== AUDIT (ii): cameraHealth records with no matching property ==');
+    const healthKeys = new Set();
+    healthSnap.docs.forEach((d) => {
+      const k = norm(d.get('customerKey') || (d.id.includes('__') ? d.id.split('__')[0] : d.id));
+      if (k) healthKeys.add(k);
+    });
+    let orphanHealth = 0;
+    for (const k of [...healthKeys].sort()) {
+      if (!holders.has(k)) { orphanHealth++; lines.push(`UNMATCHED ${k} — health data exists but no property holds this Camera ID (stays in the pending queue)`); }
+    }
+    if (!orphanHealth) lines.push('(none)');
+
+    lines.push('', '== AUDIT (iii): property Camera IDs with no cameraHealth record ==');
+    let silent = 0;
+    for (const [K, list] of [...holders.entries()].sort((a, b) => a[0].localeCompare(b[0]))) {
+      if (!healthKeys.has(K)) { silent++; lines.push(`NO-HEALTH ${K} — assigned to ${list.map(propLabel).join(' / ')} but no status report has ever been ingested (deployed-but-silent, or not yet installed)`); }
+    }
+    if (!silent) lines.push('(none)');
+
+    const summary = `Camera migration & reconciliation — ${nowIso}\n` +
+      `Migrated: ${migrated} (new properties created: ${createdProps}) · Conflicts: ${conflicts} · ` +
+      `Duplicate IDs: ${dupCount} · Unmatched health records: ${orphanHealth} · Assigned-but-silent: ${silent}\n\n`;
+    const report = summary + lines.join('\n') + '\n';
+    console.log(report);
+    downloadFile(`camera-reconciliation-${nowIso.slice(0, 10)}.txt`, report, 'text/plain;charset=utf-8');
+    toast(`Migration done — ${migrated} migrated, ${conflicts} conflict${conflicts === 1 ? '' : 's'}. Report downloaded.`);
+  } catch (err) {
+    console.error('camera migration failed', err);
+    toast('Migration failed: ' + ((err && err.message) || 'error'), 'error');
+  } finally {
+    if (btn) btn.disabled = false;
   }
 }
 
@@ -6034,34 +6455,43 @@ async function confirmCameraRemoval(key) {
   }
 }
 
-async function handleFieldSync() {
-  const btn = $('#fieldSyncBtn'), status = $('#fieldSyncStatus');
-  if (btn) { btn.disabled = true; btn.textContent = 'Syncing…'; }
+/* Item 3 (v2-patch-6): the manual Sync Now button is gone. Opening the
+   Monitoring module fires at most ONE automatic fieldSyncNow, and only when
+   the last completed sync (org/graphStatus.lastPollAt) is older than 5
+   minutes — otherwise the module renders straight from Firestore (the
+   scheduled cuddebackIngest runs every 15 minutes anyway). */
+const FIELD_AUTO_SYNC_MAX_AGE_MS = 5 * 60 * 1000;
+let fieldAutoSyncInFlight = false;
+
+async function maybeAutoFieldSync() {
+  if (fieldAutoSyncInFlight) return;               /* never two per open */
+  const status = $('#fieldSyncStatus');
+  const last = graphStatusData && graphStatusData.lastPollAt ? Date.parse(graphStatusData.lastPollAt) : 0;
+  if (last && Date.now() - last < FIELD_AUTO_SYNC_MAX_AGE_MS) {
+    if (status) status.textContent = '';
+    renderFieldLastSynced();
+    return;   /* fresh enough — render from Firestore, no sync */
+  }
+  fieldAutoSyncInFlight = true;
+  renderFieldLastSynced();
   if (status) { status.style.color = 'var(--ink-soft)'; status.textContent = 'Checking the mailbox…'; }
   try {
     const res = await httpsCallable(fbFunctions, 'fieldSyncNow')();
     const r = (res && res.data) || {};
-    /* M16: the server holds an ingest lease — a manual sync that overlaps
+    /* M16: the server holds an ingest lease — an auto-sync that overlaps
        the scheduled poll reports busy instead of double-processing. */
     if (r.busy) {
-      if (status) { status.style.color = 'var(--ink-soft)'; status.textContent = 'A sync is already running — try again in a minute.'; }
-      toast('Sync already in progress');
+      if (status) { status.textContent = ''; }
       return;
     }
-    if (status) {
-      status.style.color = 'var(--green-deep)';
-      status.innerHTML = `✓ Processed ${r.processed ?? 0} email${r.processed === 1 ? '' : 's'} — ` +
-        `<strong>${r.photos ?? 0}</strong> photo${r.photos === 1 ? '' : 's'}, <strong>${r.reports ?? 0}</strong> report${r.reports === 1 ? '' : 's'}` +
-        `${r.unassigned ? `, ${r.unassigned} unassigned` : ''}.`;
-    }
-    toast('Field sync complete');
+    if (status) status.textContent = '';
   } catch (err) {
     const code = (err && err.code) || '';
-    const msg = code === 'functions/unauthenticated' ? 'Please sign in again.' : ('Sync failed: ' + ((err && err.message) || 'error'));
+    const msg = code === 'functions/unauthenticated' ? 'Please sign in again.' : ('Auto-sync failed: ' + ((err && err.message) || 'error'));
     if (status) { status.style.color = 'var(--amber)'; status.textContent = msg; }
-    toast('Field sync failed', 'error');
   } finally {
-    if (btn) { btn.disabled = false; btn.textContent = 'Sync Now'; }
+    fieldAutoSyncInFlight = false;
+    renderFieldLastSynced();
   }
 }
 
@@ -6266,9 +6696,11 @@ const VIEW_TITLES = {
   field:     { dashboard: 'Monitoring' },
   schedule:  { dashboard: 'Calendar', add: 'New Task', 'edit-legacy': 'Edit Job', 'add-appointment': 'New Appointment', 'appointment-detail': 'Appointment', 'job-detail': 'Job', 'add-task': 'New Task', 'task-detail': 'Task' },
   closeout:  { dashboard: 'Close Out', 'closeout-confirm': 'Confirm Close Out' },
+  notes:     { dashboard: 'Notes', add: 'Note' },   /* Item 7 (v2-patch-6) */
   settings:  { dashboard: 'Settings', 'assign-legacy': 'Assign Legacy Records',
                'settings-contractors': 'Contractors', 'settings-business': 'Business Info',
-               'settings-licensing': 'Licensing & Permits', 'settings-pesticide-db': 'Pesticide Database' },
+               'settings-licensing': 'Licensing & Permits', 'settings-pesticide-db': 'Pesticide Database',
+               'settings-taxreports': 'Tax Jurisdiction Reports' },
   allrecords: { dashboard: 'View Records' }
 };
 
@@ -6289,6 +6721,7 @@ function setView(name, opts) {
    'jobs','add-job','job-detail','add-appointment','appointment-detail','assign-legacy',
    'add-task','task-detail','closeout','closeout-confirm',
    'settings-contractors','settings-business','settings-licensing','settings-pesticide-db',
+   'settings-taxreports','notes','add-note',
    'notifications','records-all','export','settings'].forEach((v) => {
     const el = document.getElementById(`view-${v}`);
     if (el) el.classList.add('hidden');
@@ -6318,6 +6751,9 @@ function setView(name, opts) {
     if (name === 'dashboard') actualId = 'closeout';   /* Item 7 */
   } else if (appMode === 'allrecords') {
     if (name === 'dashboard') actualId = 'records-all';   /* Items 8 & 9 */
+  } else if (appMode === 'notes') {
+    if (name === 'dashboard') actualId = 'notes';         /* Item 7 (v2-patch-6) */
+    if (name === 'add') actualId = 'add-note';
   }
   const showEl = document.getElementById(`view-${actualId}`);
   if (showEl) showEl.classList.remove('hidden');
@@ -6344,6 +6780,8 @@ function setView(name, opts) {
       if (!editingTaskId) resetTaskForm();   /* Item 16: schedule adds tasks */
     } else if (appMode === 'jobs') {
       if (!editingLifecycleJobId) resetLifecycleJobForm();
+    } else if (appMode === 'notes') {
+      if (!editingNoteId) resetNoteForm();   /* Item 7 (v2-patch-6) */
     }
   }
   if (name === 'add-appointment' && !editingAppointment && !preserveForm) resetAppointmentForm();
@@ -6371,6 +6809,9 @@ function setView(name, opts) {
   if (appMode === 'closeout' && name === 'dashboard') {
     renderCloseoutList();   /* Item 7 (v2-patch-2) */
   }
+  if (appMode === 'notes' && name === 'dashboard') {
+    renderNotesList();   /* Item 7 (v2-patch-6) */
+  }
   if (name === 'assign-legacy') renderAssignLegacyView();
   if (name === 'settings' || appMode === 'settings') renderSettingsStatus();
   /* Item 5 (v2-patch-2): settings sub-screens re-render on open so the
@@ -6378,6 +6819,7 @@ function setView(name, opts) {
   if (name === 'settings-contractors') renderOperatorsCard();
   if (name === 'settings-business' || name === 'settings-licensing') { renderBusinessCard(); renderCertCard(); }
   if (name === 'settings-pesticide-db') renderPesticideAdminList();
+  if (name === 'settings-taxreports') initTaxReports();   /* Item 5 (v2-patch-6) */
   /* Pesticide-form map: lazy, only when its group is already visible
      (Item 15 parity, H3 — the map opens exclusively via "Locate on Map"
      or when editing a record that has coordinates). */
@@ -7268,6 +7710,11 @@ function wireMapboxAutocomplete(inputId, listId, onPick) {
   input.addEventListener('input', () => {
     const q = input.value;
     clearTimeout(timer);
+    /* Item 15 / L3 (v2-patch-6): bump seq on EVERY keystroke, not just
+       inside the debounce timer — clearing the input below 3 chars used
+       to leave an in-flight fetch valid, so stale suggestions for the
+       deleted text re-rendered when it resolved. */
+    seq++;
     if (q.trim().length < 3) { hide(); return; }
     timer = setTimeout(async () => {
       const mySeq = ++seq;
@@ -7803,6 +8250,23 @@ function renderSingleMode(list) {
 }
 
 /* ---------- Dashboard ---------- */
+/* Item 8 (v2-patch-6): per-contractor stat panels, generated from the
+   operator list (TRAPPERS) — never hard-coded names, no certification-based
+   hiding (Tanya's panel renders like the others). Counts match on the
+   record's stored contractor name (trapper / applicator). */
+function renderContractorStats(records, nameOf, noun) {
+  const root = $('#contractorStats');
+  if (!root) return;
+  root.innerHTML = TRAPPERS.map((name) => {
+    const n = records.filter((r) => (nameOf(r) || '') === name).length;
+    return `<div class="stat">
+      <div class="label">${escapeHtml(name)}</div>
+      <div class="value">${n}</div>
+      <div class="sub">${n === 1 ? noun : noun + 's'} this period</div>
+    </div>`;
+  }).join('');
+}
+
 function renderDashboard() {
   if (appMode === 'pesticide') return renderPesticideDashboard();
   const period = reportPeriod();
@@ -7818,9 +8282,10 @@ function renderDashboard() {
   const minePeriod = inP.filter((r) => (r.createdByEmail || '').toLowerCase() === myEmail);
 
   $('#statTotalSwr').textContent = inP.length;
-  $('#statTotalUser').textContent = minePeriod.length;
   $('#statTotalSwrSub').textContent = 'all trappers';
-  $('#statTotalUserSub').textContent = minePeriod.length === 1 ? 'your record' : 'your records';
+  /* Item 8 (v2-patch-6): one panel per operator, generated from TRAPPERS —
+     all four contractors appear regardless of certification status. */
+  renderContractorStats(inP, (r) => r.trapper, 'record');
 
   /* Top species */
   const scope = topSpeciesScope === 'me' ? minePeriod : inP;
@@ -7886,9 +8351,9 @@ function renderPesticideDashboard() {
   const mine = inP.filter((r) => (r.createdByEmail || '').toLowerCase() === myEmail);
 
   $('#statTotalSwr').textContent = inP.length;
-  $('#statTotalUser').textContent = mine.length;
   $('#statTotalSwrSub').textContent = 'all applicators';
-  $('#statTotalUserSub').textContent = mine.length === 1 ? 'your application' : 'your applications';
+  /* Item 8 (v2-patch-6): per-operator panels from TRAPPERS. */
+  renderContractorStats(inP, (r) => r.applicator, 'application');
 
   /* Top products (by application count, not weighted) — reuse #topSpeciesList */
   const counts = {};
@@ -8068,7 +8533,16 @@ function closeSheet() {
 /* ---------- Export ---------- */
 function csvCell(v) {
   if (v == null) return '';
-  const s = String(v);
+  let s = String(v);
+  /* Item 15 (v2-patch-6, pre-existing finding): formula-injection guard —
+     Excel/Sheets execute cells beginning with = + @ (and - when it isn't a
+     number). Free-text fields (names, notes, addresses) flow into every
+     export, so hostile input like "=HYPERLINK(...)" must land as text.
+     A leading apostrophe makes spreadsheets render the raw string;
+     legitimate negative numbers (lat/lng) are exempt. */
+  if (/^[=@]/.test(s)
+      || (s.startsWith('+') && !/^\+\d/.test(s))       /* "+1 502…" phone values stay intact */
+      || (s.startsWith('-') && !/^-?\d+(\.\d+)?$/.test(s))) s = "'" + s;
   if (/[",\n\r]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
   return s;
 }
@@ -8157,14 +8631,19 @@ function fillExportPeriods() {
   const sel = $('#exportPeriod');
   sel.innerHTML = '';
   const cur = reportPeriod();
+  const labels = ['Current period', 'Prior period'];
   for (let off = 0; off < 4; off++) {
     const start = `${cur.startYear - off}-02-01`;
     const end = `${cur.startYear - off + 1}-01-31`;
     const o = document.createElement('option');
     o.value = `${start}|${end}`;
-    o.textContent = `${fmtDate(start)} – ${fmtDate(end)}`;
+    o.textContent = `${labels[off] ? labels[off] + ' · ' : ''}${fmtDate(start)} – ${fmtDate(end)}`;
     sel.appendChild(o);
   }
+  /* Item 6d (v2-patch-6): after the Feb 1 rollover the report being
+     submitted is the PRIOR period's — default to it through February so
+     the rollover reminder points at a working export. */
+  if (new Date().getMonth() === 1 && sel.options.length > 1) sel.selectedIndex = 1;
 }
 
 function exportKdfwr() {
@@ -8237,75 +8716,10 @@ function renderBusinessCard() {
   $('#permitEdit').classList.toggle('hidden', !isAdmin());
 }
 
-/* Item 5 (v2-patch-2): reporting period as compact day/month/year dropdowns
-   on the Settings Configuration card. Defaults to the KDFWR Feb 1 – Jan 31
-   period; admin-set custom dates are stored in the same org fields as
-   before, so dashboard stats and CSV exports (both Trapping and Pesticide
-   modules) keep using reportPeriod() unchanged. */
-const RPT_MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-function fillRptSelectors(prefix, iso) {
-  const [y, m, d] = (iso || '').split('-').map(Number);
-  const mSel = $(`#rpt${prefix}Month`), dSel = $(`#rpt${prefix}Day`), ySel = $(`#rpt${prefix}Year`);
-  if (!mSel || !dSel || !ySel) return;
-  if (!mSel.options.length) {
-    RPT_MONTHS.forEach((name, i) => {
-      const o = document.createElement('option');
-      o.value = String(i + 1); o.textContent = name;
-      mSel.appendChild(o);
-    });
-    for (let day = 1; day <= 31; day++) {
-      const o = document.createElement('option');
-      o.value = String(day); o.textContent = String(day);
-      dSel.appendChild(o);
-    }
-  }
-  /* Years re-fill each render so the range tracks the current period. */
-  const thisYear = new Date().getFullYear();
-  ySel.innerHTML = '';
-  for (let yr = thisYear - 2; yr <= thisYear + 2; yr++) {
-    const o = document.createElement('option');
-    o.value = String(yr); o.textContent = String(yr);
-    ySel.appendChild(o);
-  }
-  if (y && !Array.from(ySel.options).some((o) => o.value === String(y))) {
-    const o = document.createElement('option');
-    o.value = String(y); o.textContent = String(y);
-    ySel.appendChild(o);
-  }
-  if (m) mSel.value = String(m);
-  if (d) dSel.value = String(d);
-  if (y) ySel.value = String(y);
-}
-function readRptSelectors(prefix) {
-  const m = parseInt($(`#rpt${prefix}Month`).value, 10);
-  const d = parseInt($(`#rpt${prefix}Day`).value, 10);
-  const y = parseInt($(`#rpt${prefix}Year`).value, 10);
-  if (!m || !d || !y) return null;
-  /* The day list always offers 1–31 — reject combinations that don't
-     exist (e.g. Feb 31) instead of storing an ISO string that rolls over. */
-  const roundTrip = new Date(y, m - 1, d);
-  if (roundTrip.getFullYear() !== y || roundTrip.getMonth() !== m - 1 || roundTrip.getDate() !== d) return null;
-  return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-}
-function renderReportingCard() {
-  const p = reportPeriod();
-  fillRptSelectors('Start', p.start);
-  fillRptSelectors('End', p.end);
-  const custom = !!(orgSettings.reportingPeriodStart && orgSettings.reportingPeriodEnd);
-  const hint = $('#rptHint');
-  if (hint) {
-    hint.textContent = isAdmin()
-      ? (custom ? 'Custom period (admin set) — applies to dashboards and CSV exports for both modules.'
-                : 'KDFWR default (Feb 1 – Jan 31).')
-      : 'Only an admin can change the reporting period.';
-  }
-  const admin = isAdmin();
-  ['rptStartMonth', 'rptStartDay', 'rptStartYear', 'rptEndMonth', 'rptEndDay', 'rptEndYear'].forEach((id) => {
-    const el = $('#' + id); if (el) el.disabled = !admin;
-  });
-  const actions = $('#rptActions');
-  if (actions) actions.style.display = admin ? '' : 'none';
-}
+/* Item 6 (v2-patch-6): the Reporting Period editor (fillRptSelectors /
+   readRptSelectors / renderReportingCard / handleSaveReporting /
+   handleResetReporting) is removed — the KDFWR cycle is hard-coded in
+   reportPeriod() and rolls automatically (server-side, Feb 1). */
 
 async function handleSaveBusiness() {
   if (!isAdmin()) return;
@@ -9550,48 +9964,6 @@ async function deletePesticide(id) {
   }
 }
 
-/* Item 5 (v2-patch-2): reads the day/month/year dropdowns; storage fields
-   and reportPeriod() semantics are unchanged. */
-async function handleSaveReporting() {
-  if (!isAdmin()) return;
-  const start = readRptSelectors('Start');
-  const end = readRptSelectors('End');
-  if (!start || !end) {
-    toast('Pick valid start and end dates (that day doesn’t exist in that month).', 'error');
-    return;
-  }
-  if (start > end) {
-    toast('Start date must come before end date.', 'error');
-    return;
-  }
-  const body = `Set reporting period to ${fmtDate(start)} – ${fmtDate(end)}. This applies to every trapper's dashboard stats and CSV exports (Trapping and Pesticide). Type CONFIRM to proceed.`;
-  const ok = await confirmDialog('Save reporting period?', body, { sentinel: 'CONFIRM', okText: 'Save' });
-  if (!ok) return;
-  try {
-    await saveOrgConfig({
-      reportingPeriodStart: start,
-      reportingPeriodEnd: end
-    });
-    toast('Reporting period saved');
-  } catch (err) {
-    toast(`Save failed: ${err.message || err}`, 'error');
-  }
-}
-
-/* Item 5: revert to the auto-computed KDFWR default (Feb 1 – Jan 31). */
-async function handleResetReporting() {
-  if (!isAdmin()) return;
-  const ok = await confirmDialog('Revert to KDFWR default?',
-    'This clears the custom period and returns to the auto-computed KDFWR default (Feb 1 – Jan 31). Type CONFIRM to proceed.',
-    { sentinel: 'CONFIRM', okText: 'Revert' });
-  if (!ok) return;
-  try {
-    await saveOrgConfig({ reportingPeriodStart: null, reportingPeriodEnd: null });
-    toast('Reporting period reset to KDFWR default');
-  } catch (err) {
-    toast(`Save failed: ${err.message || err}`, 'error');
-  }
-}
 async function restoreFromFile(file) {
   try {
     const txt = await file.text();
@@ -10304,7 +10676,8 @@ function updateBellBadge() {
 const NOTIF_TYPE_META = {
   appointment: { icon: '📅', label: 'Appointment' },
   camera: { icon: '📷', label: 'Camera alert' },
-  job: { icon: '💼', label: 'Job update' }
+  job: { icon: '💼', label: 'Job update' },
+  kdfwr: { icon: '📋', label: 'KDFWR reporting' }   /* Item 6 (v2-patch-6) */
 };
 
 function fmtNotifTime(iso) {
@@ -10361,20 +10734,25 @@ function renderNotificationsPage() {
   const row = (n) => {
     const meta = NOTIF_TYPE_META[n.type] || { icon: '🔔', label: n.type || 'Notice' };
     const source = notifSourceName(n);
+    /* Item 6 (v2-patch-6): pinned notices (KDFWR rollover) carry a pin and
+       sit at the very top until dismissed. */
+    const pin = n.pinned && !n.read ? '📌 ' : '';
     return `<div class="notif-row${n.read ? '' : ' unread'}">
       <div class="nf-icon">${meta.icon}</div>
       <div class="nf-body">
-        <div class="nf-title">${escapeHtml(n.title || meta.label)}</div>
+        <div class="nf-title">${pin}${escapeHtml(n.title || meta.label)}</div>
         ${n.body ? `<div class="nf-text">${escapeHtml(n.body)}</div>` : ''}
         <div class="nf-meta">${escapeHtml([meta.label, source, fmtNotifTime(n.createdAt)].filter(Boolean).join(' · '))}</div>
       </div>
       ${n.read ? '' : `<button type="button" class="nf-dismiss" data-notif-dismiss="${escapeHtml(n.id)}" aria-label="Dismiss">×</button>`}
     </div>`;
   };
-  /* Unread first, then read — each newest-first. With no unread left, the
-     caught-up state still shows above the history so an empty inbox reads
-     as "working", not "broken". */
-  root.innerHTML = (unread.length ? '' : caughtUp) + [...unread, ...read].map(row).join('');
+  /* Pinned-unread first (Item 6), then unread, then read — each
+     newest-first. With no unread left, the caught-up state still shows
+     above the history so an empty inbox reads as "working", not "broken". */
+  const pinnedUnread = unread.filter((n) => n.pinned);
+  const restUnread = unread.filter((n) => !n.pinned);
+  root.innerHTML = (unread.length ? '' : caughtUp) + [...pinnedUnread, ...restUnread, ...read].map(row).join('');
 }
 
 function dismissNotification(id) {
@@ -10681,6 +11059,10 @@ function appointmentsForJob(jobId) {
 
 /* ---- Tasks (Item 15, v2-patch-1): top-level `tasks` collection ---- */
 let cachedTasks = [];
+/* Item 15 / M4 (v2-patch-6): true once the first tasks snapshot has
+   arrived — Close Out must never judge readiness from an empty cold
+   cache (it would list every Active job as ready). */
+let cachedTasksLoaded = false;
 let tasksUnsub = null;
 let tasksRetryTimer = null;
 
@@ -10691,6 +11073,7 @@ function subscribeToTasks() {
   if (tasksUnsub) return;
   /* No orderBy — sorted client-side, so no composite index is needed. */
   tasksUnsub = onSnapshot(query(tasksCol()), (snap) => {
+    cachedTasksLoaded = true;   /* Item 15 / M4 (v2-patch-6) */
     cachedTasks = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
     cachedTasks.sort((a, b) =>
       ((a.scheduledDate || '') + (a.scheduledTime || '')).localeCompare((b.scheduledDate || '') + (b.scheduledTime || '')));
@@ -10712,6 +11095,7 @@ function subscribeToTasks() {
 function unsubscribeFromTasks() {
   if (tasksUnsub) { tasksUnsub(); tasksUnsub = null; }
   cachedTasks = [];
+  cachedTasksLoaded = false;   /* Item 15 / M4 (v2-patch-6) */
 }
 
 /* ---- Jobs list ---- */
@@ -11020,8 +11404,11 @@ function editLifecycleJob(id) {
 
 /* Switch module without the dashboard flash setAppMode() causes. */
 function setAppModeQuiet(mode) {
+  const prevMode = appMode;
   appMode = mode;
   modeSelected = true;
+  /* Item 3 (v2-patch-6): opening Monitoring auto-syncs (throttled, once). */
+  if (mode === 'field' && prevMode !== 'field') maybeAutoFieldSync();
   updateModuleUI();
   renderBottomNav();
   $('#modePicker').classList.add('hidden');
@@ -11079,12 +11466,12 @@ function renderTaskModelJobDetail(j) {
   const tasks = tasksForJob(id);   /* cachedTasks is already chronological */
   const trapRecs = cachedRecords.filter((r) => r.jobId === id);
   const pestRecs = cachedPesticideRecords.filter((r) => r.jobId === id);
-  const cameraId = (prop && prop.cameraId) || (cust && cust.cameraId) || '';
+  const cameraId = (prop && prop.cameraId) || '';   /* Item 1 (v2-patch-6): property-only */
   const isOpen = j.status === 'Active';
 
   const taskRows = tasks.length ? tasks.map((t) => {
-    const label = t.taskType === 'Exclusion – Other' && t.taskTypeOther
-      ? `Exclusion – Other: ${t.taskTypeOther}` : (t.taskType || 'Task');
+    /* Item 15 / L10 (v2-patch-6): single source for the label. */
+    const label = taskTypeLabel(t);
     const who = (t.assigneeNames || []).join(', ');
     const doneBtn = (t.status === 'Open' && isOpen)
       ? `<button type="button" class="pill-btn" data-task-complete="${escapeHtml(t.id)}" style="background:#DDEAD8;color:var(--released);flex-shrink:0;" aria-label="Mark complete">✓ Done</button>`
@@ -11146,9 +11533,9 @@ function renderTaskModelJobDetail(j) {
       <div class="appt-timeline">${taskRows}</div>
     </div>
     ${j.notes ? `<div class="card"><h3 style="margin-top:0;">Notes</h3><div>${escapeHtml(j.notes)}</div></div>` : ''}
-    <div class="form-actions">${actions}</div>`;
-    /* Item 17 (v2-patch-5): the Return to Jobs button is gone — the Jobs
-       icon in the bottom banner already navigates back to the list. */
+    <div class="form-actions">${actions}<button class="btn btn-cancel btn-ghost" data-ljob-action="back">Back to Jobs</button></div>`;
+    /* Item 10 (v2-patch-6): explicit Back to Jobs restored — the bottom-nav
+       Jobs label icon it relied on (Item 17, v2-patch-5) is removed. */
 }
 
 function renderLifecycleJobDetail(id) {
@@ -11170,7 +11557,7 @@ function renderLifecycleJobDetail(id) {
     ((a.scheduledDate || '') + (a.scheduledTime || '')).localeCompare((b.scheduledDate || '') + (b.scheduledTime || '')));
   const trapRecs = cachedRecords.filter((r) => r.jobId === id);
   const pestRecs = cachedPesticideRecords.filter((r) => r.jobId === id);
-  const cameraId = (prop && prop.cameraId) || (cust && cust.cameraId) || '';
+  const cameraId = (prop && prop.cameraId) || '';   /* Item 1 (v2-patch-6): property-only */
 
   const apptRows = appts.length ? appts.map((a) => {
     const who = (a.assigneeNames || []).join(', ');
@@ -11246,9 +11633,10 @@ function renderLifecycleJobDetail(id) {
       <div class="appt-timeline">${apptRows}</div>
     </div>
     ${j.notes ? `<div class="card"><h3 style="margin-top:0;">Notes</h3><div>${escapeHtml(j.notes)}</div></div>` : ''}
-    <div class="form-actions">${actions}</div>`;
-    /* Item 17 (v2-patch-5): the Return to Jobs button is gone — the Jobs
-       icon in the bottom banner already navigates back to the list. */
+    <div class="form-actions">${actions}<button class="btn btn-cancel btn-ghost" data-ljob-action="back">Back to Jobs</button></div>`;
+    /* Item 10 (v2-patch-6): the bottom-nav Jobs icon is gone, so the
+       explicit Back to Jobs button returns (Item 17 v2-patch-5 had removed
+       it in favor of that icon). */
 }
 
 /* ---- Job payment (Items 3 & 5) ----
@@ -11335,22 +11723,11 @@ function assignJobCamera(jobId, cameraId) {
     });
   const jdx = cachedJobs.findIndex((x) => x.id === jobId);
   if (jdx >= 0) cachedJobs[jdx] = { ...cachedJobs[jdx], cameraId: K };
-  /* Reflect onto the job's own property (or customer) so photo routing links
-     this camera to the job's context — but never overwrite a record already
-     routing a different camera. */
-  const prop = j.propertyId ? cachedProperties.find((p) => p.id === j.propertyId) : null;
-  if (prop && j.customerId && !(prop.cameraId || '').trim()) {
-    writeWithRetry(() => setDoc(doc(fbDb, 'customers', j.customerId, 'properties', prop.id),
-      { cameraId: K, updatedAt: now }, { merge: true }))
-      .catch((err) => console.error('property camera reflect failed', err));
-  } else if (!prop && j.customerId) {
-    const cust = cachedCustomers.find((c) => c.id === j.customerId);
-    if (cust && !(cust.cameraId || '').trim()) {
-      writeWithRetry(() => setDoc(doc(fbDb, 'customers', j.customerId),
-        { cameraId: K, updatedAt: now }, { merge: true }))
-        .catch((err) => console.error('customer camera reflect failed', err));
-    }
-  }
+  /* Item 1 (v2-patch-6): the job's cameraId is a LINK to a camera that
+     already lives on a property record (the sheet lists property cameras
+     only). Nothing is mirrored onto property or customer records here —
+     the property editor is the one assignment door, and the old mirror
+     could stamp a duplicate cameraId onto a second property. */
   toast(`Camera ${K} assigned to ${j.jobNumber || 'the job'}`);
   closeCameraSheet();
   renderLifecycleJobDetail(jobId);
@@ -11686,15 +12063,30 @@ function cancelOpenTasksForJob(jobId) {
   const open = tasksForJob(jobId).filter((t) => t.status === 'Open');
   if (!open.length) return 0;
   const now = new Date().toISOString();
-  const batch = writeBatch(fbDb);
   for (const t of open) {
-    batch.set(doc(fbDb, 'tasks', t.id), { status: 'Cancelled', updatedAt: now }, { merge: true });
     const idx = cachedTasks.findIndex((x) => x.id === t.id);
     if (idx >= 0) cachedTasks[idx] = { ...cachedTasks[idx], status: 'Cancelled' };
   }
-  batch.commit().catch((err) => {
-    console.error('Open-task cancellation failed', err);
-    toast('Task cancellations failed to sync: ' + ((err && err.message) || 'error'), 'error');
+  /* Item 15 / M5 (v2-patch-6): the job's Complete write retries
+     (writeWithRetry) but the old cancellation batch didn't — one transient
+     failure stranded Open tasks on a Complete job with no recovery path.
+     Functional-audit MEDIUM-1: PER-TASK writes instead of one atomic
+     batch. Under the new terminal-status rule, a task another operator
+     completed moments ago (stale local cache) would poison the whole
+     batch and cancel NOTHING; individually, that one write is rejected
+     (harmless — the task is already terminal server-side) while every
+     genuinely-open task still gets cancelled. Each write keeps the
+     3-attempt retry. */
+  const cancelOne = (t) => writeWithRetry(() =>
+    setDoc(doc(fbDb, 'tasks', t.id), { status: 'Cancelled', updatedAt: now }, { merge: true }));
+  Promise.allSettled(open.map(cancelOne)).then((results) => {
+    const rejected = results.filter((r) => r.status === 'rejected');
+    if (!rejected.length) return;
+    /* permission-denied = the task was already Completed/Cancelled on the
+       server (terminal-status rule) — the invariant holds; stay quiet. */
+    const real = rejected.filter((r) => !/permission/i.test(String((r.reason && r.reason.code) || r.reason || '')));
+    console.error('Open-task cancellation failures', rejected.map((r) => r.reason));
+    if (real.length) toast(`${real.length} task cancellation${real.length === 1 ? '' : 's'} failed to sync — check the job's tasks.`, 'error');
   });
   return open.length;
 }
@@ -11715,15 +12107,26 @@ let currentCloseoutJobId = null;
 /* Ready to close: Active, task-model, and no task still Open. Legacy
    lifecycle jobs keep their own Pending Close → Paid flow on Job Detail. */
 function jobsReadyToClose() {
-  return lifecycleJobs().filter((j) =>
-    isTaskModelJob(j)
-    && (j.status || 'Active') === 'Active'
-    && tasksForJob(j.id).every((t) => t.status !== 'Open'));
+  /* Item 15 / M4 (v2-patch-6): a job with NO tasks is not "ready to
+     close" — .every() on an empty array is vacuously true, which listed
+     every freshly created job (and, on a cold cache, ALL Active jobs) as
+     one tap away from an irreversible Complete. Require the tasks cache
+     to be loaded and at least one task on the job. */
+  if (!cachedTasksLoaded) return [];
+  return lifecycleJobs().filter((j) => {
+    if (!isTaskModelJob(j) || (j.status || 'Active') !== 'Active') return false;
+    const tasks = tasksForJob(j.id);
+    return tasks.length > 0 && tasks.every((t) => t.status !== 'Open');
+  });
 }
 
 function renderCloseoutList() {
   const el = $('#closeoutList');
   if (!el) return;
+  if (!cachedTasksLoaded) {
+    el.innerHTML = '<div style="padding:16px;color:var(--ink-soft);">Loading tasks…</div>';
+    return;
+  }
   const list = jobsReadyToClose().slice().sort((a, b) =>
     (b.startDate || b.createdAt || '').localeCompare(a.startDate || a.createdAt || ''));
   if (!list.length) {
@@ -11796,6 +12199,9 @@ function renderCloseoutConfirm(id) {
    off, and stamps the closeout date + operator. */
 async function confirmCloseOutJob(id) {
   if (!isAdmin()) { toast('Only an administrator can close out a job.', 'error'); return; }
+  /* Item 15 / M4 (v2-patch-6): never close out against an unloaded tasks
+     cache — open tasks would be invisible and escape cancellation. */
+  if (!cachedTasksLoaded) { toast('Tasks are still loading — try again in a moment.', 'error'); return; }
   const j = cachedJobs.find((x) => x.id === id);
   if (!j || (j.status || 'Active') !== 'Active') { toast('This job is no longer Active.', 'error'); setView('dashboard'); return; }
   const now = new Date().toISOString();
@@ -11981,10 +12387,20 @@ function handleRebaitTaskCompleted(t) {
   confirmDialog('Extend rebait schedule?',
     `The rebait schedule ends on ${fmtDate(j.rebaitEndDate) || 'its end date'} — extend by 30 days?`,
     { okText: 'Extend 30 Days' }).then((ok) => {
+    /* Item 15 / L1 (v2-patch-6): re-check the job's LIVE state — the admin
+       may have closed or cancelled it while this dialog sat open, and
+       confirming then would re-arm the schedule and drop a new Open task
+       on a closed job (the rules would reject the job write but not the
+       task creation). */
+    const live = cachedJobs.find((x) => x.id === j.id);
+    if (!live || !live.rebaitActive || (live.status || 'Active') !== 'Active') {
+      if (ok) toast('This job is no longer active — the rebait schedule was not extended.', 'error');
+      return;
+    }
     const now = new Date().toISOString();
     const jdx = cachedJobs.findIndex((x) => x.id === j.id);
     if (ok) {
-      const newEnd = addDaysISO(j.rebaitEndDate || anchor, 30);
+      const newEnd = addDaysISO(live.rebaitEndDate || j.rebaitEndDate || anchor, 30);
       writeWithRetry(() => setDoc(doc(fbDb, 'jobs', j.id), { rebaitEndDate: newEnd, updatedAt: now }, { merge: true }))
         .catch((err) => { console.error('Rebait extension failed', err); toast('Extension failed to sync: ' + ((err && err.message) || 'error'), 'error'); });
       if (jdx >= 0) cachedJobs[jdx] = { ...cachedJobs[jdx], rebaitEndDate: newEnd };
@@ -12600,18 +13016,28 @@ async function assignLegacyGroup(index, jobId, btn) {
      group used to reappear as unassigned and invite a second tap. Patch
      the caches optimistically BEFORE re-rendering (H1 pattern used by the
      job/task writes); a failed commit reverts them and shows a toast. */
-  const patchLocalCaches = (jobIdVal) => {
+  /* Item 15 / L4 (v2-patch-6): snapshot the fields the optimistic patch
+     touches so a failed commit restores ALL of them — the old revert reset
+     only jobId and left stale jobTitle/customerId/customerName in the
+     cache until the rollback snapshot arrived. */
+  const priorById = new Map();
+  for (const it of g.items) {
+    const cache = it.col === 'records' ? cachedRecords : cachedPesticideRecords;
+    const r = cache.find((x) => x.id === it.id);
+    if (r) priorById.set(it.id, { jobId: r.jobId ?? null, jobTitle: r.jobTitle ?? '', customerId: r.customerId ?? null, customerName: r.customerName ?? '' });
+  }
+  const patchLocalCaches = (apply) => {
     for (const it of g.items) {
       const cache = it.col === 'records' ? cachedRecords : cachedPesticideRecords;
       const idx = cache.findIndex((r) => r.id === it.id);
       if (idx >= 0) {
-        cache[idx] = jobIdVal
-          ? { ...cache[idx], jobId: jobIdVal, jobTitle: j.jobNumber || '', customerId: j.customerId || null, customerName: j.customerName || '' }
-          : { ...cache[idx], jobId: null };
+        cache[idx] = apply
+          ? { ...cache[idx], jobId, jobTitle: j.jobNumber || '', customerId: j.customerId || null, customerName: j.customerName || '' }
+          : { ...cache[idx], ...(priorById.get(it.id) || { jobId: null }) };
       }
     }
   };
-  patchLocalCaches(jobId);
+  patchLocalCaches(true);
   try {
     /* Item 20: ONLINE, await the commit so the first confirmed tap is a
        committed write (a failure reverts + toasts instead of silently
@@ -12623,7 +13049,7 @@ async function assignLegacyGroup(index, jobId, btn) {
     } else {
       commit.catch((err) => {
         console.error('Legacy assign failed', err);
-        patchLocalCaches(null);   /* revert so the group shows as unassigned again */
+        patchLocalCaches(false);   /* revert so the group shows as unassigned again */
         if (!$('#view-assign-legacy').classList.contains('hidden')) renderAssignLegacyView();
         toast('Assign failed to sync: ' + ((err && err.message) || 'error'), 'error');
       });
@@ -12632,7 +13058,7 @@ async function assignLegacyGroup(index, jobId, btn) {
     renderAssignLegacyView();
   } catch (err) {
     console.error('Legacy assign failed', err);
-    patchLocalCaches(null);
+    patchLocalCaches(false);
     if (!$('#view-assign-legacy').classList.contains('hidden')) renderAssignLegacyView();
     toast('Assign failed: ' + ((err && err.message) || 'error'), 'error');
     if (btn) { btn.disabled = false; btn.textContent = 'Assign'; }
@@ -12669,12 +13095,15 @@ async function createJobForLegacyGroup(index) {
       createdAt: now, updatedAt: now,
       notes: `Created from legacy records (${g.date || 'no date'}).`
     };
-    /* Optimistic writes (H1): fire the job create and the record links
-       without awaiting so the flow works offline. */
-    writeWithRetry(() => setDoc(ref, jobData)).catch((err) => {
-      console.error('Legacy job create failed', err);
-      toast('Job failed to sync: ' + ((err && err.message) || 'error'), 'error');
-    });
+    /* Item 15 / L4 (v2-patch-6, revised per functional audit): snapshot the
+       fields the link batch touches so a rollback restores ALL of them
+       (customerId/customerName too, not just jobId). */
+    const priorById = new Map();
+    for (const it of g.items) {
+      const cache = it.col === 'records' ? cachedRecords : cachedPesticideRecords;
+      const r = cache.find((x) => x.id === it.id);
+      if (r) priorById.set(it.id, { jobId: r.jobId ?? null, customerId: r.customerId ?? null, customerName: r.customerName ?? '' });
+    }
     /* cachedJobs may not include the new job yet — link directly. */
     const batch = writeBatch(fbDb);
     for (const it of g.items) {
@@ -12687,19 +13116,51 @@ async function createJobForLegacyGroup(index) {
        before re-rendering so the group leaves the list on the FIRST tap
        (the re-render reads these caches, not the not-yet-arrived snapshot). */
     if (!cachedJobs.some((x) => x.id === ref.id)) cachedJobs.push({ id: ref.id, ...jobData });
-    const patchLocalCaches = (jobIdVal) => {
+    const patchLocalCaches = (apply) => {
       for (const it of g.items) {
         const cache = it.col === 'records' ? cachedRecords : cachedPesticideRecords;
         const idx = cache.findIndex((r) => r.id === it.id);
-        if (idx >= 0) cache[idx] = { ...cache[idx], jobId: jobIdVal };
+        if (idx >= 0) {
+          cache[idx] = apply
+            ? { ...cache[idx], jobId: ref.id, customerId: match ? match.id : null, customerName: match ? match.name : g.name }
+            : { ...cache[idx], ...(priorById.get(it.id) || { jobId: null, customerId: null, customerName: '' }) };
+        }
       }
     };
-    patchLocalCaches(ref.id);
-    batch.commit().catch((err) => {
+    patchLocalCaches(true);
+    /* Optimistic writes (H1): fire the job create and the record links
+       without awaiting so the flow works offline. Keep the SETTLED link
+       promise so the rollback below can sequence after it — otherwise a
+       fast job-create failure could roll back BEFORE the link batch lands,
+       recreating the dangling links it is meant to prevent. */
+    const linkSettled = batch.commit().then(() => true, (err) => {
       console.error('Legacy link failed', err);
-      patchLocalCaches(null);   /* revert so the group shows as unassigned again */
+      patchLocalCaches(false);   /* revert so the group shows as unassigned again */
       if (!$('#view-assign-legacy').classList.contains('hidden')) renderAssignLegacyView();
       toast('Record links failed to sync: ' + ((err && err.message) || 'error'), 'error');
+      return false;
+    });
+    /* Item 15 / L4: if the job create ultimately FAILS while the links
+       committed, the records would point at a nonexistent job — after the
+       link batch settles, restore each record's prior link fields. */
+    writeWithRetry(() => setDoc(ref, jobData)).catch((err) => {
+      console.error('Legacy job create failed', err);
+      toast('Job failed to sync: ' + ((err && err.message) || 'error'), 'error');
+      linkSettled.then((linked) => {
+        if (linked) {
+          const unlink = writeBatch(fbDb);
+          for (const it of g.items) {
+            unlink.set(doc(fbDb, it.col, it.id),
+              { ...(priorById.get(it.id) || { jobId: null, customerId: null, customerName: '' }), updatedAt: new Date().toISOString() },
+              { merge: true });
+          }
+          unlink.commit().catch((e2) => console.error('Legacy link rollback failed', e2));
+        }
+        patchLocalCaches(false);
+        const jix = cachedJobs.findIndex((x) => x.id === ref.id);
+        if (jix >= 0) cachedJobs.splice(jix, 1);
+        if (!$('#view-assign-legacy').classList.contains('hidden')) renderAssignLegacyView();
+      });
     });
     toast(`Job created and ${g.items.length} record${g.items.length === 1 ? '' : 's'} linked`);
     renderAssignLegacyView();
@@ -12918,7 +13379,6 @@ function loadCustomerIntoForm(c) {
   $('#c-zip').value = c.zip || '';
   $('#c-county').value = c.county || '';
   $('#c-notes').value = c.notes || '';
-  $('#c-cameraId').value = c.cameraId || '';
   updateGetDirectionsBtn();   /* Item 1: show when the customer has an address */
   updateCallTextButtons();    /* Item 3: show when the customer has a phone */
   $('#deleteCustomerBtn').style.display = 'block';
@@ -13029,16 +13489,146 @@ function hubProceed(action, jobId, c) {
     setView('add');
     applyCustomerToPesticideForm(c);
   } else if (action === 'assign-camera') {
-    /* With properties on file, cameras live on the property records. */
+    /* Item 1 (v2-patch-6): the property editor is the ONE assignment door.
+       No properties yet → open the editor to create the first one. */
     const props = propertiesForCustomer(editingCustomerId);
+    const card = $('#customerPropertiesCard');
+    if (card) card.scrollIntoView({ behavior: 'smooth', block: 'start' });
     if (props.length) {
-      const card = $('#customerPropertiesCard');
-      if (card) card.scrollIntoView({ behavior: 'smooth', block: 'start' });
       toast('Cameras are assigned per property — edit a property below.');
-      return;
+    } else {
+      openPropertyEditor(null);
+      toast('Cameras are assigned per property — add this customer’s property first.');
     }
-    const field = $('#c-cameraId');
-    if (field) { field.scrollIntoView({ behavior: 'smooth', block: 'center' }); setTimeout(() => field.focus(), 300); }
+  }
+}
+
+/* =====================================================================
+ * Item 7 (v2-patch-6): Notes module — per-operator PRIVATE notes.
+ * ---------------------------------------------------------------------
+ * Cloud-stored in the `notes` collection; each doc carries ownerUid and
+ * the subscription queries only the signed-in operator's docs. Firestore
+ * rules enforce owner-only read/write — including for the admin: Jon
+ * cannot read other operators' notes. Simple CRUD, newest first.
+ * ===================================================================== */
+let notesUnsub = null;
+let notesRetryTimer = null;
+let cachedNotes = [];
+let editingNoteId = null;
+
+function subscribeToNotes() {
+  if (notesUnsub || !currentUser) return;
+  const qy = query(collection(fbDb, 'notes'), where('ownerUid', '==', currentUser.uid));
+  notesUnsub = onSnapshot(qy, (snap) => {
+    cachedNotes = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    cachedNotes.sort((a, b) => (b.updatedAt || b.createdAt || '').localeCompare(a.updatedAt || a.createdAt || ''));
+    if (appMode === 'notes' && !$('#view-notes').classList.contains('hidden')) renderNotesList();
+  }, (err) => {
+    console.error('Notes subscription error', err);
+    notesUnsub = null;
+    if (notesRetryTimer) clearTimeout(notesRetryTimer);
+    notesRetryTimer = setTimeout(() => { if (currentUser) subscribeToNotes(); }, 5000);
+  });
+}
+function unsubscribeFromNotes() {
+  if (notesUnsub) { notesUnsub(); notesUnsub = null; }
+  cachedNotes = [];
+  editingNoteId = null;
+}
+
+function renderNotesList() {
+  const root = $('#notesList');
+  if (!root) return;
+  if (!cachedNotes.length) {
+    root.innerHTML = '<div class="muted" style="padding:14px 4px;">No notes yet — tap <strong>+</strong> to write your first one. Notes are private to you.</div>';
+    return;
+  }
+  root.innerHTML = cachedNotes.map((n) => {
+    const preview = (n.body || '').replace(/\s+/g, ' ').slice(0, 90);
+    const when = fmtNotifTime(n.updatedAt || n.createdAt);
+    return `<div class="biz-row" data-note-open="${escapeHtml(n.id)}" style="align-items:flex-start;cursor:pointer;">
+      <span style="min-width:0;">
+        <span style="font-weight:600;color:var(--green-deep);">${escapeHtml(n.title || 'Untitled note')}</span><br>
+        ${preview ? `<span class="muted" style="font-size:13px;">${escapeHtml(preview)}${(n.body || '').length > 90 ? '…' : ''}</span><br>` : ''}
+        <span class="muted" style="font-size:12px;">${escapeHtml(when)}</span>
+      </span>
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="var(--ink-soft)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;margin-top:4px;"><path d="m9 18 6-6-6-6"/></svg>
+    </div>`;
+  }).join('');
+}
+
+function resetNoteForm() {
+  editingNoteId = null;
+  $('#n-id').value = '';
+  $('#n-title').value = '';
+  $('#n-body').value = '';
+  $('#noteTimestamps').textContent = '';
+  $('#deleteNoteBtn').style.display = 'none';
+  $('#saveNoteBtn').textContent = 'Save Note';
+}
+
+function openNoteEditor(id) {
+  const n = id ? cachedNotes.find((x) => x.id === id) : null;
+  resetNoteForm();
+  if (n) {
+    editingNoteId = n.id;
+    $('#n-id').value = n.id;
+    $('#n-title').value = n.title || '';
+    $('#n-body').value = n.body || '';
+    $('#noteTimestamps').textContent =
+      `Created ${fmtNotifTime(n.createdAt)}${n.updatedAt && n.updatedAt !== n.createdAt ? ` · updated ${fmtNotifTime(n.updatedAt)}` : ''}`;
+    $('#deleteNoteBtn').style.display = 'block';
+    $('#saveNoteBtn').textContent = 'Save Changes';
+  }
+  setView('add', { preserveForm: true });
+  $('#n-body').focus();
+}
+
+async function handleSaveNote(e) {
+  e.preventDefault();
+  if (!currentUser) return;
+  const body = $('#n-body').value.trim();
+  const title = $('#n-title').value.trim();
+  if (!body && !title) { toast('Write something first', 'error'); $('#n-body').focus(); return; }
+  /* Functional audit LOW-6: mirror the rules bounds with a clear message
+     instead of an opaque "insufficient permissions" rejection. */
+  if (body.length > 20000) { toast('Notes are capped at 20,000 characters — trim this one or split it.', 'error'); $('#n-body').focus(); return; }
+  if (title.length > 200) { toast('Titles are capped at 200 characters.', 'error'); $('#n-title').focus(); return; }
+  const now = new Date().toISOString();
+  try {
+    if (editingNoteId) {
+      await writeWithRetry(() => setDoc(doc(fbDb, 'notes', editingNoteId),
+        { title, body, updatedAt: now }, { merge: true }));
+      toast('Note updated');
+    } else {
+      await writeWithRetry(() => setDoc(doc(collection(fbDb, 'notes')), {
+        ownerUid: currentUser.uid,
+        ownerEmail: currentUser.email.toLowerCase(),
+        title,
+        body,
+        createdAt: now,
+        updatedAt: now
+      }));
+      toast('Note saved');
+    }
+    resetNoteForm();
+    setView('dashboard');
+  } catch (err) {
+    toast('Save failed: ' + ((err && err.message) || 'error'), 'error');
+  }
+}
+
+async function handleDeleteNote() {
+  if (!editingNoteId) return;
+  const ok = await confirmDialog('Delete this note?', 'This cannot be undone.');
+  if (!ok) return;
+  try {
+    await writeWithRetry(() => deleteDoc(doc(fbDb, 'notes', editingNoteId)));
+    toast('Note deleted');
+    resetNoteForm();
+    setView('dashboard');
+  } catch (err) {
+    toast('Delete failed: ' + ((err && err.message) || 'error'), 'error');
   }
 }
 
@@ -13110,7 +13700,17 @@ function openPropertyEditor(prop) {
   $('#pr-address').value = prop ? (prop.address || '') : '';
   $('#pr-city').value = prop ? (prop.city || '') : '';
   $('#pr-county').value = prop ? (prop.county || '') : '';
+  /* Item 4d (v2-patch-6): tri-state city-limits override (null = auto). */
+  $('#pr-cityLimits').value = prop && prop.insideCityLimits === true ? 'true'
+    : prop && prop.insideCityLimits === false ? 'false' : '';
   const cust = cachedCustomers.find((c) => c.id === editingCustomerId);
+  /* Item 4a (v2-patch-6): the customer's county/city are a convenience
+     default that pre-fills a NEW property; the property's own values are
+     authoritative from then on. */
+  if (!prop && cust) {
+    if (cust.city && !$('#pr-city').value) $('#pr-city').value = cust.city;
+    if (cust.county) selectCountyIfKnown('pr-county', cust.county);
+  }
   if (prop) {
     $('#pr-cameraId').value = prop.cameraId || '';
   } else {
@@ -13128,8 +13728,10 @@ function closePropertyEditor() {
   $('#propertyForm').classList.add('hidden');
 }
 
-/* M23: Camera IDs route photos — a duplicate across properties/customers
-   silently sends every photo to an arbitrary one of the owners. */
+/* M23 / Item 1 (v2-patch-6): Camera IDs route photos — a duplicate across
+   properties silently sends every photo to an arbitrary one of the owners.
+   Property records are the only place cameraId lives, so uniqueness is
+   checked against properties only. */
 function cameraIdOwner(cameraId, opts = {}) {
   const K = (cameraId || '').trim().toUpperCase();
   if (!K) return null;
@@ -13140,10 +13742,6 @@ function cameraIdOwner(cameraId, opts = {}) {
     const owner = cachedCustomers.find((c) => c.id === prop.customerId);
     return { label: [owner && owner.name, prop.siteNickname].filter(Boolean).join(' · ') || 'another property' };
   }
-  const cust = cachedCustomers.find((c) =>
-    c.id !== (opts.excludeCustomerId || null) &&
-    (c.cameraId || '').trim().toUpperCase() === K);
-  if (cust) return { label: cust.name || 'another customer' };
   return null;
 }
 
@@ -13155,12 +13753,15 @@ async function saveProperty() {
   if (cameraId && cameraId.length > 10) { toast('Camera ID can\'t exceed 10 characters', 'error'); $('#pr-cameraId').focus(); return; }
   const dup = cameraIdOwner(cameraId, { excludePropertyId: editingPropertyId });
   if (dup) { toast(`Camera ID ${cameraId} is already assigned to ${dup.label}`, 'error'); $('#pr-cameraId').focus(); return; }
+  /* Item 4d (v2-patch-6): tri-state — true / false / null (auto). */
+  const limitsRaw = $('#pr-cityLimits').value;
   const data = {
     customerId: editingCustomerId,
     siteNickname,
     address: $('#pr-address').value.trim(),
     city: $('#pr-city').value.trim(),
     county: $('#pr-county').value,
+    insideCityLimits: limitsRaw === 'true' ? true : limitsRaw === 'false' ? false : null,
     cameraId,
     updatedAt: new Date().toISOString()
   };
@@ -13254,7 +13855,8 @@ function readCustomerForm() {
     zip: $('#c-zip').value.trim(),
     county: $('#c-county').value,
     notes: $('#c-notes').value.trim(),
-    cameraId: $('#c-cameraId').value.trim().toUpperCase().replace(/\s+/g, ''),
+    /* Item 1 (v2-patch-6): customer-level cameraId is deprecated — never
+       written again. Cameras are assigned on property records only. */
     active: $('#c-active').checked
   };
   if (editingCustomerId) c.id = editingCustomerId;
@@ -13268,11 +13870,6 @@ async function handleSaveCustomer(e) {
   if (!c.name) { toast('Customer name is required', 'error'); $('#c-name').focus(); return; }
   /* Item 7: multi-address values validate on the first address only. */
   if (c.email && !EMAIL_RE.test(extractPrimaryEmail(c.email))) { toast('Enter a valid email or leave it blank', 'error'); return; }
-  /* M24: same 10-char Camera ID rule as the property editor. */
-  if (c.cameraId && c.cameraId.length > 10) { toast('Camera ID can\'t exceed 10 characters', 'error'); $('#c-cameraId').focus(); return; }
-  /* M23: no duplicate Camera IDs across customers/properties. */
-  const camDup = cameraIdOwner(c.cameraId, { excludeCustomerId: editingCustomerId });
-  if (camDup) { toast(`Camera ID ${c.cameraId} is already assigned to ${camDup.label}`, 'error'); $('#c-cameraId').focus(); return; }
   if (c.phone && !isValidPhone(c.phone)) { toast('Phone must be 10 digits or left blank', 'error'); $('#c-phone').focus(); return; }
   if (c.zip && !/^\d{5}(-\d{4})?$/.test(c.zip)) { toast('ZIP must be 5 digits (or ZIP+4) or left blank', 'error'); $('#c-zip').focus(); return; }
   if (c.phone) c.phone = formatPhone(c.phone);
@@ -13462,6 +14059,12 @@ function applyCustomerToTrapForm(c) {
   /* Property selector (Item 9): shown when the customer has property records. */
   trapFormCustomerId = c.id || null;
   populatePropertySelect('f-property', 'f-property-group', trapFormCustomerId, '');
+  /* Item 4c (v2-patch-6): the county of record derives from the PROPERTY
+     where the work occurs. A sole property is auto-selected by the populate
+     call above — apply it so its address/county override the customer-level
+     values (which remain only a fallback for property-less customers). */
+  const autoProp = cachedProperties.find((x) => x.id === $('#f-property').value);
+  if (autoProp) applyPropertyToTrapForm(autoProp);
 }
 
 /* Pre-fill the trap location from a selected property (Item 9). */
@@ -13499,6 +14102,10 @@ function applyCustomerToPesticideForm(c) {
   /* Property selector (Item 9). */
   pestFormCustomerId = c.id || null;
   populatePropertySelect('pa-property', 'pa-property-group', pestFormCustomerId, '');
+  /* Item 4c (v2-patch-6): a sole property is auto-selected — apply it so
+     the treatment county derives from the property, not the customer. */
+  const autoProp = cachedProperties.find((x) => x.id === $('#pa-property').value);
+  if (autoProp) applyPropertyToPesticideForm(autoProp);
 }
 
 /* Pre-fill the pesticide client address from a selected property (Item 9). */
@@ -13511,6 +14118,14 @@ function applyPropertyToPesticideForm(p) {
     delete a.dataset.lastValidated;
   }
   if (p.city) $('#pa-client-city').value = p.city;
+  /* Item 4c (v2-patch-6): County of Treatment derives from the property.
+     A later treatment-location geocode still wins (it captures the actual
+     site), same as the trap form. */
+  if (p.county) {
+    silentPaCounty = p.county;
+    const match = matchingOptionValue('pa-county', p.county);
+    if (match) $('#pa-county').value = match;
+  }
 }
 
 /* ---- Use-My-Location → suggest a matching customer ---- */
@@ -13581,6 +14196,7 @@ async function init() {
       if (appMode === 'jobs') editingLifecycleJobId = null;
       if (appMode === 'customer') editingCustomerId = null;
       if (appMode === 'pricing') editingEstimateId = null;
+      if (appMode === 'notes') editingNoteId = null;   /* functional audit HIGH-1 */
     }
     setView(v);
   });
@@ -13724,8 +14340,7 @@ async function init() {
 
   $('#saveBizBtn').addEventListener('click', handleSaveBusiness);
   $('#savePermitBtn').addEventListener('click', handleSavePermit);   /* Item 5 */
-  $('#saveRptBtn').addEventListener('click', handleSaveReporting);
-  $('#resetRptBtn').addEventListener('click', handleResetReporting); /* Item 5 */
+  /* Item 6 (v2-patch-6): Reporting Period editor removed — no wiring. */
   $('#saveCertBtn').addEventListener('click', handleSaveCerts);
 
   /* Item 5 (v2-patch-2): Settings sub-screen navigation. */
@@ -13734,6 +14349,20 @@ async function init() {
     if (nav) setView(nav.dataset.settingsNav);
   });
   $$('[data-settings-back]').forEach((b) => b.addEventListener('click', () => setView('dashboard')));
+
+  /* Item 7 (v2-patch-6): Notes module */
+  $('#notesList').addEventListener('click', (e) => {
+    const row = e.target.closest('[data-note-open]');
+    if (row) openNoteEditor(row.dataset.noteOpen);
+  });
+  $('#noteForm').addEventListener('submit', handleSaveNote);
+  $('#cancelNoteBtn').addEventListener('click', () => { resetNoteForm(); setView('dashboard'); });
+  $('#deleteNoteBtn').addEventListener('click', handleDeleteNote);
+
+  /* Item 5 (v2-patch-6): tax jurisdiction reports */
+  $('#taxRptRunBtn').addEventListener('click', renderTaxReports);
+  $('#taxRptScottCsvBtn').addEventListener('click', () => downloadTaxReportCsv('scott'));
+  $('#taxRptGtownCsvBtn').addEventListener('click', () => downloadTaxReportCsv('georgetown'));
 
   /* Pesticide DB CRUD wiring */
   $('#addPesticideBtn').addEventListener('click', () => openPesticideEditor(null));
@@ -13820,6 +14449,7 @@ async function init() {
       const which = lb.dataset.banner;
       if (which === 'records') setAppMode('allrecords');
       else if (which === 'estimates') setAppMode('pricing');
+      else if (which === 'notes') setAppMode('notes');   /* Item 7 (v2-patch-6) */
       else if (which === 'notifications') {
         notifReturnView = '__landing__';
         setAppModeQuiet(appMode || 'trap');
@@ -14095,6 +14725,14 @@ async function init() {
     /* County: silently stored via the county select (existing customer field). */
     if (s.county) selectCountyIfKnown('c-county', s.county);
     updateGetDirectionsBtn();
+  });
+  /* Item 4b (v2-patch-6): property editor address — city AND county are
+     captured silently from the geocode, same pattern as the customer form.
+     The property is the county/city of record for all work done there. */
+  wireMapboxAutocomplete('pr-address', 'pr-address-ac', (s) => {
+    $('#pr-address').value = s.street || s.placeName;
+    if (s.city) $('#pr-city').value = s.city;
+    if (s.county) selectCountyIfKnown('pr-county', s.county);
   });
   wireMapboxAutocomplete('trapLocInput', 'trapLocInput-ac', (s) => {
     $('#trapLocInput').value = s.placeName;
@@ -14423,6 +15061,8 @@ async function init() {
     if (appMode !== 'settings') setAppModeQuiet('settings');
     setView('assign-legacy');
   });
+  /* Item 1 (v2-patch-6): camera migration + reconciliation audit */
+  $('#cameraMigrationBtn').addEventListener('click', runCameraMigrationAudit);
   $('#assignLegacyView').addEventListener('click', (e) => {
     if (e.target.closest('#assignLegacyBackBtn')) { setView('dashboard'); return; }
     const assign = e.target.closest('[data-lg-assign]');
@@ -14440,7 +15080,7 @@ async function init() {
 
   /* ---- Monitoring (camera) wiring ---- */
   /* Item 4 (v2-patch-2): landing-page camera alert banner removed. */
-  $('#fieldSyncBtn').addEventListener('click', handleFieldSync);
+  /* Item 3 (v2-patch-6): Sync Now button removed — auto-sync on module open. */
   $('#fieldFilter').addEventListener('change', renderFieldDashboard);
   $('#fieldList').addEventListener('click', (e) => {
     const row = e.target.closest('[data-field-key]');
@@ -14550,6 +15190,7 @@ async function init() {
         (trapper ? `<br><span class="muted">Trapper: ${escapeHtml(trapper)}</span>` : '') +
         `<br><span class="muted" style="font-size:12px;">App version: ${escapeHtml(APP_VERSION)}</span>`;
       $('#wipeBtn').style.display = isAdmin() ? 'flex' : 'none';   /* Item 5: snav row */
+      $('#cameraMigrationBtn').style.display = isAdmin() ? 'flex' : 'none';   /* Item 1 (v2-patch-6) */
       $('#pesticideDbCard').classList.toggle('hidden', !isAdmin());
       try { await maybeMigrateLocalRecords(); } catch (e) { console.error('Migration error', e); }
       subscribeToRecords();
@@ -14564,8 +15205,8 @@ async function init() {
       subscribeToTasks();   /* Item 15 */
       subscribeToProperties();
       subscribeToNotifications();
+      subscribeToNotes();   /* Item 7 (v2-patch-6) */
       renderBusinessCard();
-      renderReportingCard();
       renderCertCard();
       /* Route to the three-module landing page after sign-in (Item 7). */
       showLanding();
@@ -14588,6 +15229,7 @@ async function init() {
       unsubscribeFromTasks();
       unsubscribeFromProperties();
       unsubscribeFromNotifications();
+      unsubscribeFromNotes();   /* Item 7 (v2-patch-6) */
       modeSelected = false;
       $('#accountInfo').textContent = 'Not signed in';
       $('#wipeBtn').style.display = 'none';
