@@ -4365,9 +4365,15 @@ function countyDisplay(rec) {
   const stored = rec.county || rec.countyOfCollection || '';
   if (stored) return stored;
   /* Item 4c (v2-patch-6): County of Collection resolves from the linked
-     PROPERTY when the record itself stored none — never from the customer. */
+     PROPERTY when the record itself stored none — never from the customer.
+     Item 5 (v2-patch-7): records with no property link fall back to the
+     customer's PRIMARY property (the home address's property twin). */
   if (rec.propertyId) {
     const p = cachedProperties.find((x) => x.id === rec.propertyId);
+    if (p && p.county) return p.county;
+  }
+  if (rec.customerId) {
+    const p = primaryPropertyFor(rec.customerId);
     if (p && p.county) return p.county;
   }
   return '';
@@ -4804,11 +4810,10 @@ function renderSettingsStatus() {
 let taxRptRows = { scott: [], georgetown: [] };
 
 function jobTaxLocus(j) {
+  /* Item 5 (v2-patch-7): the job's explicit propertyId governs; otherwise
+     the customer's PRIMARY property (or sole property) is the work locus. */
   let p = j.propertyId ? cachedProperties.find((x) => x.id === j.propertyId) : null;
-  if (!p && j.customerId) {
-    const props = propertiesForCustomer(j.customerId);
-    if (props.length === 1) p = props[0];
-  }
+  if (!p && j.customerId) p = primaryPropertyFor(j.customerId);
   if (p) {
     return {
       county: p.county || '',
@@ -14127,8 +14132,13 @@ function populatePropertySelect(selectId, groupId, customerId, selectedId) {
     sel.appendChild(o);
   }
   /* M21: a single-property customer's sole property is auto-linked —
-     server-side photo routing already stamps it, so records must agree. */
-  sel.value = selectedId || (props.length === 1 ? props[0].id : '');
+     server-side photo routing already stamps it, so records must agree.
+     Item 5 (v2-patch-7): with primary properties on every customer, the
+     PRIMARY is the default wherever a property wasn't explicitly chosen —
+     records, pesticide applications, estimates, and jobs all resolve
+     through it unless the operator picks an alternate site. */
+  const primary = props.find((p) => p.isPrimary);
+  sel.value = selectedId || (primary ? primary.id : (props.length === 1 ? props[0].id : ''));
 }
 
 /* Item 7 (v2-patch-5): job the Customer Detail screen was opened from, so
