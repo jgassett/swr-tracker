@@ -1229,8 +1229,6 @@
       display: inline-block; padding: 2px 8px; border-radius: 999px;
       font-size: 11px; font-weight: 700; letter-spacing: 0.02em; margin-left: 6px;
     }
-    .status-pill.active { background: #DDEAD8; color: var(--released); }
-    .status-pill.inactive { background: var(--cream-deep); color: var(--ink-soft); }
     /* Estimate statuses (Pricing Constructor) */
     .status-pill.draft { background: var(--cream-deep); color: var(--ink-soft); }
     .status-pill.pending { background: #FBEED0; color: #8a6d1f; }
@@ -1808,7 +1806,7 @@
         <div class="stat">
           <div class="label">SWR · This Period</div>
           <div class="value" id="statTotalSwr">0</div>
-          <div class="sub" id="statTotalSwrSub">all trappers</div>
+          <div class="sub" id="statTotalSwrSub">all contractors</div>
         </div>
         <div id="contractorStats" style="display:contents;"></div>
       </div>
@@ -1834,7 +1832,7 @@
         <input type="text" id="recSearch" placeholder="Search record #, client, address, species…" autocomplete="off">
       </div>
       <div class="filter-row">
-        <select id="filterTrapper"><option value="">All trappers</option></select>
+        <select id="filterTrapper"><option value="">All contractors</option></select>
         <select id="filterSpecies"><option value="">All species</option></select>
       </div>
       <div class="filter-row">
@@ -1877,7 +1875,7 @@
               <tr>
                 <th>Record #</th>
                 <th>Date</th>
-                <th>Trapper</th>
+                <th>Contractor</th>
                 <th>Species</th>
                 <th>Client</th>
                 <th>County</th>
@@ -1943,9 +1941,9 @@
             <input type="date" id="f-date" required>
           </div>
           <div class="form-group">
-            <label for="f-trapper">Trapper<span class="req">*</span></label>
+            <label for="f-trapper">Contractor<span class="req">*</span></label>
             <select id="f-trapper" required>
-              <option value="">— select trapper —</option>
+              <option value="">— select contractor —</option>
             </select>
           </div>
         </div>
@@ -7357,7 +7355,7 @@ function fillGroupedSelect(id, groups, blankLabel) {
   if (current) sel.value = current;
 }
 function fillFilters() {
-  fillSelect('filterTrapper', TRAPPERS, true, 'All trappers');
+  fillSelect('filterTrapper', TRAPPERS, true, 'All contractors');
   fillSelect('filterSpecies', SPECIES, true, 'All species');
   fillSelect('filterCounty', COUNTIES, true, 'All counties');
 }
@@ -7382,7 +7380,7 @@ function fillTrapperSelect() {
   sel.innerHTML = '';
   const blank = document.createElement('option');
   blank.value = '';
-  blank.textContent = '— select trapper —';
+  blank.textContent = '— select contractor —';
   sel.appendChild(blank);
   for (const name of TRAPPERS) {
     const o = document.createElement('option');
@@ -7671,7 +7669,7 @@ function readForm() {
 function validateRecord(r) {
   const errs = [];
   if (!r.dateCollected) errs.push('Date');
-  if (!r.trapper) errs.push('Trapper');
+  if (!r.trapper) errs.push('Contractor');
   if (!r.clientName) errs.push('Client name');
   if (!r.clientPhone) errs.push('Phone');
   else if (!isValidPhone(r.clientPhone)) errs.push('Valid phone (10 digits)');
@@ -8749,7 +8747,7 @@ function renderDashboard() {
   const minePeriod = inP.filter((r) => (r.createdByEmail || '').toLowerCase() === myEmail);
 
   $('#statTotalSwr').textContent = inP.length;
-  $('#statTotalSwrSub').textContent = 'all trappers';
+  $('#statTotalSwrSub').textContent = 'all contractors';
   /* Item 8 (v2-patch-6): one panel per operator, generated from TRAPPERS —
      all four contractors appear regardless of certification status. */
   renderContractorStats(inP, (r) => r.trapper, 'record');
@@ -8898,7 +8896,7 @@ function buildDetailRows(r) {
   if (r.recordNumber) push('Record #', r.recordNumber);
   head('Job');
   push('Date', fmtDate(r.dateCollected));
-  push('Trapper', r.trapper);
+  push('Contractor', r.trapper);
 
   head('Client');
   push('Name', r.clientName);
@@ -9256,7 +9254,7 @@ async function handleSaveCerts() {
   };
   const ok = await confirmDialog(
     'Save certifications?',
-    'These are written to the shared org config and visible to all trappers. Applicators with blank cert numbers will be disabled in the pesticide form. Type CONFIRM to proceed.',
+    'These are written to the shared org config and visible to all contractors. Applicators with blank cert numbers will be disabled in the pesticide form. Type CONFIRM to proceed.',
     { sentinel: 'CONFIRM', okText: 'Save' }
   );
   if (!ok) return;
@@ -10007,7 +10005,9 @@ async function confirmSavePesticide() {
     resetPesticideRecordForm();
     if (photoQueued) updatePendingPhotoIndicator();
     if (offline) toast(photoQueued ? 'Saved offline — record and photo will sync when connected' : 'Saved offline — will sync when connected');
-    else toast(isEdit ? 'Application updated' : `Saved · ${rec.recordNumber}`);
+    /* Item 4 (v2-patch-13, F-32): noun kept — matches the trap path's
+       'Record saved · <#>' wording shape. */
+    else toast(isEdit ? 'Application updated' : `Application saved · ${rec.recordNumber}`);
     if (!isEdit) sendPesticideEmail(rec);
     /* Work logged against a lifecycle job means the job is underway (Item 3). */
     if (!isEdit && rec.jobId) advanceJobStatusAuto(rec.jobId, 'Active');
