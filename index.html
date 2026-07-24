@@ -3244,7 +3244,7 @@
       </button>
       <div class="center muted" style="font-size:11.5px; line-height:1.5; margin:10px 0 4px;">
         <span id="accountInfo">Not signed in</span><br>
-        Southern Wildlife Tracker · <span id="footerVersion">v2.9</span> · KDFWR Commercial NWCO compliance
+        Southern Wildlife Tracker · <span id="footerVersion">v2.10</span> · KDFWR Commercial NWCO compliance
       </div>
     </section>
 
@@ -3992,7 +3992,7 @@ const PESTICIDE_EMAILJS_TEMPLATE_ID = 'template_4aa3u5a';
    with the SW cache version and version.txt. Every version display (home
    header row, Settings footer, account info) reads from these two values;
    nothing else may hard-code a version string. */
-const APP_VERSION = 'v2.9';
+const APP_VERSION = 'v2.10';
 const APP_VERSION_DATE = 'Jul 23, 2026';
 /* Single source of truth: paint both displays from the constant so they
    can't drift apart again. */
@@ -6314,6 +6314,7 @@ function renderFieldDetail(key) {
       ${g.pendingRemoval && isAdmin() ? '<button class="btn btn-danger" id="fieldConfirmRemovalBtn">Confirm Camera Removal</button>' : ''}
       ${internalToggle}
       <button class="btn btn-danger" id="fieldClearBtn">Delete Photos</button>
+      ${isAdmin() ? '<button class="btn btn-danger" id="fieldDeleteCameraBtn">Delete Camera</button>' : ''}
       <button class="btn btn-cancel btn-ghost" id="fieldBackBtn">Back to Monitoring</button>
     </div>`;
 
@@ -6730,6 +6731,47 @@ async function clearFieldGroup(key) {
     renderFieldDashboard();
   } catch (err) {
     toast('Delete failed: ' + errText(err), 'error');
+  }
+}
+
+/* v2-patch-12 Item 2: PERMANENT camera deletion — admin-only, for stray or
+   renamed camera keys. Runs server-side (deleteCameraRecord callable — the
+   v2-patch-8 standing rule for batch jobs): the key's cameraHealth rows,
+   cameraPhotos metadata + Storage files, and cameraStatus row are removed;
+   properties and customer records stay untouched. If the key ever emails
+   again it re-enters the pending queue as unmatched and the pipeline logs
+   the reappearance — it can never resurrect silently. */
+async function deleteCameraPermanently(key) {
+  if (!key) return;
+  if (!isAdmin()) { toast('Only an administrator can delete a camera.', 'error'); return; }
+  const g = fieldGroups().find((x) => x.key === key);
+  const label = (g && g.name) ? `${g.name} (${key})` : key;
+  const nH = g ? g.devices.length : 0;
+  const nP = g ? g.photos.length : 0;
+  const linkedNote = g && g.customerId
+    ? ` This camera is still linked to ${g.name || 'a customer'} through a property Camera ID — new mail from it will re-link automatically; clear the property's Camera ID first if you are retiring it.`
+    : '';
+  /* Two-step confirmation — same destructive pattern as Clear All Records /
+     Restore Backup (v2-patch-5 Item 22): explain, then type CONFIRM. */
+  const step1 = await confirmDialog('Permanently delete this camera?',
+    `${label}: deletes ${nH} health record${nH === 1 ? '' : 's'} and ${nP} photo${nP === 1 ? '' : 's'} (files and records) for every operator. Customer and property records are untouched.${linkedNote} If this camera key ever emails again it returns to the pending queue as unmatched. This cannot be undone.`,
+    { okText: 'Continue' });
+  if (!step1) return;
+  const step2 = await confirmDialog('Type CONFIRM to delete camera',
+    `Final check: type CONFIRM below to permanently delete ${label}.`,
+    { sentinel: 'CONFIRM', okText: 'Delete Camera' });
+  if (!step2) return;
+  const btn = $('#fieldDeleteCameraBtn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Deleting…'; }
+  try {
+    const res = await httpsCallable(fbFunctions, 'deleteCameraRecord', { timeout: 300000 })({ key });
+    const r = (res && res.data) || {};
+    toast(`${label} deleted — ${r.healthDeleted ?? 0} health record(s) and ${r.photosDeleted ?? 0} photo(s) removed`);
+    currentFieldKey = null;
+    setView('dashboard');
+  } catch (err) {
+    if (btn) { btn.disabled = false; btn.textContent = 'Delete Camera'; }
+    toast('Camera deletion failed: ' + errText(err), 'error');
   }
 }
 
@@ -15587,6 +15629,7 @@ async function init() {
   $('#fieldDetail').addEventListener('click', (e) => {
     if (e.target.closest('#fieldBackBtn')) { currentFieldKey = null; setView('dashboard'); return; }
     if (e.target.closest('#fieldClearBtn')) { clearFieldGroup(currentFieldKey); return; }
+    if (e.target.closest('#fieldDeleteCameraBtn')) { deleteCameraPermanently(currentFieldKey); return; }   /* v2-patch-12 Item 2 */
     if (e.target.closest('#fieldConfirmRemovalBtn')) { confirmCameraRemoval(currentFieldKey); return; }   /* Item 21 */
     const internalBtn = e.target.closest('#fieldInternalBtn');   /* v2-patch-9 Item 4 */
     if (internalBtn) { setFieldGroupInternal(currentFieldKey, internalBtn.dataset.internalFlag === '1'); return; }
