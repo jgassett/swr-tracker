@@ -90,7 +90,12 @@
       display: flex; flex-direction: column; align-items: center; gap: 16px;
     }
     .mode-picker-wrap .brand-logo {
-      display: none; height: 78px; max-width: 220px; margin-bottom: 8px;
+      /* Item 5 (v2-patch-13, owner #3): +25% (was 78px/220px). Safe on the
+         Dynamic Island: #modePicker pads top by --safe-top + 24px and the
+         wrap's auto margins degrade to top-aligned below that padding when
+         content overflows (Item 16, v2-patch-6), so a taller logo can only
+         push content DOWN, never under the island. */
+      display: none; height: 98px; max-width: 275px; margin-bottom: 8px;
     }
     .mode-picker-wrap .brand-logo.loaded { display: block; }
     .mode-picker-wrap h1 {
@@ -431,6 +436,8 @@
     .nav-fab:active { background: #B06B26; }
     /* Hide the + button while a record is being created or edited. */
     body.in-add .nav-fab { visibility: hidden; pointer-events: none; opacity: 0; }
+    /* Item 11 (v2-patch-13): non-creating views (Notifications) show no FAB. */
+    body.no-fab .nav-fab { visibility: hidden; pointer-events: none; opacity: 0; }
 
     /* Cards & layout */
     .card {
@@ -543,6 +550,9 @@
     .btn-danger { background: #fff; color: var(--danger); border: 1px solid var(--danger); }
     .btn-row { display: flex; gap: 10px; }
     .btn-row .btn { flex: 1; }
+    /* Item 2 (v2-patch-13): a disabled button must LOOK disabled — the
+       sentinel dialog's un-armed OK previously looked identical to armed. */
+    .btn:disabled { opacity: 0.45; cursor: default; }
 
     /* Detail sheet */
     .sheet-backdrop {
@@ -1226,8 +1236,6 @@
       display: inline-block; padding: 2px 8px; border-radius: 999px;
       font-size: 11px; font-weight: 700; letter-spacing: 0.02em; margin-left: 6px;
     }
-    .status-pill.active { background: #DDEAD8; color: var(--released); }
-    .status-pill.inactive { background: var(--cream-deep); color: var(--ink-soft); }
     /* Estimate statuses (Pricing Constructor) */
     .status-pill.draft { background: var(--cream-deep); color: var(--ink-soft); }
     .status-pill.pending { background: #FBEED0; color: #8a6d1f; }
@@ -1351,7 +1359,6 @@
     .job-lc-row { display: flex; align-items: center; gap: 12px; padding: 12px 4px; border-bottom: 1px solid var(--rule, #e2e8e2); cursor: pointer; }
     .job-lc-row:last-child { border-bottom: none; }
     .job-lc-row .jl-body { flex: 1; min-width: 0; }
-    .job-lc-row .jl-num { font-weight: 600; color: var(--green-deep); font-family: ui-monospace, 'SF Mono', monospace; font-size: 13px; }
     .job-lc-row .jl-name { font-weight: 600; color: var(--green-deep); }
     .job-lc-row .jl-meta { font-size: 12px; color: var(--ink-soft); margin-top: 2px; }
     /* Item 9 (v2-patch-6): .btn defaults to width:100%, so the Close Out
@@ -1421,12 +1428,44 @@
     .badge-cert.pending { background: #FBEED0; color: #8a6d1f; }
 
     /* ---- Simplified location entry (Item 15) ---- */
-    .loc-options { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
-    /* M20: the toggle showing an open sub-panel (address entry / map). */
+    /* Item 8 (v2-patch-13, owner #11): compact segmented control — one row,
+       three positions, same three behaviors as the old button row. */
+    .loc-options {
+      display: flex; gap: 0; margin-top: 8px;
+      border: 1.5px solid var(--line); border-radius: 10px; overflow: hidden;
+      background: var(--cream-deep);
+    }
+    .loc-options .map-btn {
+      flex: 1 1 0; min-width: 0; margin: 0; border: none; border-radius: 0;
+      background: transparent; color: var(--green-deep);
+      display: inline-flex; align-items: center; justify-content: center; gap: 5px;
+      padding: 8px 4px; font-size: 12.5px; font-weight: 600; white-space: nowrap;
+    }
+    .loc-options .map-btn + .map-btn { border-left: 1px solid var(--line); }
+    .loc-options .map-btn svg {
+      width: 13px; height: 13px; stroke: currentColor; fill: none;
+      stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0;
+    }
+    /* M20: the segment showing an open sub-panel (address entry / map). */
     .loc-options .map-btn.active {
-      background: rgba(196,119,42,0.12);
-      box-shadow: inset 0 0 0 2px var(--amber);
-      border-radius: 8px;
+      background: rgba(196,119,42,0.14);
+      color: var(--amber);
+      box-shadow: inset 0 -2px 0 var(--amber);
+    }
+    /* Item 8 (owner #13): progressive disclosure — when the client's address
+       is the source, the picker collapses to this one line. */
+    .loc-collapsed {
+      display: flex; align-items: center; gap: 8px; margin-top: 8px;
+      font-size: 13px; color: var(--ink-soft);
+    }
+    .loc-collapsed .link-like { font-size: 13px; }
+    /* Item 10 (v2-patch-13): compact Filter/Sort disclosure buttons on the
+       unified records view. */
+    .rec-controls { display: flex; gap: 8px; margin-bottom: 10px; }
+    .rec-controls .btn { width: auto; flex: 0 0 auto; padding: 7px 16px; font-size: 13.5px; }
+    .rec-controls .btn.active {
+      background: rgba(196,119,42,0.14); color: var(--amber);
+      box-shadow: inset 0 0 0 1.5px var(--amber);
     }
     .loc-entry { display: flex; gap: 8px; margin-top: 8px; align-items: stretch; position: relative; }
     /* Item 3: Mapbox suggestion list under the address-entry inputs. */
@@ -1698,7 +1737,7 @@
     </div>
     <img class="brand-logo" src="logo.png" alt="SWR"
          onload="this.classList.add('loaded');" onerror="this.remove();">
-    <h1>What are you doing today?</h1>
+    <h1>SWR Job Tracker</h1>
     <div class="mode-sub">Follow the job from first call to paid invoice — tap a step to open it. Return here any time with the ← button.</div>
     <!-- Item 4 (v2-patch-2): camera alert banner removed — camera health
          alerts live exclusively in the Notifications page. -->
@@ -1710,12 +1749,9 @@
   <!-- Items 8 & 9 (v2-patch-1): persistent bottom banner — the direct
        records/estimates/notifications/settings access from v1. -->
   <nav class="landing-banner" aria-label="Quick access">
-    <!-- Item 3 (v2-patch-11): Back after Home returns to the page you left.
-         Hidden while the history stack is empty (fresh launch). -->
-    <button type="button" class="lb-btn hidden" id="landingBackBtn" data-banner="back" aria-label="Back">
-      <svg viewBox="0 0 24 24"><path d="M19 12H5"/><path d="m12 19-7-7 7-7"/></svg>
-      <span>Back</span>
-    </button>
+    <!-- Item 5 (v2-patch-13, owner #4): landing is the ROOT — the patch-11
+         landing Back button is gone. Ribbon Back in the modules still pops
+         history (including a pushed landing entry). -->
     <button type="button" class="lb-btn" data-banner="records" aria-label="View Records">
       <svg viewBox="0 0 24 24"><path d="M3 5h18M3 12h18M3 19h18"/></svg>
       <span>View Records</span>
@@ -1805,7 +1841,7 @@
         <div class="stat">
           <div class="label">SWR · This Period</div>
           <div class="value" id="statTotalSwr">0</div>
-          <div class="sub" id="statTotalSwrSub">all trappers</div>
+          <div class="sub" id="statTotalSwrSub">all contractors</div>
         </div>
         <div id="contractorStats" style="display:contents;"></div>
       </div>
@@ -1831,7 +1867,7 @@
         <input type="text" id="recSearch" placeholder="Search record #, client, address, species…" autocomplete="off">
       </div>
       <div class="filter-row">
-        <select id="filterTrapper"><option value="">All trappers</option></select>
+        <select id="filterTrapper"><option value="">All contractors</option></select>
         <select id="filterSpecies"><option value="">All species</option></select>
       </div>
       <div class="filter-row">
@@ -1874,7 +1910,7 @@
               <tr>
                 <th>Record #</th>
                 <th>Date</th>
-                <th>Trapper</th>
+                <th>Contractor</th>
                 <th>Species</th>
                 <th>Client</th>
                 <th>County</th>
@@ -1940,9 +1976,9 @@
             <input type="date" id="f-date" required>
           </div>
           <div class="form-group">
-            <label for="f-trapper">Trapper<span class="req">*</span></label>
+            <label for="f-trapper">Contractor<span class="req">*</span></label>
             <select id="f-trapper" required>
-              <option value="">— select trapper —</option>
+              <option value="">— select contractor —</option>
             </select>
           </div>
         </div>
@@ -1999,7 +2035,7 @@
              address; Trap Site Address clears it and activates the
              three-option location picker for independent entry. Shown for
              every customer type. -->
-        <div class="form-group">
+        <div class="form-group" id="trapAddressTypeGroup">
           <label>Location type<span class="req">*</span></label>
           <div class="radio-row">
             <label><input type="radio" name="f-address-type" value="customerAddress" checked> Customer Address</label>
@@ -2014,18 +2050,24 @@
             <input type="text" id="f-address" placeholder="Type an address, or set the location with an option below" autocomplete="off" required>
             <div class="autocomplete-list hidden" id="f-address-ac" data-ac-target="trap"></div>
           </div>
+          <!-- Item 8 (v2-patch-13): collapsed state while the client's
+               address is the source; "change" restores the picker. -->
+          <div class="loc-collapsed hidden" id="trapLocCollapsed">
+            <span>Using the client's address</span>
+            <button type="button" class="link-like" id="trapLocChange">change</button>
+          </div>
           <div class="loc-options" id="trapLocOptions">
             <button type="button" class="map-btn" data-trap-loc="gps">
               <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>
-              Use My Location
+              My Location
             </button>
             <button type="button" class="map-btn ghost" data-trap-loc="address">
               <svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h10"/></svg>
-              Enter an Address
+              Address
             </button>
             <button type="button" class="map-btn ghost" data-trap-loc="map">
               <svg viewBox="0 0 24 24"><path d="M9 20l-6-3V4l6 3 6-3 6 3v13l-6-3-6 3z"/><path d="M9 7v13M15 4v13"/></svg>
-              Locate on Map
+              Map
             </button>
           </div>
           <div class="loc-entry hidden" id="trapLocEntry">
@@ -2095,15 +2137,15 @@
             <div class="loc-options" id="releaseLocOptions">
               <button type="button" class="map-btn" data-release-loc="gps">
                 <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>
-                Use My Location
+                My Location
               </button>
               <button type="button" class="map-btn ghost" data-release-loc="address">
                 <svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h10"/></svg>
-                Enter an Address
+                Address
               </button>
               <button type="button" class="map-btn ghost" data-release-loc="map">
                 <svg viewBox="0 0 24 24"><path d="M9 20l-6-3V4l6 3 6-3 6 3v13l-6-3-6 3z"/><path d="M9 7v13M15 4v13"/></svg>
-                Locate on Map
+                Map
               </button>
             </div>
             <div class="loc-entry hidden" id="releaseLocEntry">
@@ -2350,18 +2392,24 @@
           <input type="hidden" id="pa-site-lat">
           <input type="hidden" id="pa-site-lng">
           <div class="map-section-label">Treatment Site Location</div>
+          <!-- Item 8 (v2-patch-13): collapsed while the treatment site is the
+               client's address; "change" restores the picker. -->
+          <div class="loc-collapsed hidden" id="paLocCollapsed">
+            <span>Using the client's address</span>
+            <button type="button" class="link-like" id="paLocChange">change</button>
+          </div>
           <div class="loc-options" id="paLocOptions">
             <button type="button" class="map-btn" data-pa-loc="gps">
               <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>
-              Use My Location
+              My Location
             </button>
             <button type="button" class="map-btn ghost" data-pa-loc="address">
               <svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h10"/></svg>
-              Enter an Address
+              Address
             </button>
             <button type="button" class="map-btn ghost" data-pa-loc="map">
               <svg viewBox="0 0 24 24"><path d="M9 20l-6-3V4l6 3 6-3 6 3v13l-6-3-6 3z"/><path d="M9 7v13M15 4v13"/></svg>
-              Locate on Map
+              Map
             </button>
           </div>
           <div class="loc-entry hidden" id="paLocEntry">
@@ -3100,32 +3148,45 @@
         <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
         <input type="text" id="allRecSearch" placeholder="Search record #, customer, species, address…" autocomplete="off">
       </div>
-      <div class="filter-row">
-        <div class="form-group" style="margin-bottom:0;">
-          <label for="allRecFrom" style="font-size:11px;margin-bottom:3px;">From</label>
-          <input type="date" id="allRecFrom" style="padding:9px 10px;font-size:14px;">
+      <!-- Item 10 (v2-patch-13, owner #14): filters and sort collapse behind
+           two compact buttons; the option controls (same IDs, same wiring,
+           same defaults) live in disclosure panels. -->
+      <div class="rec-controls">
+        <button type="button" class="btn btn-ghost btn-compact" id="allRecFilterBtn" aria-expanded="false">Filter</button>
+        <button type="button" class="btn btn-ghost btn-compact" id="allRecSortBtn" aria-expanded="false">Sort</button>
+      </div>
+      <div class="hidden" id="allRecFilterPanel">
+        <div class="filter-row">
+          <div class="form-group" style="margin-bottom:0;">
+            <label for="allRecFrom" style="font-size:11px;margin-bottom:3px;">From</label>
+            <input type="date" id="allRecFrom" style="padding:9px 10px;font-size:14px;">
+          </div>
+          <div class="form-group" style="margin-bottom:0;">
+            <label for="allRecTo" style="font-size:11px;margin-bottom:3px;">To</label>
+            <input type="date" id="allRecTo" style="padding:9px 10px;font-size:14px;">
+          </div>
         </div>
-        <div class="form-group" style="margin-bottom:0;">
-          <label for="allRecTo" style="font-size:11px;margin-bottom:3px;">To</label>
-          <input type="date" id="allRecTo" style="padding:9px 10px;font-size:14px;">
+        <div class="filter-row">
+          <select id="allRecCustomer"><option value="">All customers</option></select>
+          <select id="allRecContractor"><option value="">All contractors</option></select>
+        </div>
+        <div class="filter-row">
+          <select id="allRecType">
+            <option value="">All record types</option>
+            <option value="trap">Trapping Only</option>
+            <option value="pest">Pesticides Only</option>
+          </select>
         </div>
       </div>
-      <div class="filter-row">
-        <select id="allRecCustomer"><option value="">All customers</option></select>
-        <select id="allRecContractor"><option value="">All contractors</option></select>
-      </div>
-      <div class="filter-row">
-        <select id="allRecType">
-          <option value="">All record types</option>
-          <option value="trap">Trapping Only</option>
-          <option value="pest">Pesticides Only</option>
-        </select>
-        <!-- Item 19 (v2-patch-5): sort control for the unified list. -->
-        <select id="allRecSort">
-          <option value="date">Sort: Date (newest first)</option>
-          <option value="contractor">Sort: Contractor</option>
-          <option value="customer">Sort: Customer</option>
-        </select>
+      <div class="hidden" id="allRecSortPanel">
+        <div class="filter-row">
+          <!-- Item 19 (v2-patch-5): sort control for the unified list. -->
+          <select id="allRecSort">
+            <option value="date">Sort: Date (newest first)</option>
+            <option value="contractor">Sort: Contractor</option>
+            <option value="customer">Sort: Customer</option>
+          </select>
+        </div>
       </div>
       <div class="card" id="allRecordsList"></div>
     </section>
@@ -3244,7 +3305,7 @@
       </button>
       <div class="center muted" style="font-size:11.5px; line-height:1.5; margin:10px 0 4px;">
         <span id="accountInfo">Not signed in</span><br>
-        Southern Wildlife Tracker · <span id="footerVersion">v2.10</span> · KDFWR Commercial NWCO compliance
+        Southern Wildlife Tracker · <span id="footerVersion">v2.11</span> · KDFWR Commercial NWCO compliance
       </div>
     </section>
 
@@ -3594,6 +3655,7 @@
       <input type="text" id="confirmSentinelInput" autocomplete="off"
              autocapitalize="characters" autocorrect="off" spellcheck="false"
              style="text-transform: uppercase; letter-spacing: 0.08em;">
+      <div id="confirmSentinelHint" class="hidden" style="margin-top:6px; font-size:13px; color: var(--danger);"></div>
     </div>
     <div class="btn-row">
       <button class="btn btn-ghost" id="confirmCancel">Cancel</button>
@@ -3621,7 +3683,7 @@ import {
   query, orderBy, onSnapshot, writeBatch, arrayUnion, arrayRemove, updateDoc, collectionGroup, where, runTransaction
 } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import {
-  getStorage, ref as storageRef, uploadBytes, getDownloadURL, deleteObject
+  getStorage, ref as storageRef, uploadBytes, getDownloadURL
 } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-storage.js";
 import {
   getFunctions, httpsCallable
@@ -3992,7 +4054,7 @@ const PESTICIDE_EMAILJS_TEMPLATE_ID = 'template_4aa3u5a';
    with the SW cache version and version.txt. Every version display (home
    header row, Settings footer, account info) reads from these two values;
    nothing else may hard-code a version string. */
-const APP_VERSION = 'v2.10';
+const APP_VERSION = 'v2.11';
 const APP_VERSION_DATE = 'Jul 23, 2026';
 /* Single source of truth: paint both displays from the constant so they
    can't drift apart again. */
@@ -4154,7 +4216,12 @@ function fmtShortDate(iso) {
   const [y, m, d] = iso.split('-').map(Number);
   if (!y) return iso;
   const date = new Date(y, m - 1, d);
-  return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  /* Item 3 (v2-patch-13, F-27): one year rule for list rows app-wide —
+     the year appears only when it isn't the current year. Detail views and
+     official exports keep the always-year fmtDate/fmtPaDateTime. */
+  const opts = { month: 'short', day: 'numeric' };
+  if (y !== new Date().getFullYear()) opts.year = 'numeric';
+  return date.toLocaleDateString(undefined, opts);
 }
 function reportPeriod(refDate = new Date()) {
   /* Item 6 (v2-patch-6): the KDFWR cycle is HARD-CODED — Feb 1 through
@@ -4526,6 +4593,7 @@ function confirmDialog(title, body, opts = {}) {
     $('#confirmBody').textContent = body;
     const sentinelWrap = $('#confirmSentinel');
     const sentinelInput = $('#confirmSentinelInput');
+    const sentinelHint = $('#confirmSentinelHint');
     const ok = $('#confirmOk');
     let inputHandler = null;
     if (opts.sentinel) {
@@ -4534,8 +4602,20 @@ function confirmDialog(title, body, opts = {}) {
       sentinelInput.placeholder = opts.sentinel;
       ok.disabled = true;
       ok.textContent = opts.okText || 'Confirm';
+      /* Item 2 (v2-patch-13): compare case-insensitively and collapse inner
+         whitespace. The input's text-transform:uppercase means the OPERATOR
+         always sees "CONFIRM" regardless of the value's real case — iOS
+         predictive-text/QuickType acceptance can insert "Confirm " while the
+         display shows CONFIRM, so an exact-case compare dies invisibly. The
+         inline hint replaces the silently dead button for any remaining
+         mismatch (wrong word, stray characters). */
+      const norm = (s) => String(s).replace(/\s+/g, '').toUpperCase();
       inputHandler = () => {
-        ok.disabled = sentinelInput.value.trim() !== opts.sentinel;
+        const match = norm(sentinelInput.value) === norm(opts.sentinel);
+        ok.disabled = !match;
+        const showHint = !match && sentinelInput.value.trim() !== '';
+        sentinelHint.textContent = showHint ? `Must read ${opts.sentinel} — keep typing or clear the box.` : '';
+        sentinelHint.classList.toggle('hidden', !showHint);
       };
       sentinelInput.addEventListener('input', inputHandler);
       setTimeout(() => sentinelInput.focus(), 100);
@@ -4551,6 +4631,8 @@ function confirmDialog(title, body, opts = {}) {
       $('#confirmCancel').onclick = null;
       if (inputHandler) sentinelInput.removeEventListener('input', inputHandler);
       sentinelWrap.classList.add('hidden');
+      sentinelHint.classList.add('hidden');
+      sentinelHint.textContent = '';
       ok.disabled = false;
       resolve(v);
     };
@@ -4699,10 +4781,6 @@ function showLanding() {
   $('#modePicker').classList.remove('hidden');
   renderLandingCounts();
   recordNavArrival({ landing: true });   /* Item 5: Back history */
-  /* Item 3 (v2-patch-11): the landing Back button exists only when there
-     is something to go back to. */
-  const lbb = document.getElementById('landingBackBtn');
-  if (lbb) lbb.classList.toggle('hidden', !navHistory.length);
 }
 /* Back-compat alias — some call sites still reference the old name. */
 function showModePicker() { showLanding(); }
@@ -4962,7 +5040,7 @@ function renderTaxReports() {
   const rowHtml = ({ j, locus }) => `
     <div class="biz-row" style="align-items:flex-start;">
       <span style="min-width:0;">
-        <span style="font-weight:600;color:var(--green-deep);font-family:ui-monospace,'SF Mono',monospace;">${escapeHtml(j.jobNumber || '—')}</span>
+        <span style="font-weight:600;color:var(--green-deep);font-family:ui-monospace,'SF Mono',monospace;">${escapeHtml(displayJobNumber(j.jobNumber) || '—')}</span>
         <span class="status-pill ${jobLifeStatusClass(j.status)}" style="margin-left:6px;">${escapeHtml(j.status || 'Active')}</span><br>
         <span style="font-size:13px;">${escapeHtml(j.customerName || '—')}</span><br>
         <span class="muted" style="font-size:12px;">${escapeHtml(locus.address || 'no address')} · started ${escapeHtml(fmtShortDate(j.startDate) || '—')} · QB Inv ${escapeHtml(String(j.qbInvoiceNumber || '—'))}</span>
@@ -5133,6 +5211,40 @@ async function cleanupPushTokenOnSignOut() {
    the service-worker cache) and, if it differs from what's running, show the
    Reload banner. Tapping it reloads — the network-first SW then pulls fresh HTML. */
 let updatePromptShown = false;
+/* Item 13 (v2-patch-13, owner #1): version-skew guard for admin actions.
+   Root cause of the SWR MASTER 9 'insufficient permission' report was the
+   INVERSE of a stale client: the v2.10 frontend shipped the Delete Camera
+   button hours before the deleteCameraRecord callable was deployed
+   (CreateFunction audit log 2026-07-24T01:05Z — the function did not exist
+   when the owner tapped). The call hit a nonexistent function URL and
+   Google's edge answered 403 Forbidden — zero server invocations, surfaced
+   as a permission error. This guard covers the client-behind half of any
+   future skew: before an admin action runs, re-check version.txt and block
+   with the update banner if a newer frontend is available. The
+   backend-behind half gets an actionable message in the callables' catch
+   (see callableFailureText). */
+async function ensureFreshClientForAdminAction() {
+  try {
+    const res = await fetch('./version.txt?cb=' + Date.now(), { cache: 'no-store' });
+    if (!res.ok) return true;                       /* can't tell — don't block */
+    const latest = (await res.text()).trim();
+    if (!latest || latest === APP_VERSION) return true;
+    const t = $('#updateBannerText'); if (t) t.textContent = `Update ${latest} ready`;
+    const b = $('#updateBanner'); if (b) b.style.display = 'flex';
+    toast(`Update ${latest} is available — reload before running admin actions`, 'error');
+    return false;
+  } catch (_) { return true; }                      /* offline — callable fails with its own message */
+}
+/* A callable that never reached the server (nonexistent/undeployed function,
+   CORS-blocked 403/404) surfaces as functions/internal or
+   functions/not-found — name the likely cause instead of echoing 'internal'. */
+function callableFailureText(err) {
+  const code = err && err.code ? String(err.code) : '';
+  if (code === 'functions/not-found' || code === 'functions/internal' || code === 'internal' || code === 'not-found') {
+    return `the server function is unreachable — if the app was just updated, the functions deploy may still be pending (${errText(err)})`;
+  }
+  return errText(err);
+}
 async function checkForUpdate() {
   try {
     const res = await fetch('./version.txt?cb=' + Date.now(), { cache: 'no-store' });
@@ -5721,8 +5833,8 @@ function startEstimateForJob(jobId) {
   if (c) applyEstimateCustomer(c);
   else if (j.customerName) { builderCustomer = { id: j.customerId, name: j.customerName, qbId: null }; $('#est-customer').value = j.customerName; }
   const hint = $('#est-customer-hint');
-  if (hint && j.jobNumber) {
-    hint.textContent = (hint.textContent ? hint.textContent + ' · ' : '') + `Will attach to ${j.jobNumber}`;
+  if (hint && displayJobNumber(j.jobNumber)) {
+    hint.textContent = (hint.textContent ? hint.textContent + ' · ' : '') + `Will attach to ${displayJobNumber(j.jobNumber)}`;
   }
 }
 
@@ -5760,8 +5872,7 @@ function renderEstimateDetail(id) {
   const box = $('#estimateDetail');
   if (!box) return;
   if (!e) {
-    box.innerHTML = '<div class="card">Estimate not found.</div>' +
-      '<div class="form-actions"><button class="btn btn-cancel btn-ghost" data-est-action="back">Back to Estimates</button></div>';
+    box.innerHTML = '<div class="card">Estimate not found.</div>';
     return;
   }
   const admin = isAdmin();
@@ -5813,7 +5924,7 @@ function renderEstimateDetail(id) {
     </div>
     ${e.notes ? `<div class="card"><h3 style="margin-top:0;">Notes</h3><div>${escapeHtml(e.notes)}</div></div>` : ''}
     ${e.rejectionNote ? `<div class="card"><h3 style="margin-top:0;color:var(--danger);">Rejection note</h3><div>${escapeHtml(e.rejectionNote)}</div></div>` : ''}
-    <div class="form-actions">${actions}<button class="btn btn-cancel btn-ghost" data-est-action="back">Back to Estimates</button></div>`;
+    <div class="form-actions">${actions}</div>`;
 }
 
 function editEstimate(id) {
@@ -5853,7 +5964,7 @@ async function deleteEstimateDraft(id) {
   const e = cachedEstimates.find((x) => x.id === id);
   const deletable = ['Draft', 'Pending Approval', 'Rejected'];
   if (!e || !deletable.includes(e.status)) { toast('Estimates already pushed to QuickBooks can’t be deleted here', 'error'); return; }
-  if (!confirm('Delete this estimate? This cannot be undone.')) return;
+  if (!(await confirmDialog('Delete this estimate?', 'This cannot be undone.', { okText: 'Delete' }))) return;
   try {
     await writeWithRetry(() => deleteDoc(doc(fbDb, 'estimates', id)));
     toast('Estimate deleted');
@@ -6138,8 +6249,11 @@ function fieldGroups() {
   const myEmail = currentUser ? currentUser.email.toLowerCase() : '';
   for (const p of cachedCameraPhotos) {
     if (p.archived) continue;   /* legacy global clear; file persists in Storage */
-    /* Item 4 (v2-patch-5): per-operator deletion — a photo an operator
-       deleted is hidden for them only; everyone else still sees it. */
+    /* Item 12 (v2-patch-13, owner #7): per-operator HIDE — a photo an
+       operator hid is filtered from their view only; everyone else still
+       sees it. `hiddenBy` is the current field; `deletedBy` is honored for
+       photos hidden before v2.11 (v2-patch-5 wrote that name). */
+    if (Array.isArray(p.hiddenBy) && p.hiddenBy.some((e) => String(e).toLowerCase() === myEmail)) continue;
     if (Array.isArray(p.deletedBy) && p.deletedBy.some((e) => String(e).toLowerCase() === myEmail)) continue;
     const g = get(p.customerKey);
     g.photos.push(p);
@@ -6313,9 +6427,8 @@ function renderFieldDetail(key) {
     <div class="form-actions">
       ${g.pendingRemoval && isAdmin() ? '<button class="btn btn-danger" id="fieldConfirmRemovalBtn">Confirm Camera Removal</button>' : ''}
       ${internalToggle}
-      <button class="btn btn-danger" id="fieldClearBtn">Delete Photos</button>
+      <button class="btn btn-ghost" id="fieldClearBtn">Hide All Photos</button>
       ${isAdmin() ? '<button class="btn btn-danger" id="fieldDeleteCameraBtn">Delete Camera</button>' : ''}
-      <button class="btn btn-cancel btn-ghost" id="fieldBackBtn">Back to Monitoring</button>
     </div>`;
 
   /* Resolve each photo through the Firebase Storage SDK (getDownloadURL) rather
@@ -6627,6 +6740,7 @@ function primaryPropertyData(c, byEmail) {
    summary. */
 async function runPrimaryPropertyBackfill() {
   if (!isAdmin()) { toast('Only an administrator can run the backfill.', 'error'); return; }
+  if (!(await ensureFreshClientForAdminAction())) return;   /* Item 13 */
   const ok = await confirmDialog('Backfill primary properties?',
     'Runs on the server: creates a "Primary" property from the home address for every customer that has no property records. Customers with existing properties are skipped. Safe to run more than once.');
   if (!ok) return;
@@ -6648,6 +6762,7 @@ async function runPrimaryPropertyBackfill() {
 
 async function runCameraRelink() {
   if (!isAdmin()) { toast('Only an administrator can run the re-link.', 'error'); return; }
+  if (!(await ensureFreshClientForAdminAction())) return;   /* Item 13 */
   const ok = await confirmDialog('Re-link cameras?',
     'Runs on the server: matches every camera health record against property Camera IDs (exact match) and refreshes the links. Unmatched cameras stay in the pending queue and are listed in a downloaded report.');
   if (!ok) return;
@@ -6681,56 +6796,40 @@ async function runCameraRelink() {
 }
 
 
-/* "Delete Photos From App" — Item 4 (v2-patch-5): deletion is PER-OPERATOR.
-   An operator's delete stamps their email into each photo's `deletedBy`
-   array; the photo disappears from their view only (Storage file and
-   Firestore doc untouched) and every other operator still sees it. Only
-   Jon (admin) deletes permanently — Storage file + Firestore doc removed
-   for everyone. Camera health rows are never touched here: active cameras
-   stay visible in Monitoring even with all photos deleted (Item 21). */
+/* "Hide All Photos" — Item 12 (v2-patch-13, owner #7): the operator-facing
+   action is a PER-OPERATOR HIDE for everyone, admin included. It stamps the
+   operator's email into each photo's `hiddenBy` array; the photo disappears
+   from their view only (Storage file and Firestore doc untouched) and every
+   other operator still sees it. TRUE global deletion exists only in the
+   server retention job (cleanupCameraPhotos) and the admin-only permanent
+   camera deletion (deleteCameraRecord). Replaces the v2-patch-5 Item 4
+   behavior where the admin's tap permanently deleted for every operator.
+   Camera health rows are never touched here: active cameras stay visible
+   in Monitoring even with all photos hidden (Item 21). */
 async function clearFieldGroup(key) {
   if (!key) return;
   const g = fieldGroups().find((x) => x.key === key);
   if (!g) return;
   const nP = g.photos.length;
-  if (!nP) { toast('No photos to delete for this camera'); return; }
-  const admin = isAdmin();
-  const note = 'Deleting removes this photo from your view only. Other operators can still see it. Admins can permanently delete.';
+  if (!nP) { toast('No photos to hide for this camera'); return; }
   const ok = await confirmDialog(
-    `Delete ${g.name || g.key} photos?`,
-    admin
-      ? `As admin, this PERMANENTLY deletes ${nP} photo${nP === 1 ? '' : 's'} (files and records) for every operator. This cannot be undone. ${note}`
-      : `Removes ${nP} photo${nP === 1 ? '' : 's'} from your view. ${note}`,
-    { okText: admin ? 'Delete Permanently' : 'Delete From My View' }
+    `Hide all photos from ${g.name || g.key}?`,
+    `Hides ${nP} photo${nP === 1 ? '' : 's'} from your view only — other operators still see them, and nothing is deleted. Photos age out for everyone via the retention schedule.`,
+    { okText: 'Hide Photos' }
   );
   if (!ok) return;
   try {
-    if (admin) {
-      for (const p of g.photos) {
-        if (p.storagePath) {
-          try { await deleteObject(storageRef(fbStorage, p.storagePath)); }
-          catch (err) {
-            /* Already-gone files are fine; anything else keeps the doc so
-               the delete can be retried. */
-            if (!err || err.code !== 'storage/object-not-found') throw err;
-          }
-        }
-        await writeWithRetry(() => deleteDoc(doc(fbDb, 'cameraPhotos', p.id)));
-      }
-      toast(`${g.name || g.key} photos permanently deleted`);
-    } else {
-      const email = currentUser ? currentUser.email.toLowerCase() : null;
-      if (!email) return;
-      for (const p of g.photos) {
-        await writeWithRetry(() => setDoc(doc(fbDb, 'cameraPhotos', p.id),
-          { deletedBy: arrayUnion(email) }, { merge: true }));
-      }
-      toast(`${g.name || g.key} photos hidden from your view`);
+    const email = currentUser ? currentUser.email.toLowerCase() : null;
+    if (!email) return;
+    for (const p of g.photos) {
+      await writeWithRetry(() => setDoc(doc(fbDb, 'cameraPhotos', p.id),
+        { hiddenBy: arrayUnion(email) }, { merge: true }));
     }
+    toast(`${g.name || g.key} photos hidden from your view`);
     renderFieldDetail(key);
     renderFieldDashboard();
   } catch (err) {
-    toast('Delete failed: ' + errText(err), 'error');
+    toast('Hide failed: ' + errText(err), 'error');
   }
 }
 
@@ -6744,6 +6843,7 @@ async function clearFieldGroup(key) {
 async function deleteCameraPermanently(key) {
   if (!key) return;
   if (!isAdmin()) { toast('Only an administrator can delete a camera.', 'error'); return; }
+  if (!(await ensureFreshClientForAdminAction())) return;   /* Item 13 */
   const g = fieldGroups().find((x) => x.key === key);
   const label = (g && g.name) ? `${g.name} (${key})` : key;
   const nH = g ? g.devices.length : 0;
@@ -6771,7 +6871,7 @@ async function deleteCameraPermanently(key) {
     setView('dashboard');
   } catch (err) {
     if (btn) { btn.disabled = false; btn.textContent = 'Delete Camera'; }
-    toast('Camera deletion failed: ' + errText(err), 'error');
+    toast('Camera deletion failed: ' + callableFailureText(err), 'error');
   }
 }
 
@@ -7205,6 +7305,13 @@ function setView(name, opts) {
   if (name === 'notifications') renderNotificationsPage();
   $('#appMain').scrollTop = 0;
   document.body.classList.toggle('in-add', name === 'add' || name === 'edit-legacy' || name === 'add-appointment' || name === 'add-task');
+  /* Item 11 (v2-patch-13, owner #15): Notifications creates nothing, but it
+     opens under whatever module was active (setAppModeQuiet), so that
+     module's + FAB leaked through — and routed to the wrong form (the
+     patch-10 FAB standardization fallthrough). Hide the FAB on any view
+     with no create action. Views without a FAB in their NAV_CONFIGS
+     (settings, allrecords, closeout, field) never render one at all. */
+  document.body.classList.toggle('no-fab', name === 'notifications');
 
   if (name === 'add' && !preserveForm) {
     if (appMode === 'trap') {
@@ -7326,7 +7433,7 @@ function fillGroupedSelect(id, groups, blankLabel) {
   if (current) sel.value = current;
 }
 function fillFilters() {
-  fillSelect('filterTrapper', TRAPPERS, true, 'All trappers');
+  fillSelect('filterTrapper', TRAPPERS, true, 'All contractors');
   fillSelect('filterSpecies', SPECIES, true, 'All species');
   fillSelect('filterCounty', COUNTIES, true, 'All counties');
 }
@@ -7351,7 +7458,7 @@ function fillTrapperSelect() {
   sel.innerHTML = '';
   const blank = document.createElement('option');
   blank.value = '';
-  blank.textContent = '— select trapper —';
+  blank.textContent = '— select contractor —';
   sel.appendChild(blank);
   for (const name of TRAPPERS) {
     const o = document.createElement('option');
@@ -7640,7 +7747,7 @@ function readForm() {
 function validateRecord(r) {
   const errs = [];
   if (!r.dateCollected) errs.push('Date');
-  if (!r.trapper) errs.push('Trapper');
+  if (!r.trapper) errs.push('Contractor');
   if (!r.clientName) errs.push('Client name');
   if (!r.clientPhone) errs.push('Phone');
   else if (!isValidPhone(r.clientPhone)) errs.push('Valid phone (10 digits)');
@@ -8238,6 +8345,15 @@ function updateTrapAddressTypeUI() {
   const isSite = trapAddressType() === 'trapSiteAddress';
   const opts = $('#trapLocOptions');
   if (opts) opts.classList.toggle('hidden', !isSite);
+  /* Item 8 (v2-patch-13, owner #13): progressive disclosure — while the
+     client's address is the source, the location-type radios collapse to a
+     one-line "Using the client's address · change"; tapping change flips to
+     Trap Site Address (revealing the radios + segmented control) and the
+     radios stay visible so a mis-tap can flip straight back. */
+  const grp = $('#trapAddressTypeGroup');
+  if (grp) grp.classList.toggle('hidden', !isSite);
+  const collapsed = $('#trapLocCollapsed');
+  if (collapsed) collapsed.classList.toggle('hidden', isSite);
   if (!isSite) {
     ['trapLocEntry', 'trapMapGroup'].forEach((id) => {
       const el = document.getElementById(id);
@@ -8348,6 +8464,10 @@ async function handleTrapLocationChange(lat, lng, source, geoHint) {
 /* Item 15 parity (H3): the treatment-site county is captured SILENTLY from
    whichever of the three location methods the operator uses. */
 let silentPaCounty = null;
+/* Item 8 (v2-patch-13, owner #13): true after the operator taps "change" on
+   the collapsed same-as-client state — reveals the location segmented
+   control without flipping the same/different radio. Reset per form. */
+let paLocRevealed = false;
 
 async function handlePesticideLocationChange(lat, lng, source, geoHint) {
   $('#pa-site-lat').value = lat;
@@ -8718,7 +8838,7 @@ function renderDashboard() {
   const minePeriod = inP.filter((r) => (r.createdByEmail || '').toLowerCase() === myEmail);
 
   $('#statTotalSwr').textContent = inP.length;
-  $('#statTotalSwrSub').textContent = 'all trappers';
+  $('#statTotalSwrSub').textContent = 'all contractors';
   /* Item 8 (v2-patch-6): one panel per operator, generated from TRAPPERS —
      all four contractors appear regardless of certification status. */
   renderContractorStats(inP, (r) => r.trapper, 'record');
@@ -8828,7 +8948,7 @@ function renderPesticideDashboard() {
       <div class="rec-thumb">PA</div>
       <div class="rec-body">
         <div class="rec-title">${escapeHtml(brand)}<span class="rec-tag tag-X">${escapeHtml(r.applicator || '')}</span></div>
-        <div class="rec-meta">${escapeHtml(r.recordNumber || '—')} · ${escapeHtml(fmtPaDateTime(r.appliedAt))} · ${escapeHtml(r.clientName || '')}</div>
+        <div class="rec-meta">${escapeHtml(r.recordNumber || '—')} · ${escapeHtml(fmtRowDateTime(r.appliedAt))} · ${escapeHtml(r.clientName || '')}</div>
       </div>`;
     div.onclick = () => openPesticideDetail(r.id);
     dashRoot.appendChild(div);
@@ -8867,7 +8987,7 @@ function buildDetailRows(r) {
   if (r.recordNumber) push('Record #', r.recordNumber);
   head('Job');
   push('Date', fmtDate(r.dateCollected));
-  push('Trapper', r.trapper);
+  push('Contractor', r.trapper);
 
   head('Client');
   push('Name', r.clientName);
@@ -9225,7 +9345,7 @@ async function handleSaveCerts() {
   };
   const ok = await confirmDialog(
     'Save certifications?',
-    'These are written to the shared org config and visible to all trappers. Applicators with blank cert numbers will be disabled in the pesticide form. Type CONFIRM to proceed.',
+    'These are written to the shared org config and visible to all contractors. Applicators with blank cert numbers will be disabled in the pesticide form. Type CONFIRM to proceed.',
     { sentinel: 'CONFIRM', okText: 'Save' }
   );
   if (!ok) return;
@@ -9508,6 +9628,23 @@ function updatePesticideConditionals() {
   toggleGroup('cg-pa-methodOther', method === 'Other (specify)');
   const diffSiteVal = document.querySelector('input[name="pa-different-site"]:checked');
   toggleGroup('cg-pa-treatmentSite', diffSiteVal && diffSiteVal.value === 'yes');
+  /* Item 8 (v2-patch-13, owner #13): while the treatment site is the
+     client's address, the location picker collapses to one line; the
+     "change" affordance (paLocRevealed) restores the segmented control
+     without flipping the same/different radio. */
+  const paSame = !diffSiteVal || diffSiteVal.value === 'no';
+  const paCollapse = paSame && !paLocRevealed;
+  const paOpts = $('#paLocOptions');
+  if (paOpts) paOpts.classList.toggle('hidden', paCollapse);
+  const paCollapsedEl = $('#paLocCollapsed');
+  if (paCollapsedEl) paCollapsedEl.classList.toggle('hidden', !paCollapse);
+  if (paCollapse) {
+    ['paLocEntry', 'paMapGroup'].forEach((id) => {
+      const el = document.getElementById(id);
+      if (el) el.classList.add('hidden');
+    });
+    document.querySelectorAll('#paLocOptions .active').forEach((b) => b.classList.remove('active'));
+  }
   for (let i = 1; i <= 3; i++) {
     const sel = document.getElementById(`pa-brand-${i}`);
     if (sel) toggleGroup(`cg-pa-brandOther-${i}`, sel.value === '__other__');
@@ -9602,6 +9739,7 @@ function resetPesticideRecordForm() {
   }
   const noDiff = document.querySelector('input[name="pa-different-site"][value="no"]');
   if (noDiff) noDiff.checked = true;
+  paLocRevealed = false;   /* Item 8: fresh form starts collapsed */
   const noSigns = document.querySelector('input[name="pa-signs"][value="no"]');
   if (noSigns) noSigns.checked = true;
   document.querySelectorAll('#pa-adjuvants input').forEach((cb) => { cb.checked = false; });
@@ -9699,6 +9837,9 @@ function loadPesticideRecordIntoForm(rec) {
   $('#pa-notes').value = rec.notes || '';
   $('#pa-site-lat').value = rec.siteLat != null ? rec.siteLat : '';
   $('#pa-site-lng').value = rec.siteLng != null ? rec.siteLng : '';
+  /* Item 8 (v2-patch-13): a record that already carries coordinates keeps
+     its picker (and map, below) visible even in same-as-client mode. */
+  paLocRevealed = rec.siteLat != null && rec.siteLng != null;
   /* Item 15 parity (H3): restore the silently-captured county so an
      edit-save never wipes it, and reveal the map only when the record
      already has coordinates. */
@@ -9976,7 +10117,9 @@ async function confirmSavePesticide() {
     resetPesticideRecordForm();
     if (photoQueued) updatePendingPhotoIndicator();
     if (offline) toast(photoQueued ? 'Saved offline — record and photo will sync when connected' : 'Saved offline — will sync when connected');
-    else toast(isEdit ? 'Application updated' : `Saved · ${rec.recordNumber}`);
+    /* Item 4 (v2-patch-13, F-32): noun kept — matches the trap path's
+       'Record saved · <#>' wording shape. */
+    else toast(isEdit ? 'Application updated' : `Application saved · ${rec.recordNumber}`);
     if (!isEdit) sendPesticideEmail(rec);
     /* Work logged against a lifecycle job means the job is underway (Item 3). */
     if (!isEdit && rec.jobId) advanceJobStatusAuto(rec.jobId, 'Active');
@@ -10143,7 +10286,7 @@ function renderPesticideRecordsList() {
       <div class="rec-thumb">PA</div>
       <div class="rec-body">
         <div class="rec-title">${escapeHtml(brand)} <span class="rec-tag tag-X">${escapeHtml(r.applicator || '')}</span></div>
-        <div class="rec-meta">${escapeHtml(r.recordNumber || '—')} · ${escapeHtml(fmtPaDateTime(r.appliedAt))} · ${escapeHtml(r.clientName || '')}</div>
+        <div class="rec-meta">${escapeHtml(r.recordNumber || '—')} · ${escapeHtml(fmtRowDateTime(r.appliedAt))} · ${escapeHtml(r.clientName || '')}</div>
       </div>`;
     div.onclick = () => openPesticideDetail(r.id);
     root.appendChild(div);
@@ -10247,7 +10390,7 @@ function renderAllRecords() {
   let chip = '';
   if (allRecJobFilter) {
     const j = cachedJobs.find((x) => x.id === allRecJobFilter.jobId);
-    const label = j ? `${j.jobNumber || 'job'}${j.customerName ? ' · ' + j.customerName : ''}` : 'this job';
+    const label = j ? `${displayJobNumber(j.jobNumber) || 'job'}${j.customerName ? ' · ' + j.customerName : ''}` : 'this job';
     chip = `<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 10px;margin-bottom:8px;border:1px solid rgba(196,119,42,0.35);border-radius:10px;background:rgba(196,119,42,0.10);font-size:13px;">
       <span>Showing records for <strong>${escapeHtml(label)}</strong></span>
       <button type="button" class="btn btn-ghost" data-allrec-clearjob style="padding:4px 10px;font-size:12.5px;">Show all</button>
@@ -10527,14 +10670,17 @@ function assignableUsers() {
 function fmtTime12(t) {
   if (!t) return '';
   const [h, mn] = t.split(':').map(Number);
-  const ap = h >= 12 ? 'p' : 'a';
+  /* Item 3 (v2-patch-13, F-27): one clock style app-wide — "4:30 PM",
+     matching fmtRowDateTime/fmtPaDateTime (was "4:30p", schedule only). */
+  const ap = h >= 12 ? 'PM' : 'AM';
   const h12 = ((h + 11) % 12) + 1;
-  return `${h12}:${String(mn).padStart(2, '0')}${ap}`;
+  return `${h12}:${String(mn).padStart(2, '0')} ${ap}`;
 }
 function hhmm(d) { return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; }
 function dateKey(d) { return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; }
 function longDate(dateStr) {
-  return new Date(`${dateStr}T00:00`).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+  /* B-08: use the system locale like every sibling helper (was 'en-US'). */
+  return new Date(`${dateStr}T00:00`).toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
 }
 
 function subscribeToJobs() {
@@ -10561,7 +10707,7 @@ function subscribeToJobs() {
                       ...(Array.isArray(j.assignedOperators) ? j.assignedOperators : [])]
           .some((em) => String(em).toLowerCase() === me);
         if (mine) {
-          toast(`New job assigned: ${j.title || j.jobNumber || 'Untitled'}`);
+          toast(`New job assigned: ${j.title || displayJobNumber(j.jobNumber) || 'Untitled'}`);
         }
       }
     }
@@ -10623,7 +10769,7 @@ function calendarEntryFromAppt(a) {
     kind: 'appt', id: a.id, jobId: a.jobId, date: a.scheduledDate || '', startTime: a.scheduledTime || '',
     durationMins: Number(a.durationMins) || 60,
     title: a.visitType || 'Visit',
-    sub: [a.jobNumber, a.customerName, (a.assigneeNames || []).join(', ')].filter(Boolean).join(' · '),
+    sub: [displayJobNumber(a.jobNumber), a.customerName, (a.assigneeNames || []).join(', ')].filter(Boolean).join(' · '),
     status: a.status || 'Scheduled'
   };
 }
@@ -10646,7 +10792,7 @@ function calendarEntryFromTask(t) {
     kind: 'task', id: t.id, date: t.scheduledDate || '', startTime: t.scheduledTime || '',
     durationMins: 60,
     title: taskTypeLabel(t),
-    sub: [t.jobNumber, t.customerName, (t.assigneeNames || []).join(', ')].filter(Boolean).join(' · '),
+    sub: [displayJobNumber(t.jobNumber), t.customerName, (t.assigneeNames || []).join(', ')].filter(Boolean).join(' · '),
     assigneeNames: t.assigneeNames || [],   /* Item 9: contractor grouping */
     status: t.status || 'Open'
   };
@@ -10878,7 +11024,9 @@ async function handleSaveJob(e) {
   if (!date || !startTime) { toast('Date and start time are required', 'error'); return; }
   if (!assignees.length) { toast('Assign at least one person', 'error'); return; }
   const conflicts = checkJobConflicts();
-  if (conflicts.length && !confirm(`This job overlaps ${conflicts.length} other scheduled job${conflicts.length > 1 ? 's' : ''}. Schedule it anyway?`)) return;
+  if (conflicts.length && !(await confirmDialog('Scheduling conflict',
+    `This job overlaps ${conflicts.length} other scheduled job${conflicts.length > 1 ? 's' : ''}. Schedule it anyway?`,
+    { okText: 'Schedule Anyway' }))) return;
 
   const btn = $('#saveJobBtn'); btn.disabled = true;
   try {
@@ -10963,8 +11111,7 @@ function renderJobDetail(id) {
   const box = $('#jobDetail');
   if (!box) return;
   if (!j) {
-    box.innerHTML = '<div class="card">Job not found.</div>' +
-      '<div class="form-actions"><button class="btn btn-cancel btn-ghost" data-job-action="back">Back to Calendar</button></div>';
+    box.innerHTML = '<div class="card">Job not found.</div>';
     return;
   }
   const se = jobStartEnd(j);
@@ -11002,7 +11149,7 @@ function renderJobDetail(id) {
       ${detail('Created by', j.createdByEmail)}
     </div>
     ${logsCard}
-    <div class="form-actions">${actions}<button class="btn btn-cancel btn-ghost" data-job-action="back">Back to Calendar</button></div>`;
+    <div class="form-actions">${actions}</div>`;
 }
 
 /* Trap + pesticide records logged against a given job. */
@@ -11041,7 +11188,7 @@ function populateJobSelect(selectId, selectedId) {
   for (const j of lc) {
     const o = document.createElement('option');
     o.value = j.id;
-    o.textContent = `${j.jobNumber} · ${j.customerName || ''}`;
+    o.textContent = `${displayJobNumber(j.jobNumber)} · ${j.customerName || ''}`;
     sel.appendChild(o);
   }
   const legacy = legacyScheduleJobs().filter((j) => j.status !== 'Cancelled')
@@ -11057,7 +11204,7 @@ function populateJobSelect(selectId, selectedId) {
     const j = cachedJobs.find((x) => x.id === selectedId);
     const o = document.createElement('option');
     o.value = selectedId;
-    o.textContent = j ? `${j.jobNumber || j.title || selectedId} · ${j.customerName || ''}` : selectedId;
+    o.textContent = j ? `${displayJobNumber(j.jobNumber) || j.title || selectedId} · ${j.customerName || ''}` : selectedId;
     sel.appendChild(o);
   }
   sel.value = selectedId || '';
@@ -11072,7 +11219,7 @@ async function setJobStatus(id, status) {
   }
 }
 async function deleteJob(id) {
-  if (!confirm('Delete this job? This cannot be undone.')) return;
+  if (!(await confirmDialog('Delete this job?', 'This cannot be undone.', { okText: 'Delete' }))) return;
   try {
     await writeWithRetry(() => deleteDoc(doc(fbDb, 'jobs', id)));
     toast('Job deleted');
@@ -11140,11 +11287,18 @@ const NOTIF_TYPE_META = {
   kdfwr: { icon: '📋', label: 'KDFWR reporting' }   /* Item 6 (v2-patch-6) */
 };
 
-function fmtNotifTime(iso) {
+/* Item 3 (v2-patch-13, F-27): THE row-level date+time format, app-wide —
+   "Mar 5, 4:30 PM", year added only outside the current year. Used by
+   notifications, notes, and both record lists (pesticide rows previously
+   used the full fmtPaDateTime, disagreeing with trap rows in the same
+   scrollable list). Was fmtNotifTime. */
+function fmtRowDateTime(iso) {
   if (!iso) return '';
   const d = new Date(iso);
   if (isNaN(d)) return iso;
-  return d.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+  const opts = { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' };
+  if (d.getFullYear() !== new Date().getFullYear()) opts.year = 'numeric';
+  return d.toLocaleString(undefined, opts);
 }
 
 /* Best-effort "who/what is this about" line: the customer (job/appointment
@@ -11202,7 +11356,7 @@ function renderNotificationsPage() {
       <div class="nf-body">
         <div class="nf-title">${pin}${escapeHtml(n.title || meta.label)}</div>
         ${n.body ? `<div class="nf-text">${escapeHtml(n.body)}</div>` : ''}
-        <div class="nf-meta">${escapeHtml([meta.label, source, fmtNotifTime(n.createdAt)].filter(Boolean).join(' · '))}</div>
+        <div class="nf-meta">${escapeHtml([meta.label, source, fmtRowDateTime(n.createdAt)].filter(Boolean).join(' · '))}</div>
       </div>
       ${n.read ? '' : `<button type="button" class="nf-dismiss" data-notif-dismiss="${escapeHtml(n.id)}" aria-label="Dismiss">×</button>`}
     </div>`;
@@ -11329,6 +11483,12 @@ function jobTypeDisplay(j) {
   return j.jobType === 'Other' && j.jobTypeOther ? j.jobTypeOther : j.jobType;
 }
 
+/* Item 7 (v2-patch-13, owner #10): DISPLAY-ONLY job number — stored
+   'SWR-JOB-2026-014-T' renders as 'SWR-2026-014-T'. Stored jobNumber
+   values, the generation format, and QB/CSV payloads are untouched;
+   every UI render routes through this helper. */
+function displayJobNumber(n) { return String(n || '').replace('-JOB-', '-'); }
+
 /* Item 16 (v2-patch-5): "Job Type — Species" line, bold, directly under the
    customer name on job cards and detail screens — only when a species is
    set. Other types use their description: "Other (Chimney Sweep) — Raccoon". */
@@ -11452,11 +11612,11 @@ async function setJobLifecycleStatus(id, status, extra = {}) {
       console.error('Job status write failed', err);
       toast('Status update failed to sync: ' + errText(err), 'error');
     });
-  toast(`Job ${j.jobNumber || ''} → ${status}`);
+  toast(`Job ${displayJobNumber(j.jobNumber) || ''} → ${status}`);
   /* In-app notification to the job's other operators (Item 12). */
   notifyOperatorsInApp(j.assignedOperators || [], {
     type: 'job',
-    title: `${j.jobNumber || 'Job'} → ${status}`,
+    title: `${displayJobNumber(j.jobNumber) || 'Job'} → ${status}`,
     body: [j.customerName, `moved to ${status}`].filter(Boolean).join(' · '),
     relatedId: id
   });
@@ -11480,7 +11640,7 @@ function advanceJobStatusAuto(jobId, atLeast) {
          announce a transition that never happened. */
       notifyOperatorsInApp(j.assignedOperators || [], {
         type: 'job',
-        title: `${j.jobNumber || 'Job'} → ${atLeast}`,
+        title: `${displayJobNumber(j.jobNumber) || 'Job'} → ${atLeast}`,
         body: [j.customerName, `moved to ${atLeast}`].filter(Boolean).join(' · '),
         relatedId: jobId
       });
@@ -11583,6 +11743,35 @@ function jobTaskProgressHtml(jobId) {
   </div>`;
 }
 
+/* Item 6 (v2-patch-13, F-05 + owner #5): the ONE job row, shared by the
+   Jobs list and Close Out. First line = job TYPE in the amber tag, species
+   appended after an en-dash ("Trapping – Raccoon"); customer name on the
+   line below (linked when a customerId exists); the meta line leads with
+   the job number. The trailing slot (status pill / Close Out button) is
+   guarded by flex-shrink:0 so narrow phones can never squeeze it — the
+   Close Out button had the guard, the Jobs pill did not. Callers keep
+   their distinct click targets (F-05 risk note): Jobs arms the wrapper
+   with data-ljob-open; Close Out arms only its trailing button. */
+function jobRow(j, { trailing = '', rowAttrs = '', metaBits = [], extraHtml = '' } = {}) {
+  const type = jobTypeDisplay(j);
+  const typeLine = type
+    ? `<div><span class="job-type-tag">${escapeHtml(type)}${j.species ? ` – ${escapeHtml(j.species)}` : ''}</span></div>`
+    : '';
+  const custLine = j.customerId
+    ? `<div><button type="button" class="jd-cust-link" style="margin-top:0;font-size:15px;" data-job-cust="${escapeHtml(j.customerId)}" title="View customer">${escapeHtml(j.customerName || 'Customer')}</button></div>`
+    : `<div class="jl-name">${escapeHtml(j.customerName || '(no customer)')}</div>`;
+  const bits = [displayJobNumber(j.jobNumber) || '', ...metaBits].filter(Boolean);
+  return `<div class="job-lc-row" ${rowAttrs}>
+      <div class="jl-body">
+        ${typeLine}
+        ${custLine}
+        <div class="jl-meta">${escapeHtml(bits.join(' · '))}</div>
+        ${extraHtml}
+      </div>
+      ${trailing}
+    </div>`;
+}
+
 function renderJobsList() {
   const el = $('#jobsList');
   if (!el) return;
@@ -11605,19 +11794,12 @@ function renderJobsList() {
       ? `started ${fmtShortDate(j.startDate)}`
       : (j.createdAt ? 'opened ' + fmtShortDate(j.createdAt.slice(0, 10)) : '');
     const who = (j.assigneeNames || []).join(', ');
-    const bits = [dates, `${nTasks} task${nTasks === 1 ? '' : 's'}`, who].filter(Boolean);
-    return `<div class="job-lc-row" data-ljob-open="${escapeHtml(j.id)}">
-      <div class="jl-body">
-        <div class="jl-num">${escapeHtml(j.jobNumber || '')}${j.jobType ? ` <span class="job-type-tag">${escapeHtml(jobTypeDisplay(j))}</span>` : ''}</div>
-        ${j.customerId
-          ? `<div><button type="button" class="jd-cust-link" style="margin-top:0;font-size:15px;" data-job-cust="${escapeHtml(j.customerId)}" title="View customer">${escapeHtml(j.customerName || 'Customer')}</button></div>`
-          : `<div class="jl-name">${escapeHtml(j.customerName || '(no customer)')}</div>`}
-        ${jobTypeSpeciesHtml(j)}
-        <div class="jl-meta">${escapeHtml(bits.join(' · '))}</div>
-        ${jobTaskProgressHtml(j.id)}
-      </div>
-      <span class="status-pill ${jobLifeStatusClass(j.status)}">${escapeHtml(j.status || 'Active')}</span>
-    </div>`;
+    return jobRow(j, {
+      rowAttrs: `data-ljob-open="${escapeHtml(j.id)}"`,
+      metaBits: [dates, `${nTasks} task${nTasks === 1 ? '' : 's'}`, who],
+      extraHtml: jobTaskProgressHtml(j.id),
+      trailing: `<span class="status-pill ${jobLifeStatusClass(j.status)}" style="flex-shrink:0;">${escapeHtml(j.status || 'Active')}</span>`
+    });
   }).join('');
 }
 
@@ -11824,7 +12006,7 @@ async function handleSaveLifecycleJob(e) {
           toast('Job failed to sync: ' + errText(err), 'error');
         });
       if (!cachedJobs.some((x) => x.id === ref.id)) cachedJobs.push({ id: ref.id, ...data });
-      toast(`Job opened · ${data.jobNumber}`);
+      toast(`Job opened · ${displayJobNumber(data.jobNumber)}`);
       resetLifecycleJobForm();
       openLifecycleJob(ref.id);
     }
@@ -11966,7 +12148,7 @@ function renderTaskModelJobDetail(j) {
   box.innerHTML = `
     <div class="card">
       <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;">
-        <h3 style="margin:0;font-family:ui-monospace,'SF Mono',monospace;font-size:16px;">${escapeHtml(j.jobNumber || 'Job')}</h3>
+        <h3 style="margin:0;font-family:ui-monospace,'SF Mono',monospace;font-size:16px;">${escapeHtml(displayJobNumber(j.jobNumber) || 'Job')}</h3>
         <span class="status-pill ${jobLifeStatusClass(j.status)}">${escapeHtml(j.status || 'Active')}</span>
       </div>
       ${j.jobType ? `<div style="margin-top:8px;"><span class="job-type-tag" style="font-size:13px;padding:3px 10px;">${escapeHtml(jobTypeDisplay(j))}</span></div>` : ''}
@@ -11997,9 +12179,9 @@ function renderTaskModelJobDetail(j) {
       <div class="appt-timeline">${taskRows}</div>
     </div>
     ${j.notes ? `<div class="card"><h3 style="margin-top:0;">Notes</h3><div>${escapeHtml(j.notes)}</div></div>` : ''}
-    <div class="form-actions">${actions}<button class="btn btn-cancel btn-ghost" data-ljob-action="back">Back to Jobs</button></div>`;
-    /* Item 10 (v2-patch-6): explicit Back to Jobs restored — the bottom-nav
-       Jobs label icon it relied on (Item 17, v2-patch-5) is removed. */
+    <div class="form-actions">${actions}</div>`;
+    /* Item 1 (v2-patch-13, F-01): local Back removed — the ribbon Back is
+       the single exit from every detail view. */
 }
 
 function renderLifecycleJobDetail(id) {
@@ -12007,8 +12189,7 @@ function renderLifecycleJobDetail(id) {
   const box = $('#lifecycleJobDetail');
   if (!box) return;
   if (!j) {
-    box.innerHTML = '<div class="card">Job not found.</div>' +
-      '<div class="form-actions"><button class="btn btn-cancel btn-ghost" data-ljob-action="back">Back to Jobs</button></div>';
+    box.innerHTML = '<div class="card">Job not found.</div>';
     return;
   }
   /* Item 15: task-model jobs get the task-based screen; legacy lifecycle
@@ -12066,7 +12247,7 @@ function renderLifecycleJobDetail(id) {
   box.innerHTML = `
     <div class="card">
       <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;">
-        <h3 style="margin:0;font-family:ui-monospace,'SF Mono',monospace;font-size:16px;">${escapeHtml(j.jobNumber || 'Job')}</h3>
+        <h3 style="margin:0;font-family:ui-monospace,'SF Mono',monospace;font-size:16px;">${escapeHtml(displayJobNumber(j.jobNumber) || 'Job')}</h3>
         <span class="status-pill ${jobLifeStatusClass(j.status)}">${escapeHtml(j.status || 'Lead')}</span>
       </div>
       ${j.jobType ? `<div style="margin-top:8px;"><span class="job-type-tag" style="font-size:13px;padding:3px 10px;">${escapeHtml(jobTypeDisplay(j))}</span></div>` : ''}
@@ -12097,10 +12278,9 @@ function renderLifecycleJobDetail(id) {
       <div class="appt-timeline">${apptRows}</div>
     </div>
     ${j.notes ? `<div class="card"><h3 style="margin-top:0;">Notes</h3><div>${escapeHtml(j.notes)}</div></div>` : ''}
-    <div class="form-actions">${actions}<button class="btn btn-cancel btn-ghost" data-ljob-action="back">Back to Jobs</button></div>`;
-    /* Item 10 (v2-patch-6): the bottom-nav Jobs icon is gone, so the
-       explicit Back to Jobs button returns (Item 17 v2-patch-5 had removed
-       it in favor of that icon). */
+    <div class="form-actions">${actions}</div>`;
+    /* Item 1 (v2-patch-13, F-01): local Back removed — ribbon Back is the
+       single exit. */
 }
 
 /* ---- Job payment (Items 3 & 5) ----
@@ -12112,7 +12292,7 @@ async function markJobPaid(id) {
   const j = cachedJobs.find((x) => x.id === id);
   if (!j) return;
   const ok = await confirmDialog('Mark payment received?',
-    `${j.jobNumber || 'This job'} moves to Paid — the end of the line.`, { okText: 'Payment Received' });
+    `${displayJobNumber(j.jobNumber) || 'This job'} moves to Paid — the end of the line.`, { okText: 'Payment Received' });
   if (!ok) return;
   await setJobLifecycleStatus(id, 'Paid', {
     paymentStatus: 'Paid',
@@ -12192,7 +12372,7 @@ function assignJobCamera(jobId, cameraId) {
      only). Nothing is mirrored onto property or customer records here —
      the property editor is the one assignment door, and the old mirror
      could stamp a duplicate cameraId onto a second property. */
-  toast(`Camera ${K} assigned to ${j.jobNumber || 'the job'}`);
+  toast(`Camera ${K} assigned to ${displayJobNumber(j.jobNumber) || 'the job'}`);
   closeCameraSheet();
   renderLifecycleJobDetail(jobId);
 }
@@ -12208,7 +12388,7 @@ function removeJobCamera(jobId) {
     });
   const jdx = cachedJobs.findIndex((x) => x.id === jobId);
   if (jdx >= 0) cachedJobs[jdx] = { ...cachedJobs[jdx], cameraId: null };
-  toast(`Camera ${removed} removed from ${j.jobNumber || 'the job'}`);
+  toast(`Camera ${removed} removed from ${displayJobNumber(j.jobNumber) || 'the job'}`);
   renderLifecycleJobDetail(jobId);
 }
 
@@ -12229,7 +12409,7 @@ function populateTaskJobSelect(selectedId) {
   for (const j of jobs) {
     const o = document.createElement('option');
     o.value = j.id;
-    o.textContent = `${j.jobNumber} · ${j.customerName || ''}`;
+    o.textContent = `${displayJobNumber(j.jobNumber)} · ${j.customerName || ''}`;
     sel.appendChild(o);
   }
   /* Editing a task whose job is closed: keep it selectable. */
@@ -12238,7 +12418,7 @@ function populateTaskJobSelect(selectedId) {
     if (j) {
       const o = document.createElement('option');
       o.value = j.id;
-      o.textContent = `${j.jobNumber || 'Job'} · ${j.customerName || ''} (${j.status || 'closed'})`;
+      o.textContent = `${displayJobNumber(j.jobNumber) || 'Job'} · ${j.customerName || ''} (${j.status || 'closed'})`;
       sel.appendChild(o);
     }
   }
@@ -12370,8 +12550,7 @@ function renderTaskDetail(id) {
   if (!box) return;
   const t = cachedTasks.find((x) => x.id === id);
   if (!t) {
-    box.innerHTML = '<div class="card">Task not found.</div>' +
-      '<div class="form-actions"><button class="btn btn-cancel btn-ghost" data-task-action="back">Back</button></div>';
+    box.innerHTML = '<div class="card">Task not found.</div>';
     return;
   }
   const detail = (label, val) => val ? `<div style="margin-top:8px;"><span class="muted" style="font-size:12px;text-transform:uppercase;letter-spacing:.04em;">${label}</span><div>${escapeHtml(val)}</div></div>` : '';
@@ -12388,7 +12567,7 @@ function renderTaskDetail(id) {
   if (t.taskType === 'Pesticide Application') {
     actions += `<button class="btn btn-amber" data-task-action="log-pesticide" data-job="${escapeHtml(t.jobId || '')}">Log Pesticide Application</button>`;
   }
-  if (t.jobId) actions += `<button class="btn btn-ghost" data-task-action="open-job" data-job="${escapeHtml(t.jobId)}">Open Job ${escapeHtml(t.jobNumber || '')}</button>`;
+  if (t.jobId) actions += `<button class="btn btn-ghost" data-task-action="open-job" data-job="${escapeHtml(t.jobId)}">Open Job ${escapeHtml(displayJobNumber(t.jobNumber) || '')}</button>`;
   box.innerHTML = `
     <div class="card">
       <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;">
@@ -12398,12 +12577,12 @@ function renderTaskDetail(id) {
       <div class="muted" style="margin-top:6px;">${escapeHtml(longDate(t.scheduledDate))} · ${escapeHtml(fmtTime12(t.scheduledTime))}</div>
     </div>
     <div class="card">
-      ${detail('Job', [t.jobNumber, t.customerName].filter(Boolean).join(' · '))}
+      ${detail('Job', [displayJobNumber(t.jobNumber), t.customerName].filter(Boolean).join(' · '))}
       ${detail('Assigned to', (t.assigneeNames || []).join(', '))}
       ${detail('Completed', t.completedDate ? `${fmtDate(t.completedDate)}${t.completedBy ? ' by ' + t.completedBy : ''}` : '')}
       ${detail('Notes', t.notes)}
     </div>
-    <div class="form-actions">${actions}<button class="btn btn-cancel btn-ghost" data-task-action="back">Back</button></div>`;
+    <div class="form-actions">${actions}</div>`;
 }
 
 /* Item 16: completion records who and when. Item 19 hooks rebait rolling
@@ -12448,10 +12627,10 @@ function completeTask(id) {
   }
 }
 
-function cancelTask(id) {
+async function cancelTask(id) {
   const t = cachedTasks.find((x) => x.id === id);
   if (!t || t.status !== 'Open') return;
-  if (!confirm('Cancel this task?')) return;
+  if (!(await confirmDialog('Cancel this task?', 'The task is marked Cancelled and drops off the open list.', { okText: 'Cancel Task' }))) return;
   writeWithRetry(() => setDoc(doc(fbDb, 'tasks', id), {
     status: 'Cancelled', updatedAt: new Date().toISOString()
   }, { merge: true })).catch((err) => {
@@ -12496,7 +12675,7 @@ function addContractorToJob(id) {
   const candidates = assignableUsers().filter((u) => !have.has(u.email));
   if (!candidates.length) { toast('Every operator is already on this job'); return; }
   const menu = candidates.map((u, i) => `${i + 1}. ${u.name}`).join('\n');
-  const pick = prompt(`Add which contractor to ${j.jobNumber || 'this job'}?\n${menu}\n\nEnter a number:`, '1');
+  const pick = prompt(`Add which contractor to ${displayJobNumber(j.jobNumber) || 'this job'}?\n${menu}\n\nEnter a number:`, '1');
   if (pick === null) return;
   const idx = parseInt(pick, 10) - 1;
   if (!Number.isFinite(idx) || idx < 0 || idx >= candidates.length) { toast('Not a valid number', 'error'); return; }
@@ -12513,7 +12692,7 @@ function addContractorToJob(id) {
   });
   const jdx = cachedJobs.findIndex((x) => x.id === id);
   if (jdx >= 0) cachedJobs[jdx] = { ...cachedJobs[jdx], assignedOperators: operators, assigneeNames: operators.map((em) => nameByEmail[em] || em) };
-  toast(`${u.name} added to ${j.jobNumber || 'the job'}`);
+  toast(`${u.name} added to ${displayJobNumber(j.jobNumber) || 'the job'}`);
   renderLifecycleJobDetail(id);
 }
 
@@ -12597,14 +12776,11 @@ function renderCloseoutList() {
     el.innerHTML = '<div style="padding:16px;color:var(--ink-soft);">Nothing ready to close. A job appears here once it is Active and every one of its tasks is Completed or Cancelled.</div>';
     return;
   }
-  el.innerHTML = list.map((j) => `<div class="job-lc-row" style="cursor:default;">
-      <div class="jl-body">
-        <div class="jl-num">${escapeHtml(j.jobNumber || '')}${j.jobType ? ` <span class="job-type-tag">${escapeHtml(jobTypeDisplay(j))}</span>` : ''}</div>
-        <div class="jl-name">${escapeHtml(j.customerName || '(no customer)')}</div>
-        <div class="jl-meta">Started ${escapeHtml(fmtDate(j.startDate) || '—')}</div>
-      </div>
-      <button type="button" class="btn btn-amber btn-compact" data-closeout-open="${escapeHtml(j.id)}" style="flex-shrink:0;">Close Out</button>
-    </div>`).join('');
+  el.innerHTML = list.map((j) => jobRow(j, {
+    rowAttrs: 'style="cursor:default;"',
+    metaBits: [j.startDate ? `started ${fmtShortDate(j.startDate)}` : ''],
+    trailing: `<button type="button" class="btn btn-amber btn-compact" data-closeout-open="${escapeHtml(j.id)}" style="flex-shrink:0;">Close Out</button>`
+  })).join('');
 }
 
 function openCloseoutConfirm(id) {
@@ -12618,8 +12794,7 @@ function renderCloseoutConfirm(id) {
   if (!box) return;
   const j = cachedJobs.find((x) => x.id === id);
   if (!j) {
-    box.innerHTML = '<div class="card">Job not found.</div>' +
-      '<div class="form-actions"><button class="btn btn-cancel btn-ghost" data-closeout-action="back">Back</button></div>';
+    box.innerHTML = '<div class="card">Job not found.</div>';
     return;
   }
   const est = j.estimateId ? cachedEstimates.find((e) => e.id === j.estimateId) : null;
@@ -12633,7 +12808,7 @@ function renderCloseoutConfirm(id) {
   box.innerHTML = `
     <div class="card">
       <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;">
-        <h3 style="margin:0;font-family:ui-monospace,'SF Mono',monospace;font-size:16px;">${escapeHtml(j.jobNumber || 'Job')}</h3>
+        <h3 style="margin:0;font-family:ui-monospace,'SF Mono',monospace;font-size:16px;">${escapeHtml(displayJobNumber(j.jobNumber) || 'Job')}</h3>
         <span class="status-pill ${jobLifeStatusClass(j.status)}">${escapeHtml(j.status || 'Active')}</span>
       </div>
       ${j.jobType ? `<div style="margin-top:8px;"><span class="job-type-tag" style="font-size:13px;padding:3px 10px;">${escapeHtml(jobTypeDisplay(j))}</span></div>` : ''}
@@ -12654,7 +12829,6 @@ function renderCloseoutConfirm(id) {
       ${isAdmin()
         ? `<button type="button" class="btn btn-amber" data-closeout-action="confirm" data-id="${escapeHtml(id)}">Confirm Close Out</button>`
         : '<div class="hint" style="margin:0 4px;">Only an administrator can close out a job.</div>'}
-      <button type="button" class="btn btn-cancel btn-ghost" data-closeout-action="back">Back</button>
     </div>`;
 }
 
@@ -12709,7 +12883,7 @@ async function cancelTaskModelJob(id) {
   if (!j) return;
   const nOpen = tasksForJob(id).filter((t) => t.status === 'Open').length;
   const ok = await confirmDialog('Cancel this job?',
-    `${j.jobNumber || 'This job'} moves to Cancelled${nOpen ? ` and its ${nOpen} open task${nOpen === 1 ? '' : 's'} will be cancelled` : ''}. Records already logged stay linked.`,
+    `${displayJobNumber(j.jobNumber) || 'This job'} moves to Cancelled${nOpen ? ` and its ${nOpen} open task${nOpen === 1 ? '' : 's'} will be cancelled` : ''}. Records already logged stay linked.`,
     { okText: 'Cancel Job' });
   if (!ok) return;
   const moved = await setJobLifecycleStatus(id, 'Cancelled', { rebaitActive: false });
@@ -12913,7 +13087,7 @@ function populateAppointmentJobSelect(selectedId) {
   for (const j of jobs) {
     const o = document.createElement('option');
     o.value = j.id;
-    o.textContent = `${j.jobNumber} · ${j.customerName || ''}`;
+    o.textContent = `${displayJobNumber(j.jobNumber)} · ${j.customerName || ''}`;
     sel.appendChild(o);
   }
   /* Editing an appointment whose job is no longer active (Paid/Cancelled):
@@ -12923,7 +13097,7 @@ function populateAppointmentJobSelect(selectedId) {
     if (j) {
       const o = document.createElement('option');
       o.value = j.id;
-      o.textContent = `${j.jobNumber || 'Job'} · ${j.customerName || ''} (${j.status || 'closed'})`;
+      o.textContent = `${displayJobNumber(j.jobNumber) || 'Job'} · ${j.customerName || ''} (${j.status || 'closed'})`;
       sel.appendChild(o);
     }
   }
@@ -12962,7 +13136,9 @@ async function handleSaveAppointment(e) {
   if (!scheduledDate || !scheduledTime) { toast('Date and time are required', 'error'); return; }
   if (!operators.length) { toast('Assign at least one operator', 'error'); return; }
   const conflicts = checkAppointmentConflicts();
-  if (conflicts.length && !confirm(`This appointment overlaps ${conflicts.length} other scheduled entr${conflicts.length > 1 ? 'ies' : 'y'}. Schedule it anyway?`)) return;
+  if (conflicts.length && !(await confirmDialog('Scheduling conflict',
+    `This appointment overlaps ${conflicts.length} other scheduled entr${conflicts.length > 1 ? 'ies' : 'y'}. Schedule it anyway?`,
+    { okText: 'Schedule Anyway' }))) return;
 
   const nameByEmail = Object.fromEntries(assignableUsers().map((u) => [u.email, u.name]));
   const now = new Date().toISOString();
@@ -13248,8 +13424,7 @@ function renderAppointmentDetail(jobId, apptId) {
   if (!box) return;
   const a = cachedAppointments.find((x) => x.id === apptId && x.jobId === jobId);
   if (!a) {
-    box.innerHTML = '<div class="card">Appointment not found.</div>' +
-      '<div class="form-actions"><button class="btn btn-cancel btn-ghost" data-appt-action="back">Back</button></div>';
+    box.innerHTML = '<div class="card">Appointment not found.</div>';
     return;
   }
   const detail = (label, val) => val ? `<div style="margin-top:8px;"><span class="muted" style="font-size:12px;text-transform:uppercase;letter-spacing:.04em;">${label}</span><div>${escapeHtml(val)}</div></div>` : '';
@@ -13268,7 +13443,7 @@ function renderAppointmentDetail(jobId, apptId) {
   if (a.visitType === 'Trap Set / Treatment' && a.status !== 'Cancelled' && !hasRebaitSeries) {
     actions += `<button class="btn btn-amber" data-appt-action="rebait-schedule" data-id="${escapeHtml(apptId)}" data-job="${escapeHtml(jobId)}">Set Up Rebait Schedule</button>`;
   }
-  actions += `<button class="btn btn-ghost" data-appt-action="open-job" data-job="${escapeHtml(jobId)}">Open Job ${escapeHtml(a.jobNumber || '')}</button>`;
+  actions += `<button class="btn btn-ghost" data-appt-action="open-job" data-job="${escapeHtml(jobId)}">Open Job ${escapeHtml(displayJobNumber(a.jobNumber) || '')}</button>`;
   box.innerHTML = `
     <div class="card">
       <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;">
@@ -13278,12 +13453,12 @@ function renderAppointmentDetail(jobId, apptId) {
       <div class="muted" style="margin-top:6px;">${escapeHtml(longDate(a.scheduledDate))} · ${escapeHtml(fmtTime12(a.scheduledTime))}</div>
     </div>
     <div class="card">
-      ${detail('Job', [a.jobNumber, a.customerName].filter(Boolean).join(' · '))}
+      ${detail('Job', [displayJobNumber(a.jobNumber), a.customerName].filter(Boolean).join(' · '))}
       ${detail('Assigned to', (a.assigneeNames || []).join(', '))}
       ${detail('Outcome', a.outcome)}
       ${detail('Notes', a.notes)}
     </div>
-    <div class="form-actions">${actions}<button class="btn btn-cancel btn-ghost" data-appt-action="back">Back</button></div>`;
+    <div class="form-actions">${actions}</div>`;
 }
 
 async function completeAppointment(jobId, apptId) {
@@ -13310,7 +13485,7 @@ async function completeAppointment(jobId, apptId) {
 }
 
 async function cancelAppointment(jobId, apptId) {
-  if (!confirm('Cancel this appointment?')) return;
+  if (!(await confirmDialog('Cancel this appointment?', 'The appointment is marked Cancelled and drops off the schedule.', { okText: 'Cancel Appointment' }))) return;
   const a = cachedAppointments.find((x) => x.id === apptId && x.jobId === jobId);
   /* Optimistic write (H1): fire without awaiting so it works offline. */
   writeWithRetry(() => setDoc(doc(fbDb, 'jobs', jobId, 'appointments', apptId), {
@@ -13374,7 +13549,7 @@ function updateUnlinkedBanner(bannerId, filter, records, label) {
   const nUnlinked = records.filter((r) => !r.jobId).length;
   if (filter.jobId) {
     const j = cachedJobs.find((x) => x.id === filter.jobId);
-    el.textContent = `Showing ${label} for ${j ? (j.jobNumber || 'job') : 'job'} — tap to show all`;
+    el.textContent = `Showing ${label} for ${j ? (displayJobNumber(j.jobNumber) || 'job') : 'job'} — tap to show all`;
     el.classList.remove('hidden');
   } else if (filter.unlinkedOnly) {
     el.textContent = `Showing ${nUnlinked} unlinked legacy ${label} — tap to show all`;
@@ -13433,7 +13608,7 @@ function renderAssignLegacyView() {
   legacyGroupsCache = buildLegacyGroups();
   const jobs = lifecycleJobs().sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
   const jobOptions = ['<option value="">— pick a job —</option>',
-    ...jobs.map((j) => `<option value="${escapeHtml(j.id)}">${escapeHtml(`${j.jobNumber} · ${j.customerName || ''} · ${j.status || ''}`)}</option>`)
+    ...jobs.map((j) => `<option value="${escapeHtml(j.id)}">${escapeHtml(`${displayJobNumber(j.jobNumber)} · ${j.customerName || ''} · ${j.status || ''}`)}</option>`)
   ].join('');
   if (!legacyGroupsCache.length) {
     box.innerHTML = `<div class="card"><div class="empty"><div class="em-title">All caught up</div>
@@ -13521,7 +13696,7 @@ async function assignLegacyGroup(index, jobId, btn) {
         toast('Assign failed to sync: ' + errText(err), 'error');
       });
     }
-    toast(`Linked ${g.items.length} record${g.items.length === 1 ? '' : 's'} to ${j.jobNumber}`);
+    toast(`Linked ${g.items.length} record${g.items.length === 1 ? '' : 's'} to ${displayJobNumber(j.jobNumber)}`);
     renderAssignLegacyView();
   } catch (err) {
     console.error('Legacy assign failed', err);
@@ -13908,7 +14083,7 @@ function showHubJobSelector(action, jobs) {
   const box = $('#hubJobChooser');
   if (!box) return;
   box.innerHTML = '<div class="hint" style="margin-bottom:6px;">Multiple active jobs — which one?</div>' +
-    jobs.map((j) => `<button type="button" class="map-btn ghost" data-hub-job="${escapeHtml(j.id)}">${escapeHtml(j.jobNumber || 'Job')} · ${escapeHtml(j.status || '')}</button>`).join('');
+    jobs.map((j) => `<button type="button" class="map-btn ghost" data-hub-job="${escapeHtml(j.id)}">${escapeHtml(displayJobNumber(j.jobNumber) || 'Job')} · ${escapeHtml(j.status || '')}</button>`).join('');
   box.classList.remove('hidden');
 }
 
@@ -14004,7 +14179,7 @@ function renderNotesList() {
   }
   root.innerHTML = cachedNotes.map((n) => {
     const preview = (n.body || '').replace(/\s+/g, ' ').slice(0, 90);
-    const when = fmtNotifTime(n.updatedAt || n.createdAt);
+    const when = fmtRowDateTime(n.updatedAt || n.createdAt);
     return `<div class="biz-row" data-note-open="${escapeHtml(n.id)}" style="align-items:flex-start;cursor:pointer;">
       <span style="min-width:0;">
         <span style="font-weight:600;color:var(--green-deep);">${escapeHtml(n.title || 'Untitled note')}</span><br>
@@ -14035,7 +14210,7 @@ function openNoteEditor(id) {
     $('#n-title').value = n.title || '';
     $('#n-body').value = n.body || '';
     $('#noteTimestamps').textContent =
-      `Created ${fmtNotifTime(n.createdAt)}${n.updatedAt && n.updatedAt !== n.createdAt ? ` · updated ${fmtNotifTime(n.updatedAt)}` : ''}`;
+      `Created ${fmtRowDateTime(n.createdAt)}${n.updatedAt && n.updatedAt !== n.createdAt ? ` · updated ${fmtRowDateTime(n.updatedAt)}` : ''}`;
     $('#deleteNoteBtn').style.display = 'block';
     $('#saveNoteBtn').textContent = 'Save Changes';
   }
@@ -14308,7 +14483,7 @@ function updateBackToJobBtn() {
   if (!btn) return;
   const j = customerReturnJobId ? cachedJobs.find((x) => x.id === customerReturnJobId) : null;
   btn.classList.toggle('hidden', !customerReturnJobId);
-  btn.textContent = j && j.jobNumber ? `← Back to ${j.jobNumber}` : '← Back to Job';
+  btn.textContent = j && displayJobNumber(j.jobNumber) ? `← Back to ${displayJobNumber(j.jobNumber)}` : '← Back to Job';
 }
 
 function editCustomer(id, opts = {}) {
@@ -14553,23 +14728,52 @@ function hideAutocomplete(listEl) {
 }
 
 /* Fill trapping-form fields from a chosen customer. */
-function applyCustomerToTrapForm(c) {
-  if (c.name) $('#f-client-name').value = c.name;
-  if (c.phone) $('#f-client-phone').value = c.phone;
-  if (c.email) $('#f-client-email').value = c.email;
-  const fullAddr = [c.address, c.city].filter(Boolean).join(', ');
-  /* Item 5: prefill is a convenience only — a hand-edited address is locked
-     against any later customer selection in this form session.
-     Item 6 (v2-patch-5): in Trap Site Address mode the customer never
-     overwrites the independently entered location. */
+/* Item 9 (v2-patch-13, F-10): ONE address writer per form, shared by the
+   customer- and property-prefill paths so the pair can't drift again —
+   B-04 (property prefill leaving a stale customer ZIP) was exactly such a
+   drift. Trap variant respects the hand-edited-address lock (Item 5,
+   v2-patch-1) and Trap Site Address mode (Item 6, v2-patch-5); both clear
+   the geocode markers so a stale validation can't ride along. */
+function fillTrapAddress({ address, city, county }) {
   const customerAddrMode = trapAddressType() !== 'trapSiteAddress';
-  if (fullAddr && !addressManuallyEdited && customerAddrMode) {
+  if (!customerAddrMode || addressManuallyEdited) return;
+  const fullAddr = [address, city].filter(Boolean).join(', ');
+  if (fullAddr) {
     const a = $('#f-address');
     a.value = fullAddr;
     delete a.dataset.fromMap;
     delete a.dataset.lastValidated;
   }
-  if (c.county && !addressManuallyEdited && customerAddrMode) selectCountyIfKnown('f-county', c.county);
+  if (county) selectCountyIfKnown('f-county', county);
+}
+function fillPestAddress({ address, city, zip, county }) {
+  if (address) {
+    const a = $('#pa-client-address');
+    a.value = address;
+    delete a.dataset.fromMap;
+    delete a.dataset.lastValidated;
+  }
+  if (city) $('#pa-client-city').value = city;
+  /* zip: undefined = leave alone; '' = clear a known-stale value (B-04). */
+  if (zip !== undefined) $('#pa-client-zip').value = zip;
+  /* Item 4c (v2-patch-6): County of Treatment derives from the property.
+     A later treatment-location geocode still wins (it captures the actual
+     site), same as the trap form. */
+  if (county) {
+    silentPaCounty = county;
+    const match = matchingOptionValue('pa-county', county);
+    if (match) $('#pa-county').value = match;
+  }
+}
+
+function applyCustomerToTrapForm(c) {
+  if (c.name) $('#f-client-name').value = c.name;
+  /* Item 9 (owner #12): contact fields always follow the picked customer —
+     the old if-guards let a previous selection's phone/email linger when
+     the new customer had none on file. */
+  $('#f-client-phone').value = c.phone || '';
+  $('#f-client-email').value = c.email || '';
+  fillTrapAddress({ address: c.address, city: c.city, county: c.county });
   const hint = $('#addressValidationHint');
   if (hint) { hint.textContent = `✓ Customer on file: ${c.name}`; hint.className = 'hint success'; }
   hideTrapCustomerSuggest();
@@ -14587,32 +14791,16 @@ function applyCustomerToTrapForm(c) {
 /* Pre-fill the trap location from a selected property (Item 9). */
 function applyPropertyToTrapForm(p) {
   if (!p) return;
-  const fullAddr = [p.address, p.city].filter(Boolean).join(', ');
-  /* Item 5: a hand-edited address is never overwritten by property selection.
-     Item 6: nor is an independently entered Trap Site Address. */
-  const customerAddrMode = trapAddressType() !== 'trapSiteAddress';
-  if (fullAddr && !addressManuallyEdited && customerAddrMode) {
-    const a = $('#f-address');
-    a.value = fullAddr;
-    delete a.dataset.fromMap;
-    delete a.dataset.lastValidated;
-  }
-  if (p.county && !addressManuallyEdited && customerAddrMode) selectCountyIfKnown('f-county', p.county);
+  fillTrapAddress({ address: p.address, city: p.city, county: p.county });
 }
 
 /* Fill pesticide-form client fields from a chosen customer. */
 function applyCustomerToPesticideForm(c) {
   if (c.name) $('#pa-client-name').value = c.name;
-  if (c.phone) $('#pa-client-phone').value = c.phone;
-  if (c.email) $('#pa-client-email').value = c.email;
-  if (c.address) {
-    const a = $('#pa-client-address');
-    a.value = c.address;
-    delete a.dataset.fromMap;
-    delete a.dataset.lastValidated;
-  }
-  if (c.city) $('#pa-client-city').value = c.city;
-  if (c.zip) $('#pa-client-zip').value = c.zip;
+  /* Item 9 (owner #12): always-write, same as the trap form. */
+  $('#pa-client-phone').value = c.phone || '';
+  $('#pa-client-email').value = c.email || '';
+  fillPestAddress({ address: c.address, city: c.city, zip: c.zip || '' });
   const status = $('#pa-address-status');
   if (status) { status.textContent = `✓ Customer on file: ${c.name}`; status.className = 'hint success'; }
   hidePestCustomerSuggest();
@@ -14628,21 +14816,18 @@ function applyCustomerToPesticideForm(c) {
 /* Pre-fill the pesticide client address from a selected property (Item 9). */
 function applyPropertyToPesticideForm(p) {
   if (!p) return;
-  if (p.address) {
-    const a = $('#pa-client-address');
-    a.value = p.address;
-    delete a.dataset.fromMap;
-    delete a.dataset.lastValidated;
-  }
-  if (p.city) $('#pa-client-city').value = p.city;
-  /* Item 4c (v2-patch-6): County of Treatment derives from the property.
-     A later treatment-location geocode still wins (it captures the actual
-     site), same as the trap form. */
-  if (p.county) {
-    silentPaCounty = p.county;
-    const match = matchingOptionValue('pa-county', p.county);
-    if (match) $('#pa-county').value = match;
-  }
+  /* B-04: properties carry no ZIP. If this property's address differs from
+     the customer's, the customer ZIP on the form is stale — clear it for
+     the operator to fill. When the property IS the customer's address, the
+     customer ZIP still applies. */
+  const cust = pestFormCustomerId ? cachedCustomers.find((c) => c.id === pestFormCustomerId) : null;
+  const sameAsCustomer = !!(cust && (p.address || '').trim().toLowerCase() === (cust.address || '').trim().toLowerCase());
+  fillPestAddress({
+    address: p.address,
+    city: p.city,
+    zip: sameAsCustomer ? undefined : '',
+    county: p.county
+  });
 }
 
 /* ---- Use-My-Location → suggest a matching customer ---- */
@@ -14928,6 +15113,16 @@ async function init() {
   document.querySelectorAll('input[name="pa-different-site"]').forEach((el) => {
     el.addEventListener('change', updatePesticideConditionals);
   });
+  /* Item 8 (v2-patch-13, owner #13): "change" affordances that restore the
+     collapsed location pickers. */
+  $('#paLocChange').addEventListener('click', () => {
+    paLocRevealed = true;
+    updatePesticideConditionals();
+  });
+  $('#trapLocChange').addEventListener('click', () => {
+    setTrapAddressType('trapSiteAddress');
+    handleTrapAddressTypeChange();
+  });
   $('#pa-products-container').addEventListener('change', (e) => {
     const sel = e.target.closest('[data-brand-select]');
     if (sel) handleBrandSelectChange(parseInt(sel.dataset.brandSelect, 10));
@@ -14979,7 +15174,6 @@ async function init() {
     const lb = e.target.closest('[data-banner]');
     if (lb) {
       const which = lb.dataset.banner;
-      if (which === 'back') { goBackNav(); return; }   /* Item 3 (v2-patch-11) */
       if (which === 'records') openAllRecords();   /* Item 8: clears any job filter */
       else if (which === 'estimates') setAppMode('pricing');
       else if (which === 'notes') setAppMode('notes');   /* Item 7 (v2-patch-6) */
@@ -15338,8 +15532,7 @@ async function init() {
     if (!btn) return;
     const action = btn.dataset.estAction;
     const id = btn.dataset.id;
-    if (action === 'back') { currentEstimateId = null; setView('dashboard'); }
-    else if (action === 'edit') editEstimate(id);
+    if (action === 'edit') editEstimate(id);
     else if (action === 'submit') submitEstimateForApproval(id);
     else if (action === 'delete') deleteEstimateDraft(id);
     else if (action === 'approve') approveAndPushEstimate(id, btn);
@@ -15396,8 +15589,7 @@ async function init() {
     const btn = e.target.closest('[data-job-action]');
     if (!btn) return;
     const action = btn.dataset.jobAction, id = btn.dataset.id;
-    if (action === 'back') { currentJobId = null; setView('dashboard'); }
-    else if (action === 'edit') editJob(id);
+    if (action === 'edit') editJob(id);
     else if (action === 'complete') setJobStatus(id, 'Completed');
     else if (action === 'cancel') setJobStatus(id, 'Cancelled');
     else if (action === 'delete') deleteJob(id);
@@ -15445,10 +15637,9 @@ async function init() {
     if (!btn) return;
     if (btn.dataset.apptOpen) { openAppointment(btn.dataset.apptJob, btn.dataset.apptOpen); return; }
     const action = btn.dataset.ljobAction, id = btn.dataset.id;
-    if (action === 'back') { currentLifecycleJobId = null; setView('dashboard'); }
     /* Item 7 (v2-patch-5): tap the customer name → Customer Detail, with a
        Back to Job button waiting there. */
-    else if (action === 'view-customer') {
+    if (action === 'view-customer') {
       setAppModeQuiet('customer');
       editCustomer(btn.dataset.cust, { fromJobId: id });
     }
@@ -15508,8 +15699,7 @@ async function init() {
     const btn = e.target.closest('[data-task-action]');
     if (!btn) return;
     const action = btn.dataset.taskAction, id = btn.dataset.id, jobId = btn.dataset.job;
-    if (action === 'back') { currentTaskId = null; setView('dashboard'); }
-    else if (action === 'complete') completeTask(id);
+    if (action === 'complete') completeTask(id);
     else if (action === 'cancel') cancelTask(id);
     else if (action === 'edit') editTask(id);
     else if (action === 'log-trap') startWorkLog(jobId, 'trap');
@@ -15537,8 +15727,7 @@ async function init() {
     const btn = e.target.closest('[data-appt-action]');
     if (!btn) return;
     const action = btn.dataset.apptAction, id = btn.dataset.id, jobId = btn.dataset.job;
-    if (action === 'back') { currentAppointment = null; setView('dashboard'); }
-    else if (action === 'complete') completeAppointment(jobId, id);
+    if (action === 'complete') completeAppointment(jobId, id);
     else if (action === 'cancel') cancelAppointment(jobId, id);
     else if (action === 'edit') editAppointment(jobId, id);
     else if (action === 'rebait-schedule') {
@@ -15557,22 +15746,59 @@ async function init() {
 
   /* ---- Close Out wiring (Item 7, v2-patch-2) ---- */
   $('#closeoutList').addEventListener('click', (e) => {
+    /* Item 6 (v2-patch-13): the shared jobRow gives Close Out the same
+       customer link the Jobs list has. */
+    const cust = e.target.closest('[data-job-cust]');
+    if (cust) {
+      setAppModeQuiet('customer');
+      editCustomer(cust.dataset.jobCust);
+      return;
+    }
     const btn = e.target.closest('[data-closeout-open]');
     if (btn) openCloseoutConfirm(btn.dataset.closeoutOpen);
   });
   $('#closeoutConfirm').addEventListener('click', (e) => {
     const btn = e.target.closest('[data-closeout-action]');
     if (!btn) return;
-    if (btn.dataset.closeoutAction === 'back') { currentCloseoutJobId = null; setView('dashboard'); }
-    else if (btn.dataset.closeoutAction === 'confirm') confirmCloseOutJob(btn.dataset.id);
+    if (btn.dataset.closeoutAction === 'confirm') confirmCloseOutJob(btn.dataset.id);
   });
 
   /* ---- Unified records view wiring (Items 8 & 9) ---- */
+  /* Item 10 (v2-patch-13, owner #14): Filter/Sort disclosure. A button
+     shows its panel (closing the other); the label carries the active
+     filter count / non-default sort so collapsed state stays readable. */
+  const updateRecControlLabels = () => {
+    const nFilters = ['allRecFrom', 'allRecTo', 'allRecCustomer', 'allRecContractor', 'allRecType']
+      .filter((id) => { const el = $('#' + id); return el && el.value; }).length;
+    $('#allRecFilterBtn').textContent = nFilters ? `Filter (${nFilters})` : 'Filter';
+    const sortEl = $('#allRecSort');
+    const sortVal = sortEl ? sortEl.value : 'date';
+    $('#allRecSortBtn').textContent = sortVal === 'date' ? 'Sort'
+      : `Sort · ${sortVal === 'contractor' ? 'Contractor' : 'Customer'}`;
+  };
+  const recPanelToggle = (btnId, panelId, otherBtnId, otherPanelId) => {
+    const btn = $('#' + btnId), panel = $('#' + panelId);
+    btn.addEventListener('click', () => {
+      const opening = panel.classList.contains('hidden');
+      panel.classList.toggle('hidden', !opening);
+      btn.classList.toggle('active', opening);
+      btn.setAttribute('aria-expanded', String(opening));
+      if (opening) {
+        $('#' + otherPanelId).classList.add('hidden');
+        $('#' + otherBtnId).classList.remove('active');
+        $('#' + otherBtnId).setAttribute('aria-expanded', 'false');
+      }
+    });
+  };
+  recPanelToggle('allRecFilterBtn', 'allRecFilterPanel', 'allRecSortBtn', 'allRecSortPanel');
+  recPanelToggle('allRecSortBtn', 'allRecSortPanel', 'allRecFilterBtn', 'allRecFilterPanel');
   ['allRecSearch', 'allRecFrom', 'allRecTo', 'allRecCustomer', 'allRecContractor', 'allRecType', 'allRecSort'].forEach((id) => {
     const el = $('#' + id);
     if (!el) return;
     el.addEventListener('input', renderAllRecords);
     el.addEventListener('change', renderAllRecords);
+    el.addEventListener('change', updateRecControlLabels);
+    el.addEventListener('input', updateRecControlLabels);
   });
   $('#allRecordsList').addEventListener('click', (e) => {
     if (e.target.closest('[data-allrec-clearjob]')) {   /* Item 8: job chip */
@@ -15627,7 +15853,6 @@ async function init() {
     if (row) showFieldDetail(row.dataset.fieldKey);
   });
   $('#fieldDetail').addEventListener('click', (e) => {
-    if (e.target.closest('#fieldBackBtn')) { currentFieldKey = null; setView('dashboard'); return; }
     if (e.target.closest('#fieldClearBtn')) { clearFieldGroup(currentFieldKey); return; }
     if (e.target.closest('#fieldDeleteCameraBtn')) { deleteCameraPermanently(currentFieldKey); return; }   /* v2-patch-12 Item 2 */
     if (e.target.closest('#fieldConfirmRemovalBtn')) { confirmCameraRemoval(currentFieldKey); return; }   /* Item 21 */
