@@ -543,6 +543,9 @@
     .btn-danger { background: #fff; color: var(--danger); border: 1px solid var(--danger); }
     .btn-row { display: flex; gap: 10px; }
     .btn-row .btn { flex: 1; }
+    /* Item 2 (v2-patch-13): a disabled button must LOOK disabled — the
+       sentinel dialog's un-armed OK previously looked identical to armed. */
+    .btn:disabled { opacity: 0.45; cursor: default; }
 
     /* Detail sheet */
     .sheet-backdrop {
@@ -3594,6 +3597,7 @@
       <input type="text" id="confirmSentinelInput" autocomplete="off"
              autocapitalize="characters" autocorrect="off" spellcheck="false"
              style="text-transform: uppercase; letter-spacing: 0.08em;">
+      <div id="confirmSentinelHint" class="hidden" style="margin-top:6px; font-size:13px; color: var(--danger);"></div>
     </div>
     <div class="btn-row">
       <button class="btn btn-ghost" id="confirmCancel">Cancel</button>
@@ -4526,6 +4530,7 @@ function confirmDialog(title, body, opts = {}) {
     $('#confirmBody').textContent = body;
     const sentinelWrap = $('#confirmSentinel');
     const sentinelInput = $('#confirmSentinelInput');
+    const sentinelHint = $('#confirmSentinelHint');
     const ok = $('#confirmOk');
     let inputHandler = null;
     if (opts.sentinel) {
@@ -4534,8 +4539,20 @@ function confirmDialog(title, body, opts = {}) {
       sentinelInput.placeholder = opts.sentinel;
       ok.disabled = true;
       ok.textContent = opts.okText || 'Confirm';
+      /* Item 2 (v2-patch-13): compare case-insensitively and collapse inner
+         whitespace. The input's text-transform:uppercase means the OPERATOR
+         always sees "CONFIRM" regardless of the value's real case — iOS
+         predictive-text/QuickType acceptance can insert "Confirm " while the
+         display shows CONFIRM, so an exact-case compare dies invisibly. The
+         inline hint replaces the silently dead button for any remaining
+         mismatch (wrong word, stray characters). */
+      const norm = (s) => String(s).replace(/\s+/g, '').toUpperCase();
       inputHandler = () => {
-        ok.disabled = sentinelInput.value.trim() !== opts.sentinel;
+        const match = norm(sentinelInput.value) === norm(opts.sentinel);
+        ok.disabled = !match;
+        const showHint = !match && sentinelInput.value.trim() !== '';
+        sentinelHint.textContent = showHint ? `Must read ${opts.sentinel} — keep typing or clear the box.` : '';
+        sentinelHint.classList.toggle('hidden', !showHint);
       };
       sentinelInput.addEventListener('input', inputHandler);
       setTimeout(() => sentinelInput.focus(), 100);
@@ -4551,6 +4568,8 @@ function confirmDialog(title, body, opts = {}) {
       $('#confirmCancel').onclick = null;
       if (inputHandler) sentinelInput.removeEventListener('input', inputHandler);
       sentinelWrap.classList.add('hidden');
+      sentinelHint.classList.add('hidden');
+      sentinelHint.textContent = '';
       ok.disabled = false;
       resolve(v);
     };
@@ -5852,7 +5871,7 @@ async function deleteEstimateDraft(id) {
   const e = cachedEstimates.find((x) => x.id === id);
   const deletable = ['Draft', 'Pending Approval', 'Rejected'];
   if (!e || !deletable.includes(e.status)) { toast('Estimates already pushed to QuickBooks can’t be deleted here', 'error'); return; }
-  if (!confirm('Delete this estimate? This cannot be undone.')) return;
+  if (!(await confirmDialog('Delete this estimate?', 'This cannot be undone.', { okText: 'Delete' }))) return;
   try {
     await writeWithRetry(() => deleteDoc(doc(fbDb, 'estimates', id)));
     toast('Estimate deleted');
@@ -6699,9 +6718,18 @@ async function clearFieldGroup(key) {
     admin
       ? `As admin, this PERMANENTLY deletes ${nP} photo${nP === 1 ? '' : 's'} (files and records) for every operator. This cannot be undone. ${note}`
       : `Removes ${nP} photo${nP === 1 ? '' : 's'} from your view. ${note}`,
-    { okText: admin ? 'Delete Permanently' : 'Delete From My View' }
+    { okText: admin ? 'Continue' : 'Delete From My View' }
   );
   if (!ok) return;
+  /* Item 2 (v2-patch-13, owner #9): the admin path is irreversible for
+     every operator — same two-step explain → type-CONFIRM pattern as
+     deleteCameraPermanently. The per-operator hide path stays one step. */
+  if (admin) {
+    const step2 = await confirmDialog('Type CONFIRM to delete photos',
+      `Final check: type CONFIRM below to permanently delete ${nP} photo${nP === 1 ? '' : 's'} for every operator.`,
+      { sentinel: 'CONFIRM', okText: 'Delete Permanently' });
+    if (!step2) return;
+  }
   try {
     if (admin) {
       for (const p of g.photos) {
@@ -10876,7 +10904,9 @@ async function handleSaveJob(e) {
   if (!date || !startTime) { toast('Date and start time are required', 'error'); return; }
   if (!assignees.length) { toast('Assign at least one person', 'error'); return; }
   const conflicts = checkJobConflicts();
-  if (conflicts.length && !confirm(`This job overlaps ${conflicts.length} other scheduled job${conflicts.length > 1 ? 's' : ''}. Schedule it anyway?`)) return;
+  if (conflicts.length && !(await confirmDialog('Scheduling conflict',
+    `This job overlaps ${conflicts.length} other scheduled job${conflicts.length > 1 ? 's' : ''}. Schedule it anyway?`,
+    { okText: 'Schedule Anyway' }))) return;
 
   const btn = $('#saveJobBtn'); btn.disabled = true;
   try {
@@ -11069,7 +11099,7 @@ async function setJobStatus(id, status) {
   }
 }
 async function deleteJob(id) {
-  if (!confirm('Delete this job? This cannot be undone.')) return;
+  if (!(await confirmDialog('Delete this job?', 'This cannot be undone.', { okText: 'Delete' }))) return;
   try {
     await writeWithRetry(() => deleteDoc(doc(fbDb, 'jobs', id)));
     toast('Job deleted');
@@ -12442,10 +12472,10 @@ function completeTask(id) {
   }
 }
 
-function cancelTask(id) {
+async function cancelTask(id) {
   const t = cachedTasks.find((x) => x.id === id);
   if (!t || t.status !== 'Open') return;
-  if (!confirm('Cancel this task?')) return;
+  if (!(await confirmDialog('Cancel this task?', 'The task is marked Cancelled and drops off the open list.', { okText: 'Cancel Task' }))) return;
   writeWithRetry(() => setDoc(doc(fbDb, 'tasks', id), {
     status: 'Cancelled', updatedAt: new Date().toISOString()
   }, { merge: true })).catch((err) => {
@@ -12954,7 +12984,9 @@ async function handleSaveAppointment(e) {
   if (!scheduledDate || !scheduledTime) { toast('Date and time are required', 'error'); return; }
   if (!operators.length) { toast('Assign at least one operator', 'error'); return; }
   const conflicts = checkAppointmentConflicts();
-  if (conflicts.length && !confirm(`This appointment overlaps ${conflicts.length} other scheduled entr${conflicts.length > 1 ? 'ies' : 'y'}. Schedule it anyway?`)) return;
+  if (conflicts.length && !(await confirmDialog('Scheduling conflict',
+    `This appointment overlaps ${conflicts.length} other scheduled entr${conflicts.length > 1 ? 'ies' : 'y'}. Schedule it anyway?`,
+    { okText: 'Schedule Anyway' }))) return;
 
   const nameByEmail = Object.fromEntries(assignableUsers().map((u) => [u.email, u.name]));
   const now = new Date().toISOString();
@@ -13301,7 +13333,7 @@ async function completeAppointment(jobId, apptId) {
 }
 
 async function cancelAppointment(jobId, apptId) {
-  if (!confirm('Cancel this appointment?')) return;
+  if (!(await confirmDialog('Cancel this appointment?', 'The appointment is marked Cancelled and drops off the schedule.', { okText: 'Cancel Appointment' }))) return;
   const a = cachedAppointments.find((x) => x.id === apptId && x.jobId === jobId);
   /* Optimistic write (H1): fire without awaiting so it works offline. */
   writeWithRetry(() => setDoc(doc(fbDb, 'jobs', jobId, 'appointments', apptId), {
