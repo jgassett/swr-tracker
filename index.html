@@ -4158,7 +4158,12 @@ function fmtShortDate(iso) {
   const [y, m, d] = iso.split('-').map(Number);
   if (!y) return iso;
   const date = new Date(y, m - 1, d);
-  return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  /* Item 3 (v2-patch-13, F-27): one year rule for list rows app-wide —
+     the year appears only when it isn't the current year. Detail views and
+     official exports keep the always-year fmtDate/fmtPaDateTime. */
+  const opts = { month: 'short', day: 'numeric' };
+  if (y !== new Date().getFullYear()) opts.year = 'numeric';
+  return date.toLocaleDateString(undefined, opts);
 }
 function reportPeriod(refDate = new Date()) {
   /* Item 6 (v2-patch-6): the KDFWR cycle is HARD-CODED — Feb 1 through
@@ -8854,7 +8859,7 @@ function renderPesticideDashboard() {
       <div class="rec-thumb">PA</div>
       <div class="rec-body">
         <div class="rec-title">${escapeHtml(brand)}<span class="rec-tag tag-X">${escapeHtml(r.applicator || '')}</span></div>
-        <div class="rec-meta">${escapeHtml(r.recordNumber || '—')} · ${escapeHtml(fmtPaDateTime(r.appliedAt))} · ${escapeHtml(r.clientName || '')}</div>
+        <div class="rec-meta">${escapeHtml(r.recordNumber || '—')} · ${escapeHtml(fmtRowDateTime(r.appliedAt))} · ${escapeHtml(r.clientName || '')}</div>
       </div>`;
     div.onclick = () => openPesticideDetail(r.id);
     dashRoot.appendChild(div);
@@ -10169,7 +10174,7 @@ function renderPesticideRecordsList() {
       <div class="rec-thumb">PA</div>
       <div class="rec-body">
         <div class="rec-title">${escapeHtml(brand)} <span class="rec-tag tag-X">${escapeHtml(r.applicator || '')}</span></div>
-        <div class="rec-meta">${escapeHtml(r.recordNumber || '—')} · ${escapeHtml(fmtPaDateTime(r.appliedAt))} · ${escapeHtml(r.clientName || '')}</div>
+        <div class="rec-meta">${escapeHtml(r.recordNumber || '—')} · ${escapeHtml(fmtRowDateTime(r.appliedAt))} · ${escapeHtml(r.clientName || '')}</div>
       </div>`;
     div.onclick = () => openPesticideDetail(r.id);
     root.appendChild(div);
@@ -10553,14 +10558,17 @@ function assignableUsers() {
 function fmtTime12(t) {
   if (!t) return '';
   const [h, mn] = t.split(':').map(Number);
-  const ap = h >= 12 ? 'p' : 'a';
+  /* Item 3 (v2-patch-13, F-27): one clock style app-wide — "4:30 PM",
+     matching fmtRowDateTime/fmtPaDateTime (was "4:30p", schedule only). */
+  const ap = h >= 12 ? 'PM' : 'AM';
   const h12 = ((h + 11) % 12) + 1;
-  return `${h12}:${String(mn).padStart(2, '0')}${ap}`;
+  return `${h12}:${String(mn).padStart(2, '0')} ${ap}`;
 }
 function hhmm(d) { return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; }
 function dateKey(d) { return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; }
 function longDate(dateStr) {
-  return new Date(`${dateStr}T00:00`).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+  /* B-08: use the system locale like every sibling helper (was 'en-US'). */
+  return new Date(`${dateStr}T00:00`).toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
 }
 
 function subscribeToJobs() {
@@ -11167,11 +11175,18 @@ const NOTIF_TYPE_META = {
   kdfwr: { icon: '📋', label: 'KDFWR reporting' }   /* Item 6 (v2-patch-6) */
 };
 
-function fmtNotifTime(iso) {
+/* Item 3 (v2-patch-13, F-27): THE row-level date+time format, app-wide —
+   "Mar 5, 4:30 PM", year added only outside the current year. Used by
+   notifications, notes, and both record lists (pesticide rows previously
+   used the full fmtPaDateTime, disagreeing with trap rows in the same
+   scrollable list). Was fmtNotifTime. */
+function fmtRowDateTime(iso) {
   if (!iso) return '';
   const d = new Date(iso);
   if (isNaN(d)) return iso;
-  return d.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+  const opts = { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' };
+  if (d.getFullYear() !== new Date().getFullYear()) opts.year = 'numeric';
+  return d.toLocaleString(undefined, opts);
 }
 
 /* Best-effort "who/what is this about" line: the customer (job/appointment
@@ -11229,7 +11244,7 @@ function renderNotificationsPage() {
       <div class="nf-body">
         <div class="nf-title">${pin}${escapeHtml(n.title || meta.label)}</div>
         ${n.body ? `<div class="nf-text">${escapeHtml(n.body)}</div>` : ''}
-        <div class="nf-meta">${escapeHtml([meta.label, source, fmtNotifTime(n.createdAt)].filter(Boolean).join(' · '))}</div>
+        <div class="nf-meta">${escapeHtml([meta.label, source, fmtRowDateTime(n.createdAt)].filter(Boolean).join(' · '))}</div>
       </div>
       ${n.read ? '' : `<button type="button" class="nf-dismiss" data-notif-dismiss="${escapeHtml(n.id)}" aria-label="Dismiss">×</button>`}
     </div>`;
@@ -14027,7 +14042,7 @@ function renderNotesList() {
   }
   root.innerHTML = cachedNotes.map((n) => {
     const preview = (n.body || '').replace(/\s+/g, ' ').slice(0, 90);
-    const when = fmtNotifTime(n.updatedAt || n.createdAt);
+    const when = fmtRowDateTime(n.updatedAt || n.createdAt);
     return `<div class="biz-row" data-note-open="${escapeHtml(n.id)}" style="align-items:flex-start;cursor:pointer;">
       <span style="min-width:0;">
         <span style="font-weight:600;color:var(--green-deep);">${escapeHtml(n.title || 'Untitled note')}</span><br>
@@ -14058,7 +14073,7 @@ function openNoteEditor(id) {
     $('#n-title').value = n.title || '';
     $('#n-body').value = n.body || '';
     $('#noteTimestamps').textContent =
-      `Created ${fmtNotifTime(n.createdAt)}${n.updatedAt && n.updatedAt !== n.createdAt ? ` · updated ${fmtNotifTime(n.updatedAt)}` : ''}`;
+      `Created ${fmtRowDateTime(n.createdAt)}${n.updatedAt && n.updatedAt !== n.createdAt ? ` · updated ${fmtRowDateTime(n.updatedAt)}` : ''}`;
     $('#deleteNoteBtn').style.display = 'block';
     $('#saveNoteBtn').textContent = 'Save Changes';
   }
