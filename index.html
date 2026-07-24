@@ -11623,6 +11623,35 @@ function jobTaskProgressHtml(jobId) {
   </div>`;
 }
 
+/* Item 6 (v2-patch-13, F-05 + owner #5): the ONE job row, shared by the
+   Jobs list and Close Out. First line = job TYPE in the amber tag, species
+   appended after an en-dash ("Trapping – Raccoon"); customer name on the
+   line below (linked when a customerId exists); the meta line leads with
+   the job number. The trailing slot (status pill / Close Out button) is
+   guarded by flex-shrink:0 so narrow phones can never squeeze it — the
+   Close Out button had the guard, the Jobs pill did not. Callers keep
+   their distinct click targets (F-05 risk note): Jobs arms the wrapper
+   with data-ljob-open; Close Out arms only its trailing button. */
+function jobRow(j, { trailing = '', rowAttrs = '', metaBits = [], extraHtml = '' } = {}) {
+  const type = jobTypeDisplay(j);
+  const typeLine = type
+    ? `<div><span class="job-type-tag">${escapeHtml(type)}${j.species ? ` – ${escapeHtml(j.species)}` : ''}</span></div>`
+    : '';
+  const custLine = j.customerId
+    ? `<div><button type="button" class="jd-cust-link" style="margin-top:0;font-size:15px;" data-job-cust="${escapeHtml(j.customerId)}" title="View customer">${escapeHtml(j.customerName || 'Customer')}</button></div>`
+    : `<div class="jl-name">${escapeHtml(j.customerName || '(no customer)')}</div>`;
+  const bits = [j.jobNumber || '', ...metaBits].filter(Boolean);
+  return `<div class="job-lc-row" ${rowAttrs}>
+      <div class="jl-body">
+        ${typeLine}
+        ${custLine}
+        <div class="jl-meta">${escapeHtml(bits.join(' · '))}</div>
+        ${extraHtml}
+      </div>
+      ${trailing}
+    </div>`;
+}
+
 function renderJobsList() {
   const el = $('#jobsList');
   if (!el) return;
@@ -11645,19 +11674,12 @@ function renderJobsList() {
       ? `started ${fmtShortDate(j.startDate)}`
       : (j.createdAt ? 'opened ' + fmtShortDate(j.createdAt.slice(0, 10)) : '');
     const who = (j.assigneeNames || []).join(', ');
-    const bits = [dates, `${nTasks} task${nTasks === 1 ? '' : 's'}`, who].filter(Boolean);
-    return `<div class="job-lc-row" data-ljob-open="${escapeHtml(j.id)}">
-      <div class="jl-body">
-        <div class="jl-num">${escapeHtml(j.jobNumber || '')}${j.jobType ? ` <span class="job-type-tag">${escapeHtml(jobTypeDisplay(j))}</span>` : ''}</div>
-        ${j.customerId
-          ? `<div><button type="button" class="jd-cust-link" style="margin-top:0;font-size:15px;" data-job-cust="${escapeHtml(j.customerId)}" title="View customer">${escapeHtml(j.customerName || 'Customer')}</button></div>`
-          : `<div class="jl-name">${escapeHtml(j.customerName || '(no customer)')}</div>`}
-        ${jobTypeSpeciesHtml(j)}
-        <div class="jl-meta">${escapeHtml(bits.join(' · '))}</div>
-        ${jobTaskProgressHtml(j.id)}
-      </div>
-      <span class="status-pill ${jobLifeStatusClass(j.status)}">${escapeHtml(j.status || 'Active')}</span>
-    </div>`;
+    return jobRow(j, {
+      rowAttrs: `data-ljob-open="${escapeHtml(j.id)}"`,
+      metaBits: [dates, `${nTasks} task${nTasks === 1 ? '' : 's'}`, who],
+      extraHtml: jobTaskProgressHtml(j.id),
+      trailing: `<span class="status-pill ${jobLifeStatusClass(j.status)}" style="flex-shrink:0;">${escapeHtml(j.status || 'Active')}</span>`
+    });
   }).join('');
 }
 
@@ -12634,14 +12656,11 @@ function renderCloseoutList() {
     el.innerHTML = '<div style="padding:16px;color:var(--ink-soft);">Nothing ready to close. A job appears here once it is Active and every one of its tasks is Completed or Cancelled.</div>';
     return;
   }
-  el.innerHTML = list.map((j) => `<div class="job-lc-row" style="cursor:default;">
-      <div class="jl-body">
-        <div class="jl-num">${escapeHtml(j.jobNumber || '')}${j.jobType ? ` <span class="job-type-tag">${escapeHtml(jobTypeDisplay(j))}</span>` : ''}</div>
-        <div class="jl-name">${escapeHtml(j.customerName || '(no customer)')}</div>
-        <div class="jl-meta">Started ${escapeHtml(fmtDate(j.startDate) || '—')}</div>
-      </div>
-      <button type="button" class="btn btn-amber btn-compact" data-closeout-open="${escapeHtml(j.id)}" style="flex-shrink:0;">Close Out</button>
-    </div>`).join('');
+  el.innerHTML = list.map((j) => jobRow(j, {
+    rowAttrs: 'style="cursor:default;"',
+    metaBits: [j.startDate ? `started ${fmtShortDate(j.startDate)}` : ''],
+    trailing: `<button type="button" class="btn btn-amber btn-compact" data-closeout-open="${escapeHtml(j.id)}" style="flex-shrink:0;">Close Out</button>`
+  })).join('');
 }
 
 function openCloseoutConfirm(id) {
@@ -15587,6 +15606,14 @@ async function init() {
 
   /* ---- Close Out wiring (Item 7, v2-patch-2) ---- */
   $('#closeoutList').addEventListener('click', (e) => {
+    /* Item 6 (v2-patch-13): the shared jobRow gives Close Out the same
+       customer link the Jobs list has. */
+    const cust = e.target.closest('[data-job-cust]');
+    if (cust) {
+      setAppModeQuiet('customer');
+      editCustomer(cust.dataset.jobCust);
+      return;
+    }
     const btn = e.target.closest('[data-closeout-open]');
     if (btn) openCloseoutConfirm(btn.dataset.closeoutOpen);
   });
