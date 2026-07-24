@@ -36,6 +36,21 @@
       --danger: #A33A26;
       --released: #3F7A4E;
       --euthanized: #7A4A35;
+      /* v2-patch-14 Item 1 (F-18): status color tokens — ONE green tint
+         (done/paid; Active uses the same family as an outline), ONE amber
+         tint (pending/attention — #F3E3C8/#8a4f17 retired), a billing
+         blue, a danger tint, and the neutral pair. Every status pill,
+         badge, and camera dot points here; no pill carries a raw hex. */
+      --status-green-bg: #DDEAD8;
+      --status-green-fg: var(--released);
+      --status-amber-bg: #FBEED0;
+      --status-amber-fg: #8a6d1f;
+      --status-blue-bg: #CBE0F5;
+      --status-blue-fg: #1d4e79;
+      --status-danger-bg: #F6DADA;
+      --status-danger-fg: var(--danger);
+      --status-neutral-bg: var(--cream-deep);
+      --status-neutral-fg: var(--ink-soft);
       --shadow: 0 6px 18px rgba(30, 58, 42, 0.12);
       --radius: 14px;
       --safe-top: env(safe-area-inset-top);
@@ -132,11 +147,19 @@
     .flow-cell .fc-desc { font-size: 10.5px; color: var(--amber-soft); line-height: 1.25; text-align: center; white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
     /* Amber badge dot (top right): at least one in-progress job sits at
        this step. Subtle — no number, no text; the cell itself is unchanged. */
-    .flow-cell .fc-dot {
-      position: absolute; top: 8px; right: 8px;
-      width: 8px; height: 8px; border-radius: 50%;
-      background: var(--amber);
+    /* v2-patch-14 Item 5: attention COUNT badges (replace the old fc-dot).
+       Two compact circles sit side by side in the tile's top-right corner —
+       green = on-track count, red = needs-attention count; either hides at
+       zero. Sized/positioned clear of the 40px icon and label on iPhone
+       width (3-column grid). */
+    .flow-cell .fc-badges { position: absolute; top: 5px; right: 5px; display: flex; gap: 3px; }
+    .flow-cell .fc-badge {
+      min-width: 18px; height: 18px; padding: 0 5px; border-radius: 999px;
+      font-size: 10.5px; font-weight: 700; color: #fff; line-height: 1;
+      display: flex; align-items: center; justify-content: center;
     }
+    .flow-cell .fc-badge.green { background: var(--status-green-fg); }
+    .flow-cell .fc-badge.red { background: var(--danger); }
     .flow-arrow-h {
       align-self: center; flex-shrink: 0; width: 14px; text-align: center;
       color: var(--amber); font-size: 15px; font-weight: 700; user-select: none;
@@ -467,7 +490,7 @@
     .empty .em-title { font-family: 'Playfair Display', serif; font-size: 18px; color: var(--green-deep); margin-bottom: 4px; }
     .empty .em-check {
       width: 44px; height: 44px; border-radius: 50%; margin: 0 auto 10px;
-      background: #DDEAD8; color: var(--released); font-size: 22px; font-weight: 700;
+      background: var(--status-green-bg); color: var(--status-green-fg); font-size: 22px; font-weight: 700;
       display: flex; align-items: center; justify-content: center;
     }
 
@@ -490,7 +513,7 @@
       font-size: 11px; font-weight: 600; letter-spacing: 0.02em;
       margin-left: 6px;
     }
-    .tag-R { background: #DDEAD8; color: var(--released); }
+    .tag-R { background: var(--status-green-bg); color: var(--status-green-fg); }
     .tag-D { background: #EFDFD2; color: var(--euthanized); }
     .tag-X { background: var(--cream-deep); color: var(--ink-soft); }
 
@@ -1235,13 +1258,14 @@
     .status-pill {
       display: inline-block; padding: 2px 8px; border-radius: 999px;
       font-size: 11px; font-weight: 700; letter-spacing: 0.02em; margin-left: 6px;
+      white-space: nowrap;   /* F-20: pills never wrap mid-label */
     }
-    /* Estimate statuses (Pricing Constructor) */
-    .status-pill.draft { background: var(--cream-deep); color: var(--ink-soft); }
-    .status-pill.pending { background: #FBEED0; color: #8a6d1f; }
-    .status-pill.pushed { background: #DDEAD8; color: var(--released); }
-    .status-pill.invoiced { background: #CBE0F5; color: #1d4e79; }
-    .status-pill.rejected { background: #F6DADA; color: var(--danger); }
+    /* Estimate statuses (Pricing Constructor) — F-18 tokens */
+    .status-pill.draft { background: var(--status-neutral-bg); color: var(--status-neutral-fg); }
+    .status-pill.pending { background: var(--status-amber-bg); color: var(--status-amber-fg); }
+    .status-pill.pushed { background: var(--status-green-bg); color: var(--status-green-fg); }
+    .status-pill.invoiced { background: var(--status-blue-bg); color: var(--status-blue-fg); }
+    .status-pill.rejected { background: var(--status-danger-bg); color: var(--status-danger-fg); }
     /* Pricing module */
     .est-row { display: flex; align-items: center; gap: 12px; padding: 12px 4px; border-bottom: 1px solid var(--rule, #e2e8e2); cursor: pointer; }
     .est-row:last-child { border-bottom: none; }
@@ -1259,10 +1283,12 @@
     .est-detail-line { display: flex; justify-content: space-between; padding: 6px 0; font-size: 14px; border-bottom: 1px solid var(--rule, #e2e8e2); }
     .est-detail-line .d-sub { color: var(--ink-soft); font-size: 12px; }
     .cust-active-toggle { flex-shrink: 0; align-self: center; border: 1px solid var(--line); background: #fff; color: var(--ink-soft); border-radius: 999px; padding: 6px 14px; font-size: 12px; font-weight: 700; cursor: pointer; white-space: nowrap; }
-    .cust-active-toggle.on { background: #DDEAD8; color: var(--released); border-color: #cfe3c7; }
+    .cust-active-toggle.on { background: var(--status-green-bg); color: var(--status-green-fg); border-color: #cfe3c7; }
     /* Monitoring module (formerly Field Information / Cameras) */
     .cam-dot { width: 13px; height: 13px; border-radius: 50%; flex-shrink: 0; display: inline-block; }
-    .cam-dot.green { background: #2e9e5b; } .cam-dot.yellow { background: #e0a800; }
+    /* F-18: dots ride the design tokens — healthy green = --released,
+       warn = brand amber; the off-system #2e9e5b/#e0a800 are retired. */
+    .cam-dot.green { background: var(--status-green-fg); } .cam-dot.yellow { background: var(--amber); }
     .cam-dot.red { background: var(--danger); } .cam-dot.none { background: #bbb; }
     .field-row { display: flex; align-items: center; gap: 12px; padding: 13px 4px; border-bottom: 1px solid var(--rule, #e2e8e2); cursor: pointer; }
     .field-row:last-child { border-bottom: none; }
@@ -1304,9 +1330,10 @@
     .sync-now-status { font-size: 13px; margin-top: 8px; color: var(--ink-soft); }
 
     /* ---- Job Scheduling module ---- */
-    .status-pill.scheduled { background: #FBEED0; color: #8a6d1f; }
-    .status-pill.completed { background: #DDEAD8; color: var(--released); }
-    .status-pill.cancelled { background: var(--cream-deep); color: var(--ink-soft); }
+    .status-pill.scheduled { background: var(--status-amber-bg); color: var(--status-amber-fg); }
+    .status-pill.completed { background: var(--status-green-bg); color: var(--status-green-fg); }
+    /* F-18: Cancelled is TERMINAL, not an error — neutral grey, never red. */
+    .status-pill.cancelled { background: var(--status-neutral-bg); color: var(--status-neutral-fg); }
     .sched-toggle { display: inline-flex; border: 1px solid var(--rule, #e2e8e2); border-radius: 10px; overflow: hidden; }
     .sched-toggle button { padding: 7px 16px; background: var(--cream, #fff); border: none; font-size: 14px; color: var(--ink-soft); cursor: pointer; }
     .sched-toggle button.active { background: var(--amber); color: #fff; }
@@ -1330,14 +1357,19 @@
     .assignee-grid { display: grid; grid-template-columns: 1fr; gap: 6px; }
     .assignee-grid label { display: flex; align-items: center; gap: 9px; padding: 9px 11px; border: 1px solid var(--rule, #e2e8e2); border-radius: 9px; cursor: pointer; font-size: 15px; }
     .assignee-grid input { width: 18px; height: 18px; }
-    .conflict-warn { background: #FBEED0; border: 1px solid #e6c667; color: #8a6d1f; border-radius: 9px; padding: 10px 12px; font-size: 13px; margin-top: 10px; }
+    .conflict-warn { background: var(--status-amber-bg); border: 1px solid #e6c667; color: var(--status-amber-fg); border-radius: 9px; padding: 10px 12px; font-size: 13px; margin-top: 10px; }
 
-    /* ---- Job lifecycle (v2, Item 3) ---- */
-    .status-pill.lead { background: var(--cream-deep); color: var(--ink-soft); }
-    .status-pill.estimated { background: #FBEED0; color: #8a6d1f; }
-    .status-pill.jobactive { background: #DDEAD8; color: var(--released); }
-    .status-pill.pendingclose { background: #F3E3C8; color: #8a4f17; }
-    .status-pill.paid { background: #CDEAD3; color: #1d6b3b; }
+    /* ---- Job lifecycle (v2, Item 3) — F-18 tokens ---- */
+    .status-pill.lead { background: var(--status-neutral-bg); color: var(--status-neutral-fg); }
+    .status-pill.estimated { background: var(--status-amber-bg); color: var(--status-amber-fg); }
+    /* F-18: Active = work-in-progress, visibly distinct from Complete/done —
+       an OUTLINED green pill (ring, white ground) vs the solid green tint
+       terminal states wear. Same green family, different weight. */
+    .status-pill.jobactive { background: #fff; color: var(--status-green-fg); box-shadow: inset 0 0 0 1.5px var(--status-green-fg); }
+    /* F-18: Pending Close joins the ONE amber tint (#F3E3C8/#8a4f17 retired). */
+    .status-pill.pendingclose { background: var(--status-amber-bg); color: var(--status-amber-fg); }
+    /* F-18: Paid joins the ONE green tint (#CDEAD3/#1d6b3b retired). */
+    .status-pill.paid { background: var(--status-green-bg); color: var(--status-green-fg); }
     .job-progress { display: flex; gap: 3px; margin: 12px 0 4px; }
     .job-progress .jp-step {
       flex: 1 1 0; min-width: 0; text-align: center;
@@ -1345,7 +1377,7 @@
       color: var(--ink-soft); padding: 6px 1px; background: var(--cream-deep); border-radius: 6px;
       overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
     }
-    .job-progress .jp-step.done { background: #DDEAD8; color: var(--released); }
+    .job-progress .jp-step.done { background: var(--status-green-bg); color: var(--status-green-fg); }
     .job-progress .jp-step.current { background: var(--amber); color: #fff; }
     .job-progress.cancelled .jp-step { opacity: 0.45; }
     .next-step-card { border-left: 4px solid var(--amber); }
@@ -1419,13 +1451,9 @@
     .action-hub .hub-btn:active { transform: scale(0.97); background: rgba(196,119,42,0.15); }
     #hubJobChooser button { margin: 0 6px 6px 0; }
 
-    /* ---- Operator certification badges (Item 8) ---- */
-    .badge-cert {
-      display: inline-block; padding: 3px 10px; border-radius: 999px;
-      font-size: 11px; font-weight: 700; letter-spacing: 0.02em; white-space: nowrap;
-    }
-    .badge-cert.certified { background: #DDEAD8; color: var(--released); }
-    .badge-cert.pending { background: #FBEED0; color: #8a6d1f; }
+    /* Operator certification badges (Item 8) fold into .status-pill —
+       v2-patch-14 Item 3 (F-20): badge-cert was a byte-for-byte palette
+       duplicate of the pill classes under another name. */
 
     /* ---- Simplified location entry (Item 15) ---- */
     /* Item 8 (v2-patch-13, owner #11): compact segmented control — one row,
@@ -1481,7 +1509,10 @@
     .bell-badge {
       position: absolute; top: 2px; right: 0;
       min-width: 17px; height: 17px; padding: 0 4px;
-      background: var(--danger); color: #fff;
+      /* v2-patch-14 Item 3 (F-19): unread = AMBER in both places — the
+         list already used the amber border/bullet; the count badge was
+         red, saying "danger" about the same fact. */
+      background: var(--amber); color: #fff;
       border-radius: 999px; font-size: 10px; font-weight: 700;
       display: flex; align-items: center; justify-content: center; line-height: 1;
     }
@@ -3293,6 +3324,10 @@
         <button type="button" class="snav-btn" id="backfillPrimaryBtn" style="display:none;">Backfill Primary Properties<span class="chev">›</span></button>
         <!-- v2-patch-8: runs server-side (relinkCameras callable). -->
         <button type="button" class="snav-btn" id="cameraMigrationBtn" style="display:none;">Re-link Cameras<span class="chev">›</span></button>
+        <!-- v2-patch-14 Item 7: one-time sweep — property Camera IDs that
+             fail the convention (spaces, invisible chars, non-alphanumeric,
+             >10 chars). Read-only report; nothing is rewritten. -->
+        <button type="button" class="snav-btn" id="cameraIdSweepBtn" style="display:none;">Camera ID Convention Check<span class="chev">›</span></button>
         <button type="button" class="snav-btn" id="restoreBtn">Restore from JSON Backup<span class="chev">›</span></button>
         <input type="file" id="restoreFile" accept="application/json" style="display:none">
         <button type="button" class="snav-btn danger" id="wipeBtn">Clear All Records<span class="chev">›</span></button>
@@ -3305,7 +3340,7 @@
       </button>
       <div class="center muted" style="font-size:11.5px; line-height:1.5; margin:10px 0 4px;">
         <span id="accountInfo">Not signed in</span><br>
-        Southern Wildlife Tracker · <span id="footerVersion">v2.11</span> · KDFWR Commercial NWCO compliance
+        Southern Wildlife Tracker · <span id="footerVersion">v2.12</span> · KDFWR Commercial NWCO compliance
       </div>
     </section>
 
@@ -3650,7 +3685,7 @@
 <div class="confirm" id="confirm">
   <div class="box">
     <h3 id="confirmTitle">Are you sure?</h3>
-    <p id="confirmBody"></p>
+    <p id="confirmBody" style="white-space:pre-line;"></p>
     <div id="confirmSentinel" class="hidden" style="margin-bottom: 14px;">
       <input type="text" id="confirmSentinelInput" autocomplete="off"
              autocapitalize="characters" autocorrect="off" spellcheck="false"
@@ -4054,7 +4089,7 @@ const PESTICIDE_EMAILJS_TEMPLATE_ID = 'template_4aa3u5a';
    with the SW cache version and version.txt. Every version display (home
    header row, Settings footer, account info) reads from these two values;
    nothing else may hard-code a version string. */
-const APP_VERSION = 'v2.11';
+const APP_VERSION = 'v2.12';
 const APP_VERSION_DATE = 'Jul 23, 2026';
 /* Single source of truth: paint both displays from the constant so they
    can't drift apart again. */
@@ -4790,8 +4825,9 @@ function showModePicker() { showLanding(); }
  * the job lifecycle; rows alternate direction (row 1 →, row 2 ←) with a
  * curved arrow carrying the path down at each row's end. 3 columns (3+3)
  * on phones and tablets, all 6 in one row from 1200px up. Tapping a cell
- * opens its module; steps where an in-progress job currently sits show a
- * small amber badge dot in the top right corner.
+ * opens its module. v2-patch-14 Item 5: Jobs, Schedule, and Monitoring
+ * carry green/red attention COUNT badges (see flowStepBadges); Customer,
+ * Field Work, and Close Out never carry a badge.
  * ===================================================================== */
 /* Item 14 (v2-patch-1): no step numbers on cells; straight down arrows.
    Item 7 (v2-patch-2): six steps — Close Out is the standalone final step.
@@ -4804,23 +4840,64 @@ const FLOW_STEPS = [
   { n: 5, icon: '🦝', label: 'Field Work',       desc: 'Trapping & pesticide logs', mode: 'fieldwork' },
   { n: 6, icon: '✅', label: 'Close Out',        desc: 'Complete finished jobs',   mode: 'closeout', adminOnly: true }
 ];
-/* Job status → the workflow step where that job's next action lives. Any
-   open job highlights the Jobs step; scheduled work highlights Schedule. */
-const JOB_STATUS_TO_FLOW_STEP = {
-  'Lead': 2, 'Estimated': 2, 'Scheduled': 3, 'Active': 2,
-  'Pending Close': 2, 'Invoiced': 2
-};
 const flowGridMedia = window.matchMedia('(min-width: 1200px)');
 
-function activeFlowSteps() {
-  const steps = new Set();
-  lifecycleJobs().filter(jobIsActive).forEach((j) => {
-    const step = JOB_STATUS_TO_FLOW_STEP[j.status || 'Lead'];
-    if (step) steps.add(step);
-  });
-  /* Item 7 (v2-patch-2): highlight Close Out when jobs are ready to close. */
-  if (jobsReadyToClose().length) steps.add(6);
-  return steps;
+/* v2-patch-14 Item 5: the operational "today" — America/New_York, the same
+   day math the operation runs on (and the server's REPORT_TZ). en-CA
+   formatting yields YYYY-MM-DD for direct string comparison. */
+function todayNY() {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit'
+  }).format(new Date());
+}
+
+/* v2-patch-14 Item 5 (owner spec): per-tile attention COUNT badges —
+   replaces the old "has in-progress job" dot logic entirely. Returns
+   { stepN: { green, red } }; a zero count hides that badge. Derives ONLY
+   from the already-live caches feeding renderLandingCounts — no listeners.
+   - Jobs: green = Active jobs open < 30 days; red = Active jobs open ≥ 30
+     days, the SAME day math as the server's jobDurationReminder
+     (activeSince = startDate || createdAt; now − activeSince ≥ 30d — a job
+     at exactly 30 days is red). Unparseable dates count green.
+   - Schedule: green = open (not Complete/Cancelled) tasks scheduled today
+     or later (undated open work counts here too — open, not overdue);
+     red = open tasks scheduled before today. Legacy appointments included.
+   - Monitoring: green = property-matched (or internal) cameras with NO
+     red-flag condition; red = unmatched pending-queue keys OR any camera
+     red-flagged (battery low, SD ≥ 90%, error/queue flag, no daily report,
+     silent/offline). Internal cameras are green when healthy, red when
+     flagged, never counted as unmatched.
+   - Customer, Field Work, Close Out: no badges, ever. */
+function flowStepBadges() {
+  const badges = {};
+  /* Jobs (step 2) */
+  const OPEN_LIMIT_MS = 30 * 24 * 60 * 60 * 1000;   /* = jobDurationReminder REMIND_MS */
+  const now = Date.now();
+  let jobsOk = 0, jobsOver = 0;
+  for (const j of lifecycleJobs()) {
+    if ((j.status || 'Active') !== 'Active') continue;
+    const activeSince = Date.parse(j.startDate || j.createdAt || '') || 0;
+    if (activeSince && now - activeSince >= OPEN_LIMIT_MS) jobsOver++; else jobsOk++;
+  }
+  badges[2] = { green: jobsOk, red: jobsOver };
+  /* Schedule (step 3) */
+  const today = todayNY();
+  let schedOk = 0, schedOver = 0;
+  for (const t of [...cachedTasks, ...cachedAppointments]) {
+    const s = t.status || 'Open';
+    if (s === 'Completed' || s === 'Complete' || s === 'Cancelled') continue;
+    const d = String(t.scheduledDate || '').slice(0, 10);
+    if (d && d < today) schedOver++; else schedOk++;
+  }
+  badges[3] = { green: schedOk, red: schedOver };
+  /* Monitoring (step 4) */
+  let camOk = 0, camFlag = 0;
+  for (const g of fieldGroups()) {
+    if (!g.installed && !g.internal) { camFlag++; continue; }   /* unmatched queue */
+    if (g.status === 'green') camOk++; else camFlag++;          /* yellow/red/none = flagged */
+  }
+  badges[4] = { green: camOk, red: camFlag };
+  return badges;
 }
 
 /* Item 14 (v2-patch-1): straight down arrows at the row breaks (was curved). */
@@ -4833,11 +4910,19 @@ function renderFlowGrid() {
   const root = $('#flowGrid');
   if (!root) return;
   const cols = flowGridMedia.matches ? 6 : 3;
-  const current = activeFlowSteps();
+  const badges = flowStepBadges();   /* v2-patch-14 Item 5 */
   /* Item 14: no step numbers — icon (40px), bold label, one-line description. */
   /* Admin-only steps (Close Out) render grayed-out and inert for everyone
      else — no data-mode, so the grid's click handler ignores them. The
      Firestore rules enforce the same restriction server-side. */
+  const badgeHtml = (st) => {
+    const b = badges[st.n];
+    if (!b || (!b.green && !b.red)) return '';
+    return '<span class="fc-badges" aria-hidden="true">' +
+      (b.green ? `<span class="fc-badge green">${b.green}</span>` : '') +
+      (b.red ? `<span class="fc-badge red">${b.red}</span>` : '') +
+      '</span>';
+  };
   const cell = (st) => {
     if (!st) return '<div class="flow-cell spacer" aria-hidden="true"></div>';
     const locked = st.adminOnly && !isAdmin();
@@ -4847,7 +4932,7 @@ function renderFlowGrid() {
         `<span class="fc-label">${st.label}</span>` +
         `<span class="fc-desc">${st.desc}</span></button>`
       : `<button type="button" class="flow-cell" data-mode="${st.mode}" aria-label="${st.label}">` +
-        `${current.has(st.n) ? '<span class="fc-dot" aria-hidden="true"></span>' : ''}` +
+        badgeHtml(st) +
         `<span class="fc-icon" aria-hidden="true">${st.icon}</span>` +
         `<span class="fc-label">${st.label}</span>` +
         `<span class="fc-desc">${st.desc}</span></button>`;
@@ -5530,11 +5615,25 @@ function priceListCol() { return collection(fbDb, 'priceList'); }
 function fmtUSD(n) {
   return '$' + (Number(n) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
+/* v2-patch-14 Item 4 (F-22): the estimate status vocabulary, in ONE place.
+   SERVER CONTRACT (verified against functions/index.js on 2026-07-23): the
+   only status the qbPushEstimate callable writes is 'Pushed to QB' (:621).
+   'Invoiced' is LEGACY — qbConvertToInvoice was removed in v2-patch-1 and
+   nothing writes it anymore; it stays here so old docs keep their blue
+   pill. Every other value is client-written. Any wording change here MUST
+   match the server first, or the pill silently degrades to grey draft. */
+const EST_STATUSES = {
+  DRAFT: 'Draft',
+  PENDING: 'Pending Approval',
+  PUSHED: 'Pushed to QB',      /* written by the qbPushEstimate callable */
+  INVOICED: 'Invoiced',        /* legacy, display-only */
+  REJECTED: 'Rejected'
+};
 function estStatusClass(s) {
-  if (s === 'Pending Approval') return 'pending';
-  if (s === 'Pushed to QB') return 'pushed';
-  if (s === 'Invoiced') return 'invoiced';
-  if (s === 'Rejected') return 'rejected';
+  if (s === EST_STATUSES.PENDING) return 'pending';
+  if (s === EST_STATUSES.PUSHED) return 'pushed';
+  if (s === EST_STATUSES.INVOICED) return 'invoiced';
+  if (s === EST_STATUSES.REJECTED) return 'rejected';
   return 'draft';
 }
 
@@ -5806,7 +5905,7 @@ async function handleSaveEstimate(status) {
           });
       }
     }
-    toast(offline ? 'Saved offline — will sync when connected' : (status === 'Draft' ? 'Draft saved' : 'Submitted for approval'));
+    toast(offline ? 'Saved offline — will sync when connected' : (status === EST_STATUSES.DRAFT ? 'Draft saved' : 'Submitted for approval'));
     resetEstimateBuilder();
     if (jobId) { openLifecycleJob(jobId); return; }
     setView('dashboard');
@@ -5883,11 +5982,11 @@ function renderEstimateDetail(id) {
       <div>${fmtUSD(li.lineTotal)}</div>
     </div>`).join('');
   let actions = '';
-  if (e.status === 'Draft') {
+  if (e.status === EST_STATUSES.DRAFT) {
     actions += `<button class="btn btn-primary" data-est-action="edit" data-id="${escapeHtml(e.id)}">Edit</button>`;
     actions += `<button class="btn btn-ghost" data-est-action="submit" data-id="${escapeHtml(e.id)}">Submit for Approval</button>`;
     actions += `<button class="btn btn-danger" data-est-action="delete" data-id="${escapeHtml(e.id)}" style="margin-top:10px;">Delete Draft</button>`;
-  } else if (e.status === 'Pending Approval') {
+  } else if (e.status === EST_STATUSES.PENDING) {
     if (admin) {
       actions += `<button class="btn btn-primary" data-est-action="approve" data-id="${escapeHtml(e.id)}">Approve &amp; Push to QuickBooks</button>`;
       actions += `<button class="btn btn-ghost" data-est-action="reject" data-id="${escapeHtml(e.id)}">Reject</button>`;
@@ -5895,15 +5994,15 @@ function renderEstimateDetail(id) {
       actions += '<div class="hint">Waiting on admin approval.</div>';
     }
     actions += `<button class="btn btn-danger" data-est-action="delete" data-id="${escapeHtml(e.id)}" style="margin-top:10px;">Delete Estimate</button>`;
-  } else if (e.status === 'Rejected') {
+  } else if (e.status === EST_STATUSES.REJECTED) {
     actions += `<button class="btn btn-primary" data-est-action="edit" data-id="${escapeHtml(e.id)}">Edit &amp; Resubmit</button>`;
     actions += `<button class="btn btn-danger" data-est-action="delete" data-id="${escapeHtml(e.id)}" style="margin-top:10px;">Delete Estimate</button>`;
-  } else if (e.status === 'Pushed to QB') {
+  } else if (e.status === EST_STATUSES.PUSHED) {
     /* Item 13 (v2-patch-1): invoicing happens exclusively in QuickBooks
        Online — the in-app Convert to Invoice button is gone. The QB
        estimate push above is the app's last step. */
     actions += `<div class="hint success">Pushed to QuickBooks${e.qbEstimateId ? ' (QB #' + escapeHtml(String(e.qbEstimateId)) + ')' : ''}. Invoicing happens in QuickBooks Online.</div>`;
-  } else if (e.status === 'Invoiced') {
+  } else if (e.status === EST_STATUSES.INVOICED) {
     actions += `<div class="hint success">Invoiced in QuickBooks${e.qbInvoiceNumber ? ' (Invoice #' + escapeHtml(String(e.qbInvoiceNumber)) + ')' : ''}.</div>`;
   }
   if (e.pushError && admin) {
@@ -5929,7 +6028,7 @@ function renderEstimateDetail(id) {
 
 function editEstimate(id) {
   const e = cachedEstimates.find((x) => x.id === id);
-  if (!e || (e.status !== 'Draft' && e.status !== 'Rejected')) return;
+  if (!e || (e.status !== EST_STATUSES.DRAFT && e.status !== EST_STATUSES.REJECTED)) return;
   editingEstimateId = id;
   builderLines = (e.lineItems || []).map((li) => ({ ...li }));
   const c = cachedCustomers.find((x) => x.id === e.customerId);
@@ -5953,7 +6052,7 @@ function editEstimate(id) {
 
 async function submitEstimateForApproval(id) {
   try {
-    await writeWithRetry(() => setDoc(doc(fbDb, 'estimates', id), { status: 'Pending Approval', updatedAt: new Date().toISOString() }, { merge: true }));
+    await writeWithRetry(() => setDoc(doc(fbDb, 'estimates', id), { status: EST_STATUSES.PENDING, updatedAt: new Date().toISOString() }, { merge: true }));
     toast('Submitted for approval');
   } catch (err) {
     toast('Submit failed: ' + errText(err), 'error');
@@ -5962,7 +6061,7 @@ async function submitEstimateForApproval(id) {
 
 async function deleteEstimateDraft(id) {
   const e = cachedEstimates.find((x) => x.id === id);
-  const deletable = ['Draft', 'Pending Approval', 'Rejected'];
+  const deletable = [EST_STATUSES.DRAFT, EST_STATUSES.PENDING, EST_STATUSES.REJECTED];
   if (!e || !deletable.includes(e.status)) { toast('Estimates already pushed to QuickBooks can’t be deleted here', 'error'); return; }
   if (!(await confirmDialog('Delete this estimate?', 'This cannot be undone.', { okText: 'Delete' }))) return;
   try {
@@ -5979,7 +6078,7 @@ async function rejectEstimate(id) {
   const note = prompt('Reason for rejection (optional):');
   if (note === null) return;   /* M1: user cancelled the prompt — don't reject */
   try {
-    await writeWithRetry(() => setDoc(doc(fbDb, 'estimates', id), { status: 'Rejected', rejectionNote: note.trim(), updatedAt: new Date().toISOString() }, { merge: true }));
+    await writeWithRetry(() => setDoc(doc(fbDb, 'estimates', id), { status: EST_STATUSES.REJECTED, rejectionNote: note.trim(), updatedAt: new Date().toISOString() }, { merge: true }));
     toast('Estimate rejected');
   } catch (err) {
     toast('Reject failed: ' + errText(err), 'error');
@@ -6099,15 +6198,31 @@ function custCameraKey(name) {
   return clean.toUpperCase().replace(/\s/g, '');
 }
 
+/* v2-patch-14 Item 7: THE client-side camera-key normalizer — every camera
+   key comparison and every fieldGroups() bucket goes through it. Mirrors the
+   server's normKey (trim + uppercase) and additionally strips zero-width
+   characters (​-‍, ﻿) that String.trim() leaves behind —
+   pre-patch-9 ingest docs and hand-typed IDs can carry raw-case or invisible
+   junk that must never split one physical camera into two Monitoring
+   entries. Normalization happens at comparison/grouping time only; stored
+   values keep their original casing for display. */
+function normCamKey(v) {
+  return (v == null ? '' : String(v)).replace(/[​-‍﻿]/g, '').trim().toUpperCase();
+}
+
 /* Resolve a camera key to a customer live from the current directory.
    Item 1 (v2-patch-6): PROPERTY records are the single source of truth for
    camera assignment — the only join is an exact cameraId string match on a
    property record. Customer-level cameraId and name-derived keys are no
-   longer consulted; an unmatched key stays in the pending/unmatched queue. */
+   longer consulted; an unmatched key stays in the pending/unmatched queue.
+   v2-patch-14 Item 7: BOTH sides of the join normalize via normCamKey — the
+   incoming key was previously only uppercased (never trimmed/stripped), so
+   a key with trailing whitespace or invisible characters silently failed
+   the join and rendered as a second, unlinked Monitoring entry. */
 function resolveCustomerForKey(key) {
-  if (!key) return null;
-  const K = key.toUpperCase();
-  const byProp = cachedProperties.find((p) => (p.cameraId || '').trim().toUpperCase() === K);
+  const K = normCamKey(key);
+  if (!K) return null;
+  const byProp = cachedProperties.find((p) => normCamKey(p.cameraId) === K);
   if (byProp) {
     const c = cachedCustomers.find((x) => x.id === byProp.customerId);
     return { id: byProp.customerId, name: c ? (c.name || '') : '', propertyId: byProp.id };
@@ -6201,6 +6316,7 @@ function subscribeToFieldData() {
   if (!cameraPhotosUnsub) {
     cameraPhotosUnsub = onSnapshot(query(cameraPhotosCol(), orderBy('receivedAt', 'desc')), (snap) => {
       cachedCameraPhotos = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      renderLandingCounts();   /* v2-patch-14 Item 5: photos keep unmatched groups alive → Monitoring badge */
       if (!$('#app').classList.contains('hidden') && appMode === 'field') refreshFieldViews();
     }, (err) => console.error('cameraPhotos subscription error', err));
   }
@@ -6210,6 +6326,7 @@ function subscribeToFieldData() {
   if (!cameraStatusUnsub) {
     cameraStatusUnsub = onSnapshot(collection(fbDb, 'cameraStatus'), (snap) => {
       cachedCameraStatus = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      renderLandingCounts();   /* v2-patch-14 Item 5: removal flags change Monitoring badge counts */
       if (!$('#app').classList.contains('hidden') && appMode === 'field') refreshFieldViews();
     }, (err) => console.error('cameraStatus subscription error', err));
   }
@@ -6229,13 +6346,26 @@ function refreshFieldViews() {
   if (currentFieldKey && !$('#view-field-detail').classList.contains('hidden')) renderFieldDetail(currentFieldKey);
 }
 
-/* Group health + photos by camera key (network / subject key). */
+/* Group health + photos by camera key (network / subject key).
+   v2-patch-14 Item 7 (LIVE BUG): the map key is normalized ONCE inside
+   get() itself — the property loop used to insert normalized-uppercase
+   keys while health/photo/status rows inserted their stored customerKey
+   verbatim, so a pre-patch-9 raw-case key (HaydenT) or one carrying
+   whitespace/zero-width junk landed in a SECOND bucket and the operator
+   saw two Monitoring entries for one physical camera. Every insertion
+   path now lands in one bucket; displayKey preserves the nicest-cased
+   stored variant for the UI. */
 function fieldGroups() {
   const groups = new Map();
-  const get = (key) => {
-    const k = key || '(unknown)';
-    if (!groups.has(k)) groups.set(k, { key: k, name: null, customerId: null, propertyId: null, devices: [], photos: [] });
-    return groups.get(k);
+  const get = (rawKey) => {
+    const k = normCamKey(rawKey) || '(unknown)';
+    if (!groups.has(k)) groups.set(k, { key: k, displayKey: null, name: null, customerId: null, propertyId: null, devices: [], photos: [] });
+    const g = groups.get(k);
+    /* Nicest-cased display variant: first non-empty form wins; a mixed-case
+       form (HaydenT) upgrades an all-caps one (HAYDENT), never vice versa. */
+    const disp = (rawKey == null ? '' : String(rawKey)).replace(/[​-‍﻿]/g, '').trim();
+    if (disp && (!g.displayKey || (g.displayKey === k && disp !== k))) g.displayKey = disp;
+    return g;
   };
   for (const h of cachedCameraHealth) {
     const g = get(h.customerKey);
@@ -6280,9 +6410,8 @@ function fieldGroups() {
     .filter((x) => (x.status || 'Active') === 'Active')
     .map((x) => x.customerId).filter(Boolean));
   for (const p of cachedProperties) {
-    const cam = (p.cameraId || '').trim().toUpperCase();
-    if (!cam || !p.customerId) continue;
-    get(cam);   /* group identity only — the join below fills in the rest */
+    if (!normCamKey(p.cameraId) || !p.customerId) continue;
+    get(p.cameraId);   /* group identity only (get() normalizes) — the join below fills in the rest */
   }
   const arr = [...groups.values()];
   for (const g of arr) {
@@ -6324,6 +6453,14 @@ function fieldGroups() {
   return visible;
 }
 
+/* v2-patch-14 Item 7: one lookup for every "group by key" call site — the
+   incoming key (from data-field-key, currentFieldKey, etc.) is normalized
+   the same way the buckets are, so a raw-case caller can't miss its group. */
+function fieldGroupFor(key) {
+  const k = normCamKey(key) || '(unknown)';
+  return fieldGroups().find((x) => x.key === k);
+}
+
 function renderFieldDashboard() {
   renderGraphConnStatus();
   const root = $('#fieldList');
@@ -6336,17 +6473,25 @@ function renderFieldDashboard() {
     return;
   }
   root.innerHTML = groups.map((g) => {
-    /* M25: a customer with several camera sites used to render as identical
+    /* M25: a customer with SEVERAL camera sites used to render as identical
        rows — surface the property nickname so the operator can tell them
-       apart. */
+       apart. v2-patch-14 Item 7: the nickname appears ONLY when it actually
+       disambiguates (the customer has 2+ camera-bearing properties) —
+       single-site customers all carry the auto-created "Primary" nickname,
+       and "Thomas Hayden · Primary" read as a different thing than its own
+       raw camera key in the field. Installed entries show the customer
+       name; the join key rides in the meta line on every row. */
     const gProp = g.propertyId ? cachedProperties.find((p) => p.id === g.propertyId) : null;
+    const camSites = g.customerId
+      ? cachedProperties.filter((p) => p.customerId === g.customerId && normCamKey(p.cameraId)).length : 0;
+    const nickname = camSites > 1 && gProp ? gProp.siteNickname : '';
     /* v2-patch-9 Item 4: an internal (SWR) camera is not an unlinked
        problem — tag it as internal instead. */
     const label = g.name
-      ? escapeHtml([g.name, gProp && gProp.siteNickname].filter(Boolean).join(' · '))
+      ? escapeHtml([g.name, nickname].filter(Boolean).join(' · '))
       : g.internal
-        ? `${escapeHtml(g.key)}<span class="unlinked">SWR internal</span>`
-        : `${escapeHtml(g.key)}<span class="unlinked">unlinked</span>`;
+        ? `${escapeHtml(g.displayKey || g.key)}<span class="unlinked">SWR internal</span>`
+        : `${escapeHtml(g.displayKey || g.key)}<span class="unlinked">unlinked</span>`;
     /* Item 21: flagged for removal but awaiting Jon's confirmation. */
     const pending = g.pendingRemoval ? '<span class="unlinked">pending removal</span>' : '';
     const nCam = g.devices.length, nPh = g.photos.length;
@@ -6354,7 +6499,7 @@ function renderFieldDashboard() {
       <span class="cam-dot ${g.status}"></span>
       <div class="fr-body">
         <div class="fr-name">${label}${pending}</div>
-        <div class="fr-meta">${nPh} photo${nPh === 1 ? '' : 's'}</div>
+        <div class="fr-meta">${escapeHtml(g.key)} · ${nPh} photo${nPh === 1 ? '' : 's'}</div>
       </div>
       <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="var(--ink-soft)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
     </div>`;
@@ -6375,9 +6520,9 @@ function showFieldDetail(key) {
 function renderFieldDetail(key) {
   const box = $('#fieldDetail');
   if (!box) return;
-  const g = fieldGroups().find((x) => x.key === key);
+  const g = fieldGroupFor(key);   /* v2-patch-14 Item 7: normalized lookup */
   if (!g) { box.innerHTML = '<div class="card">No data for this camera.</div>'; return; }
-  const title = g.name ? escapeHtml(g.name) : escapeHtml(g.key);
+  const title = g.name ? escapeHtml(g.name) : escapeHtml(g.displayKey || g.key);
 
   const health = g.devices.length ? g.devices.map((d) => {
     const defs = deviceDefsLive(d);
@@ -6418,6 +6563,7 @@ function renderFieldDetail(key) {
   box.innerHTML = `
     <div class="card">
       <div style="display:flex;align-items:center;gap:10px;"><span class="cam-dot ${g.status}"></span><h3 style="margin:0;">${title}</h3></div>
+      <div class="muted" style="font-size:12px;margin-top:2px;">Camera key: ${escapeHtml(g.key)}</div>
       ${unlinkedNote}
       ${removal}
       ${assign}
@@ -6451,7 +6597,7 @@ function renderFieldDetail(key) {
    re-link report, and its health keeps ingesting normally. */
 async function setFieldGroupInternal(key, flag) {
   if (!key) return;
-  const g = fieldGroups().find((x) => x.key === key);
+  const g = fieldGroupFor(key);
   if (!g || !g.devices.length) { toast('No health records for this camera yet — nothing to mark.', 'error'); return; }
   const ok = await confirmDialog(flag ? 'Mark as SWR internal camera?' : 'Unmark SWR internal camera?',
     flag
@@ -6480,7 +6626,7 @@ function assignFieldPhotos(key, customer) {
   /* Functional audit LOW-3: the "(unknown)" group (photos with no
      parseable subject key) must never stamp "(UNKNOWN)" — or any other
      non-alphanumeric junk — as a routable property Camera ID. */
-  const cleanKey = (key || '').trim().toUpperCase();
+  const cleanKey = normCamKey(key);
   if (!/^[A-Z0-9]+$/.test(cleanKey)) {
     toast('These photos have no usable camera key — they can’t be routed to a Camera ID. Assign the camera from the customer instead.', 'error');
     return;
@@ -6490,8 +6636,9 @@ function assignFieldPhotos(key, customer) {
     lockCameraId: key,
     onDone: async (K, propId) => {
       try {
-        /* Stamp any already-ingested unassigned photos for this key. */
-        const photos = cachedCameraPhotos.filter((p) => (p.customerKey || '(unknown)') === key && !p.customerId);
+        /* Stamp any already-ingested unassigned photos for this key
+           (v2-patch-14 Item 7: normalized comparison — raw-case docs too). */
+        const photos = cachedCameraPhotos.filter((p) => (normCamKey(p.customerKey) || '(unknown)') === normCamKey(key) && !p.customerId);
         for (const p of photos) {
           await writeWithRetry(() => setDoc(doc(fbDb, 'cameraPhotos', p.id),
             { customerId: customer.id, customerName: customer.name || '', propertyId: propId || null, assigned: true, updatedAt: new Date().toISOString() }, { merge: true }));
@@ -6572,7 +6719,7 @@ function camAssignSyncUi() {
 function openCamAssignSheet(opts) {
   const cust = cachedCustomers.find((x) => x.id === opts.customerId);
   if (!cust) { toast('Customer not found', 'error'); return; }
-  camAssignCtx = { customerId: opts.customerId, lockCameraId: (opts.lockCameraId || '').trim().toUpperCase() || null, onDone: opts.onDone || null };
+  camAssignCtx = { customerId: opts.customerId, lockCameraId: normCamKey(opts.lockCameraId) || null, onDone: opts.onDone || null };
   $('#camAssignCustLabel').textContent = cust.name || '';
   const props = propertiesForCustomer(opts.customerId);
   const primary = primaryPropertyFor(opts.customerId);
@@ -6613,8 +6760,12 @@ async function handleCamAssignSave() {
   if (!camAssignCtx) return;
   const ctx = camAssignCtx;
   const cust = cachedCustomers.find((x) => x.id === ctx.customerId);
-  const K = $('#camAssignId').value.trim().toUpperCase().replace(/\s+/g, '');
+  /* v2-patch-14 Item 7 hygiene: same sanitize-and-reject rules as the
+     property editor (strip invisibles + trim, no spaces, alphanumeric). */
+  const K = $('#camAssignId').value.replace(/[​-‍﻿]/g, '').trim();
   if (!K) { toast('Enter a Camera ID', 'error'); $('#camAssignId').focus(); return; }
+  if (!ctx.lockCameraId && /\s/.test(K)) { toast('Camera ID can’t contain spaces', 'error'); $('#camAssignId').focus(); return; }
+  if (!ctx.lockCameraId && !/^[A-Za-z0-9]+$/.test(K)) { toast('Camera ID can only use letters and numbers', 'error'); $('#camAssignId').focus(); return; }
   /* Functional audit MEDIUM-1: a LOCKED key came from the camera itself
      (ingest passes subjects through verbatim, e.g. HIGGINBOTHAMT = 13
      chars) — the 10-char convention applies only to operator-typed IDs,
@@ -6660,8 +6811,8 @@ async function handleCamAssignSave() {
       const p = cachedProperties.find((x) => x.id === propId);
       /* Functional audit LOW-2: replacing a camera a property already
          routes silently orphans the old camera's future photos — confirm. */
-      const cur = ((p && p.cameraId) || '').trim().toUpperCase();
-      if (cur && cur !== K) {
+      const cur = normCamKey(p && p.cameraId) ? (p.cameraId || '').trim() : '';
+      if (cur && normCamKey(cur) !== normCamKey(K)) {
         const ok = await confirmDialog('Replace this property’s camera?',
           `${(p && p.siteNickname) || 'This property'} currently routes camera ${cur}. Replacing it with ${K} sends ${cur}'s future photos to the pending queue.`,
           { okText: 'Replace' });
@@ -6795,6 +6946,36 @@ async function runCameraRelink() {
   }
 }
 
+/* v2-patch-14 Item 7 hygiene (b): one-time READ-ONLY sweep — lists every
+   property Camera ID that fails the save-path convention (spaces, invisible
+   characters, non-alphanumeric, >10 chars, untrimmed whitespace). Nothing
+   is rewritten; the operator fixes offenders through the property editor,
+   whose save path now enforces the same rules. */
+function runCameraIdSweep() {
+  if (!isAdmin()) { toast('Only an administrator can run this check.', 'error'); return; }
+  const offenders = [];
+  for (const p of cachedProperties) {
+    const raw = p.cameraId;
+    if (raw == null || raw === '') continue;
+    const s = String(raw);
+    const issues = [];
+    if (/[​-‍﻿]/.test(s)) issues.push('invisible characters');
+    if (s !== s.trim()) issues.push('leading/trailing whitespace');
+    const t = s.replace(/[​-‍﻿]/g, '').trim();
+    if (/\s/.test(t)) issues.push('contains spaces');
+    else if (t && !/^[A-Za-z0-9]+$/.test(t)) issues.push('non-alphanumeric characters');
+    if (t.length > 10) issues.push('longer than 10 characters');
+    if (!issues.length) continue;
+    const owner = cachedCustomers.find((c) => c.id === p.customerId);
+    offenders.push(`${[owner && owner.name, p.siteNickname].filter(Boolean).join(' · ') || p.id}: "${s}" — ${issues.join(', ')}`);
+  }
+  confirmDialog(
+    offenders.length ? `Camera ID check — ${offenders.length} issue${offenders.length === 1 ? '' : 's'}` : 'Camera ID check — all clear',
+    offenders.length
+      ? 'These property Camera IDs break the convention (letters and numbers only, max 10, no spaces). Edit each property to fix them:\n\n' + offenders.join('\n')
+      : `All ${cachedProperties.filter((p) => p.cameraId).length} assigned Camera IDs follow the convention.`,
+    { okText: 'Done' });
+}
 
 /* "Hide All Photos" — Item 12 (v2-patch-13, owner #7): the operator-facing
    action is a PER-OPERATOR HIDE for everyone, admin included. It stamps the
@@ -6808,7 +6989,7 @@ async function runCameraRelink() {
    in Monitoring even with all photos hidden (Item 21). */
 async function clearFieldGroup(key) {
   if (!key) return;
-  const g = fieldGroups().find((x) => x.key === key);
+  const g = fieldGroupFor(key);
   if (!g) return;
   const nP = g.photos.length;
   if (!nP) { toast('No photos to hide for this camera'); return; }
@@ -6844,12 +7025,23 @@ async function deleteCameraPermanently(key) {
   if (!key) return;
   if (!isAdmin()) { toast('Only an administrator can delete a camera.', 'error'); return; }
   if (!(await ensureFreshClientForAdminAction())) return;   /* Item 13 */
-  const g = fieldGroups().find((x) => x.key === key);
+  const g = fieldGroupFor(key);
   const label = (g && g.name) ? `${g.name} (${key})` : key;
   const nH = g ? g.devices.length : 0;
   const nP = g ? g.photos.length : 0;
-  const linkedNote = g && g.customerId
-    ? ` This camera is still linked to ${g.name || 'a customer'} through a property Camera ID — new mail from it will re-link automatically; clear the property's Camera ID first if you are retiring it.`
+  /* v2-patch-14 Item 6: deleting a key a property still ROUTES is not a
+     retirement — assigned cameras are always visible (deployed-but-silent
+     rule), so the entry stays in Monitoring with its data gone and reads
+     as a failed delete. The dialog now names the exact assignment, says
+     the camera stays visible, and offers the actual retirement step
+     (remove the assignment) right after the deletion — one flow. */
+  const assigned = resolveCustomerForKey(key);
+  const assignedProp = assigned ? cachedProperties.find((p) => p.id === assigned.propertyId) : null;
+  const assignedLabel = assigned
+    ? `${assigned.name || 'a customer'}${assignedProp && assignedProp.siteNickname ? ` — property "${assignedProp.siteNickname}"` : ''}`
+    : '';
+  const linkedNote = assigned
+    ? ` NOTE: ${assignedLabel} still routes this Camera ID, so the camera STAYS VISIBLE in Monitoring (with no data) until that assignment is removed — you'll be offered that after the deletion. New mail from the key would re-link automatically.`
     : '';
   /* Two-step confirmation — same destructive pattern as Clear All Records /
      Restore Backup (v2-patch-5 Item 22): explain, then type CONFIRM. */
@@ -6867,6 +7059,26 @@ async function deleteCameraPermanently(key) {
     const res = await httpsCallable(fbFunctions, 'deleteCameraRecord', { timeout: 300000 })({ key });
     const r = (res && res.data) || {};
     toast(`${label} deleted — ${r.healthDeleted ?? 0} health record(s) and ${r.photosDeleted ?? 0} photo(s) removed`);
+    /* Item 6: the retirement offer — reuses the property editor's write
+       path (clear property.cameraId), so retiring a pulled camera is one
+       flow instead of a scavenger hunt. Declining keeps the assignment:
+       the camera stays visible and future mail re-links. */
+    if (assigned) {
+      const alsoRemove = await confirmDialog('Remove the assignment too?',
+        `${assignedLabel} still routes Camera ID ${key}, so the camera stays listed in Monitoring. If the camera has been pulled from the site, remove the assignment to retire it completely — it disappears from Monitoring and any future mail from ${key} lands in the pending queue as unmatched. Keep the assignment if the camera is still deployed there.`,
+        { okText: 'Remove Assignment' });
+      if (alsoRemove) {
+        try {
+          await writeWithRetry(() => setDoc(doc(fbDb, 'customers', assigned.id, 'properties', assigned.propertyId),
+            { cameraId: '', updatedAt: new Date().toISOString() }, { merge: true }));
+          const idx = cachedProperties.findIndex((x) => x.id === assigned.propertyId);
+          if (idx >= 0) cachedProperties[idx] = { ...cachedProperties[idx], cameraId: '' };
+          toast(`Assignment removed — ${key} is fully retired`);
+        } catch (err) {
+          toast('Camera data was deleted, but removing the assignment failed: ' + errText(err), 'error');
+        }
+      }
+    }
     currentFieldKey = null;
     setView('dashboard');
   } catch (err) {
@@ -6880,7 +7092,7 @@ async function deleteCameraPermanently(key) {
    the camera reappears) automatically if it ever reports again. */
 async function confirmCameraRemoval(key) {
   if (!isAdmin()) { toast('Only an administrator can confirm a camera removal.', 'error'); return; }
-  const g = fieldGroups().find((x) => x.key === key);
+  const g = fieldGroupFor(key);
   if (!g || !g.statusDoc) return;
   const ok = await confirmDialog(
     'Remove this camera from Monitoring?',
@@ -7444,7 +7656,7 @@ function renderOperatorsCard() {
   root.innerHTML = OPERATORS.map((o) => `
     <div class="biz-row">
       <span style="font-weight:600;color:var(--ink);">${escapeHtml(o.name)} <span class="muted" style="font-weight:400;font-size:12px;">· ${escapeHtml(o.employeeId)}</span></span>
-      <span class="badge-cert ${o.certificationStatus === 'certified' ? 'certified' : 'pending'}">${o.certificationStatus === 'certified' ? 'Certified' : 'Pending Certification'}</span>
+      <span class="status-pill ${o.certificationStatus === 'certified' ? 'completed' : 'pending'}" style="margin-left:0;">${o.certificationStatus === 'certified' ? 'Certified' : 'Pending Certification'}</span>
     </div>`).join('');
 }
 
@@ -10659,8 +10871,16 @@ function jobsOverlap(a, b) {
   if (!A || !B) return false;
   return A.start < B.end && B.start < A.end;
 }
+/* v2-patch-14 Item 2 (F-17): ONE terminal-state word in the UI. Both
+   persisted spellings stay valid data forever — task-model jobs wrote
+   'Complete', tasks/legacy schedule jobs wrote 'Completed' — so the class
+   mappers SHIM both and this label mapper renders both as "Complete".
+   Stored values are never rewritten. */
+function statusLabel(s) {
+  return s === 'Completed' ? 'Complete' : s;
+}
 function jobStatusClass(s) {
-  if (s === 'Completed') return 'completed';
+  if (s === 'Completed' || s === 'Complete') return 'completed';   /* F-17 shim */
   if (s === 'Cancelled') return 'cancelled';
   return 'scheduled';
 }
@@ -10820,7 +11040,7 @@ function jobRowHtml(e) {
     <div class="job-time">${escapeHtml(fmtTime12(e.startTime))}</div>
     <div class="job-body"><div>${escapeHtml(e.title)}</div>
     <div class="job-sub">${escapeHtml(e.sub)}</div></div>
-    <span class="status-pill ${jobStatusClass(e.status)}">${escapeHtml(e.status)}</span>
+    <span class="status-pill ${jobStatusClass(e.status)}">${escapeHtml(statusLabel(e.status))}</span>
   </div>`;
 }
 
@@ -11122,7 +11342,7 @@ function renderJobDetail(id) {
   let actions = `<button class="btn btn-amber" data-job-action="log-trap" data-id="${escapeHtml(j.id)}">Log Trapping</button>`;
   actions += `<button class="btn btn-amber" data-job-action="log-pesticide" data-id="${escapeHtml(j.id)}">Log Pesticide</button>`;
   actions += `<button class="btn btn-ghost" data-job-action="edit" data-id="${escapeHtml(j.id)}">Edit</button>`;
-  if (j.status !== 'Completed') actions += `<button class="btn btn-ghost" data-job-action="complete" data-id="${escapeHtml(j.id)}">Mark Completed</button>`;
+  if (j.status !== 'Completed') actions += `<button class="btn btn-ghost" data-job-action="complete" data-id="${escapeHtml(j.id)}">Mark Complete</button>`;
   if (j.status !== 'Cancelled') actions += `<button class="btn btn-ghost" data-job-action="cancel" data-id="${escapeHtml(j.id)}">Cancel Job</button>`;
   actions += `<button class="btn btn-danger" data-job-action="delete" data-id="${escapeHtml(j.id)}" style="margin-top:10px;">Delete</button>`;
   const logs = linkedLogsForJob(id);
@@ -11135,7 +11355,7 @@ function renderJobDetail(id) {
     <div class="card">
       <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;">
         <h3 style="margin:0;">${escapeHtml(j.title || 'Untitled')}</h3>
-        <span class="status-pill ${jobStatusClass(j.status)}">${escapeHtml(j.status || 'Scheduled')}</span>
+        <span class="status-pill ${jobStatusClass(j.status)}">${escapeHtml(statusLabel(j.status) || 'Scheduled')}</span>
       </div>
       <div class="muted" style="margin-top:6px;">${escapeHtml(when)}</div>
     </div>
@@ -11523,7 +11743,7 @@ function jobLifeStatusClass(s) {
   if (s === 'Pending Close') return 'pendingclose';
   if (s === 'Invoiced') return 'invoiced';
   if (s === 'Paid') return 'paid';
-  if (s === 'Complete') return 'completed';   /* Item 15 */
+  if (s === 'Complete' || s === 'Completed') return 'completed';   /* Item 15; F-17 shim */
   if (s === 'Cancelled') return 'cancelled';
   return 'lead';
 }
@@ -12120,12 +12340,12 @@ function renderTaskModelJobDetail(j) {
     const label = taskTypeLabel(t);
     const who = (t.assigneeNames || []).join(', ');
     const doneBtn = (t.status === 'Open' && isOpen)
-      ? `<button type="button" class="pill-btn" data-task-complete="${escapeHtml(t.id)}" style="background:#DDEAD8;color:var(--released);flex-shrink:0;" aria-label="Mark complete">✓ Done</button>`
+      ? `<button type="button" class="pill-btn" data-task-complete="${escapeHtml(t.id)}" style="background:var(--status-green-bg);color:var(--status-green-fg);flex-shrink:0;" aria-label="Mark complete">✓ Complete</button>`
       : '';
     return `<div class="at-row" data-task-open="${escapeHtml(t.id)}" style="align-items:center;">
       <div class="at-date">${escapeHtml(fmtShortDate(t.scheduledDate))}<br><span style="font-weight:400;color:var(--ink-soft);">${escapeHtml(fmtTime12(t.scheduledTime))}</span></div>
       <div class="at-body">
-        <div>${escapeHtml(label)} <span class="status-pill ${t.status === 'Completed' ? 'completed' : t.status === 'Cancelled' ? 'cancelled' : 'scheduled'}">${escapeHtml(t.status || 'Open')}</span></div>
+        <div>${escapeHtml(label)} <span class="status-pill ${jobStatusClass(t.status || 'Open')}">${escapeHtml(statusLabel(t.status) || 'Open')}</span></div>
         ${who ? `<div class="job-sub">${escapeHtml(who)}</div>` : ''}
         ${t.completedDate ? `<div class="at-outcome">Completed ${escapeHtml(fmtShortDate(t.completedDate))}${t.completedBy ? ' by ' + escapeHtml(t.completedBy) : ''}</div>` : ''}
       </div>
@@ -12209,7 +12429,7 @@ function renderLifecycleJobDetail(id) {
     return `<div class="at-row" data-appt-open="${escapeHtml(a.id)}" data-appt-job="${escapeHtml(id)}">
       <div class="at-date">${escapeHtml(fmtShortDate(a.scheduledDate))}<br><span style="font-weight:400;color:var(--ink-soft);">${escapeHtml(fmtTime12(a.scheduledTime))}</span></div>
       <div class="at-body">
-        <div>${escapeHtml(a.visitType || 'Visit')} <span class="status-pill ${jobStatusClass(a.status)}">${escapeHtml(a.status || 'Scheduled')}</span></div>
+        <div>${escapeHtml(a.visitType || 'Visit')} <span class="status-pill ${jobStatusClass(a.status)}">${escapeHtml(statusLabel(a.status) || 'Scheduled')}</span></div>
         ${who ? `<div class="job-sub">${escapeHtml(who)}</div>` : ''}
         ${a.outcome ? `<div class="at-outcome">${escapeHtml(a.outcome)}</div>` : ''}
       </div>
@@ -12218,7 +12438,7 @@ function renderLifecycleJobDetail(id) {
 
   const qbStatus = j.qbInvoiceNumber ? `Invoice #${escapeHtml(String(j.qbInvoiceNumber))}${j.paymentStatus === 'Paid' ? ' · Paid' : ''}`
     : est && est.qbInvoiceNumber ? `Invoice #${escapeHtml(String(est.qbInvoiceNumber))}`
-    : est && est.status === 'Pushed to QB' ? 'Estimate pushed to QB'
+    : est && est.status === EST_STATUSES.PUSHED ? 'Estimate pushed to QB'
     : 'Not invoiced';
 
   const canClose = canTransitionJobStatus(j.status || 'Lead', 'Pending Close');
@@ -12556,7 +12776,7 @@ function renderTaskDetail(id) {
   const detail = (label, val) => val ? `<div style="margin-top:8px;"><span class="muted" style="font-size:12px;text-transform:uppercase;letter-spacing:.04em;">${label}</span><div>${escapeHtml(val)}</div></div>` : '';
   let actions = '';
   if (t.status === 'Open') {
-    actions += `<button class="btn btn-primary" data-task-action="complete" data-id="${escapeHtml(id)}">Mark Completed</button>`;
+    actions += `<button class="btn btn-primary" data-task-action="complete" data-id="${escapeHtml(id)}">Mark Complete</button>`;
     actions += `<button class="btn btn-ghost" data-task-action="edit" data-id="${escapeHtml(id)}">Edit</button>`;
     actions += `<button class="btn btn-ghost" data-task-action="cancel" data-id="${escapeHtml(id)}">Cancel Task</button>`;
   }
@@ -12572,7 +12792,7 @@ function renderTaskDetail(id) {
     <div class="card">
       <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;">
         <h3 style="margin:0;">${escapeHtml(taskTypeLabel(t))}</h3>
-        <span class="status-pill ${t.status === 'Completed' ? 'completed' : t.status === 'Cancelled' ? 'cancelled' : 'scheduled'}">${escapeHtml(t.status || 'Open')}</span>
+        <span class="status-pill ${jobStatusClass(t.status || 'Open')}">${escapeHtml(statusLabel(t.status) || 'Open')}</span>
       </div>
       <div class="muted" style="margin-top:6px;">${escapeHtml(longDate(t.scheduledDate))} · ${escapeHtml(fmtTime12(t.scheduledTime))}</div>
     </div>
@@ -12773,7 +12993,7 @@ function renderCloseoutList() {
   const list = jobsReadyToClose().slice().sort((a, b) =>
     (b.startDate || b.createdAt || '').localeCompare(a.startDate || a.createdAt || ''));
   if (!list.length) {
-    el.innerHTML = '<div style="padding:16px;color:var(--ink-soft);">Nothing ready to close. A job appears here once it is Active and every one of its tasks is Completed or Cancelled.</div>';
+    el.innerHTML = '<div style="padding:16px;color:var(--ink-soft);">Nothing ready to close. A job appears here once it is Active and every one of its tasks is Complete or Cancelled.</div>';
     return;
   }
   el.innerHTML = list.map((j) => jobRow(j, {
@@ -13430,7 +13650,7 @@ function renderAppointmentDetail(jobId, apptId) {
   const detail = (label, val) => val ? `<div style="margin-top:8px;"><span class="muted" style="font-size:12px;text-transform:uppercase;letter-spacing:.04em;">${label}</span><div>${escapeHtml(val)}</div></div>` : '';
   let actions = '';
   if (a.status === 'Scheduled') {
-    actions += `<button class="btn btn-primary" data-appt-action="complete" data-id="${escapeHtml(apptId)}" data-job="${escapeHtml(jobId)}">Mark Completed</button>`;
+    actions += `<button class="btn btn-primary" data-appt-action="complete" data-id="${escapeHtml(apptId)}" data-job="${escapeHtml(jobId)}">Mark Complete</button>`;
     actions += `<button class="btn btn-ghost" data-appt-action="edit" data-id="${escapeHtml(apptId)}" data-job="${escapeHtml(jobId)}">Edit</button>`;
     actions += `<button class="btn btn-ghost" data-appt-action="cancel" data-id="${escapeHtml(apptId)}" data-job="${escapeHtml(jobId)}">Cancel Appointment</button>`;
   }
@@ -13448,7 +13668,7 @@ function renderAppointmentDetail(jobId, apptId) {
     <div class="card">
       <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;">
         <h3 style="margin:0;">${escapeHtml(a.visitType || 'Visit')}</h3>
-        <span class="status-pill ${jobStatusClass(a.status)}">${escapeHtml(a.status || 'Scheduled')}</span>
+        <span class="status-pill ${jobStatusClass(a.status)}">${escapeHtml(statusLabel(a.status) || 'Scheduled')}</span>
       </div>
       <div class="muted" style="margin-top:6px;">${escapeHtml(longDate(a.scheduledDate))} · ${escapeHtml(fmtTime12(a.scheduledTime))}</div>
     </div>
@@ -14288,6 +14508,7 @@ function subscribeToProperties() {
     cachedPropertiesLoaded = true;   /* v2-patch-7 security audit: dup-primary guard */
     cachedProperties = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
     cachedProperties.sort((a, b) => (a.siteNickname || '').localeCompare(b.siteNickname || ''));
+    renderLandingCounts();   /* v2-patch-14 Item 5: cameraId assignments flip matched/unmatched counts */
     if (editingCustomerId && !$('#view-add-customer').classList.contains('hidden')) renderPropertiesCard();
   }, (err) => {
     console.error('Properties subscription error', err);
@@ -14373,11 +14594,11 @@ function closePropertyEditor() {
    Property records are the only place cameraId lives, so uniqueness is
    checked against properties only. */
 function cameraIdOwner(cameraId, opts = {}) {
-  const K = (cameraId || '').trim().toUpperCase();
+  const K = normCamKey(cameraId);   /* v2-patch-14 Item 7: one normalizer */
   if (!K) return null;
   const prop = cachedProperties.find((p) =>
     p.id !== (opts.excludePropertyId || null) &&
-    (p.cameraId || '').trim().toUpperCase() === K);
+    normCamKey(p.cameraId) === K);
   if (prop) {
     const owner = cachedCustomers.find((c) => c.id === prop.customerId);
     return { label: [owner && owner.name, prop.siteNickname].filter(Boolean).join(' · ') || 'another property' };
@@ -14389,8 +14610,14 @@ async function saveProperty() {
   if (!editingCustomerId) return;
   const siteNickname = $('#pr-nickname').value.trim();
   if (!siteNickname) { toast('Give the property a site nickname', 'error'); $('#pr-nickname').focus(); return; }
-  const cameraId = $('#pr-cameraId').value.trim().toUpperCase().replace(/\s+/g, '');
-  if (cameraId && cameraId.length > 10) { toast('Camera ID can\'t exceed 10 characters', 'error'); $('#pr-cameraId').focus(); return; }
+  /* v2-patch-14 Item 7 hygiene: sanitize the Camera ID on save — strip
+     invisible characters and trim, REJECT (never silently rewrite) inner
+     spaces or non-alphanumeric junk, cap at 10. Typed case is preserved for
+     display; every comparison normalizes via normCamKey. */
+  const cameraId = $('#pr-cameraId').value.replace(/[​-‍﻿]/g, '').trim();
+  if (/\s/.test(cameraId)) { toast('Camera ID can\'t contain spaces', 'error'); $('#pr-cameraId').focus(); return; }
+  if (cameraId && !/^[A-Za-z0-9]+$/.test(cameraId)) { toast('Camera ID can only use letters and numbers', 'error'); $('#pr-cameraId').focus(); return; }
+  if (cameraId.length > 10) { toast('Camera ID can\'t exceed 10 characters', 'error'); $('#pr-cameraId').focus(); return; }
   const dup = cameraIdOwner(cameraId, { excludePropertyId: editingPropertyId });
   if (dup) { toast(`Camera ID ${cameraId} is already assigned to ${dup.label}`, 'error'); $('#pr-cameraId').focus(); return; }
   /* Item 4d (v2-patch-6): tri-state — true / false / null (auto). */
@@ -15520,8 +15747,8 @@ async function init() {
     const btn = e.target.closest('[data-li-index]');
     if (btn) removeLineItem(parseInt(btn.dataset.liIndex, 10));
   });
-  $('#saveDraftBtn').addEventListener('click', () => handleSaveEstimate('Draft'));
-  $('#submitEstimateBtn').addEventListener('click', () => handleSaveEstimate('Pending Approval'));
+  $('#saveDraftBtn').addEventListener('click', () => handleSaveEstimate(EST_STATUSES.DRAFT));
+  $('#submitEstimateBtn').addEventListener('click', () => handleSaveEstimate(EST_STATUSES.PENDING));
   $('#cancelEstimateBtn').addEventListener('click', () => { resetEstimateBuilder(); setView('dashboard'); });
   $('#estimatesList').addEventListener('click', (e) => {
     const row = e.target.closest('[data-est-open]');
@@ -15824,6 +16051,7 @@ async function init() {
   /* Item 1 (v2-patch-6): camera migration + reconciliation audit */
   $('#cameraMigrationBtn').addEventListener('click', runCameraRelink);            /* v2-patch-8: server-side */
   $('#backfillPrimaryBtn').addEventListener('click', runPrimaryPropertyBackfill);  /* v2-patch-8: server-side */
+  $('#cameraIdSweepBtn').addEventListener('click', runCameraIdSweep);              /* v2-patch-14 Item 7 */
 
   /* Item 3 (v2-patch-7): camera assignment sheet */
   $('#camAssignProp').addEventListener('change', camAssignSyncUi);
@@ -15960,6 +16188,7 @@ async function init() {
       $('#wipeBtn').style.display = isAdmin() ? 'flex' : 'none';   /* Item 5: snav row */
       $('#cameraMigrationBtn').style.display = isAdmin() ? 'flex' : 'none';   /* Item 1 (v2-patch-6) */
       $('#backfillPrimaryBtn').style.display = isAdmin() ? 'flex' : 'none';   /* Item 1 (v2-patch-7) */
+      $('#cameraIdSweepBtn').style.display = isAdmin() ? 'flex' : 'none';     /* Item 7 (v2-patch-14) */
       $('#pesticideDbCard').classList.toggle('hidden', !isAdmin());
       try { await maybeMigrateLocalRecords(); } catch (e) { console.error('Migration error', e); }
       subscribeToRecords();
