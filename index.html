@@ -436,6 +436,8 @@
     .nav-fab:active { background: #B06B26; }
     /* Hide the + button while a record is being created or edited. */
     body.in-add .nav-fab { visibility: hidden; pointer-events: none; opacity: 0; }
+    /* Item 11 (v2-patch-13): non-creating views (Notifications) show no FAB. */
+    body.no-fab .nav-fab { visibility: hidden; pointer-events: none; opacity: 0; }
 
     /* Cards & layout */
     .card {
@@ -7289,6 +7291,13 @@ function setView(name, opts) {
   if (name === 'notifications') renderNotificationsPage();
   $('#appMain').scrollTop = 0;
   document.body.classList.toggle('in-add', name === 'add' || name === 'edit-legacy' || name === 'add-appointment' || name === 'add-task');
+  /* Item 11 (v2-patch-13, owner #15): Notifications creates nothing, but it
+     opens under whatever module was active (setAppModeQuiet), so that
+     module's + FAB leaked through — and routed to the wrong form (the
+     patch-10 FAB standardization fallthrough). Hide the FAB on any view
+     with no create action. Views without a FAB in their NAV_CONFIGS
+     (settings, allrecords, closeout, field) never render one at all. */
+  document.body.classList.toggle('no-fab', name === 'notifications');
 
   if (name === 'add' && !preserveForm) {
     if (appMode === 'trap') {
