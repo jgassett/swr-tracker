@@ -1250,6 +1250,7 @@
     .status-pill {
       display: inline-block; padding: 2px 8px; border-radius: 999px;
       font-size: 11px; font-weight: 700; letter-spacing: 0.02em; margin-left: 6px;
+      white-space: nowrap;   /* F-20: pills never wrap mid-label */
     }
     /* Estimate statuses (Pricing Constructor) — F-18 tokens */
     .status-pill.draft { background: var(--status-neutral-bg); color: var(--status-neutral-fg); }
@@ -1442,13 +1443,9 @@
     .action-hub .hub-btn:active { transform: scale(0.97); background: rgba(196,119,42,0.15); }
     #hubJobChooser button { margin: 0 6px 6px 0; }
 
-    /* ---- Operator certification badges (Item 8) ---- */
-    .badge-cert {
-      display: inline-block; padding: 3px 10px; border-radius: 999px;
-      font-size: 11px; font-weight: 700; letter-spacing: 0.02em; white-space: nowrap;
-    }
-    .badge-cert.certified { background: #DDEAD8; color: var(--released); }
-    .badge-cert.pending { background: #FBEED0; color: #8a6d1f; }
+    /* Operator certification badges (Item 8) fold into .status-pill —
+       v2-patch-14 Item 3 (F-20): badge-cert was a byte-for-byte palette
+       duplicate of the pill classes under another name. */
 
     /* ---- Simplified location entry (Item 15) ---- */
     /* Item 8 (v2-patch-13, owner #11): compact segmented control — one row,
@@ -1504,7 +1501,10 @@
     .bell-badge {
       position: absolute; top: 2px; right: 0;
       min-width: 17px; height: 17px; padding: 0 4px;
-      background: var(--danger); color: #fff;
+      /* v2-patch-14 Item 3 (F-19): unread = AMBER in both places — the
+         list already used the amber border/bullet; the count badge was
+         red, saying "danger" about the same fact. */
+      background: var(--amber); color: #fff;
       border-radius: 999px; font-size: 10px; font-weight: 700;
       display: flex; align-items: center; justify-content: center; line-height: 1;
     }
@@ -7551,7 +7551,7 @@ function renderOperatorsCard() {
   root.innerHTML = OPERATORS.map((o) => `
     <div class="biz-row">
       <span style="font-weight:600;color:var(--ink);">${escapeHtml(o.name)} <span class="muted" style="font-weight:400;font-size:12px;">· ${escapeHtml(o.employeeId)}</span></span>
-      <span class="badge-cert ${o.certificationStatus === 'certified' ? 'certified' : 'pending'}">${o.certificationStatus === 'certified' ? 'Certified' : 'Pending Certification'}</span>
+      <span class="status-pill ${o.certificationStatus === 'certified' ? 'completed' : 'pending'}" style="margin-left:0;">${o.certificationStatus === 'certified' ? 'Certified' : 'Pending Certification'}</span>
     </div>`).join('');
 }
 
