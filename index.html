@@ -5212,6 +5212,40 @@ async function cleanupPushTokenOnSignOut() {
    the service-worker cache) and, if it differs from what's running, show the
    Reload banner. Tapping it reloads — the network-first SW then pulls fresh HTML. */
 let updatePromptShown = false;
+/* Item 13 (v2-patch-13, owner #1): version-skew guard for admin actions.
+   Root cause of the SWR MASTER 9 'insufficient permission' report was the
+   INVERSE of a stale client: the v2.10 frontend shipped the Delete Camera
+   button hours before the deleteCameraRecord callable was deployed
+   (CreateFunction audit log 2026-07-24T01:05Z — the function did not exist
+   when the owner tapped). The call hit a nonexistent function URL and
+   Google's edge answered 403 Forbidden — zero server invocations, surfaced
+   as a permission error. This guard covers the client-behind half of any
+   future skew: before an admin action runs, re-check version.txt and block
+   with the update banner if a newer frontend is available. The
+   backend-behind half gets an actionable message in the callables' catch
+   (see callableFailureText). */
+async function ensureFreshClientForAdminAction() {
+  try {
+    const res = await fetch('./version.txt?cb=' + Date.now(), { cache: 'no-store' });
+    if (!res.ok) return true;                       /* can't tell — don't block */
+    const latest = (await res.text()).trim();
+    if (!latest || latest === APP_VERSION) return true;
+    const t = $('#updateBannerText'); if (t) t.textContent = `Update ${latest} ready`;
+    const b = $('#updateBanner'); if (b) b.style.display = 'flex';
+    toast(`Update ${latest} is available — reload before running admin actions`, 'error');
+    return false;
+  } catch (_) { return true; }                      /* offline — callable fails with its own message */
+}
+/* A callable that never reached the server (nonexistent/undeployed function,
+   CORS-blocked 403/404) surfaces as functions/internal or
+   functions/not-found — name the likely cause instead of echoing 'internal'. */
+function callableFailureText(err) {
+  const code = err && err.code ? String(err.code) : '';
+  if (code === 'functions/not-found' || code === 'functions/internal' || code === 'internal' || code === 'not-found') {
+    return `the server function is unreachable — if the app was just updated, the functions deploy may still be pending (${errText(err)})`;
+  }
+  return errText(err);
+}
 async function checkForUpdate() {
   try {
     const res = await fetch('./version.txt?cb=' + Date.now(), { cache: 'no-store' });
@@ -6707,6 +6741,7 @@ function primaryPropertyData(c, byEmail) {
    summary. */
 async function runPrimaryPropertyBackfill() {
   if (!isAdmin()) { toast('Only an administrator can run the backfill.', 'error'); return; }
+  if (!(await ensureFreshClientForAdminAction())) return;   /* Item 13 */
   const ok = await confirmDialog('Backfill primary properties?',
     'Runs on the server: creates a "Primary" property from the home address for every customer that has no property records. Customers with existing properties are skipped. Safe to run more than once.');
   if (!ok) return;
@@ -6728,6 +6763,7 @@ async function runPrimaryPropertyBackfill() {
 
 async function runCameraRelink() {
   if (!isAdmin()) { toast('Only an administrator can run the re-link.', 'error'); return; }
+  if (!(await ensureFreshClientForAdminAction())) return;   /* Item 13 */
   const ok = await confirmDialog('Re-link cameras?',
     'Runs on the server: matches every camera health record against property Camera IDs (exact match) and refreshes the links. Unmatched cameras stay in the pending queue and are listed in a downloaded report.');
   if (!ok) return;
@@ -6808,6 +6844,7 @@ async function clearFieldGroup(key) {
 async function deleteCameraPermanently(key) {
   if (!key) return;
   if (!isAdmin()) { toast('Only an administrator can delete a camera.', 'error'); return; }
+  if (!(await ensureFreshClientForAdminAction())) return;   /* Item 13 */
   const g = fieldGroups().find((x) => x.key === key);
   const label = (g && g.name) ? `${g.name} (${key})` : key;
   const nH = g ? g.devices.length : 0;
@@ -6835,7 +6872,7 @@ async function deleteCameraPermanently(key) {
     setView('dashboard');
   } catch (err) {
     if (btn) { btn.disabled = false; btn.textContent = 'Delete Camera'; }
-    toast('Camera deletion failed: ' + errText(err), 'error');
+    toast('Camera deletion failed: ' + callableFailureText(err), 'error');
   }
 }
 
