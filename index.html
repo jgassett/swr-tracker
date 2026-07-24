@@ -10766,8 +10766,16 @@ function jobsOverlap(a, b) {
   if (!A || !B) return false;
   return A.start < B.end && B.start < A.end;
 }
+/* v2-patch-14 Item 2 (F-17): ONE terminal-state word in the UI. Both
+   persisted spellings stay valid data forever — task-model jobs wrote
+   'Complete', tasks/legacy schedule jobs wrote 'Completed' — so the class
+   mappers SHIM both and this label mapper renders both as "Complete".
+   Stored values are never rewritten. */
+function statusLabel(s) {
+  return s === 'Completed' ? 'Complete' : s;
+}
 function jobStatusClass(s) {
-  if (s === 'Completed') return 'completed';
+  if (s === 'Completed' || s === 'Complete') return 'completed';   /* F-17 shim */
   if (s === 'Cancelled') return 'cancelled';
   return 'scheduled';
 }
@@ -10927,7 +10935,7 @@ function jobRowHtml(e) {
     <div class="job-time">${escapeHtml(fmtTime12(e.startTime))}</div>
     <div class="job-body"><div>${escapeHtml(e.title)}</div>
     <div class="job-sub">${escapeHtml(e.sub)}</div></div>
-    <span class="status-pill ${jobStatusClass(e.status)}">${escapeHtml(e.status)}</span>
+    <span class="status-pill ${jobStatusClass(e.status)}">${escapeHtml(statusLabel(e.status))}</span>
   </div>`;
 }
 
@@ -11229,7 +11237,7 @@ function renderJobDetail(id) {
   let actions = `<button class="btn btn-amber" data-job-action="log-trap" data-id="${escapeHtml(j.id)}">Log Trapping</button>`;
   actions += `<button class="btn btn-amber" data-job-action="log-pesticide" data-id="${escapeHtml(j.id)}">Log Pesticide</button>`;
   actions += `<button class="btn btn-ghost" data-job-action="edit" data-id="${escapeHtml(j.id)}">Edit</button>`;
-  if (j.status !== 'Completed') actions += `<button class="btn btn-ghost" data-job-action="complete" data-id="${escapeHtml(j.id)}">Mark Completed</button>`;
+  if (j.status !== 'Completed') actions += `<button class="btn btn-ghost" data-job-action="complete" data-id="${escapeHtml(j.id)}">Mark Complete</button>`;
   if (j.status !== 'Cancelled') actions += `<button class="btn btn-ghost" data-job-action="cancel" data-id="${escapeHtml(j.id)}">Cancel Job</button>`;
   actions += `<button class="btn btn-danger" data-job-action="delete" data-id="${escapeHtml(j.id)}" style="margin-top:10px;">Delete</button>`;
   const logs = linkedLogsForJob(id);
@@ -11242,7 +11250,7 @@ function renderJobDetail(id) {
     <div class="card">
       <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;">
         <h3 style="margin:0;">${escapeHtml(j.title || 'Untitled')}</h3>
-        <span class="status-pill ${jobStatusClass(j.status)}">${escapeHtml(j.status || 'Scheduled')}</span>
+        <span class="status-pill ${jobStatusClass(j.status)}">${escapeHtml(statusLabel(j.status) || 'Scheduled')}</span>
       </div>
       <div class="muted" style="margin-top:6px;">${escapeHtml(when)}</div>
     </div>
@@ -11630,7 +11638,7 @@ function jobLifeStatusClass(s) {
   if (s === 'Pending Close') return 'pendingclose';
   if (s === 'Invoiced') return 'invoiced';
   if (s === 'Paid') return 'paid';
-  if (s === 'Complete') return 'completed';   /* Item 15 */
+  if (s === 'Complete' || s === 'Completed') return 'completed';   /* Item 15; F-17 shim */
   if (s === 'Cancelled') return 'cancelled';
   return 'lead';
 }
@@ -12227,12 +12235,12 @@ function renderTaskModelJobDetail(j) {
     const label = taskTypeLabel(t);
     const who = (t.assigneeNames || []).join(', ');
     const doneBtn = (t.status === 'Open' && isOpen)
-      ? `<button type="button" class="pill-btn" data-task-complete="${escapeHtml(t.id)}" style="background:var(--status-green-bg);color:var(--status-green-fg);flex-shrink:0;" aria-label="Mark complete">✓ Done</button>`
+      ? `<button type="button" class="pill-btn" data-task-complete="${escapeHtml(t.id)}" style="background:var(--status-green-bg);color:var(--status-green-fg);flex-shrink:0;" aria-label="Mark complete">✓ Complete</button>`
       : '';
     return `<div class="at-row" data-task-open="${escapeHtml(t.id)}" style="align-items:center;">
       <div class="at-date">${escapeHtml(fmtShortDate(t.scheduledDate))}<br><span style="font-weight:400;color:var(--ink-soft);">${escapeHtml(fmtTime12(t.scheduledTime))}</span></div>
       <div class="at-body">
-        <div>${escapeHtml(label)} <span class="status-pill ${t.status === 'Completed' ? 'completed' : t.status === 'Cancelled' ? 'cancelled' : 'scheduled'}">${escapeHtml(t.status || 'Open')}</span></div>
+        <div>${escapeHtml(label)} <span class="status-pill ${jobStatusClass(t.status || 'Open')}">${escapeHtml(statusLabel(t.status) || 'Open')}</span></div>
         ${who ? `<div class="job-sub">${escapeHtml(who)}</div>` : ''}
         ${t.completedDate ? `<div class="at-outcome">Completed ${escapeHtml(fmtShortDate(t.completedDate))}${t.completedBy ? ' by ' + escapeHtml(t.completedBy) : ''}</div>` : ''}
       </div>
@@ -12316,7 +12324,7 @@ function renderLifecycleJobDetail(id) {
     return `<div class="at-row" data-appt-open="${escapeHtml(a.id)}" data-appt-job="${escapeHtml(id)}">
       <div class="at-date">${escapeHtml(fmtShortDate(a.scheduledDate))}<br><span style="font-weight:400;color:var(--ink-soft);">${escapeHtml(fmtTime12(a.scheduledTime))}</span></div>
       <div class="at-body">
-        <div>${escapeHtml(a.visitType || 'Visit')} <span class="status-pill ${jobStatusClass(a.status)}">${escapeHtml(a.status || 'Scheduled')}</span></div>
+        <div>${escapeHtml(a.visitType || 'Visit')} <span class="status-pill ${jobStatusClass(a.status)}">${escapeHtml(statusLabel(a.status) || 'Scheduled')}</span></div>
         ${who ? `<div class="job-sub">${escapeHtml(who)}</div>` : ''}
         ${a.outcome ? `<div class="at-outcome">${escapeHtml(a.outcome)}</div>` : ''}
       </div>
@@ -12663,7 +12671,7 @@ function renderTaskDetail(id) {
   const detail = (label, val) => val ? `<div style="margin-top:8px;"><span class="muted" style="font-size:12px;text-transform:uppercase;letter-spacing:.04em;">${label}</span><div>${escapeHtml(val)}</div></div>` : '';
   let actions = '';
   if (t.status === 'Open') {
-    actions += `<button class="btn btn-primary" data-task-action="complete" data-id="${escapeHtml(id)}">Mark Completed</button>`;
+    actions += `<button class="btn btn-primary" data-task-action="complete" data-id="${escapeHtml(id)}">Mark Complete</button>`;
     actions += `<button class="btn btn-ghost" data-task-action="edit" data-id="${escapeHtml(id)}">Edit</button>`;
     actions += `<button class="btn btn-ghost" data-task-action="cancel" data-id="${escapeHtml(id)}">Cancel Task</button>`;
   }
@@ -12679,7 +12687,7 @@ function renderTaskDetail(id) {
     <div class="card">
       <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;">
         <h3 style="margin:0;">${escapeHtml(taskTypeLabel(t))}</h3>
-        <span class="status-pill ${t.status === 'Completed' ? 'completed' : t.status === 'Cancelled' ? 'cancelled' : 'scheduled'}">${escapeHtml(t.status || 'Open')}</span>
+        <span class="status-pill ${jobStatusClass(t.status || 'Open')}">${escapeHtml(statusLabel(t.status) || 'Open')}</span>
       </div>
       <div class="muted" style="margin-top:6px;">${escapeHtml(longDate(t.scheduledDate))} · ${escapeHtml(fmtTime12(t.scheduledTime))}</div>
     </div>
@@ -12880,7 +12888,7 @@ function renderCloseoutList() {
   const list = jobsReadyToClose().slice().sort((a, b) =>
     (b.startDate || b.createdAt || '').localeCompare(a.startDate || a.createdAt || ''));
   if (!list.length) {
-    el.innerHTML = '<div style="padding:16px;color:var(--ink-soft);">Nothing ready to close. A job appears here once it is Active and every one of its tasks is Completed or Cancelled.</div>';
+    el.innerHTML = '<div style="padding:16px;color:var(--ink-soft);">Nothing ready to close. A job appears here once it is Active and every one of its tasks is Complete or Cancelled.</div>';
     return;
   }
   el.innerHTML = list.map((j) => jobRow(j, {
@@ -13537,7 +13545,7 @@ function renderAppointmentDetail(jobId, apptId) {
   const detail = (label, val) => val ? `<div style="margin-top:8px;"><span class="muted" style="font-size:12px;text-transform:uppercase;letter-spacing:.04em;">${label}</span><div>${escapeHtml(val)}</div></div>` : '';
   let actions = '';
   if (a.status === 'Scheduled') {
-    actions += `<button class="btn btn-primary" data-appt-action="complete" data-id="${escapeHtml(apptId)}" data-job="${escapeHtml(jobId)}">Mark Completed</button>`;
+    actions += `<button class="btn btn-primary" data-appt-action="complete" data-id="${escapeHtml(apptId)}" data-job="${escapeHtml(jobId)}">Mark Complete</button>`;
     actions += `<button class="btn btn-ghost" data-appt-action="edit" data-id="${escapeHtml(apptId)}" data-job="${escapeHtml(jobId)}">Edit</button>`;
     actions += `<button class="btn btn-ghost" data-appt-action="cancel" data-id="${escapeHtml(apptId)}" data-job="${escapeHtml(jobId)}">Cancel Appointment</button>`;
   }
@@ -13555,7 +13563,7 @@ function renderAppointmentDetail(jobId, apptId) {
     <div class="card">
       <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;">
         <h3 style="margin:0;">${escapeHtml(a.visitType || 'Visit')}</h3>
-        <span class="status-pill ${jobStatusClass(a.status)}">${escapeHtml(a.status || 'Scheduled')}</span>
+        <span class="status-pill ${jobStatusClass(a.status)}">${escapeHtml(statusLabel(a.status) || 'Scheduled')}</span>
       </div>
       <div class="muted" style="margin-top:6px;">${escapeHtml(longDate(a.scheduledDate))} · ${escapeHtml(fmtTime12(a.scheduledTime))}</div>
     </div>
