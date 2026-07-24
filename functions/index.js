@@ -1402,6 +1402,19 @@ async function handleReportMessage(m, keyMap) {
     return { devices: 0, pending: true };
   }
 
+  /* Item 3 (v2-patch-15): the SD red flag is a GB free-space floor for
+     both species — a row whose free-space text didn't parse to GB leaves
+     the condition unevaluable, which must never happen silently. */
+  for (const d of parsed.devices) {
+    if (d.sdFreeGB == null) {
+      console.warn(
+        `SD condition UNEVALUATED for ${parsed.network} #${d.cameraNumber} (${d.cameraName || '?'}) — ` +
+        `free-space text ${JSON.stringify(d.sdFreeSpace || '')} did not parse to GB; ` +
+        `the ${cb.SD_FREE_MIN_GB} GB floor cannot be checked for this device`
+      );
+    }
+  }
+
   const today = cb.todayMDY(REPORT_TZ);
   const match = keyMap.get(parsed.network) || null;
   if (!match) {
@@ -1457,8 +1470,9 @@ async function handleReportMessage(m, keyMap) {
   }
 
   /* Item 14: any camera failing the green threshold in the daily status
-     email alerts every operator — battery low, SD card at/above 90%
-     capacity (free space below threshold), an error flag (photo queue
+     email alerts every operator — battery low, SD card nearly full (free
+     space below the documented GB floor, cuddeback-parse SD_FREE_MIN_GB —
+     both report species show free space in GB), an error flag (photo queue
      backlog), or no daily status report received for that camera. 2-hour
      per-camera-per-condition dedup via lastNotifiedAt. */
   try {
@@ -1472,7 +1486,7 @@ async function handleReportMessage(m, keyMap) {
       if (d) {
         const defs = cb.deviceDeficiencies(d);
         if (defs.includes('battery')) conds.push(['battery', 'battery level low']);
-        if (defs.includes('sd')) conds.push(['sd', 'SD card at or above 90% capacity']);
+        if (defs.includes('sd')) conds.push(['sd', `SD card nearly full — under ${cb.SD_FREE_MIN_GB} GB free`]);
         if (defs.includes('queue')) conds.push(['queue', `error flag: photo queue backlog (${d.photoQueue} queued)`]);
       } else if (!inReport.has(String(h.cameraNumber))) {
         /* Retirement cutoff: a camera absent from reports for over 7 days

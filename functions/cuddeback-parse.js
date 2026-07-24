@@ -9,7 +9,21 @@
 
 const { normKey } = require('./admin-migrations');
 
-/* Health thresholds (tune here). */
+/* Health thresholds (tune here).
+ *
+ * SD rule (v2-patch-15 Item 3) — ONE rule for BOTH report species:
+ * every Cuddeback report shows SD condition as FREE SPACE IN GB (CuddeLink
+ * network tables and Tracks solo history rows alike — neither carries a
+ * percent-used figure). The red-flag condition everywhere is therefore a
+ * free-space floor: sdFreeGB < SD_FREE_MIN_GB. Alert copy that used to say
+ * "SD card at or above 90% capacity" described a percentage that was never
+ * computed anywhere — this GB floor has always been the actual computation
+ * (the app's live view uses the identical `sdFreeGB < 4` in
+ * deviceDefsLive, index.html) — so the copy now states the real rule.
+ * A device row whose free-space text fails to parse leaves sdFreeGB null;
+ * the condition is then unevaluable, and handleReportMessage logs a loud
+ * per-device warning so it is never SILENTLY unevaluated (the parse tests
+ * pin sdFreeGB non-null for both species' fixtures). */
 const SD_FREE_MIN_GB = 4;    // free space BELOW this = deficiency (card nearly full)
 const PHOTO_QUEUE_MAX = 5;   // photos in queue ABOVE this = deficiency
 
