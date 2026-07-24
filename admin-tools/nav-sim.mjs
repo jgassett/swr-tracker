@@ -1,11 +1,17 @@
-/* v2-patch-11 Item 4: scripted simulation of the reworked navigation —
-   history stack + overlay-first Back, mirroring index.html's logic.
-   Asserts stack contents at every step. */
+/* v2-patch-11 Item 4, updated v2-patch-13 Items 1 & 5: scripted simulation
+   of the navigation — history stack + overlay-first Back, mirroring
+   index.html's logic. Asserts stack contents at every step.
+   v2-patch-13 changes modeled here:
+   - Item 1 (F-01): the seven local detail Back buttons are gone; the ribbon
+     Back is the single exit from every detail view. Covered by the
+     re-entry-loop cases at the bottom (bug B-02).
+   - Item 5 (owner #4): the landing Back button is gone — landing is the
+     root. goBackNav is unreachable from landing (the ribbon lives in #app,
+     hidden on landing), so no sequence here calls it there. */
 const NAV_HISTORY_MAX = 50;
 let navHistory = [], navLastPage = null, navSuppressPush = false;
 let appMode = null, currentView = 'dashboard', screen = null;
 let overlays = { confirm: false, camAssign: false, camera: false, rebait: false, detailSheet: false, howItWorks: false };
-let landingBackVisible = false;
 
 const navPageKey = (p) => p ? (p.landing ? 'landing' : `${p.mode}:${p.view}`) : '';
 function recordNavArrival(page) {
@@ -19,7 +25,6 @@ function closeSheetOverlays() { overlays.camAssign = overlays.camera = overlays.
 function showLanding() {
   screen = 'landing';
   recordNavArrival({ landing: true });
-  landingBackVisible = navHistory.length > 0;
 }
 function backToLanding() { closeSheetOverlays(); currentView = 'dashboard'; showLanding(); }
 function setAppModeQuiet(m) { appMode = m; }
@@ -61,6 +66,14 @@ function openTask() { if (appMode !== 'jobs' && appMode !== 'schedule') setAppMo
 function openAppointment() { setView('appointment-detail'); }
 function openCloseoutConfirm() { setView('closeout-confirm'); }
 
+/* Sim-only: a fresh app launch (page reload) — history starts empty. */
+function freshLaunch() {
+  navHistory = []; navLastPage = null; navSuppressPush = false;
+  appMode = null; currentView = 'dashboard';
+  closeSheetOverlays(); overlays.confirm = false;
+  showLanding();
+}
+
 let step = 0;
 function expect(desc, gotScreen, stackKeys, extra = {}) {
   step++;
@@ -70,49 +83,43 @@ function expect(desc, gotScreen, stackKeys, extra = {}) {
   if (screen !== gotScreen) fail(`screen ${screen} != ${gotScreen}`);
   if (stack !== want) fail(`stack [${stack}] != [${want}]`);
   if (extra.sheet !== undefined && overlays.detailSheet !== extra.sheet) fail(`detailSheet ${overlays.detailSheet} != ${extra.sheet}`);
-  if (extra.landingBack !== undefined && landingBackVisible !== extra.landingBack) fail(`landingBack ${landingBackVisible} != ${extra.landingBack}`);
-  console.log(`ok ${String(step).padStart(2)}: ${desc.padEnd(46)} screen=${screen.padEnd(22)} stack=[${stack}]`);
+  console.log(`ok ${String(step).padStart(2)}: ${desc.padEnd(50)} screen=${screen.padEnd(22)} stack=[${stack}]`);
 }
 
-/* ---- the scripted sequence: 12 navigations + overlay opens, Home mid-sequence ---- */
-showLanding();
-expect('boot → landing', 'landing', [], { landingBack: false });
+/* ---- sequence 1: module navigation, overlays, Home, landing-as-root ---- */
+freshLaunch();
+expect('boot → landing', 'landing', []);
 
-setAppMode('jobs');                                             // nav 1
+setAppMode('jobs');
 expect('landing → Jobs', 'jobs:dashboard', ['landing']);
 
-openLifecycleJob();                                             // nav 2
+openLifecycleJob();
 expect('Jobs → Job Detail', 'jobs:job-detail', ['landing', 'jobs:dashboard']);
 
-viewJobRecords();                                               // nav 3
+viewJobRecords();
 expect('Job Detail → View Records (job filter)', 'allrecords:dashboard', ['landing', 'jobs:dashboard', 'jobs:job-detail']);
 
-openDetail();                                                   // overlay open
+openDetail();
 expect('record sheet opens (overlay, no stack change)', 'allrecords:dashboard', ['landing', 'jobs:dashboard', 'jobs:job-detail'], { sheet: true });
 
-goBackNav();                                                    // nav 4 (overlay close)
+goBackNav();
 expect('Back closes record sheet only', 'allrecords:dashboard', ['landing', 'jobs:dashboard', 'jobs:job-detail'], { sheet: false });
 
-goBackNav();                                                    // nav 5
+goBackNav();
 expect('Back → Job Detail', 'jobs:job-detail', ['landing', 'jobs:dashboard']);
 
-goBackNav();                                                    // nav 6
+goBackNav();
 expect('Back → Jobs', 'jobs:dashboard', ['landing']);
 
-setView('menu');                                                // nav 7: HOME mid-sequence
-expect('Home → landing (page left is pushed)', 'landing', ['landing', 'jobs:dashboard'], { landingBack: true });
+setView('menu');
+expect('Home → landing (page left is pushed; landing is root, no Back)', 'landing', ['landing', 'jobs:dashboard']);
 
-goBackNav();                                                    // nav 8: landing Back
-expect('Back after Home → the page you left', 'jobs:dashboard', ['landing']);
-
-setView('menu');                                                // nav 9
-expect('Home again', 'landing', ['landing', 'jobs:dashboard'], { landingBack: true });
-
-setAppMode('field');                                            // nav 10
+/* landing has no Back button — the only exits are module entries */
+setAppMode('field');
 expect('landing → Monitoring', 'field:dashboard', ['landing', 'jobs:dashboard', 'landing']);
 
-showFieldDetail();                                              // nav 11 (was Class-c bypass)
-expect('Monitoring → camera detail (BUG A path)', 'field:field-detail', ['landing', 'jobs:dashboard', 'landing', 'field:dashboard']);
+showFieldDetail();
+expect('Monitoring → camera detail', 'field:field-detail', ['landing', 'jobs:dashboard', 'landing', 'field:dashboard']);
 
 /* two overlays stacked: record-style sheet + confirm — Back peels one at a time */
 openDetail(); confirmDialog();
@@ -121,37 +128,39 @@ expect('Back closes confirm first', 'field:field-detail', ['landing', 'jobs:dash
 goBackNav();
 expect('Back closes sheet second', 'field:field-detail', ['landing', 'jobs:dashboard', 'landing', 'field:dashboard'], { sheet: false });
 
-goBackNav();                                                    // nav 12
-expect('Back → Monitoring dashboard (NOT landing — BUG A fixed)', 'field:dashboard', ['landing', 'jobs:dashboard', 'landing']);
+goBackNav();
+expect('Back → Monitoring dashboard (not landing)', 'field:dashboard', ['landing', 'jobs:dashboard', 'landing']);
 
 goBackNav();
-expect('Back → landing', 'landing', ['landing', 'jobs:dashboard'], { landingBack: true });
+expect('Back pops the landing entry → landing (root; stops here)', 'landing', ['landing', 'jobs:dashboard']);
 
-goBackNav();
-expect('landing Back → jobs dashboard', 'jobs:dashboard', ['landing']);
-
-/* legacy schedule detail (the other Class-c bypass), entered from schedule */
-setView('menu');
+/* legacy schedule detail, entered from schedule; residue below the last
+   landing entry stays parked — landing is the floor, Back can't dig past it */
 setAppMode('schedule');
 openJob();
-expect('schedule → legacy job detail (BUG A path 2)', 'schedule:schedule-detail',
+expect('schedule → legacy job detail', 'schedule:schedule-detail',
   ['landing', 'jobs:dashboard', 'landing', 'schedule:dashboard']);
 goBackNav();
 expect('Back → schedule dashboard (not landing)', 'schedule:dashboard',
   ['landing', 'jobs:dashboard', 'landing']);
-
-/* drain to empty; Back on empty = Home, no stack growth */
-goBackNav(); goBackNav(); goBackNav(); goBackNav();
-expect('drained to landing', 'landing', [], { landingBack: false });
 goBackNav();
-expect('Back on empty history = Home (no growth)', 'landing', [], { landingBack: false });
+expect('Back → landing again (floor)', 'landing', ['landing', 'jobs:dashboard']);
 
-/* ---- v2-patch-13 Item 1 (F-01): local Backs removed; ribbon Back is the
-   single exit from every detail view. Formerly a local Back did
-   setView('dashboard'), pushing the exited detail onto the stack, so the
-   NEXT ribbon Back re-entered it (bug B-02). With locals gone, for each
-   detail: enter → ribbon Back lands on the dashboard → second ribbon Back
-   must land on landing, never back in the detail. */
+/* ---- sequence 2: Back on empty history = landing, no stack growth ---- */
+freshLaunch();
+setAppMode('trap');
+expect('fresh launch → Trapping', 'trap:dashboard', ['landing']);
+goBackNav();
+expect('Back → landing', 'landing', []);
+setAppMode('trap');
+goBackNav(); /* pops 'landing' → landing */
+expect('re-enter + Back → landing (no growth)', 'landing', []);
+
+/* ---- sequence 3 (v2-patch-13 Item 1, F-01): local Backs removed; ribbon
+   Back is the single exit. Formerly a local Back did setView('dashboard'),
+   pushing the exited detail onto the stack, so the NEXT ribbon Back
+   re-entered it (bug B-02). For each detail: enter → ribbon Back lands on
+   the dashboard → second ribbon Back lands on landing, never the detail. */
 const detailCases = [
   ['estimate-detail', 'pricing', openEstimate],
   ['schedule-detail', 'schedule', openJob],
@@ -162,7 +171,7 @@ const detailCases = [
   ['field-detail', 'field', showFieldDetail],
 ];
 for (const [view, mode, enter] of detailCases) {
-  /* stack is empty + screen=landing at the top of each iteration */
+  freshLaunch();
   setAppMode(mode);
   expect(`landing → ${mode} dashboard`, `${mode}:dashboard`, ['landing']);
   enter();
@@ -170,7 +179,7 @@ for (const [view, mode, enter] of detailCases) {
   goBackNav();                       /* ribbon Back — the ONLY exit now */
   expect(`ribbon Back exits ${view}`, `${mode}:dashboard`, ['landing']);
   goBackNav();                       /* second Back must NOT re-enter the detail */
-  expect(`second Back → landing (no ${view} re-entry)`, 'landing', [], { landingBack: false });
+  expect(`second Back → landing (no ${view} re-entry)`, 'landing', []);
 }
 
 console.log('\nnav v2.11 simulation: ALL steps passed');

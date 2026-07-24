@@ -90,7 +90,12 @@
       display: flex; flex-direction: column; align-items: center; gap: 16px;
     }
     .mode-picker-wrap .brand-logo {
-      display: none; height: 78px; max-width: 220px; margin-bottom: 8px;
+      /* Item 5 (v2-patch-13, owner #3): +25% (was 78px/220px). Safe on the
+         Dynamic Island: #modePicker pads top by --safe-top + 24px and the
+         wrap's auto margins degrade to top-aligned below that padding when
+         content overflows (Item 16, v2-patch-6), so a taller logo can only
+         push content DOWN, never under the island. */
+      display: none; height: 98px; max-width: 275px; margin-bottom: 8px;
     }
     .mode-picker-wrap .brand-logo.loaded { display: block; }
     .mode-picker-wrap h1 {
@@ -1699,7 +1704,7 @@
     </div>
     <img class="brand-logo" src="logo.png" alt="SWR"
          onload="this.classList.add('loaded');" onerror="this.remove();">
-    <h1>What are you doing today?</h1>
+    <h1>SWR Job Tracker</h1>
     <div class="mode-sub">Follow the job from first call to paid invoice — tap a step to open it. Return here any time with the ← button.</div>
     <!-- Item 4 (v2-patch-2): camera alert banner removed — camera health
          alerts live exclusively in the Notifications page. -->
@@ -1711,12 +1716,9 @@
   <!-- Items 8 & 9 (v2-patch-1): persistent bottom banner — the direct
        records/estimates/notifications/settings access from v1. -->
   <nav class="landing-banner" aria-label="Quick access">
-    <!-- Item 3 (v2-patch-11): Back after Home returns to the page you left.
-         Hidden while the history stack is empty (fresh launch). -->
-    <button type="button" class="lb-btn hidden" id="landingBackBtn" data-banner="back" aria-label="Back">
-      <svg viewBox="0 0 24 24"><path d="M19 12H5"/><path d="m12 19-7-7 7-7"/></svg>
-      <span>Back</span>
-    </button>
+    <!-- Item 5 (v2-patch-13, owner #4): landing is the ROOT — the patch-11
+         landing Back button is gone. Ribbon Back in the modules still pops
+         history (including a pushed landing entry). -->
     <button type="button" class="lb-btn" data-banner="records" aria-label="View Records">
       <svg viewBox="0 0 24 24"><path d="M3 5h18M3 12h18M3 19h18"/></svg>
       <span>View Records</span>
@@ -4721,10 +4723,6 @@ function showLanding() {
   $('#modePicker').classList.remove('hidden');
   renderLandingCounts();
   recordNavArrival({ landing: true });   /* Item 5: Back history */
-  /* Item 3 (v2-patch-11): the landing Back button exists only when there
-     is something to go back to. */
-  const lbb = document.getElementById('landingBackBtn');
-  if (lbb) lbb.classList.toggle('hidden', !navHistory.length);
 }
 /* Back-compat alias — some call sites still reference the old name. */
 function showModePicker() { showLanding(); }
@@ -15017,7 +15015,6 @@ async function init() {
     const lb = e.target.closest('[data-banner]');
     if (lb) {
       const which = lb.dataset.banner;
-      if (which === 'back') { goBackNav(); return; }   /* Item 3 (v2-patch-11) */
       if (which === 'records') openAllRecords();   /* Item 8: clears any job filter */
       else if (which === 'estimates') setAppMode('pricing');
       else if (which === 'notes') setAppMode('notes');   /* Item 7 (v2-patch-6) */
