@@ -5557,11 +5557,25 @@ function priceListCol() { return collection(fbDb, 'priceList'); }
 function fmtUSD(n) {
   return '$' + (Number(n) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
+/* v2-patch-14 Item 4 (F-22): the estimate status vocabulary, in ONE place.
+   SERVER CONTRACT (verified against functions/index.js on 2026-07-23): the
+   only status the qbPushEstimate callable writes is 'Pushed to QB' (:621).
+   'Invoiced' is LEGACY — qbConvertToInvoice was removed in v2-patch-1 and
+   nothing writes it anymore; it stays here so old docs keep their blue
+   pill. Every other value is client-written. Any wording change here MUST
+   match the server first, or the pill silently degrades to grey draft. */
+const EST_STATUSES = {
+  DRAFT: 'Draft',
+  PENDING: 'Pending Approval',
+  PUSHED: 'Pushed to QB',      /* written by the qbPushEstimate callable */
+  INVOICED: 'Invoiced',        /* legacy, display-only */
+  REJECTED: 'Rejected'
+};
 function estStatusClass(s) {
-  if (s === 'Pending Approval') return 'pending';
-  if (s === 'Pushed to QB') return 'pushed';
-  if (s === 'Invoiced') return 'invoiced';
-  if (s === 'Rejected') return 'rejected';
+  if (s === EST_STATUSES.PENDING) return 'pending';
+  if (s === EST_STATUSES.PUSHED) return 'pushed';
+  if (s === EST_STATUSES.INVOICED) return 'invoiced';
+  if (s === EST_STATUSES.REJECTED) return 'rejected';
   return 'draft';
 }
 
@@ -5833,7 +5847,7 @@ async function handleSaveEstimate(status) {
           });
       }
     }
-    toast(offline ? 'Saved offline — will sync when connected' : (status === 'Draft' ? 'Draft saved' : 'Submitted for approval'));
+    toast(offline ? 'Saved offline — will sync when connected' : (status === EST_STATUSES.DRAFT ? 'Draft saved' : 'Submitted for approval'));
     resetEstimateBuilder();
     if (jobId) { openLifecycleJob(jobId); return; }
     setView('dashboard');
@@ -5910,11 +5924,11 @@ function renderEstimateDetail(id) {
       <div>${fmtUSD(li.lineTotal)}</div>
     </div>`).join('');
   let actions = '';
-  if (e.status === 'Draft') {
+  if (e.status === EST_STATUSES.DRAFT) {
     actions += `<button class="btn btn-primary" data-est-action="edit" data-id="${escapeHtml(e.id)}">Edit</button>`;
     actions += `<button class="btn btn-ghost" data-est-action="submit" data-id="${escapeHtml(e.id)}">Submit for Approval</button>`;
     actions += `<button class="btn btn-danger" data-est-action="delete" data-id="${escapeHtml(e.id)}" style="margin-top:10px;">Delete Draft</button>`;
-  } else if (e.status === 'Pending Approval') {
+  } else if (e.status === EST_STATUSES.PENDING) {
     if (admin) {
       actions += `<button class="btn btn-primary" data-est-action="approve" data-id="${escapeHtml(e.id)}">Approve &amp; Push to QuickBooks</button>`;
       actions += `<button class="btn btn-ghost" data-est-action="reject" data-id="${escapeHtml(e.id)}">Reject</button>`;
@@ -5922,15 +5936,15 @@ function renderEstimateDetail(id) {
       actions += '<div class="hint">Waiting on admin approval.</div>';
     }
     actions += `<button class="btn btn-danger" data-est-action="delete" data-id="${escapeHtml(e.id)}" style="margin-top:10px;">Delete Estimate</button>`;
-  } else if (e.status === 'Rejected') {
+  } else if (e.status === EST_STATUSES.REJECTED) {
     actions += `<button class="btn btn-primary" data-est-action="edit" data-id="${escapeHtml(e.id)}">Edit &amp; Resubmit</button>`;
     actions += `<button class="btn btn-danger" data-est-action="delete" data-id="${escapeHtml(e.id)}" style="margin-top:10px;">Delete Estimate</button>`;
-  } else if (e.status === 'Pushed to QB') {
+  } else if (e.status === EST_STATUSES.PUSHED) {
     /* Item 13 (v2-patch-1): invoicing happens exclusively in QuickBooks
        Online — the in-app Convert to Invoice button is gone. The QB
        estimate push above is the app's last step. */
     actions += `<div class="hint success">Pushed to QuickBooks${e.qbEstimateId ? ' (QB #' + escapeHtml(String(e.qbEstimateId)) + ')' : ''}. Invoicing happens in QuickBooks Online.</div>`;
-  } else if (e.status === 'Invoiced') {
+  } else if (e.status === EST_STATUSES.INVOICED) {
     actions += `<div class="hint success">Invoiced in QuickBooks${e.qbInvoiceNumber ? ' (Invoice #' + escapeHtml(String(e.qbInvoiceNumber)) + ')' : ''}.</div>`;
   }
   if (e.pushError && admin) {
@@ -5956,7 +5970,7 @@ function renderEstimateDetail(id) {
 
 function editEstimate(id) {
   const e = cachedEstimates.find((x) => x.id === id);
-  if (!e || (e.status !== 'Draft' && e.status !== 'Rejected')) return;
+  if (!e || (e.status !== EST_STATUSES.DRAFT && e.status !== EST_STATUSES.REJECTED)) return;
   editingEstimateId = id;
   builderLines = (e.lineItems || []).map((li) => ({ ...li }));
   const c = cachedCustomers.find((x) => x.id === e.customerId);
@@ -5980,7 +5994,7 @@ function editEstimate(id) {
 
 async function submitEstimateForApproval(id) {
   try {
-    await writeWithRetry(() => setDoc(doc(fbDb, 'estimates', id), { status: 'Pending Approval', updatedAt: new Date().toISOString() }, { merge: true }));
+    await writeWithRetry(() => setDoc(doc(fbDb, 'estimates', id), { status: EST_STATUSES.PENDING, updatedAt: new Date().toISOString() }, { merge: true }));
     toast('Submitted for approval');
   } catch (err) {
     toast('Submit failed: ' + errText(err), 'error');
@@ -5989,7 +6003,7 @@ async function submitEstimateForApproval(id) {
 
 async function deleteEstimateDraft(id) {
   const e = cachedEstimates.find((x) => x.id === id);
-  const deletable = ['Draft', 'Pending Approval', 'Rejected'];
+  const deletable = [EST_STATUSES.DRAFT, EST_STATUSES.PENDING, EST_STATUSES.REJECTED];
   if (!e || !deletable.includes(e.status)) { toast('Estimates already pushed to QuickBooks can’t be deleted here', 'error'); return; }
   if (!(await confirmDialog('Delete this estimate?', 'This cannot be undone.', { okText: 'Delete' }))) return;
   try {
@@ -6006,7 +6020,7 @@ async function rejectEstimate(id) {
   const note = prompt('Reason for rejection (optional):');
   if (note === null) return;   /* M1: user cancelled the prompt — don't reject */
   try {
-    await writeWithRetry(() => setDoc(doc(fbDb, 'estimates', id), { status: 'Rejected', rejectionNote: note.trim(), updatedAt: new Date().toISOString() }, { merge: true }));
+    await writeWithRetry(() => setDoc(doc(fbDb, 'estimates', id), { status: EST_STATUSES.REJECTED, rejectionNote: note.trim(), updatedAt: new Date().toISOString() }, { merge: true }));
     toast('Estimate rejected');
   } catch (err) {
     toast('Reject failed: ' + errText(err), 'error');
@@ -12333,7 +12347,7 @@ function renderLifecycleJobDetail(id) {
 
   const qbStatus = j.qbInvoiceNumber ? `Invoice #${escapeHtml(String(j.qbInvoiceNumber))}${j.paymentStatus === 'Paid' ? ' · Paid' : ''}`
     : est && est.qbInvoiceNumber ? `Invoice #${escapeHtml(String(est.qbInvoiceNumber))}`
-    : est && est.status === 'Pushed to QB' ? 'Estimate pushed to QB'
+    : est && est.status === EST_STATUSES.PUSHED ? 'Estimate pushed to QB'
     : 'Not invoiced';
 
   const canClose = canTransitionJobStatus(j.status || 'Lead', 'Pending Close');
@@ -15641,8 +15655,8 @@ async function init() {
     const btn = e.target.closest('[data-li-index]');
     if (btn) removeLineItem(parseInt(btn.dataset.liIndex, 10));
   });
-  $('#saveDraftBtn').addEventListener('click', () => handleSaveEstimate('Draft'));
-  $('#submitEstimateBtn').addEventListener('click', () => handleSaveEstimate('Pending Approval'));
+  $('#saveDraftBtn').addEventListener('click', () => handleSaveEstimate(EST_STATUSES.DRAFT));
+  $('#submitEstimateBtn').addEventListener('click', () => handleSaveEstimate(EST_STATUSES.PENDING));
   $('#cancelEstimateBtn').addEventListener('click', () => { resetEstimateBuilder(); setView('dashboard'); });
   $('#estimatesList').addEventListener('click', (e) => {
     const row = e.target.closest('[data-est-open]');
