@@ -3684,7 +3684,7 @@ import {
   query, orderBy, onSnapshot, writeBatch, arrayUnion, arrayRemove, updateDoc, collectionGroup, where, runTransaction
 } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import {
-  getStorage, ref as storageRef, uploadBytes, getDownloadURL, deleteObject
+  getStorage, ref as storageRef, uploadBytes, getDownloadURL
 } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-storage.js";
 import {
   getFunctions, httpsCallable
@@ -6216,8 +6216,11 @@ function fieldGroups() {
   const myEmail = currentUser ? currentUser.email.toLowerCase() : '';
   for (const p of cachedCameraPhotos) {
     if (p.archived) continue;   /* legacy global clear; file persists in Storage */
-    /* Item 4 (v2-patch-5): per-operator deletion — a photo an operator
-       deleted is hidden for them only; everyone else still sees it. */
+    /* Item 12 (v2-patch-13, owner #7): per-operator HIDE — a photo an
+       operator hid is filtered from their view only; everyone else still
+       sees it. `hiddenBy` is the current field; `deletedBy` is honored for
+       photos hidden before v2.11 (v2-patch-5 wrote that name). */
+    if (Array.isArray(p.hiddenBy) && p.hiddenBy.some((e) => String(e).toLowerCase() === myEmail)) continue;
     if (Array.isArray(p.deletedBy) && p.deletedBy.some((e) => String(e).toLowerCase() === myEmail)) continue;
     const g = get(p.customerKey);
     g.photos.push(p);
@@ -6391,7 +6394,7 @@ function renderFieldDetail(key) {
     <div class="form-actions">
       ${g.pendingRemoval && isAdmin() ? '<button class="btn btn-danger" id="fieldConfirmRemovalBtn">Confirm Camera Removal</button>' : ''}
       ${internalToggle}
-      <button class="btn btn-danger" id="fieldClearBtn">Delete Photos</button>
+      <button class="btn btn-ghost" id="fieldClearBtn">Hide All Photos</button>
       ${isAdmin() ? '<button class="btn btn-danger" id="fieldDeleteCameraBtn">Delete Camera</button>' : ''}
     </div>`;
 
@@ -6758,65 +6761,40 @@ async function runCameraRelink() {
 }
 
 
-/* "Delete Photos From App" — Item 4 (v2-patch-5): deletion is PER-OPERATOR.
-   An operator's delete stamps their email into each photo's `deletedBy`
-   array; the photo disappears from their view only (Storage file and
-   Firestore doc untouched) and every other operator still sees it. Only
-   Jon (admin) deletes permanently — Storage file + Firestore doc removed
-   for everyone. Camera health rows are never touched here: active cameras
-   stay visible in Monitoring even with all photos deleted (Item 21). */
+/* "Hide All Photos" — Item 12 (v2-patch-13, owner #7): the operator-facing
+   action is a PER-OPERATOR HIDE for everyone, admin included. It stamps the
+   operator's email into each photo's `hiddenBy` array; the photo disappears
+   from their view only (Storage file and Firestore doc untouched) and every
+   other operator still sees it. TRUE global deletion exists only in the
+   server retention job (cleanupCameraPhotos) and the admin-only permanent
+   camera deletion (deleteCameraRecord). Replaces the v2-patch-5 Item 4
+   behavior where the admin's tap permanently deleted for every operator.
+   Camera health rows are never touched here: active cameras stay visible
+   in Monitoring even with all photos hidden (Item 21). */
 async function clearFieldGroup(key) {
   if (!key) return;
   const g = fieldGroups().find((x) => x.key === key);
   if (!g) return;
   const nP = g.photos.length;
-  if (!nP) { toast('No photos to delete for this camera'); return; }
-  const admin = isAdmin();
-  const note = 'Deleting removes this photo from your view only. Other operators can still see it. Admins can permanently delete.';
+  if (!nP) { toast('No photos to hide for this camera'); return; }
   const ok = await confirmDialog(
-    `Delete ${g.name || g.key} photos?`,
-    admin
-      ? `As admin, this PERMANENTLY deletes ${nP} photo${nP === 1 ? '' : 's'} (files and records) for every operator. This cannot be undone. ${note}`
-      : `Removes ${nP} photo${nP === 1 ? '' : 's'} from your view. ${note}`,
-    { okText: admin ? 'Continue' : 'Delete From My View' }
+    `Hide all photos from ${g.name || g.key}?`,
+    `Hides ${nP} photo${nP === 1 ? '' : 's'} from your view only — other operators still see them, and nothing is deleted. Photos age out for everyone via the retention schedule.`,
+    { okText: 'Hide Photos' }
   );
   if (!ok) return;
-  /* Item 2 (v2-patch-13, owner #9): the admin path is irreversible for
-     every operator — same two-step explain → type-CONFIRM pattern as
-     deleteCameraPermanently. The per-operator hide path stays one step. */
-  if (admin) {
-    const step2 = await confirmDialog('Type CONFIRM to delete photos',
-      `Final check: type CONFIRM below to permanently delete ${nP} photo${nP === 1 ? '' : 's'} for every operator.`,
-      { sentinel: 'CONFIRM', okText: 'Delete Permanently' });
-    if (!step2) return;
-  }
   try {
-    if (admin) {
-      for (const p of g.photos) {
-        if (p.storagePath) {
-          try { await deleteObject(storageRef(fbStorage, p.storagePath)); }
-          catch (err) {
-            /* Already-gone files are fine; anything else keeps the doc so
-               the delete can be retried. */
-            if (!err || err.code !== 'storage/object-not-found') throw err;
-          }
-        }
-        await writeWithRetry(() => deleteDoc(doc(fbDb, 'cameraPhotos', p.id)));
-      }
-      toast(`${g.name || g.key} photos permanently deleted`);
-    } else {
-      const email = currentUser ? currentUser.email.toLowerCase() : null;
-      if (!email) return;
-      for (const p of g.photos) {
-        await writeWithRetry(() => setDoc(doc(fbDb, 'cameraPhotos', p.id),
-          { deletedBy: arrayUnion(email) }, { merge: true }));
-      }
-      toast(`${g.name || g.key} photos hidden from your view`);
+    const email = currentUser ? currentUser.email.toLowerCase() : null;
+    if (!email) return;
+    for (const p of g.photos) {
+      await writeWithRetry(() => setDoc(doc(fbDb, 'cameraPhotos', p.id),
+        { hiddenBy: arrayUnion(email) }, { merge: true }));
     }
+    toast(`${g.name || g.key} photos hidden from your view`);
     renderFieldDetail(key);
     renderFieldDashboard();
   } catch (err) {
-    toast('Delete failed: ' + errText(err), 'error');
+    toast('Hide failed: ' + errText(err), 'error');
   }
 }
 
