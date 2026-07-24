@@ -1427,13 +1427,37 @@
     .badge-cert.pending { background: #FBEED0; color: #8a6d1f; }
 
     /* ---- Simplified location entry (Item 15) ---- */
-    .loc-options { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
-    /* M20: the toggle showing an open sub-panel (address entry / map). */
-    .loc-options .map-btn.active {
-      background: rgba(196,119,42,0.12);
-      box-shadow: inset 0 0 0 2px var(--amber);
-      border-radius: 8px;
+    /* Item 8 (v2-patch-13, owner #11): compact segmented control — one row,
+       three positions, same three behaviors as the old button row. */
+    .loc-options {
+      display: flex; gap: 0; margin-top: 8px;
+      border: 1.5px solid var(--line); border-radius: 10px; overflow: hidden;
+      background: var(--cream-deep);
     }
+    .loc-options .map-btn {
+      flex: 1 1 0; min-width: 0; margin: 0; border: none; border-radius: 0;
+      background: transparent; color: var(--green-deep);
+      display: inline-flex; align-items: center; justify-content: center; gap: 5px;
+      padding: 8px 4px; font-size: 12.5px; font-weight: 600; white-space: nowrap;
+    }
+    .loc-options .map-btn + .map-btn { border-left: 1px solid var(--line); }
+    .loc-options .map-btn svg {
+      width: 13px; height: 13px; stroke: currentColor; fill: none;
+      stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0;
+    }
+    /* M20: the segment showing an open sub-panel (address entry / map). */
+    .loc-options .map-btn.active {
+      background: rgba(196,119,42,0.14);
+      color: var(--amber);
+      box-shadow: inset 0 -2px 0 var(--amber);
+    }
+    /* Item 8 (owner #13): progressive disclosure — when the client's address
+       is the source, the picker collapses to this one line. */
+    .loc-collapsed {
+      display: flex; align-items: center; gap: 8px; margin-top: 8px;
+      font-size: 13px; color: var(--ink-soft);
+    }
+    .loc-collapsed .link-like { font-size: 13px; }
     .loc-entry { display: flex; gap: 8px; margin-top: 8px; align-items: stretch; position: relative; }
     /* Item 3: Mapbox suggestion list under the address-entry inputs. */
     .loc-entry .autocomplete-list { top: calc(100% + 2px); }
@@ -2002,7 +2026,7 @@
              address; Trap Site Address clears it and activates the
              three-option location picker for independent entry. Shown for
              every customer type. -->
-        <div class="form-group">
+        <div class="form-group" id="trapAddressTypeGroup">
           <label>Location type<span class="req">*</span></label>
           <div class="radio-row">
             <label><input type="radio" name="f-address-type" value="customerAddress" checked> Customer Address</label>
@@ -2017,18 +2041,24 @@
             <input type="text" id="f-address" placeholder="Type an address, or set the location with an option below" autocomplete="off" required>
             <div class="autocomplete-list hidden" id="f-address-ac" data-ac-target="trap"></div>
           </div>
+          <!-- Item 8 (v2-patch-13): collapsed state while the client's
+               address is the source; "change" restores the picker. -->
+          <div class="loc-collapsed hidden" id="trapLocCollapsed">
+            <span>Using the client's address</span>
+            <button type="button" class="link-like" id="trapLocChange">change</button>
+          </div>
           <div class="loc-options" id="trapLocOptions">
             <button type="button" class="map-btn" data-trap-loc="gps">
               <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>
-              Use My Location
+              My Location
             </button>
             <button type="button" class="map-btn ghost" data-trap-loc="address">
               <svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h10"/></svg>
-              Enter an Address
+              Address
             </button>
             <button type="button" class="map-btn ghost" data-trap-loc="map">
               <svg viewBox="0 0 24 24"><path d="M9 20l-6-3V4l6 3 6-3 6 3v13l-6-3-6 3z"/><path d="M9 7v13M15 4v13"/></svg>
-              Locate on Map
+              Map
             </button>
           </div>
           <div class="loc-entry hidden" id="trapLocEntry">
@@ -2098,15 +2128,15 @@
             <div class="loc-options" id="releaseLocOptions">
               <button type="button" class="map-btn" data-release-loc="gps">
                 <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>
-                Use My Location
+                My Location
               </button>
               <button type="button" class="map-btn ghost" data-release-loc="address">
                 <svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h10"/></svg>
-                Enter an Address
+                Address
               </button>
               <button type="button" class="map-btn ghost" data-release-loc="map">
                 <svg viewBox="0 0 24 24"><path d="M9 20l-6-3V4l6 3 6-3 6 3v13l-6-3-6 3z"/><path d="M9 7v13M15 4v13"/></svg>
-                Locate on Map
+                Map
               </button>
             </div>
             <div class="loc-entry hidden" id="releaseLocEntry">
@@ -2353,18 +2383,24 @@
           <input type="hidden" id="pa-site-lat">
           <input type="hidden" id="pa-site-lng">
           <div class="map-section-label">Treatment Site Location</div>
+          <!-- Item 8 (v2-patch-13): collapsed while the treatment site is the
+               client's address; "change" restores the picker. -->
+          <div class="loc-collapsed hidden" id="paLocCollapsed">
+            <span>Using the client's address</span>
+            <button type="button" class="link-like" id="paLocChange">change</button>
+          </div>
           <div class="loc-options" id="paLocOptions">
             <button type="button" class="map-btn" data-pa-loc="gps">
               <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>
-              Use My Location
+              My Location
             </button>
             <button type="button" class="map-btn ghost" data-pa-loc="address">
               <svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h10"/></svg>
-              Enter an Address
+              Address
             </button>
             <button type="button" class="map-btn ghost" data-pa-loc="map">
               <svg viewBox="0 0 24 24"><path d="M9 20l-6-3V4l6 3 6-3 6 3v13l-6-3-6 3z"/><path d="M9 7v13M15 4v13"/></svg>
-              Locate on Map
+              Map
             </button>
           </div>
           <div class="loc-entry hidden" id="paLocEntry">
@@ -8265,6 +8301,15 @@ function updateTrapAddressTypeUI() {
   const isSite = trapAddressType() === 'trapSiteAddress';
   const opts = $('#trapLocOptions');
   if (opts) opts.classList.toggle('hidden', !isSite);
+  /* Item 8 (v2-patch-13, owner #13): progressive disclosure — while the
+     client's address is the source, the location-type radios collapse to a
+     one-line "Using the client's address · change"; tapping change flips to
+     Trap Site Address (revealing the radios + segmented control) and the
+     radios stay visible so a mis-tap can flip straight back. */
+  const grp = $('#trapAddressTypeGroup');
+  if (grp) grp.classList.toggle('hidden', !isSite);
+  const collapsed = $('#trapLocCollapsed');
+  if (collapsed) collapsed.classList.toggle('hidden', isSite);
   if (!isSite) {
     ['trapLocEntry', 'trapMapGroup'].forEach((id) => {
       const el = document.getElementById(id);
@@ -8375,6 +8420,10 @@ async function handleTrapLocationChange(lat, lng, source, geoHint) {
 /* Item 15 parity (H3): the treatment-site county is captured SILENTLY from
    whichever of the three location methods the operator uses. */
 let silentPaCounty = null;
+/* Item 8 (v2-patch-13, owner #13): true after the operator taps "change" on
+   the collapsed same-as-client state — reveals the location segmented
+   control without flipping the same/different radio. Reset per form. */
+let paLocRevealed = false;
 
 async function handlePesticideLocationChange(lat, lng, source, geoHint) {
   $('#pa-site-lat').value = lat;
@@ -9535,6 +9584,23 @@ function updatePesticideConditionals() {
   toggleGroup('cg-pa-methodOther', method === 'Other (specify)');
   const diffSiteVal = document.querySelector('input[name="pa-different-site"]:checked');
   toggleGroup('cg-pa-treatmentSite', diffSiteVal && diffSiteVal.value === 'yes');
+  /* Item 8 (v2-patch-13, owner #13): while the treatment site is the
+     client's address, the location picker collapses to one line; the
+     "change" affordance (paLocRevealed) restores the segmented control
+     without flipping the same/different radio. */
+  const paSame = !diffSiteVal || diffSiteVal.value === 'no';
+  const paCollapse = paSame && !paLocRevealed;
+  const paOpts = $('#paLocOptions');
+  if (paOpts) paOpts.classList.toggle('hidden', paCollapse);
+  const paCollapsedEl = $('#paLocCollapsed');
+  if (paCollapsedEl) paCollapsedEl.classList.toggle('hidden', !paCollapse);
+  if (paCollapse) {
+    ['paLocEntry', 'paMapGroup'].forEach((id) => {
+      const el = document.getElementById(id);
+      if (el) el.classList.add('hidden');
+    });
+    document.querySelectorAll('#paLocOptions .active').forEach((b) => b.classList.remove('active'));
+  }
   for (let i = 1; i <= 3; i++) {
     const sel = document.getElementById(`pa-brand-${i}`);
     if (sel) toggleGroup(`cg-pa-brandOther-${i}`, sel.value === '__other__');
@@ -9629,6 +9695,7 @@ function resetPesticideRecordForm() {
   }
   const noDiff = document.querySelector('input[name="pa-different-site"][value="no"]');
   if (noDiff) noDiff.checked = true;
+  paLocRevealed = false;   /* Item 8: fresh form starts collapsed */
   const noSigns = document.querySelector('input[name="pa-signs"][value="no"]');
   if (noSigns) noSigns.checked = true;
   document.querySelectorAll('#pa-adjuvants input').forEach((cb) => { cb.checked = false; });
@@ -9726,6 +9793,9 @@ function loadPesticideRecordIntoForm(rec) {
   $('#pa-notes').value = rec.notes || '';
   $('#pa-site-lat').value = rec.siteLat != null ? rec.siteLat : '';
   $('#pa-site-lng').value = rec.siteLng != null ? rec.siteLng : '';
+  /* Item 8 (v2-patch-13): a record that already carries coordinates keeps
+     its picker (and map, below) visible even in same-as-client mode. */
+  paLocRevealed = rec.siteLat != null && rec.siteLng != null;
   /* Item 15 parity (H3): restore the silently-captured county so an
      edit-save never wipes it, and reveal the map only when the record
      already has coordinates. */
@@ -14988,6 +15058,16 @@ async function init() {
   });
   document.querySelectorAll('input[name="pa-different-site"]').forEach((el) => {
     el.addEventListener('change', updatePesticideConditionals);
+  });
+  /* Item 8 (v2-patch-13, owner #13): "change" affordances that restore the
+     collapsed location pickers. */
+  $('#paLocChange').addEventListener('click', () => {
+    paLocRevealed = true;
+    updatePesticideConditionals();
+  });
+  $('#trapLocChange').addEventListener('click', () => {
+    setTrapAddressType('trapSiteAddress');
+    handleTrapAddressTypeChange();
   });
   $('#pa-products-container').addEventListener('change', (e) => {
     const sel = e.target.closest('[data-brand-select]');
