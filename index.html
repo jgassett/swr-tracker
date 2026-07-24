@@ -5760,8 +5760,7 @@ function renderEstimateDetail(id) {
   const box = $('#estimateDetail');
   if (!box) return;
   if (!e) {
-    box.innerHTML = '<div class="card">Estimate not found.</div>' +
-      '<div class="form-actions"><button class="btn btn-cancel btn-ghost" data-est-action="back">Back to Estimates</button></div>';
+    box.innerHTML = '<div class="card">Estimate not found.</div>';
     return;
   }
   const admin = isAdmin();
@@ -5813,7 +5812,7 @@ function renderEstimateDetail(id) {
     </div>
     ${e.notes ? `<div class="card"><h3 style="margin-top:0;">Notes</h3><div>${escapeHtml(e.notes)}</div></div>` : ''}
     ${e.rejectionNote ? `<div class="card"><h3 style="margin-top:0;color:var(--danger);">Rejection note</h3><div>${escapeHtml(e.rejectionNote)}</div></div>` : ''}
-    <div class="form-actions">${actions}<button class="btn btn-cancel btn-ghost" data-est-action="back">Back to Estimates</button></div>`;
+    <div class="form-actions">${actions}</div>`;
 }
 
 function editEstimate(id) {
@@ -6315,7 +6314,6 @@ function renderFieldDetail(key) {
       ${internalToggle}
       <button class="btn btn-danger" id="fieldClearBtn">Delete Photos</button>
       ${isAdmin() ? '<button class="btn btn-danger" id="fieldDeleteCameraBtn">Delete Camera</button>' : ''}
-      <button class="btn btn-cancel btn-ghost" id="fieldBackBtn">Back to Monitoring</button>
     </div>`;
 
   /* Resolve each photo through the Firebase Storage SDK (getDownloadURL) rather
@@ -10963,8 +10961,7 @@ function renderJobDetail(id) {
   const box = $('#jobDetail');
   if (!box) return;
   if (!j) {
-    box.innerHTML = '<div class="card">Job not found.</div>' +
-      '<div class="form-actions"><button class="btn btn-cancel btn-ghost" data-job-action="back">Back to Calendar</button></div>';
+    box.innerHTML = '<div class="card">Job not found.</div>';
     return;
   }
   const se = jobStartEnd(j);
@@ -11002,7 +10999,7 @@ function renderJobDetail(id) {
       ${detail('Created by', j.createdByEmail)}
     </div>
     ${logsCard}
-    <div class="form-actions">${actions}<button class="btn btn-cancel btn-ghost" data-job-action="back">Back to Calendar</button></div>`;
+    <div class="form-actions">${actions}</div>`;
 }
 
 /* Trap + pesticide records logged against a given job. */
@@ -11997,9 +11994,9 @@ function renderTaskModelJobDetail(j) {
       <div class="appt-timeline">${taskRows}</div>
     </div>
     ${j.notes ? `<div class="card"><h3 style="margin-top:0;">Notes</h3><div>${escapeHtml(j.notes)}</div></div>` : ''}
-    <div class="form-actions">${actions}<button class="btn btn-cancel btn-ghost" data-ljob-action="back">Back to Jobs</button></div>`;
-    /* Item 10 (v2-patch-6): explicit Back to Jobs restored — the bottom-nav
-       Jobs label icon it relied on (Item 17, v2-patch-5) is removed. */
+    <div class="form-actions">${actions}</div>`;
+    /* Item 1 (v2-patch-13, F-01): local Back removed — the ribbon Back is
+       the single exit from every detail view. */
 }
 
 function renderLifecycleJobDetail(id) {
@@ -12007,8 +12004,7 @@ function renderLifecycleJobDetail(id) {
   const box = $('#lifecycleJobDetail');
   if (!box) return;
   if (!j) {
-    box.innerHTML = '<div class="card">Job not found.</div>' +
-      '<div class="form-actions"><button class="btn btn-cancel btn-ghost" data-ljob-action="back">Back to Jobs</button></div>';
+    box.innerHTML = '<div class="card">Job not found.</div>';
     return;
   }
   /* Item 15: task-model jobs get the task-based screen; legacy lifecycle
@@ -12097,10 +12093,9 @@ function renderLifecycleJobDetail(id) {
       <div class="appt-timeline">${apptRows}</div>
     </div>
     ${j.notes ? `<div class="card"><h3 style="margin-top:0;">Notes</h3><div>${escapeHtml(j.notes)}</div></div>` : ''}
-    <div class="form-actions">${actions}<button class="btn btn-cancel btn-ghost" data-ljob-action="back">Back to Jobs</button></div>`;
-    /* Item 10 (v2-patch-6): the bottom-nav Jobs icon is gone, so the
-       explicit Back to Jobs button returns (Item 17 v2-patch-5 had removed
-       it in favor of that icon). */
+    <div class="form-actions">${actions}</div>`;
+    /* Item 1 (v2-patch-13, F-01): local Back removed — ribbon Back is the
+       single exit. */
 }
 
 /* ---- Job payment (Items 3 & 5) ----
@@ -12370,8 +12365,7 @@ function renderTaskDetail(id) {
   if (!box) return;
   const t = cachedTasks.find((x) => x.id === id);
   if (!t) {
-    box.innerHTML = '<div class="card">Task not found.</div>' +
-      '<div class="form-actions"><button class="btn btn-cancel btn-ghost" data-task-action="back">Back</button></div>';
+    box.innerHTML = '<div class="card">Task not found.</div>';
     return;
   }
   const detail = (label, val) => val ? `<div style="margin-top:8px;"><span class="muted" style="font-size:12px;text-transform:uppercase;letter-spacing:.04em;">${label}</span><div>${escapeHtml(val)}</div></div>` : '';
@@ -12403,7 +12397,7 @@ function renderTaskDetail(id) {
       ${detail('Completed', t.completedDate ? `${fmtDate(t.completedDate)}${t.completedBy ? ' by ' + t.completedBy : ''}` : '')}
       ${detail('Notes', t.notes)}
     </div>
-    <div class="form-actions">${actions}<button class="btn btn-cancel btn-ghost" data-task-action="back">Back</button></div>`;
+    <div class="form-actions">${actions}</div>`;
 }
 
 /* Item 16: completion records who and when. Item 19 hooks rebait rolling
@@ -12618,8 +12612,7 @@ function renderCloseoutConfirm(id) {
   if (!box) return;
   const j = cachedJobs.find((x) => x.id === id);
   if (!j) {
-    box.innerHTML = '<div class="card">Job not found.</div>' +
-      '<div class="form-actions"><button class="btn btn-cancel btn-ghost" data-closeout-action="back">Back</button></div>';
+    box.innerHTML = '<div class="card">Job not found.</div>';
     return;
   }
   const est = j.estimateId ? cachedEstimates.find((e) => e.id === j.estimateId) : null;
@@ -12654,7 +12647,6 @@ function renderCloseoutConfirm(id) {
       ${isAdmin()
         ? `<button type="button" class="btn btn-amber" data-closeout-action="confirm" data-id="${escapeHtml(id)}">Confirm Close Out</button>`
         : '<div class="hint" style="margin:0 4px;">Only an administrator can close out a job.</div>'}
-      <button type="button" class="btn btn-cancel btn-ghost" data-closeout-action="back">Back</button>
     </div>`;
 }
 
@@ -13248,8 +13240,7 @@ function renderAppointmentDetail(jobId, apptId) {
   if (!box) return;
   const a = cachedAppointments.find((x) => x.id === apptId && x.jobId === jobId);
   if (!a) {
-    box.innerHTML = '<div class="card">Appointment not found.</div>' +
-      '<div class="form-actions"><button class="btn btn-cancel btn-ghost" data-appt-action="back">Back</button></div>';
+    box.innerHTML = '<div class="card">Appointment not found.</div>';
     return;
   }
   const detail = (label, val) => val ? `<div style="margin-top:8px;"><span class="muted" style="font-size:12px;text-transform:uppercase;letter-spacing:.04em;">${label}</span><div>${escapeHtml(val)}</div></div>` : '';
@@ -13283,7 +13274,7 @@ function renderAppointmentDetail(jobId, apptId) {
       ${detail('Outcome', a.outcome)}
       ${detail('Notes', a.notes)}
     </div>
-    <div class="form-actions">${actions}<button class="btn btn-cancel btn-ghost" data-appt-action="back">Back</button></div>`;
+    <div class="form-actions">${actions}</div>`;
 }
 
 async function completeAppointment(jobId, apptId) {
@@ -15338,8 +15329,7 @@ async function init() {
     if (!btn) return;
     const action = btn.dataset.estAction;
     const id = btn.dataset.id;
-    if (action === 'back') { currentEstimateId = null; setView('dashboard'); }
-    else if (action === 'edit') editEstimate(id);
+    if (action === 'edit') editEstimate(id);
     else if (action === 'submit') submitEstimateForApproval(id);
     else if (action === 'delete') deleteEstimateDraft(id);
     else if (action === 'approve') approveAndPushEstimate(id, btn);
@@ -15396,8 +15386,7 @@ async function init() {
     const btn = e.target.closest('[data-job-action]');
     if (!btn) return;
     const action = btn.dataset.jobAction, id = btn.dataset.id;
-    if (action === 'back') { currentJobId = null; setView('dashboard'); }
-    else if (action === 'edit') editJob(id);
+    if (action === 'edit') editJob(id);
     else if (action === 'complete') setJobStatus(id, 'Completed');
     else if (action === 'cancel') setJobStatus(id, 'Cancelled');
     else if (action === 'delete') deleteJob(id);
@@ -15445,10 +15434,9 @@ async function init() {
     if (!btn) return;
     if (btn.dataset.apptOpen) { openAppointment(btn.dataset.apptJob, btn.dataset.apptOpen); return; }
     const action = btn.dataset.ljobAction, id = btn.dataset.id;
-    if (action === 'back') { currentLifecycleJobId = null; setView('dashboard'); }
     /* Item 7 (v2-patch-5): tap the customer name → Customer Detail, with a
        Back to Job button waiting there. */
-    else if (action === 'view-customer') {
+    if (action === 'view-customer') {
       setAppModeQuiet('customer');
       editCustomer(btn.dataset.cust, { fromJobId: id });
     }
@@ -15508,8 +15496,7 @@ async function init() {
     const btn = e.target.closest('[data-task-action]');
     if (!btn) return;
     const action = btn.dataset.taskAction, id = btn.dataset.id, jobId = btn.dataset.job;
-    if (action === 'back') { currentTaskId = null; setView('dashboard'); }
-    else if (action === 'complete') completeTask(id);
+    if (action === 'complete') completeTask(id);
     else if (action === 'cancel') cancelTask(id);
     else if (action === 'edit') editTask(id);
     else if (action === 'log-trap') startWorkLog(jobId, 'trap');
@@ -15537,8 +15524,7 @@ async function init() {
     const btn = e.target.closest('[data-appt-action]');
     if (!btn) return;
     const action = btn.dataset.apptAction, id = btn.dataset.id, jobId = btn.dataset.job;
-    if (action === 'back') { currentAppointment = null; setView('dashboard'); }
-    else if (action === 'complete') completeAppointment(jobId, id);
+    if (action === 'complete') completeAppointment(jobId, id);
     else if (action === 'cancel') cancelAppointment(jobId, id);
     else if (action === 'edit') editAppointment(jobId, id);
     else if (action === 'rebait-schedule') {
@@ -15563,8 +15549,7 @@ async function init() {
   $('#closeoutConfirm').addEventListener('click', (e) => {
     const btn = e.target.closest('[data-closeout-action]');
     if (!btn) return;
-    if (btn.dataset.closeoutAction === 'back') { currentCloseoutJobId = null; setView('dashboard'); }
-    else if (btn.dataset.closeoutAction === 'confirm') confirmCloseOutJob(btn.dataset.id);
+    if (btn.dataset.closeoutAction === 'confirm') confirmCloseOutJob(btn.dataset.id);
   });
 
   /* ---- Unified records view wiring (Items 8 & 9) ---- */
@@ -15627,7 +15612,6 @@ async function init() {
     if (row) showFieldDetail(row.dataset.fieldKey);
   });
   $('#fieldDetail').addEventListener('click', (e) => {
-    if (e.target.closest('#fieldBackBtn')) { currentFieldKey = null; setView('dashboard'); return; }
     if (e.target.closest('#fieldClearBtn')) { clearFieldGroup(currentFieldKey); return; }
     if (e.target.closest('#fieldDeleteCameraBtn')) { deleteCameraPermanently(currentFieldKey); return; }   /* v2-patch-12 Item 2 */
     if (e.target.closest('#fieldConfirmRemovalBtn')) { confirmCameraRemoval(currentFieldKey); return; }   /* Item 21 */

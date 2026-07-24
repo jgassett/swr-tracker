@@ -56,6 +56,10 @@ function openDetail() { overlays.detailSheet = true; }        /* record sheet */
 function confirmDialog() { overlays.confirm = true; }
 function showFieldDetail() { if (appMode !== 'field') setAppModeQuiet('field'); setView('field-detail'); }
 function openJob() { if (appMode !== 'schedule') setAppModeQuiet('schedule'); setView('schedule-detail'); }
+function openEstimate() { setView('estimate-detail'); }
+function openTask() { if (appMode !== 'jobs' && appMode !== 'schedule') setAppModeQuiet('jobs'); setView('task-detail'); }
+function openAppointment() { setView('appointment-detail'); }
+function openCloseoutConfirm() { setView('closeout-confirm'); }
 
 let step = 0;
 function expect(desc, gotScreen, stackKeys, extra = {}) {
@@ -142,4 +146,31 @@ expect('drained to landing', 'landing', [], { landingBack: false });
 goBackNav();
 expect('Back on empty history = Home (no growth)', 'landing', [], { landingBack: false });
 
-console.log('\nnav v2.9 simulation: ALL steps passed');
+/* ---- v2-patch-13 Item 1 (F-01): local Backs removed; ribbon Back is the
+   single exit from every detail view. Formerly a local Back did
+   setView('dashboard'), pushing the exited detail onto the stack, so the
+   NEXT ribbon Back re-entered it (bug B-02). With locals gone, for each
+   detail: enter → ribbon Back lands on the dashboard → second ribbon Back
+   must land on landing, never back in the detail. */
+const detailCases = [
+  ['estimate-detail', 'pricing', openEstimate],
+  ['schedule-detail', 'schedule', openJob],
+  ['job-detail', 'jobs', openLifecycleJob],
+  ['task-detail', 'jobs', openTask],
+  ['appointment-detail', 'jobs', openAppointment],
+  ['closeout-confirm', 'closeout', openCloseoutConfirm],
+  ['field-detail', 'field', showFieldDetail],
+];
+for (const [view, mode, enter] of detailCases) {
+  /* stack is empty + screen=landing at the top of each iteration */
+  setAppMode(mode);
+  expect(`landing → ${mode} dashboard`, `${mode}:dashboard`, ['landing']);
+  enter();
+  expect(`${mode} dashboard → ${view}`, `${mode}:${view}`, ['landing', `${mode}:dashboard`]);
+  goBackNav();                       /* ribbon Back — the ONLY exit now */
+  expect(`ribbon Back exits ${view}`, `${mode}:dashboard`, ['landing']);
+  goBackNav();                       /* second Back must NOT re-enter the detail */
+  expect(`second Back → landing (no ${view} re-entry)`, 'landing', [], { landingBack: false });
+}
+
+console.log('\nnav v2.11 simulation: ALL steps passed');
