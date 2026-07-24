@@ -83,7 +83,26 @@ async function upsertReportHealthCore(db, { parsed, match, today, nowIso }) {
     batch.set(db.doc(`cameraHealth/${parsed.network}__${d.cameraNumber}`), payload, { merge: true });
   }
   await batch.commit();
-  return { devices: parsed.devices.length, internal };
+
+  /* v2-patch-15: a successfully ingested report RESOLVES a stale __pending
+     manual-review row on the same key (left over from a period when this
+     key's reports could not be parsed — e.g. Tracks solo before the species
+     fix). Without this, the stale row keeps the key red in the pending
+     queue and trips the per-camera noreport alert (its '—' cameraNumber is
+     never in any report) for up to 7 days after ingestion recovers. Runs
+     after the batch so an operator's internal mark on the pending row has
+     already propagated to the real device rows above. Only rows the
+     pipeline itself queued (pending === true) are deleted. */
+  let pendingResolved = false;
+  if (parsed.devices.length) {
+    const pendingRef = db.doc(`cameraHealth/${parsed.network}__pending`);
+    const pendingSnap = await pendingRef.get();
+    if (pendingSnap.exists && pendingSnap.get('pending') === true) {
+      await pendingRef.delete();
+      pendingResolved = true;
+    }
+  }
+  return { devices: parsed.devices.length, internal, pendingResolved };
 }
 
 /* Unparsed/unmatched status report → the __pending manual-review row. */

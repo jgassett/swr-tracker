@@ -1430,7 +1430,10 @@ async function handleReportMessage(m, keyMap) {
   /* v2-patch-12 Item 1: merge-only upsert core that never touches
      operator-set fields and keeps the internal flag sticky across device
      renumbering / new rows — see camera-health.js. */
-  await camHealth.upsertReportHealthCore(db, { parsed, match, today, nowIso });
+  const upsert = await camHealth.upsertReportHealthCore(db, { parsed, match, today, nowIso });
+  if (upsert.pendingResolved) {
+    console.log(`Stale __pending manual-review row for ${parsed.network} resolved — this key's reports now ingest (v2-patch-15)`);
+  }
   await logDeletedCameraReappearance(parsed.network, !!match);
 
   /* v2-patch-10 Item 4d: one self-explaining line per report so a future

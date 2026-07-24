@@ -94,6 +94,19 @@ async function run() {
   assert.strictEqual(pb.get('internal'), true, 'internal survives repeated unparsed-report queue writes');
   assert.strictEqual(pb.get('pendingReason'), 'still no HTML attachment', 'pending fields keep updating');
 
+  /* v2-patch-15: a report for the key finally ingests (e.g. Tracks solo
+     after the species fix) — the stale __pending row is RESOLVED (deleted)
+     so it can't trip noreport alerts or hold the key red in the pending
+     queue, and the operator's internal mark on it has already propagated
+     to the real device row. */
+  const resolved = await camHealth.upsertReportHealthCore(db, {
+    parsed: parsedReport(KEYB, [1], '07/24/2026'), match: null, today: '07/24/2026', nowIso: nowIso()
+  });
+  assert.strictEqual(resolved.pendingResolved, true, 'successful ingest reports the pending resolution');
+  assert.ok(!(await db.doc(`cameraHealth/${KEYB}__pending`).get()).exists, 'stale __pending row deleted on successful ingest');
+  const kb1 = await db.doc(`cameraHealth/${KEYB}__1`).get();
+  assert.strictEqual(kb1.get('internal'), true, 'internal mark carried from the pending row to the real device row');
+
   /* Regression guard: a future payload edit adding an operator field is
      stripped before it can clobber anything. */
   const stripped = camHealth.stripOperatorFields({ battery: 'OK', internal: false, pendingRemoval: true });
