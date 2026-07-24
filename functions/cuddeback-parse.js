@@ -118,9 +118,19 @@ function parseReportHtml(html) {
   return null;
 }
 
-/* CuddeLink network report: pick the newest day's table, one device per row. */
+/* CuddeLink network report: the email stacks several days' tables
+ * (observed newest-first, so the old take-tables[0] behavior was already
+ * correct on every fixture). Item 4 (v2-patch-15) makes that explicit:
+ * the table is selected by NEWEST parsed "Date:" header, not by position,
+ * mirroring the Tracks newest-row rule. Tables without a parseable date
+ * rank lowest; if none parse, the first table is used as before. */
 function parseCuddeLinkTables(tables) {
-  const first = tables[0];
+  let first = tables[0], bestNum = -1;
+  for (const t of tables) {
+    const dm = t.match(/Date:\s*([\d/]+)/i);
+    const n = dm ? mdyNum(dm[1]) : 0;
+    if (n > bestNum) { bestNum = n; first = t; }
+  }
 
   const dateMatch = first.match(/Date:\s*([\d/]+)/i);
   const netMatch = first.match(/Network:\s*([^<&\-]+?)\s*(?:&nbsp;|<|\s-\s)/i);
