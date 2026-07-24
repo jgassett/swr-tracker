@@ -14684,23 +14684,52 @@ function hideAutocomplete(listEl) {
 }
 
 /* Fill trapping-form fields from a chosen customer. */
-function applyCustomerToTrapForm(c) {
-  if (c.name) $('#f-client-name').value = c.name;
-  if (c.phone) $('#f-client-phone').value = c.phone;
-  if (c.email) $('#f-client-email').value = c.email;
-  const fullAddr = [c.address, c.city].filter(Boolean).join(', ');
-  /* Item 5: prefill is a convenience only — a hand-edited address is locked
-     against any later customer selection in this form session.
-     Item 6 (v2-patch-5): in Trap Site Address mode the customer never
-     overwrites the independently entered location. */
+/* Item 9 (v2-patch-13, F-10): ONE address writer per form, shared by the
+   customer- and property-prefill paths so the pair can't drift again —
+   B-04 (property prefill leaving a stale customer ZIP) was exactly such a
+   drift. Trap variant respects the hand-edited-address lock (Item 5,
+   v2-patch-1) and Trap Site Address mode (Item 6, v2-patch-5); both clear
+   the geocode markers so a stale validation can't ride along. */
+function fillTrapAddress({ address, city, county }) {
   const customerAddrMode = trapAddressType() !== 'trapSiteAddress';
-  if (fullAddr && !addressManuallyEdited && customerAddrMode) {
+  if (!customerAddrMode || addressManuallyEdited) return;
+  const fullAddr = [address, city].filter(Boolean).join(', ');
+  if (fullAddr) {
     const a = $('#f-address');
     a.value = fullAddr;
     delete a.dataset.fromMap;
     delete a.dataset.lastValidated;
   }
-  if (c.county && !addressManuallyEdited && customerAddrMode) selectCountyIfKnown('f-county', c.county);
+  if (county) selectCountyIfKnown('f-county', county);
+}
+function fillPestAddress({ address, city, zip, county }) {
+  if (address) {
+    const a = $('#pa-client-address');
+    a.value = address;
+    delete a.dataset.fromMap;
+    delete a.dataset.lastValidated;
+  }
+  if (city) $('#pa-client-city').value = city;
+  /* zip: undefined = leave alone; '' = clear a known-stale value (B-04). */
+  if (zip !== undefined) $('#pa-client-zip').value = zip;
+  /* Item 4c (v2-patch-6): County of Treatment derives from the property.
+     A later treatment-location geocode still wins (it captures the actual
+     site), same as the trap form. */
+  if (county) {
+    silentPaCounty = county;
+    const match = matchingOptionValue('pa-county', county);
+    if (match) $('#pa-county').value = match;
+  }
+}
+
+function applyCustomerToTrapForm(c) {
+  if (c.name) $('#f-client-name').value = c.name;
+  /* Item 9 (owner #12): contact fields always follow the picked customer —
+     the old if-guards let a previous selection's phone/email linger when
+     the new customer had none on file. */
+  $('#f-client-phone').value = c.phone || '';
+  $('#f-client-email').value = c.email || '';
+  fillTrapAddress({ address: c.address, city: c.city, county: c.county });
   const hint = $('#addressValidationHint');
   if (hint) { hint.textContent = `✓ Customer on file: ${c.name}`; hint.className = 'hint success'; }
   hideTrapCustomerSuggest();
@@ -14718,32 +14747,16 @@ function applyCustomerToTrapForm(c) {
 /* Pre-fill the trap location from a selected property (Item 9). */
 function applyPropertyToTrapForm(p) {
   if (!p) return;
-  const fullAddr = [p.address, p.city].filter(Boolean).join(', ');
-  /* Item 5: a hand-edited address is never overwritten by property selection.
-     Item 6: nor is an independently entered Trap Site Address. */
-  const customerAddrMode = trapAddressType() !== 'trapSiteAddress';
-  if (fullAddr && !addressManuallyEdited && customerAddrMode) {
-    const a = $('#f-address');
-    a.value = fullAddr;
-    delete a.dataset.fromMap;
-    delete a.dataset.lastValidated;
-  }
-  if (p.county && !addressManuallyEdited && customerAddrMode) selectCountyIfKnown('f-county', p.county);
+  fillTrapAddress({ address: p.address, city: p.city, county: p.county });
 }
 
 /* Fill pesticide-form client fields from a chosen customer. */
 function applyCustomerToPesticideForm(c) {
   if (c.name) $('#pa-client-name').value = c.name;
-  if (c.phone) $('#pa-client-phone').value = c.phone;
-  if (c.email) $('#pa-client-email').value = c.email;
-  if (c.address) {
-    const a = $('#pa-client-address');
-    a.value = c.address;
-    delete a.dataset.fromMap;
-    delete a.dataset.lastValidated;
-  }
-  if (c.city) $('#pa-client-city').value = c.city;
-  if (c.zip) $('#pa-client-zip').value = c.zip;
+  /* Item 9 (owner #12): always-write, same as the trap form. */
+  $('#pa-client-phone').value = c.phone || '';
+  $('#pa-client-email').value = c.email || '';
+  fillPestAddress({ address: c.address, city: c.city, zip: c.zip || '' });
   const status = $('#pa-address-status');
   if (status) { status.textContent = `✓ Customer on file: ${c.name}`; status.className = 'hint success'; }
   hidePestCustomerSuggest();
@@ -14759,21 +14772,18 @@ function applyCustomerToPesticideForm(c) {
 /* Pre-fill the pesticide client address from a selected property (Item 9). */
 function applyPropertyToPesticideForm(p) {
   if (!p) return;
-  if (p.address) {
-    const a = $('#pa-client-address');
-    a.value = p.address;
-    delete a.dataset.fromMap;
-    delete a.dataset.lastValidated;
-  }
-  if (p.city) $('#pa-client-city').value = p.city;
-  /* Item 4c (v2-patch-6): County of Treatment derives from the property.
-     A later treatment-location geocode still wins (it captures the actual
-     site), same as the trap form. */
-  if (p.county) {
-    silentPaCounty = p.county;
-    const match = matchingOptionValue('pa-county', p.county);
-    if (match) $('#pa-county').value = match;
-  }
+  /* B-04: properties carry no ZIP. If this property's address differs from
+     the customer's, the customer ZIP on the form is stale — clear it for
+     the operator to fill. When the property IS the customer's address, the
+     customer ZIP still applies. */
+  const cust = pestFormCustomerId ? cachedCustomers.find((c) => c.id === pestFormCustomerId) : null;
+  const sameAsCustomer = !!(cust && (p.address || '').trim().toLowerCase() === (cust.address || '').trim().toLowerCase());
+  fillPestAddress({
+    address: p.address,
+    city: p.city,
+    zip: sameAsCustomer ? undefined : '',
+    county: p.county
+  });
 }
 
 /* ---- Use-My-Location → suggest a matching customer ---- */
