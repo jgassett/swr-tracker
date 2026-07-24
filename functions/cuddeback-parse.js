@@ -144,6 +144,10 @@ function parseCuddeLinkTables(tables) {
     const cameraNumber = cells[2];
     const cameraName = cells[3];
     if (!cameraNumber || !cameraName) continue;    // empty placeholder rows
+    /* Column-label row: only reachable via the any-<tr> fallback (its
+       cells[2]/[3] are the literal texts "Camera Number"/"Camera Name",
+       which passed the guards above). Device numbers are always numeric. */
+    if (!/^\d+$/.test(cameraNumber)) continue;
     const queue = parseInt(cells[8], 10);
     devices.push({
       cameraNumber,

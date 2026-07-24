@@ -2,6 +2,9 @@
   "name": "functions",
   "description": "SWR Tracker Cloud Functions — QuickBooks OAuth + one-way customer sync",
   "main": "index.js",
+  "scripts": {
+    "test": "node test/cuddeback-parse.test.js"
+  },
   "engines": {
     "node": "22"
   },
