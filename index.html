@@ -4982,7 +4982,7 @@ function renderTaxReports() {
   const rowHtml = ({ j, locus }) => `
     <div class="biz-row" style="align-items:flex-start;">
       <span style="min-width:0;">
-        <span style="font-weight:600;color:var(--green-deep);font-family:ui-monospace,'SF Mono',monospace;">${escapeHtml(j.jobNumber || '—')}</span>
+        <span style="font-weight:600;color:var(--green-deep);font-family:ui-monospace,'SF Mono',monospace;">${escapeHtml(displayJobNumber(j.jobNumber) || '—')}</span>
         <span class="status-pill ${jobLifeStatusClass(j.status)}" style="margin-left:6px;">${escapeHtml(j.status || 'Active')}</span><br>
         <span style="font-size:13px;">${escapeHtml(j.customerName || '—')}</span><br>
         <span class="muted" style="font-size:12px;">${escapeHtml(locus.address || 'no address')} · started ${escapeHtml(fmtShortDate(j.startDate) || '—')} · QB Inv ${escapeHtml(String(j.qbInvoiceNumber || '—'))}</span>
@@ -5741,8 +5741,8 @@ function startEstimateForJob(jobId) {
   if (c) applyEstimateCustomer(c);
   else if (j.customerName) { builderCustomer = { id: j.customerId, name: j.customerName, qbId: null }; $('#est-customer').value = j.customerName; }
   const hint = $('#est-customer-hint');
-  if (hint && j.jobNumber) {
-    hint.textContent = (hint.textContent ? hint.textContent + ' · ' : '') + `Will attach to ${j.jobNumber}`;
+  if (hint && displayJobNumber(j.jobNumber)) {
+    hint.textContent = (hint.textContent ? hint.textContent + ' · ' : '') + `Will attach to ${displayJobNumber(j.jobNumber)}`;
   }
 }
 
@@ -10276,7 +10276,7 @@ function renderAllRecords() {
   let chip = '';
   if (allRecJobFilter) {
     const j = cachedJobs.find((x) => x.id === allRecJobFilter.jobId);
-    const label = j ? `${j.jobNumber || 'job'}${j.customerName ? ' · ' + j.customerName : ''}` : 'this job';
+    const label = j ? `${displayJobNumber(j.jobNumber) || 'job'}${j.customerName ? ' · ' + j.customerName : ''}` : 'this job';
     chip = `<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 10px;margin-bottom:8px;border:1px solid rgba(196,119,42,0.35);border-radius:10px;background:rgba(196,119,42,0.10);font-size:13px;">
       <span>Showing records for <strong>${escapeHtml(label)}</strong></span>
       <button type="button" class="btn btn-ghost" data-allrec-clearjob style="padding:4px 10px;font-size:12.5px;">Show all</button>
@@ -10593,7 +10593,7 @@ function subscribeToJobs() {
                       ...(Array.isArray(j.assignedOperators) ? j.assignedOperators : [])]
           .some((em) => String(em).toLowerCase() === me);
         if (mine) {
-          toast(`New job assigned: ${j.title || j.jobNumber || 'Untitled'}`);
+          toast(`New job assigned: ${j.title || displayJobNumber(j.jobNumber) || 'Untitled'}`);
         }
       }
     }
@@ -10655,7 +10655,7 @@ function calendarEntryFromAppt(a) {
     kind: 'appt', id: a.id, jobId: a.jobId, date: a.scheduledDate || '', startTime: a.scheduledTime || '',
     durationMins: Number(a.durationMins) || 60,
     title: a.visitType || 'Visit',
-    sub: [a.jobNumber, a.customerName, (a.assigneeNames || []).join(', ')].filter(Boolean).join(' · '),
+    sub: [displayJobNumber(a.jobNumber), a.customerName, (a.assigneeNames || []).join(', ')].filter(Boolean).join(' · '),
     status: a.status || 'Scheduled'
   };
 }
@@ -10678,7 +10678,7 @@ function calendarEntryFromTask(t) {
     kind: 'task', id: t.id, date: t.scheduledDate || '', startTime: t.scheduledTime || '',
     durationMins: 60,
     title: taskTypeLabel(t),
-    sub: [t.jobNumber, t.customerName, (t.assigneeNames || []).join(', ')].filter(Boolean).join(' · '),
+    sub: [displayJobNumber(t.jobNumber), t.customerName, (t.assigneeNames || []).join(', ')].filter(Boolean).join(' · '),
     assigneeNames: t.assigneeNames || [],   /* Item 9: contractor grouping */
     status: t.status || 'Open'
   };
@@ -11074,7 +11074,7 @@ function populateJobSelect(selectId, selectedId) {
   for (const j of lc) {
     const o = document.createElement('option');
     o.value = j.id;
-    o.textContent = `${j.jobNumber} · ${j.customerName || ''}`;
+    o.textContent = `${displayJobNumber(j.jobNumber)} · ${j.customerName || ''}`;
     sel.appendChild(o);
   }
   const legacy = legacyScheduleJobs().filter((j) => j.status !== 'Cancelled')
@@ -11090,7 +11090,7 @@ function populateJobSelect(selectId, selectedId) {
     const j = cachedJobs.find((x) => x.id === selectedId);
     const o = document.createElement('option');
     o.value = selectedId;
-    o.textContent = j ? `${j.jobNumber || j.title || selectedId} · ${j.customerName || ''}` : selectedId;
+    o.textContent = j ? `${displayJobNumber(j.jobNumber) || j.title || selectedId} · ${j.customerName || ''}` : selectedId;
     sel.appendChild(o);
   }
   sel.value = selectedId || '';
@@ -11369,6 +11369,12 @@ function jobTypeDisplay(j) {
   return j.jobType === 'Other' && j.jobTypeOther ? j.jobTypeOther : j.jobType;
 }
 
+/* Item 7 (v2-patch-13, owner #10): DISPLAY-ONLY job number — stored
+   'SWR-JOB-2026-014-T' renders as 'SWR-2026-014-T'. Stored jobNumber
+   values, the generation format, and QB/CSV payloads are untouched;
+   every UI render routes through this helper. */
+function displayJobNumber(n) { return String(n || '').replace('-JOB-', '-'); }
+
 /* Item 16 (v2-patch-5): "Job Type — Species" line, bold, directly under the
    customer name on job cards and detail screens — only when a species is
    set. Other types use their description: "Other (Chimney Sweep) — Raccoon". */
@@ -11492,11 +11498,11 @@ async function setJobLifecycleStatus(id, status, extra = {}) {
       console.error('Job status write failed', err);
       toast('Status update failed to sync: ' + errText(err), 'error');
     });
-  toast(`Job ${j.jobNumber || ''} → ${status}`);
+  toast(`Job ${displayJobNumber(j.jobNumber) || ''} → ${status}`);
   /* In-app notification to the job's other operators (Item 12). */
   notifyOperatorsInApp(j.assignedOperators || [], {
     type: 'job',
-    title: `${j.jobNumber || 'Job'} → ${status}`,
+    title: `${displayJobNumber(j.jobNumber) || 'Job'} → ${status}`,
     body: [j.customerName, `moved to ${status}`].filter(Boolean).join(' · '),
     relatedId: id
   });
@@ -11520,7 +11526,7 @@ function advanceJobStatusAuto(jobId, atLeast) {
          announce a transition that never happened. */
       notifyOperatorsInApp(j.assignedOperators || [], {
         type: 'job',
-        title: `${j.jobNumber || 'Job'} → ${atLeast}`,
+        title: `${displayJobNumber(j.jobNumber) || 'Job'} → ${atLeast}`,
         body: [j.customerName, `moved to ${atLeast}`].filter(Boolean).join(' · '),
         relatedId: jobId
       });
@@ -11640,7 +11646,7 @@ function jobRow(j, { trailing = '', rowAttrs = '', metaBits = [], extraHtml = ''
   const custLine = j.customerId
     ? `<div><button type="button" class="jd-cust-link" style="margin-top:0;font-size:15px;" data-job-cust="${escapeHtml(j.customerId)}" title="View customer">${escapeHtml(j.customerName || 'Customer')}</button></div>`
     : `<div class="jl-name">${escapeHtml(j.customerName || '(no customer)')}</div>`;
-  const bits = [j.jobNumber || '', ...metaBits].filter(Boolean);
+  const bits = [displayJobNumber(j.jobNumber) || '', ...metaBits].filter(Boolean);
   return `<div class="job-lc-row" ${rowAttrs}>
       <div class="jl-body">
         ${typeLine}
@@ -11886,7 +11892,7 @@ async function handleSaveLifecycleJob(e) {
           toast('Job failed to sync: ' + errText(err), 'error');
         });
       if (!cachedJobs.some((x) => x.id === ref.id)) cachedJobs.push({ id: ref.id, ...data });
-      toast(`Job opened · ${data.jobNumber}`);
+      toast(`Job opened · ${displayJobNumber(data.jobNumber)}`);
       resetLifecycleJobForm();
       openLifecycleJob(ref.id);
     }
@@ -12028,7 +12034,7 @@ function renderTaskModelJobDetail(j) {
   box.innerHTML = `
     <div class="card">
       <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;">
-        <h3 style="margin:0;font-family:ui-monospace,'SF Mono',monospace;font-size:16px;">${escapeHtml(j.jobNumber || 'Job')}</h3>
+        <h3 style="margin:0;font-family:ui-monospace,'SF Mono',monospace;font-size:16px;">${escapeHtml(displayJobNumber(j.jobNumber) || 'Job')}</h3>
         <span class="status-pill ${jobLifeStatusClass(j.status)}">${escapeHtml(j.status || 'Active')}</span>
       </div>
       ${j.jobType ? `<div style="margin-top:8px;"><span class="job-type-tag" style="font-size:13px;padding:3px 10px;">${escapeHtml(jobTypeDisplay(j))}</span></div>` : ''}
@@ -12127,7 +12133,7 @@ function renderLifecycleJobDetail(id) {
   box.innerHTML = `
     <div class="card">
       <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;">
-        <h3 style="margin:0;font-family:ui-monospace,'SF Mono',monospace;font-size:16px;">${escapeHtml(j.jobNumber || 'Job')}</h3>
+        <h3 style="margin:0;font-family:ui-monospace,'SF Mono',monospace;font-size:16px;">${escapeHtml(displayJobNumber(j.jobNumber) || 'Job')}</h3>
         <span class="status-pill ${jobLifeStatusClass(j.status)}">${escapeHtml(j.status || 'Lead')}</span>
       </div>
       ${j.jobType ? `<div style="margin-top:8px;"><span class="job-type-tag" style="font-size:13px;padding:3px 10px;">${escapeHtml(jobTypeDisplay(j))}</span></div>` : ''}
@@ -12172,7 +12178,7 @@ async function markJobPaid(id) {
   const j = cachedJobs.find((x) => x.id === id);
   if (!j) return;
   const ok = await confirmDialog('Mark payment received?',
-    `${j.jobNumber || 'This job'} moves to Paid — the end of the line.`, { okText: 'Payment Received' });
+    `${displayJobNumber(j.jobNumber) || 'This job'} moves to Paid — the end of the line.`, { okText: 'Payment Received' });
   if (!ok) return;
   await setJobLifecycleStatus(id, 'Paid', {
     paymentStatus: 'Paid',
@@ -12252,7 +12258,7 @@ function assignJobCamera(jobId, cameraId) {
      only). Nothing is mirrored onto property or customer records here —
      the property editor is the one assignment door, and the old mirror
      could stamp a duplicate cameraId onto a second property. */
-  toast(`Camera ${K} assigned to ${j.jobNumber || 'the job'}`);
+  toast(`Camera ${K} assigned to ${displayJobNumber(j.jobNumber) || 'the job'}`);
   closeCameraSheet();
   renderLifecycleJobDetail(jobId);
 }
@@ -12268,7 +12274,7 @@ function removeJobCamera(jobId) {
     });
   const jdx = cachedJobs.findIndex((x) => x.id === jobId);
   if (jdx >= 0) cachedJobs[jdx] = { ...cachedJobs[jdx], cameraId: null };
-  toast(`Camera ${removed} removed from ${j.jobNumber || 'the job'}`);
+  toast(`Camera ${removed} removed from ${displayJobNumber(j.jobNumber) || 'the job'}`);
   renderLifecycleJobDetail(jobId);
 }
 
@@ -12289,7 +12295,7 @@ function populateTaskJobSelect(selectedId) {
   for (const j of jobs) {
     const o = document.createElement('option');
     o.value = j.id;
-    o.textContent = `${j.jobNumber} · ${j.customerName || ''}`;
+    o.textContent = `${displayJobNumber(j.jobNumber)} · ${j.customerName || ''}`;
     sel.appendChild(o);
   }
   /* Editing a task whose job is closed: keep it selectable. */
@@ -12298,7 +12304,7 @@ function populateTaskJobSelect(selectedId) {
     if (j) {
       const o = document.createElement('option');
       o.value = j.id;
-      o.textContent = `${j.jobNumber || 'Job'} · ${j.customerName || ''} (${j.status || 'closed'})`;
+      o.textContent = `${displayJobNumber(j.jobNumber) || 'Job'} · ${j.customerName || ''} (${j.status || 'closed'})`;
       sel.appendChild(o);
     }
   }
@@ -12447,7 +12453,7 @@ function renderTaskDetail(id) {
   if (t.taskType === 'Pesticide Application') {
     actions += `<button class="btn btn-amber" data-task-action="log-pesticide" data-job="${escapeHtml(t.jobId || '')}">Log Pesticide Application</button>`;
   }
-  if (t.jobId) actions += `<button class="btn btn-ghost" data-task-action="open-job" data-job="${escapeHtml(t.jobId)}">Open Job ${escapeHtml(t.jobNumber || '')}</button>`;
+  if (t.jobId) actions += `<button class="btn btn-ghost" data-task-action="open-job" data-job="${escapeHtml(t.jobId)}">Open Job ${escapeHtml(displayJobNumber(t.jobNumber) || '')}</button>`;
   box.innerHTML = `
     <div class="card">
       <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;">
@@ -12457,7 +12463,7 @@ function renderTaskDetail(id) {
       <div class="muted" style="margin-top:6px;">${escapeHtml(longDate(t.scheduledDate))} · ${escapeHtml(fmtTime12(t.scheduledTime))}</div>
     </div>
     <div class="card">
-      ${detail('Job', [t.jobNumber, t.customerName].filter(Boolean).join(' · '))}
+      ${detail('Job', [displayJobNumber(t.jobNumber), t.customerName].filter(Boolean).join(' · '))}
       ${detail('Assigned to', (t.assigneeNames || []).join(', '))}
       ${detail('Completed', t.completedDate ? `${fmtDate(t.completedDate)}${t.completedBy ? ' by ' + t.completedBy : ''}` : '')}
       ${detail('Notes', t.notes)}
@@ -12555,7 +12561,7 @@ function addContractorToJob(id) {
   const candidates = assignableUsers().filter((u) => !have.has(u.email));
   if (!candidates.length) { toast('Every operator is already on this job'); return; }
   const menu = candidates.map((u, i) => `${i + 1}. ${u.name}`).join('\n');
-  const pick = prompt(`Add which contractor to ${j.jobNumber || 'this job'}?\n${menu}\n\nEnter a number:`, '1');
+  const pick = prompt(`Add which contractor to ${displayJobNumber(j.jobNumber) || 'this job'}?\n${menu}\n\nEnter a number:`, '1');
   if (pick === null) return;
   const idx = parseInt(pick, 10) - 1;
   if (!Number.isFinite(idx) || idx < 0 || idx >= candidates.length) { toast('Not a valid number', 'error'); return; }
@@ -12572,7 +12578,7 @@ function addContractorToJob(id) {
   });
   const jdx = cachedJobs.findIndex((x) => x.id === id);
   if (jdx >= 0) cachedJobs[jdx] = { ...cachedJobs[jdx], assignedOperators: operators, assigneeNames: operators.map((em) => nameByEmail[em] || em) };
-  toast(`${u.name} added to ${j.jobNumber || 'the job'}`);
+  toast(`${u.name} added to ${displayJobNumber(j.jobNumber) || 'the job'}`);
   renderLifecycleJobDetail(id);
 }
 
@@ -12688,7 +12694,7 @@ function renderCloseoutConfirm(id) {
   box.innerHTML = `
     <div class="card">
       <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;">
-        <h3 style="margin:0;font-family:ui-monospace,'SF Mono',monospace;font-size:16px;">${escapeHtml(j.jobNumber || 'Job')}</h3>
+        <h3 style="margin:0;font-family:ui-monospace,'SF Mono',monospace;font-size:16px;">${escapeHtml(displayJobNumber(j.jobNumber) || 'Job')}</h3>
         <span class="status-pill ${jobLifeStatusClass(j.status)}">${escapeHtml(j.status || 'Active')}</span>
       </div>
       ${j.jobType ? `<div style="margin-top:8px;"><span class="job-type-tag" style="font-size:13px;padding:3px 10px;">${escapeHtml(jobTypeDisplay(j))}</span></div>` : ''}
@@ -12763,7 +12769,7 @@ async function cancelTaskModelJob(id) {
   if (!j) return;
   const nOpen = tasksForJob(id).filter((t) => t.status === 'Open').length;
   const ok = await confirmDialog('Cancel this job?',
-    `${j.jobNumber || 'This job'} moves to Cancelled${nOpen ? ` and its ${nOpen} open task${nOpen === 1 ? '' : 's'} will be cancelled` : ''}. Records already logged stay linked.`,
+    `${displayJobNumber(j.jobNumber) || 'This job'} moves to Cancelled${nOpen ? ` and its ${nOpen} open task${nOpen === 1 ? '' : 's'} will be cancelled` : ''}. Records already logged stay linked.`,
     { okText: 'Cancel Job' });
   if (!ok) return;
   const moved = await setJobLifecycleStatus(id, 'Cancelled', { rebaitActive: false });
@@ -12967,7 +12973,7 @@ function populateAppointmentJobSelect(selectedId) {
   for (const j of jobs) {
     const o = document.createElement('option');
     o.value = j.id;
-    o.textContent = `${j.jobNumber} · ${j.customerName || ''}`;
+    o.textContent = `${displayJobNumber(j.jobNumber)} · ${j.customerName || ''}`;
     sel.appendChild(o);
   }
   /* Editing an appointment whose job is no longer active (Paid/Cancelled):
@@ -12977,7 +12983,7 @@ function populateAppointmentJobSelect(selectedId) {
     if (j) {
       const o = document.createElement('option');
       o.value = j.id;
-      o.textContent = `${j.jobNumber || 'Job'} · ${j.customerName || ''} (${j.status || 'closed'})`;
+      o.textContent = `${displayJobNumber(j.jobNumber) || 'Job'} · ${j.customerName || ''} (${j.status || 'closed'})`;
       sel.appendChild(o);
     }
   }
@@ -13323,7 +13329,7 @@ function renderAppointmentDetail(jobId, apptId) {
   if (a.visitType === 'Trap Set / Treatment' && a.status !== 'Cancelled' && !hasRebaitSeries) {
     actions += `<button class="btn btn-amber" data-appt-action="rebait-schedule" data-id="${escapeHtml(apptId)}" data-job="${escapeHtml(jobId)}">Set Up Rebait Schedule</button>`;
   }
-  actions += `<button class="btn btn-ghost" data-appt-action="open-job" data-job="${escapeHtml(jobId)}">Open Job ${escapeHtml(a.jobNumber || '')}</button>`;
+  actions += `<button class="btn btn-ghost" data-appt-action="open-job" data-job="${escapeHtml(jobId)}">Open Job ${escapeHtml(displayJobNumber(a.jobNumber) || '')}</button>`;
   box.innerHTML = `
     <div class="card">
       <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;">
@@ -13333,7 +13339,7 @@ function renderAppointmentDetail(jobId, apptId) {
       <div class="muted" style="margin-top:6px;">${escapeHtml(longDate(a.scheduledDate))} · ${escapeHtml(fmtTime12(a.scheduledTime))}</div>
     </div>
     <div class="card">
-      ${detail('Job', [a.jobNumber, a.customerName].filter(Boolean).join(' · '))}
+      ${detail('Job', [displayJobNumber(a.jobNumber), a.customerName].filter(Boolean).join(' · '))}
       ${detail('Assigned to', (a.assigneeNames || []).join(', '))}
       ${detail('Outcome', a.outcome)}
       ${detail('Notes', a.notes)}
@@ -13429,7 +13435,7 @@ function updateUnlinkedBanner(bannerId, filter, records, label) {
   const nUnlinked = records.filter((r) => !r.jobId).length;
   if (filter.jobId) {
     const j = cachedJobs.find((x) => x.id === filter.jobId);
-    el.textContent = `Showing ${label} for ${j ? (j.jobNumber || 'job') : 'job'} — tap to show all`;
+    el.textContent = `Showing ${label} for ${j ? (displayJobNumber(j.jobNumber) || 'job') : 'job'} — tap to show all`;
     el.classList.remove('hidden');
   } else if (filter.unlinkedOnly) {
     el.textContent = `Showing ${nUnlinked} unlinked legacy ${label} — tap to show all`;
@@ -13488,7 +13494,7 @@ function renderAssignLegacyView() {
   legacyGroupsCache = buildLegacyGroups();
   const jobs = lifecycleJobs().sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
   const jobOptions = ['<option value="">— pick a job —</option>',
-    ...jobs.map((j) => `<option value="${escapeHtml(j.id)}">${escapeHtml(`${j.jobNumber} · ${j.customerName || ''} · ${j.status || ''}`)}</option>`)
+    ...jobs.map((j) => `<option value="${escapeHtml(j.id)}">${escapeHtml(`${displayJobNumber(j.jobNumber)} · ${j.customerName || ''} · ${j.status || ''}`)}</option>`)
   ].join('');
   if (!legacyGroupsCache.length) {
     box.innerHTML = `<div class="card"><div class="empty"><div class="em-title">All caught up</div>
@@ -13576,7 +13582,7 @@ async function assignLegacyGroup(index, jobId, btn) {
         toast('Assign failed to sync: ' + errText(err), 'error');
       });
     }
-    toast(`Linked ${g.items.length} record${g.items.length === 1 ? '' : 's'} to ${j.jobNumber}`);
+    toast(`Linked ${g.items.length} record${g.items.length === 1 ? '' : 's'} to ${displayJobNumber(j.jobNumber)}`);
     renderAssignLegacyView();
   } catch (err) {
     console.error('Legacy assign failed', err);
@@ -13963,7 +13969,7 @@ function showHubJobSelector(action, jobs) {
   const box = $('#hubJobChooser');
   if (!box) return;
   box.innerHTML = '<div class="hint" style="margin-bottom:6px;">Multiple active jobs — which one?</div>' +
-    jobs.map((j) => `<button type="button" class="map-btn ghost" data-hub-job="${escapeHtml(j.id)}">${escapeHtml(j.jobNumber || 'Job')} · ${escapeHtml(j.status || '')}</button>`).join('');
+    jobs.map((j) => `<button type="button" class="map-btn ghost" data-hub-job="${escapeHtml(j.id)}">${escapeHtml(displayJobNumber(j.jobNumber) || 'Job')} · ${escapeHtml(j.status || '')}</button>`).join('');
   box.classList.remove('hidden');
 }
 
@@ -14363,7 +14369,7 @@ function updateBackToJobBtn() {
   if (!btn) return;
   const j = customerReturnJobId ? cachedJobs.find((x) => x.id === customerReturnJobId) : null;
   btn.classList.toggle('hidden', !customerReturnJobId);
-  btn.textContent = j && j.jobNumber ? `← Back to ${j.jobNumber}` : '← Back to Job';
+  btn.textContent = j && displayJobNumber(j.jobNumber) ? `← Back to ${displayJobNumber(j.jobNumber)}` : '← Back to Job';
 }
 
 function editCustomer(id, opts = {}) {
