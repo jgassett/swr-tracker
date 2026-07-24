@@ -7029,8 +7029,19 @@ async function deleteCameraPermanently(key) {
   const label = (g && g.name) ? `${g.name} (${key})` : key;
   const nH = g ? g.devices.length : 0;
   const nP = g ? g.photos.length : 0;
-  const linkedNote = g && g.customerId
-    ? ` This camera is still linked to ${g.name || 'a customer'} through a property Camera ID — new mail from it will re-link automatically; clear the property's Camera ID first if you are retiring it.`
+  /* v2-patch-14 Item 6: deleting a key a property still ROUTES is not a
+     retirement — assigned cameras are always visible (deployed-but-silent
+     rule), so the entry stays in Monitoring with its data gone and reads
+     as a failed delete. The dialog now names the exact assignment, says
+     the camera stays visible, and offers the actual retirement step
+     (remove the assignment) right after the deletion — one flow. */
+  const assigned = resolveCustomerForKey(key);
+  const assignedProp = assigned ? cachedProperties.find((p) => p.id === assigned.propertyId) : null;
+  const assignedLabel = assigned
+    ? `${assigned.name || 'a customer'}${assignedProp && assignedProp.siteNickname ? ` — property "${assignedProp.siteNickname}"` : ''}`
+    : '';
+  const linkedNote = assigned
+    ? ` NOTE: ${assignedLabel} still routes this Camera ID, so the camera STAYS VISIBLE in Monitoring (with no data) until that assignment is removed — you'll be offered that after the deletion. New mail from the key would re-link automatically.`
     : '';
   /* Two-step confirmation — same destructive pattern as Clear All Records /
      Restore Backup (v2-patch-5 Item 22): explain, then type CONFIRM. */
@@ -7048,6 +7059,26 @@ async function deleteCameraPermanently(key) {
     const res = await httpsCallable(fbFunctions, 'deleteCameraRecord', { timeout: 300000 })({ key });
     const r = (res && res.data) || {};
     toast(`${label} deleted — ${r.healthDeleted ?? 0} health record(s) and ${r.photosDeleted ?? 0} photo(s) removed`);
+    /* Item 6: the retirement offer — reuses the property editor's write
+       path (clear property.cameraId), so retiring a pulled camera is one
+       flow instead of a scavenger hunt. Declining keeps the assignment:
+       the camera stays visible and future mail re-links. */
+    if (assigned) {
+      const alsoRemove = await confirmDialog('Remove the assignment too?',
+        `${assignedLabel} still routes Camera ID ${key}, so the camera stays listed in Monitoring. If the camera has been pulled from the site, remove the assignment to retire it completely — it disappears from Monitoring and any future mail from ${key} lands in the pending queue as unmatched. Keep the assignment if the camera is still deployed there.`,
+        { okText: 'Remove Assignment' });
+      if (alsoRemove) {
+        try {
+          await writeWithRetry(() => setDoc(doc(fbDb, 'customers', assigned.id, 'properties', assigned.propertyId),
+            { cameraId: '', updatedAt: new Date().toISOString() }, { merge: true }));
+          const idx = cachedProperties.findIndex((x) => x.id === assigned.propertyId);
+          if (idx >= 0) cachedProperties[idx] = { ...cachedProperties[idx], cameraId: '' };
+          toast(`Assignment removed — ${key} is fully retired`);
+        } catch (err) {
+          toast('Camera data was deleted, but removing the assignment failed: ' + errText(err), 'error');
+        }
+      }
+    }
     currentFieldKey = null;
     setView('dashboard');
   } catch (err) {
