@@ -1394,12 +1394,25 @@ async function handleReportMessage(m, keyMap) {
   const buf = await graphGetBytes(`/users/${PHOTOS_MAILBOX}/messages/${m.id}/attachments/${htmlAtt.id}/$value`, ctx);
   const parsed = cb.parseReportHtml(buf.toString('utf8'));
   if (!parsed || !parsed.network) {
-    await queueUnmatchedReport(m, keyAttempt, 'could not parse report HTML (no table or Network header — possible new firmware format)');
+    await queueUnmatchedReport(m, keyAttempt, 'could not parse report HTML (no table, and neither a "Network:" nor a "Camera:" header — possible new firmware format)');
     return { devices: 0, pending: true };
   }
   if (!parsed.devices.length) {
     await queueUnmatchedReport(m, parsed.network || keyAttempt, 'report parsed but contained no device rows (unrecognized row format)');
     return { devices: 0, pending: true };
+  }
+
+  /* Item 3 (v2-patch-15): the SD red flag is a GB free-space floor for
+     both species — a row whose free-space text didn't parse to GB leaves
+     the condition unevaluable, which must never happen silently. */
+  for (const d of parsed.devices) {
+    if (d.sdFreeGB == null) {
+      console.warn(
+        `SD condition UNEVALUATED for ${parsed.network} #${d.cameraNumber} (${d.cameraName || '?'}) — ` +
+        `free-space text ${JSON.stringify(d.sdFreeSpace || '')} did not parse to GB; ` +
+        `the ${cb.SD_FREE_MIN_GB} GB floor cannot be checked for this device`
+      );
+    }
   }
 
   const today = cb.todayMDY(REPORT_TZ);
@@ -1417,18 +1430,23 @@ async function handleReportMessage(m, keyMap) {
   /* v2-patch-12 Item 1: merge-only upsert core that never touches
      operator-set fields and keeps the internal flag sticky across device
      renumbering / new rows — see camera-health.js. */
-  await camHealth.upsertReportHealthCore(db, { parsed, match, today, nowIso });
+  const upsert = await camHealth.upsertReportHealthCore(db, { parsed, match, today, nowIso });
+  if (upsert.pendingResolved) {
+    console.log(`Stale __pending manual-review row for ${parsed.network} resolved — this key's reports now ingest (v2-patch-15)`);
+  }
   await logDeletedCameraReappearance(parsed.network, !!match);
 
   /* v2-patch-10 Item 4d: one self-explaining line per report so a future
      "No Report" state is diagnosable from the ingest log alone — which
-     network key the report carried, whether it matched a property, whether
-     the report date counts as current, and every device row it updated. */
+     species was detected (v2-patch-15: cuddelink network vs tracks solo),
+     which network key the report carried, whether it matched a property,
+     whether the report date counts as current, and every device row it
+     updated (with its battery and SD readings). */
   console.log(
-    `Report ingested: network=${parsed.network}`,
+    `Report ingested: species=${parsed.species} network=${parsed.network}`,
     `match=${match ? `${match.name || match.id} (property ${match.propertyId})` : 'NONE — health rows written unassigned'}`,
     `reportDate=${parsed.reportDate} today(${REPORT_TZ})=${today} dateCurrent=${parsed.reportDate === today}`,
-    `devices=[${parsed.devices.map((d) => `#${d.cameraNumber} ${d.cameraName}`).join(', ')}]`
+    `devices=[${parsed.devices.map((d) => `#${d.cameraNumber} ${d.cameraName} battery=${d.battery || '?'} sd=${d.sdFreeSpace || '?'}`).join(', ')}]`
   );
 
   /* A daily status report proves the camera network is alive — refresh
@@ -1455,8 +1473,9 @@ async function handleReportMessage(m, keyMap) {
   }
 
   /* Item 14: any camera failing the green threshold in the daily status
-     email alerts every operator — battery low, SD card at/above 90%
-     capacity (free space below threshold), an error flag (photo queue
+     email alerts every operator — battery low, SD card nearly full (free
+     space below the documented GB floor, cuddeback-parse SD_FREE_MIN_GB —
+     both report species show free space in GB), an error flag (photo queue
      backlog), or no daily status report received for that camera. 2-hour
      per-camera-per-condition dedup via lastNotifiedAt. */
   try {
@@ -1470,7 +1489,7 @@ async function handleReportMessage(m, keyMap) {
       if (d) {
         const defs = cb.deviceDeficiencies(d);
         if (defs.includes('battery')) conds.push(['battery', 'battery level low']);
-        if (defs.includes('sd')) conds.push(['sd', 'SD card at or above 90% capacity']);
+        if (defs.includes('sd')) conds.push(['sd', `SD card nearly full — under ${cb.SD_FREE_MIN_GB} GB free`]);
         if (defs.includes('queue')) conds.push(['queue', `error flag: photo queue backlog (${d.photoQueue} queued)`]);
       } else if (!inReport.has(String(h.cameraNumber))) {
         /* Retirement cutoff: a camera absent from reports for over 7 days

@@ -9,7 +9,21 @@
 
 const { normKey } = require('./admin-migrations');
 
-/* Health thresholds (tune here). */
+/* Health thresholds (tune here).
+ *
+ * SD rule (v2-patch-15 Item 3) — ONE rule for BOTH report species:
+ * every Cuddeback report shows SD condition as FREE SPACE IN GB (CuddeLink
+ * network tables and Tracks solo history rows alike — neither carries a
+ * percent-used figure). The red-flag condition everywhere is therefore a
+ * free-space floor: sdFreeGB < SD_FREE_MIN_GB. Alert copy that used to say
+ * "SD card at or above 90% capacity" described a percentage that was never
+ * computed anywhere — this GB floor has always been the actual computation
+ * (the app's live view uses the identical `sdFreeGB < 4` in
+ * deviceDefsLive, index.html) — so the copy now states the real rule.
+ * A device row whose free-space text fails to parse leaves sdFreeGB null;
+ * the condition is then unevaluable, and handleReportMessage logs a loud
+ * per-device warning so it is never SILENTLY unevaluated (the parse tests
+ * pin sdFreeGB non-null for both species' fixtures). */
 const SD_FREE_MIN_GB = 4;    // free space BELOW this = deficiency (card nearly full)
 const PHOTO_QUEUE_MAX = 5;   // photos in queue ABOVE this = deficiency
 
@@ -57,54 +71,138 @@ function sdFreeGB(s) {
   return m ? parseFloat(m[1]) : null;
 }
 
-/* Parse the report HTML attachment. Returns { reportDate, network, devices[] }
- * from the FIRST (latest) daily table.
+/* "M/D/YYYY" (anywhere in the string) -> sortable YYYYMMDD number, 0 if
+ * absent — used to pick the NEWEST table/row regardless of email order. */
+function mdyNum(s) {
+  const m = (s || '').match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  return m ? (+m[3]) * 10000 + (+m[1]) * 100 + (+m[2]) : 0;
+}
+
+/* Split a <tr> into trimmed, tag-stripped cell texts. */
+function rowCells(row) {
+  return [...row.matchAll(/<td[^>]*>([\s\S]*?)<\/td>/gi)]
+    .map((m) => m[1].replace(/&nbsp;/g, ' ').replace(/<[^>]+>/g, '').trim());
+}
+
+/* Data rows of one table: <tr class="cl-entry"> normally; firmware that
+ * drops or renames the class falls back to every <tr> — the callers' cell
+ * guards drop headers and filler (Item 10 / v2-patch-5 hardening). */
+function tableRows(t) {
+  const rows = t.match(/<tr class="cl-entry">[\s\S]*?<\/tr>/gi) || [];
+  return rows.length ? rows : (t.match(/<tr[^>]*>[\s\S]*?<\/tr>/gi) || []);
+}
+
+/* Parse the report HTML attachment. Cuddeback sends TWO report species
+ * (v2-patch-15, owner-confirmed taxonomy):
  *
- * Item 10 (v2-patch-5) hardening — known format variations:
- *  - <table> may carry attributes on newer firmware (<table border="1">):
- *    the split now tolerates them.
- *  - Device rows are normally <tr class="cl-entry">; firmware that drops or
- *    renames the class falls back to scanning every <tr> with enough cells.
- *  - Date:/Network: header text is unchanged across observed versions. */
+ *  - CUDDELINK NETWORK reports (linking cameras): stacked per-day tables
+ *    headed "Date: <d> - Network: <KEY> - Channel: <c>", one row per
+ *    linked device. Handled by parseCuddeLinkTables().
+ *  - TRACKS SOLO reports (non-linking cameras): one table headed
+ *    "Camera: <KEY>" of per-day history rows for that single device.
+ *    Handled by parseTracksTable(). These NEVER parsed before v2-patch-15
+ *    (see Item 1 analysis) — the old parser required a Network: header.
+ *
+ * Returns { species, reportDate, network, devices[] } or null when neither
+ * header is present (the caller queues the message for manual review).
+ *
+ * Item 10 (v2-patch-5) hardening retained: <table> may carry attributes
+ * on newer firmware; device rows fall back from cl-entry to every <tr>. */
 function parseReportHtml(html) {
   if (!html) return null;
   const tables = html.split(/<table[^>]*>/i).slice(1);
   if (!tables.length) return null;
-  const first = tables[0];
+  if (tables.some((t) => /Network:/i.test(t))) return parseCuddeLinkTables(tables);
+  const camHeader = html.match(/Camera:\s*([^<]+?)\s*</i);
+  if (camHeader) return parseTracksTable(tables, camHeader[1]);
+  return null;
+}
+
+/* CuddeLink network report: the email stacks several days' tables
+ * (observed newest-first, so the old take-tables[0] behavior was already
+ * correct on every fixture). Item 4 (v2-patch-15) makes that explicit:
+ * the table is selected by NEWEST parsed "Date:" header, not by position,
+ * mirroring the Tracks newest-row rule. Tables without a parseable date
+ * rank lowest; if none parse, the first table is used as before. */
+function parseCuddeLinkTables(tables) {
+  let first = tables[0], bestNum = -1;
+  for (const t of tables) {
+    const dm = t.match(/Date:\s*([\d/]+)/i);
+    const n = dm ? mdyNum(dm[1]) : 0;
+    if (n > bestNum) { bestNum = n; first = t; }
+  }
 
   const dateMatch = first.match(/Date:\s*([\d/]+)/i);
   const netMatch = first.match(/Network:\s*([^<&\-]+?)\s*(?:&nbsp;|<|\s-\s)/i);
   const reportDate = dateMatch ? dateMatch[1].trim() : null;
   const network = netMatch ? (normKey(netMatch[1]) || null) : null;
 
-  let rows = first.match(/<tr class="cl-entry">[\s\S]*?<\/tr>/gi) || [];
-  if (!rows.length) {
-    /* Firmware variant without the cl-entry class: take every row; the
-       cell-count and camera-number guards below drop headers and filler. */
-    rows = first.match(/<tr[^>]*>[\s\S]*?<\/tr>/gi) || [];
-  }
   const devices = [];
-  for (const row of rows) {
-    const cells = [...row.matchAll(/<td[^>]*>([\s\S]*?)<\/td>/gi)]
-      .map((m) => m[1].replace(/&nbsp;/g, ' ').replace(/<[^>]+>/g, '').trim());
+  for (const row of tableRows(first)) {
+    const cells = rowCells(row);
     if (cells.length < 14) continue;              // filler/colspan rows
     const cameraNumber = cells[2];
     const cameraName = cells[3];
     if (!cameraNumber || !cameraName) continue;    // empty placeholder rows
+    /* Column-label row: only reachable via the any-<tr> fallback (its
+       cells[2]/[3] are the literal texts "Camera Number"/"Camera Name",
+       which passed the guards above). Device numbers are always numeric. */
+    if (!/^\d+$/.test(cameraNumber)) continue;
     const queue = parseInt(cells[8], 10);
     devices.push({
       cameraNumber,
       cameraName,
       mode: cells[1],
       battery: cells[6],
+      batteryDays: cells[7] || null,
       photoQueue: Number.isFinite(queue) ? queue : null,
+      sdPhotos: cells[9] || null,
       sdFreeSpace: cells[10],
       sdFreeGB: sdFreeGB(cells[10]),
       fwVersion: cells[12],
       clVersion: cells[13]
     });
   }
-  return { reportDate, network, devices };
+  return { species: 'cuddelink', reportDate, network, devices };
+}
+
+/* Tracks solo report: the "Camera: <KEY>" table is a per-day history of
+ * ONE device (columns: #, Date, Battery, Battery Days, SD Photos,
+ * SD Free Space, HW Version, FW Version, CL Version). The device entry is
+ * built from the NEWEST history row by date (rows are observed
+ * newest-first, but selection is by parsed date, not position);
+ * reportDate is that row's date. cameraNumber is fixed at '1' — a solo
+ * unit is always exactly one device, so its health doc is <KEY>__1. */
+function parseTracksTable(tables, rawKey) {
+  const t = tables.find((x) => /Camera:/i.test(x)) || tables[0];
+  const key = normKey(rawKey) || null;
+  let best = null, bestNum = 0;
+  for (const row of tableRows(t)) {
+    const cells = rowCells(row);
+    if (cells.length < 9) continue;               // "Camera:" header / filler
+    const n = mdyNum(cells[1]);
+    if (!n) continue;                             // column-label row ("Date")
+    if (n > bestNum) { bestNum = n; best = cells; }
+  }
+  if (!best) return { species: 'tracks', reportDate: null, network: key, devices: [] };
+  return {
+    species: 'tracks',
+    reportDate: best[1],
+    network: key,
+    devices: [{
+      cameraNumber: '1',
+      cameraName: key,
+      mode: 'Solo',
+      battery: best[2],
+      batteryDays: best[3] || null,
+      photoQueue: null,                            // no link queue on a solo unit
+      sdPhotos: best[4] || null,
+      sdFreeSpace: best[5],
+      sdFreeGB: sdFreeGB(best[5]),
+      fwVersion: best[7],
+      clVersion: best[8]
+    }]
+  };
 }
 
 /* Which factors are deficient for one device. */
@@ -141,6 +239,6 @@ function todayMDY(tz) {
 
 module.exports = {
   SD_FREE_MIN_GB, PHOTO_QUEUE_MAX,
-  subjectKey, customerKeyFor, sdFreeGB,
+  subjectKey, customerKeyFor, sdFreeGB, mdyNum,
   parseReportHtml, deviceDeficiencies, deviceStatus, worstStatus, todayMDY
 };
