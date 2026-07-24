@@ -1394,7 +1394,7 @@ async function handleReportMessage(m, keyMap) {
   const buf = await graphGetBytes(`/users/${PHOTOS_MAILBOX}/messages/${m.id}/attachments/${htmlAtt.id}/$value`, ctx);
   const parsed = cb.parseReportHtml(buf.toString('utf8'));
   if (!parsed || !parsed.network) {
-    await queueUnmatchedReport(m, keyAttempt, 'could not parse report HTML (no table or Network header — possible new firmware format)');
+    await queueUnmatchedReport(m, keyAttempt, 'could not parse report HTML (no table, and neither a "Network:" nor a "Camera:" header — possible new firmware format)');
     return { devices: 0, pending: true };
   }
   if (!parsed.devices.length) {
@@ -1422,13 +1422,15 @@ async function handleReportMessage(m, keyMap) {
 
   /* v2-patch-10 Item 4d: one self-explaining line per report so a future
      "No Report" state is diagnosable from the ingest log alone — which
-     network key the report carried, whether it matched a property, whether
-     the report date counts as current, and every device row it updated. */
+     species was detected (v2-patch-15: cuddelink network vs tracks solo),
+     which network key the report carried, whether it matched a property,
+     whether the report date counts as current, and every device row it
+     updated (with its battery and SD readings). */
   console.log(
-    `Report ingested: network=${parsed.network}`,
+    `Report ingested: species=${parsed.species} network=${parsed.network}`,
     `match=${match ? `${match.name || match.id} (property ${match.propertyId})` : 'NONE — health rows written unassigned'}`,
     `reportDate=${parsed.reportDate} today(${REPORT_TZ})=${today} dateCurrent=${parsed.reportDate === today}`,
-    `devices=[${parsed.devices.map((d) => `#${d.cameraNumber} ${d.cameraName}`).join(', ')}]`
+    `devices=[${parsed.devices.map((d) => `#${d.cameraNumber} ${d.cameraName} battery=${d.battery || '?'} sd=${d.sdFreeSpace || '?'}`).join(', ')}]`
   );
 
   /* A daily status report proves the camera network is alive — refresh
