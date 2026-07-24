@@ -147,11 +147,19 @@
     .flow-cell .fc-desc { font-size: 10.5px; color: var(--amber-soft); line-height: 1.25; text-align: center; white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
     /* Amber badge dot (top right): at least one in-progress job sits at
        this step. Subtle — no number, no text; the cell itself is unchanged. */
-    .flow-cell .fc-dot {
-      position: absolute; top: 8px; right: 8px;
-      width: 8px; height: 8px; border-radius: 50%;
-      background: var(--amber);
+    /* v2-patch-14 Item 5: attention COUNT badges (replace the old fc-dot).
+       Two compact circles sit side by side in the tile's top-right corner —
+       green = on-track count, red = needs-attention count; either hides at
+       zero. Sized/positioned clear of the 40px icon and label on iPhone
+       width (3-column grid). */
+    .flow-cell .fc-badges { position: absolute; top: 5px; right: 5px; display: flex; gap: 3px; }
+    .flow-cell .fc-badge {
+      min-width: 18px; height: 18px; padding: 0 5px; border-radius: 999px;
+      font-size: 10.5px; font-weight: 700; color: #fff; line-height: 1;
+      display: flex; align-items: center; justify-content: center;
     }
+    .flow-cell .fc-badge.green { background: var(--status-green-fg); }
+    .flow-cell .fc-badge.red { background: var(--danger); }
     .flow-arrow-h {
       align-self: center; flex-shrink: 0; width: 14px; text-align: center;
       color: var(--amber); font-size: 15px; font-weight: 700; user-select: none;
@@ -4817,8 +4825,9 @@ function showModePicker() { showLanding(); }
  * the job lifecycle; rows alternate direction (row 1 →, row 2 ←) with a
  * curved arrow carrying the path down at each row's end. 3 columns (3+3)
  * on phones and tablets, all 6 in one row from 1200px up. Tapping a cell
- * opens its module; steps where an in-progress job currently sits show a
- * small amber badge dot in the top right corner.
+ * opens its module. v2-patch-14 Item 5: Jobs, Schedule, and Monitoring
+ * carry green/red attention COUNT badges (see flowStepBadges); Customer,
+ * Field Work, and Close Out never carry a badge.
  * ===================================================================== */
 /* Item 14 (v2-patch-1): no step numbers on cells; straight down arrows.
    Item 7 (v2-patch-2): six steps — Close Out is the standalone final step.
@@ -4831,23 +4840,64 @@ const FLOW_STEPS = [
   { n: 5, icon: '🦝', label: 'Field Work',       desc: 'Trapping & pesticide logs', mode: 'fieldwork' },
   { n: 6, icon: '✅', label: 'Close Out',        desc: 'Complete finished jobs',   mode: 'closeout', adminOnly: true }
 ];
-/* Job status → the workflow step where that job's next action lives. Any
-   open job highlights the Jobs step; scheduled work highlights Schedule. */
-const JOB_STATUS_TO_FLOW_STEP = {
-  'Lead': 2, 'Estimated': 2, 'Scheduled': 3, 'Active': 2,
-  'Pending Close': 2, 'Invoiced': 2
-};
 const flowGridMedia = window.matchMedia('(min-width: 1200px)');
 
-function activeFlowSteps() {
-  const steps = new Set();
-  lifecycleJobs().filter(jobIsActive).forEach((j) => {
-    const step = JOB_STATUS_TO_FLOW_STEP[j.status || 'Lead'];
-    if (step) steps.add(step);
-  });
-  /* Item 7 (v2-patch-2): highlight Close Out when jobs are ready to close. */
-  if (jobsReadyToClose().length) steps.add(6);
-  return steps;
+/* v2-patch-14 Item 5: the operational "today" — America/New_York, the same
+   day math the operation runs on (and the server's REPORT_TZ). en-CA
+   formatting yields YYYY-MM-DD for direct string comparison. */
+function todayNY() {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit'
+  }).format(new Date());
+}
+
+/* v2-patch-14 Item 5 (owner spec): per-tile attention COUNT badges —
+   replaces the old "has in-progress job" dot logic entirely. Returns
+   { stepN: { green, red } }; a zero count hides that badge. Derives ONLY
+   from the already-live caches feeding renderLandingCounts — no listeners.
+   - Jobs: green = Active jobs open < 30 days; red = Active jobs open ≥ 30
+     days, the SAME day math as the server's jobDurationReminder
+     (activeSince = startDate || createdAt; now − activeSince ≥ 30d — a job
+     at exactly 30 days is red). Unparseable dates count green.
+   - Schedule: green = open (not Complete/Cancelled) tasks scheduled today
+     or later (undated open work counts here too — open, not overdue);
+     red = open tasks scheduled before today. Legacy appointments included.
+   - Monitoring: green = property-matched (or internal) cameras with NO
+     red-flag condition; red = unmatched pending-queue keys OR any camera
+     red-flagged (battery low, SD ≥ 90%, error/queue flag, no daily report,
+     silent/offline). Internal cameras are green when healthy, red when
+     flagged, never counted as unmatched.
+   - Customer, Field Work, Close Out: no badges, ever. */
+function flowStepBadges() {
+  const badges = {};
+  /* Jobs (step 2) */
+  const OPEN_LIMIT_MS = 30 * 24 * 60 * 60 * 1000;   /* = jobDurationReminder REMIND_MS */
+  const now = Date.now();
+  let jobsOk = 0, jobsOver = 0;
+  for (const j of lifecycleJobs()) {
+    if ((j.status || 'Active') !== 'Active') continue;
+    const activeSince = Date.parse(j.startDate || j.createdAt || '') || 0;
+    if (activeSince && now - activeSince >= OPEN_LIMIT_MS) jobsOver++; else jobsOk++;
+  }
+  badges[2] = { green: jobsOk, red: jobsOver };
+  /* Schedule (step 3) */
+  const today = todayNY();
+  let schedOk = 0, schedOver = 0;
+  for (const t of [...cachedTasks, ...cachedAppointments]) {
+    const s = t.status || 'Open';
+    if (s === 'Completed' || s === 'Complete' || s === 'Cancelled') continue;
+    const d = String(t.scheduledDate || '').slice(0, 10);
+    if (d && d < today) schedOver++; else schedOk++;
+  }
+  badges[3] = { green: schedOk, red: schedOver };
+  /* Monitoring (step 4) */
+  let camOk = 0, camFlag = 0;
+  for (const g of fieldGroups()) {
+    if (!g.installed && !g.internal) { camFlag++; continue; }   /* unmatched queue */
+    if (g.status === 'green') camOk++; else camFlag++;          /* yellow/red/none = flagged */
+  }
+  badges[4] = { green: camOk, red: camFlag };
+  return badges;
 }
 
 /* Item 14 (v2-patch-1): straight down arrows at the row breaks (was curved). */
@@ -4860,11 +4910,19 @@ function renderFlowGrid() {
   const root = $('#flowGrid');
   if (!root) return;
   const cols = flowGridMedia.matches ? 6 : 3;
-  const current = activeFlowSteps();
+  const badges = flowStepBadges();   /* v2-patch-14 Item 5 */
   /* Item 14: no step numbers — icon (40px), bold label, one-line description. */
   /* Admin-only steps (Close Out) render grayed-out and inert for everyone
      else — no data-mode, so the grid's click handler ignores them. The
      Firestore rules enforce the same restriction server-side. */
+  const badgeHtml = (st) => {
+    const b = badges[st.n];
+    if (!b || (!b.green && !b.red)) return '';
+    return '<span class="fc-badges" aria-hidden="true">' +
+      (b.green ? `<span class="fc-badge green">${b.green}</span>` : '') +
+      (b.red ? `<span class="fc-badge red">${b.red}</span>` : '') +
+      '</span>';
+  };
   const cell = (st) => {
     if (!st) return '<div class="flow-cell spacer" aria-hidden="true"></div>';
     const locked = st.adminOnly && !isAdmin();
@@ -4874,7 +4932,7 @@ function renderFlowGrid() {
         `<span class="fc-label">${st.label}</span>` +
         `<span class="fc-desc">${st.desc}</span></button>`
       : `<button type="button" class="flow-cell" data-mode="${st.mode}" aria-label="${st.label}">` +
-        `${current.has(st.n) ? '<span class="fc-dot" aria-hidden="true"></span>' : ''}` +
+        badgeHtml(st) +
         `<span class="fc-icon" aria-hidden="true">${st.icon}</span>` +
         `<span class="fc-label">${st.label}</span>` +
         `<span class="fc-desc">${st.desc}</span></button>`;
@@ -6258,6 +6316,7 @@ function subscribeToFieldData() {
   if (!cameraPhotosUnsub) {
     cameraPhotosUnsub = onSnapshot(query(cameraPhotosCol(), orderBy('receivedAt', 'desc')), (snap) => {
       cachedCameraPhotos = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      renderLandingCounts();   /* v2-patch-14 Item 5: photos keep unmatched groups alive → Monitoring badge */
       if (!$('#app').classList.contains('hidden') && appMode === 'field') refreshFieldViews();
     }, (err) => console.error('cameraPhotos subscription error', err));
   }
@@ -6267,6 +6326,7 @@ function subscribeToFieldData() {
   if (!cameraStatusUnsub) {
     cameraStatusUnsub = onSnapshot(collection(fbDb, 'cameraStatus'), (snap) => {
       cachedCameraStatus = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      renderLandingCounts();   /* v2-patch-14 Item 5: removal flags change Monitoring badge counts */
       if (!$('#app').classList.contains('hidden') && appMode === 'field') refreshFieldViews();
     }, (err) => console.error('cameraStatus subscription error', err));
   }
@@ -14417,6 +14477,7 @@ function subscribeToProperties() {
     cachedPropertiesLoaded = true;   /* v2-patch-7 security audit: dup-primary guard */
     cachedProperties = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
     cachedProperties.sort((a, b) => (a.siteNickname || '').localeCompare(b.siteNickname || ''));
+    renderLandingCounts();   /* v2-patch-14 Item 5: cameraId assignments flip matched/unmatched counts */
     if (editingCustomerId && !$('#view-add-customer').classList.contains('hidden')) renderPropertiesCard();
   }, (err) => {
     console.error('Properties subscription error', err);
